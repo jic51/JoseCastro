@@ -10,7 +10,9 @@ const App = {
     history: [],
     answeredDates: {},
     lastPlayed: null,
-    onboardingDone: false
+    onboardingDone: false,
+    leaderboardCache: null,
+    leaderboardCacheDate: null
   },
   today: new Date(),
   currentQuestion: null,
@@ -335,7 +337,17 @@ const App = {
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = UI.updateCountdown(tomorrow, 'results-countdown');
 
-    const lb = UI.generateLeaderboard(this.data.totalPoints, this.data.name);
+    // Use cached leaderboard or generate new one
+    const todayStr = Security.getTodayString();
+    let lb;
+    if (this.data.leaderboardCacheDate === todayStr && this.data.leaderboardCache) {
+      lb = this.data.leaderboardCache;
+    } else {
+      lb = UI.generateLeaderboard(this.data.totalPoints, this.data.name);
+      this.data.leaderboardCache = lb;
+      this.data.leaderboardCacheDate = todayStr;
+      this.saveData();
+    }
     UI.renderLeaderboard(lb, 'leaderboard-list');
   },
 
@@ -363,44 +375,118 @@ const App = {
     this.timerInterval = UI.updateCountdown(targetTime, 'wait-countdown');
   },
 
-  // ===== SHARE =====
-  shareResult() {
+    // ===== SHARE =====
+  getShareData() {
     const todayStr = Security.getTodayString();
     const record = this.data.answeredDates[todayStr];
-    if (!record) return;
-    const q = QUESTIONS.find(q => q.id === record.questionId);
-    const qData = q[currentLang];
-    const badge = UI.getBadge(record.accuracy, this.data.streak);
-
-    const text = currentLang === 'es' 
-      ? `🧠 SecondGuess — ¿Qué tan bien leo a la multitud?\n\n📌 ${qData.q}\n👤 Mi respuesta: ${record.answer}\n👥 Promedio: ${q.simulatedAvg}\n🎯 Precisión: ${record.accuracy}%\n🔥 Racha: ${this.data.streak} días\n\n¿Puedes superarme?`
-      : `🧠 SecondGuess — How well do I read the crowd?\n\n📌 ${qData.q}\n👤 My answer: ${record.answer}\n👥 Average: ${q.simulatedAvg}\n🎯 Accuracy: ${record.accuracy}%\n🔥 Streak: ${this.data.streak} days\n\nCan you beat me?`;
-
-    if (navigator.share) {
-      navigator.share({ title: 'SecondGuess', text });
-    } else {
-      navigator.clipboard.writeText(text).then(() => alert(t('share') + ' copied!'));
-    }
-  },
-
-  downloadCard() {
-    const todayStr = Security.getTodayString();
-    const record = this.data.answeredDates[todayStr];
-    if (!record) return;
+    if (!record) return null;
     const q = QUESTIONS.find(q => q.id === record.questionId);
     const qData = q[currentLang];
     const badge = UI.getBadge(record.accuracy, this.data.streak);
     const avgStr = q.type === 'numeric' ? q.simulatedAvg.toLocaleString() + (q.unit || '') : qData.options[q.simulatedDist.indexOf(Math.max(...q.simulatedDist))];
     const userStr = q.type === 'numeric' ? record.answer.toLocaleString() + (q.unit || '') : qData.options[record.answer];
-
-    UI.generateShareCard({
+    return {
       question: qData.q,
       userAnswer: userStr,
       average: avgStr,
       accuracy: record.accuracy,
       streak: this.data.streak,
-      badge: badge.title
-    }, (canvas) => {
+      badge: badge.title,
+      rawAnswer: record.answer,
+      simulatedAvg: q.simulatedAvg,
+      qData,
+      q
+    };
+  },
+
+  shareResult() {
+    this.showSharePreview();
+  },
+
+  showSharePreview() {
+    const data = this.getShareData();
+    if (!data) return;
+
+    const modal = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    modal.classList.add('active');
+
+    UI.generateShareCard(data, (canvas) => {
+      const previewUrl = canvas.toDataURL('image/png');
+
+      const shareText = currentLang === 'es'
+        ? `🧠 SecondGuess — ¿Qué tan bien leo a la multitud?%0A%0A📌 ${data.question}%0A👤 Mi respuesta: ${data.userAnswer}%0A👥 Promedio: ${data.average}%0A🎯 Precisión: ${data.accuracy}%25%0A🔥 Racha: ${data.streak} días%0A%0A¿Puedes superarme? 🎯 secondguess.app`
+        : `🧠 SecondGuess — How well do I read the crowd?%0A%0A📌 ${data.question}%0A👤 My answer: ${data.userAnswer}%0A👥 Average: ${data.average}%0A🎯 Accuracy: ${data.accuracy}%25%0A🔥 Streak: ${data.streak} days%0A%0ACan you beat me? 🎯 secondguess.app`;
+
+      const plainText = currentLang === 'es'
+        ? `🧠 SecondGuess — ¿Qué tan bien leo a la multitud?
+
+📌 ${data.question}
+👤 Mi respuesta: ${data.userAnswer}
+👥 Promedio: ${data.average}
+🎯 Precisión: ${data.accuracy}%
+🔥 Racha: ${data.streak} días
+
+¿Puedes superarme? 🎯 secondguess.app`
+        : `🧠 SecondGuess — How well do I read the crowd?
+
+📌 ${data.question}
+👤 My answer: ${data.userAnswer}
+👥 Average: ${data.average}
+🎯 Accuracy: ${data.accuracy}%
+🔥 Streak: ${data.streak} days
+
+Can you beat me? 🎯 secondguess.app`;
+
+      content.innerHTML = `
+        <div class="modal-title">📤 ${t('share')}</div>
+        <div style="text-align:center;margin-bottom:1rem">
+          <img src="${previewUrl}" style="max-width:100%;border-radius:16px;border:2px solid rgba(245,158,11,0.3);max-height:50vh;object-fit:contain" alt="Preview">
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem">
+          <a href="https://wa.me/?text=${shareText}" target="_blank" class="share-btn" style="text-decoration:none;background:#25d366;color:#fff">
+            💬 WhatsApp
+          </a>
+          <a href="https://twitter.com/intent/tweet?text=${shareText}" target="_blank" class="share-btn" style="text-decoration:none;background:#000;color:#fff">
+            🐦 X / Twitter
+          </a>
+          <a href="https://www.facebook.com/sharer/sharer.php?quote=${shareText}" target="_blank" class="share-btn" style="text-decoration:none;background:#1877f2;color:#fff">
+            📘 Facebook
+          </a>
+          <a href="sms:?body=${shareText}" class="share-btn" style="text-decoration:none;background:#34c759;color:#fff">
+            ✉️ SMS
+          </a>
+          <a href="mailto:?subject=SecondGuess&body=${shareText}" class="share-btn" style="text-decoration:none;background:#ea4335;color:#fff">
+            📧 Email
+          </a>
+          <button class="share-btn" onclick="App.copyShareText()" style="background:#8b5cf6;color:#fff;border:none">
+            📋 ${currentLang === 'es' ? 'Copiar' : 'Copy'}
+          </button>
+        </div>
+        <button class="modal-btn modal-btn-primary" style="width:100%" onclick="App.downloadCard()">
+          💾 ${t('downloadCard')}
+        </button>
+      `;
+
+      this._sharePlainText = plainText;
+    });
+  },
+
+  copyShareText() {
+    if (this._sharePlainText) {
+      navigator.clipboard.writeText(this._sharePlainText).then(() => {
+        const btn = event.target;
+        const original = btn.textContent;
+        btn.textContent = currentLang === 'es' ? '✅ Copiado!' : '✅ Copied!';
+        setTimeout(() => btn.textContent = original, 2000);
+      });
+    }
+  },
+
+  downloadCard() {
+    const data = this.getShareData();
+    if (!data) return;
+    UI.generateShareCard(data, (canvas) => {
       const link = document.createElement('a');
       link.download = 'secondguess-result.png';
       link.href = canvas.toDataURL('image/png');
@@ -408,7 +494,7 @@ const App = {
     });
   },
 
-  // ===== MODALS =====
+// ===== MODALS =====
   showSettings() {
     const modal = document.getElementById('modal-overlay');
     const content = document.getElementById('modal-content');
@@ -473,6 +559,13 @@ const App = {
     this.saveData();
     this.closeModal();
     this.renderMainView();
+  },
+
+  openFeedback() {
+    const formUrl = currentLang === 'es' 
+      ? 'https://forms.gle/EXAMPLE_SPANISH' 
+      : 'https://forms.gle/EXAMPLE_ENGLISH';
+    window.open(formUrl, '_blank');
   },
 
   showInfo() {

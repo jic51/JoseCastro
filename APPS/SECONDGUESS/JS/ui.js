@@ -100,7 +100,6 @@ const UI = {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const w = 1080, h = 1920;
-    canvas.width = w; canvas.height = h;
     const dpr = 2;
     canvas.width = w * dpr; canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
@@ -127,84 +126,112 @@ const UI = {
     ctx.font = 'bold 72px "Segoe UI", sans-serif';
     ctx.fillStyle = '#fbbf24';
     ctx.textAlign = 'center';
-    ctx.fillText('🧠 SecondGuess', w/2, 180);
+    ctx.fillText('🧠 SecondGuess', w/2, 120);
 
-    ctx.font = '36px "Segoe UI", sans-serif';
+    ctx.font = '32px "Segoe UI", sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(currentLang === 'es' ? '¿Qué tan bien lees a la multitud?' : 'How well do you read the crowd?', w/2, 240);
+    ctx.fillText(currentLang === 'es' ? '¿Qué tan bien lees a la multitud?' : 'How well do you read the crowd?', w/2, 175);
 
     // Divider
     ctx.beginPath();
-    ctx.moveTo(120, 300);
-    ctx.lineTo(w-120, 300);
+    ctx.moveTo(120, 210);
+    ctx.lineTo(w-120, 210);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Question (truncated)
-    ctx.font = 'bold 48px "Segoe UI", sans-serif';
+    // Question - FULL TEXT with dynamic sizing
+    ctx.font = 'bold 42px "Segoe UI", sans-serif';
     ctx.fillStyle = '#ffffff';
-    const qText = data.question.length > 60 ? data.question.substring(0, 60) + '...' : data.question;
-    this.wrapText(ctx, qText, w/2, 420, w-240, 64, 'center');
+    const qLines = this.wrapText(ctx, data.question, w/2, 280, w-200, 58, 'center');
+    const qBottom = 280 + (qLines * 58);
 
-    // Result box
+    // Result box - dynamic position based on question height
+    const boxTop = qBottom + 60;
+    const boxHeight = 520;
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.beginPath();
-    ctx.roundRect(120, 600, w-240, 500, 40);
+    ctx.roundRect(100, boxTop, w-200, boxHeight, 40);
     ctx.fill();
     ctx.strokeStyle = 'rgba(245,158,11,0.3)';
     ctx.lineWidth = 4;
     ctx.stroke();
 
     // User answer
-    ctx.font = '40px "Segoe UI", sans-serif';
+    const innerTop = boxTop + 50;
+    ctx.font = '36px "Segoe UI", sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(currentLang === 'es' ? 'TU RESPUESTA' : 'YOUR ANSWER', w/2, 700);
-    ctx.font = 'bold 96px "Segoe UI", sans-serif';
+    ctx.fillText(currentLang === 'es' ? 'TU RESPUESTA' : 'YOUR ANSWER', w/2, innerTop);
+    ctx.font = 'bold 90px "Segoe UI", sans-serif';
     ctx.fillStyle = '#fbbf24';
-    ctx.fillText(data.userAnswer, w/2, 800);
+    ctx.fillText(data.userAnswer, w/2, innerTop + 90);
 
     // Average
-    ctx.font = '40px "Segoe UI", sans-serif';
+    ctx.font = '36px "Segoe UI", sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(currentLang === 'es' ? 'PROMEDIO DE LA MULTITUD' : 'CROWD AVERAGE', w/2, 920);
-    ctx.font = 'bold 80px "Segoe UI", sans-serif';
+    ctx.fillText(currentLang === 'es' ? 'PROMEDIO DE LA MULTITUD' : 'CROWD AVERAGE', w/2, innerTop + 180);
+    ctx.font = 'bold 76px "Segoe UI", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(data.average, w/2, 1010);
+    ctx.fillText(data.average, w/2, innerTop + 260);
 
-    // Accuracy
-    ctx.font = 'bold 72px "Segoe UI", sans-serif';
+    // Accuracy - inside the box, below average
+    ctx.font = 'bold 64px "Segoe UI", sans-serif';
     ctx.fillStyle = '#f59e0b';
-    ctx.fillText(data.accuracy + '% ' + (currentLang === 'es' ? 'precisión' : 'accuracy'), w/2, 1140);
+    ctx.fillText(data.accuracy + '% ' + (currentLang === 'es' ? 'precisión' : 'accuracy'), w/2, innerTop + 360);
 
-    // Streak
+    // Streak - below box
+    const belowBox = boxTop + boxHeight + 50;
     if (data.streak > 0) {
-      ctx.font = '48px "Segoe UI", sans-serif';
+      ctx.font = '44px "Segoe UI", sans-serif';
       ctx.fillStyle = '#fbbf24';
-      ctx.fillText('🔥 ' + data.streak + (currentLang === 'es' ? ' días de racha' : ' day streak'), w/2, 1260);
+      ctx.fillText('🔥 ' + data.streak + (currentLang === 'es' ? ' días de racha' : ' day streak'), w/2, belowBox);
     }
 
     // Badge
+    const badgeY = belowBox + (data.streak > 0 ? 100 : 30);
     ctx.fillStyle = 'rgba(245,158,11,0.15)';
     ctx.beginPath();
-    ctx.roundRect(240, 1340, w-480, 100, 50);
+    ctx.roundRect(200, badgeY, w-400, 90, 45);
     ctx.fill();
-    ctx.font = 'bold 44px "Segoe UI", sans-serif';
+    ctx.font = 'bold 40px "Segoe UI", sans-serif';
     ctx.fillStyle = '#fbbf24';
-    ctx.fillText(data.badge, w/2, 1405);
+    ctx.fillText(data.badge, w/2, badgeY + 60);
+
+    // QR code area
+    const qrY = badgeY + 150;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.roundRect(390, qrY, 300, 300, 20);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw simple QR pattern
+    ctx.fillStyle = '#ffffff';
+    const qrSize = 200;
+    const qrX = 440;
+    const qrYinner = qrY + 50;
+    for (let row = 0; row < 10; row++) {
+      for (let col = 0; col < 10; col++) {
+        if (Math.random() > 0.5) {
+          ctx.fillRect(qrX + col * 20, qrYinner + row * 20, 18, 18);
+        }
+      }
+    }
+    // QR corners
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(qrX, qrYinner, 60, 60);
+    ctx.strokeRect(qrX + 140, qrYinner, 60, 60);
+    ctx.strokeRect(qrX, qrYinner + 140, 60, 60);
 
     // Footer
-    ctx.font = '36px "Segoe UI", sans-serif';
+    const footerY = h - 180;
+    ctx.font = '32px "Segoe UI", sans-serif';
     ctx.fillStyle = '#64748b';
-    ctx.fillText('secondguess.app', w/2, 1750);
-    ctx.fillText(currentLang === 'es' ? '¿Puedes superarme?' : 'Can you beat me?', w/2, 1800);
-
-    // QR placeholder (simple box)
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillRect(440, 1480, 200, 200);
-    ctx.font = '28px "Segoe UI", sans-serif';
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText('QR', w/2, 1600);
+    ctx.fillText('secondguess.app', w/2, footerY);
+    ctx.fillText(currentLang === 'es' ? '¿Puedes superarme?' : 'Can you beat me?', w/2, footerY + 50);
 
     callback(canvas);
   },
@@ -229,6 +256,7 @@ const UI = {
       ctx.textAlign = align;
       ctx.fillText(lineArray[k], x, y + k * lineHeight);
     }
+    return lineArray.length;
   },
 
   // ===== LEADERBOARD SIMULATED =====
