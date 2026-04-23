@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SecondGuess</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="CSS/style.css">
+  <script src="sw.js" ></script>
+
+</head>
+<body>
+
+  <!-- ONBOARDING -->
+  <div id="onboarding">
+    <div class="onboarding-step active" data-step="1">
+      <div class="onboarding-icon">🧠</div>
+      <div class="onboarding-title" data-i18n="onboarding1Title">Welcome to SecondGuess</div>
+      <div class="onboarding-text" data-i18n="onboarding1Text">You don't win by knowing the right answer. You win by guessing what the majority will say.</div>
+    </div>
+    <div class="onboarding-step" data-step="2">
+      <div class="onboarding-icon">📅</div>
+      <div class="onboarding-title" data-i18n="onboarding2Title">One question per day</div>
+      <div class="onboarding-text" data-i18n="onboarding2Text">You have 24 hours to answer. The next day you discover how close you were to the average.</div>
+    </div>
+    <div class="onboarding-step" data-step="3">
+      <div class="onboarding-icon">🚀</div>
+      <div class="onboarding-title" data-i18n="onboarding3Title">Share your intuition</div>
+      <div class="onboarding-text" data-i18n="onboarding3Text">Generate your result card and challenge your friends. Who reads the crowd better?</div>
+    </div>
+    <div class="onboarding-dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <button class="btn-primary" id="onboarding-btn" data-i18n="next">Next</button>
+  </div>
+
+  <!-- APP CONTAINER -->
+  <div id="app-container" style="display:none">
+
+    <!-- HEADER -->
+    <header id="app-header">
+      <div class="app-logo">
+        <span class="app-logo-icon">🧠</span>
+        <span class="app-logo-text">SecondGuess</span>
+      </div>
+      <div class="header-actions">
+        <span class="lang-badge" id="lang-toggle">EN</span>
+        <button class="icon-btn" id="btn-info" title="How it works">❓</button>
+        <button class="icon-btn" id="btn-settings" title="Settings">⚙️</button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+      <div id="main-view"></div>
+    </main>
+
+  </div>
+
+  <!-- SUSPENSE SCREEN -->
+  <div id="suspense-screen">
+    <div class="suspense-emoji">🧠</div>
+    <h2 style="color:#fff;font-size:1.5rem;margin-bottom:0.5rem" id="suspense-title">The crowd is thinking...</h2>
+    <p style="color:#94a3b8" id="suspense-subtitle">Analyzing thousands of predictions</p>
+    <div class="suspense-dots">
+      <div class="suspense-dot"></div>
+      <div class="suspense-dot"></div>
+      <div class="suspense-dot"></div>
+    </div>
+  </div>
+
+  <!-- CONFETTI -->
+  <div id="confetti-container"></div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content" id="modal-content"></div>
+  </div>
+
+  <!-- SVG GRADIENT DEFS (for accuracy ring) -->
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#f59e0b"/>
+        <stop offset="100%" style="stop-color:#fbbf24"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <!-- SCRIPTS -->
+  <script src="JS/i18n.js"></script>
+  <script src="JS/questions.js"></script>
+  <script src="JS/security.js"></script>
+  <script src="JS/ui.js"></script>
+  <script src="JS/app.js"></script>
+  
+</body>
+</html>

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse Management System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+  --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+  --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
+  --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
+  --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:.9rem}
+
+/* NAV */
+.topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+.topbar span{color:rgba(255,255,255,.5);font-size:.75rem}
+.nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px}
+.nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
+.nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav button.active{background:var(--accent);color:#fff}
+
+/* LAYOUT */
+.container{max-width:1400px;margin:0 auto;padding:1.25rem}
+.section{display:none}.section.active{display:block}
+
+/* CARDS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+.stat label{font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600}
+.stat .val{font-size:1.8rem;font-weight:700;margin-top:.25rem}
+
+/* TABLE & TOOLBAR */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem; display:flex; flex-direction:column;}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.card-header h2{font-size:1rem;font-weight:700}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap}
+.toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+
+.btn{padding:.45rem 1rem;border:none;border-radius:6px;font-size:.8rem;font-weight:600}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+
+.table-wrapper {max-height: 65vh; overflow-y: auto; position: relative;}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{position:sticky; top:0; background:var(--navy); color:#fff; z-index:10; padding:.6rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; white-space:nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+td{padding:.55rem .75rem;border-bottom:1px solid var(--border)}
+tbody tr:hover{background:#F8FAFC}
+
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:#DBEAFE;color:var(--accent2)}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:1.75rem;width:min(560px,92vw);max-height:88vh;overflow-y:auto}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.form-grid.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:.25rem}
+.field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase}
+.field input,.field select,.field textarea{padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div><h1>WMS — Warehouse Management</h1><span>OX Glass Co.</span></div>
+  <div class="nav">
+    <button class="active" onclick="showTab('dashboard')">Stock Dashboard</button>
+    <button onclick="showTab('movements')">Movements & History</button>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div id="dashboard" class="section active">
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search material name..." oninput="renderStock()">
+          <select id="stockFilter" onchange="renderStock()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option>
+            <option value="IGU">IGU</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Material Name</th><th>Category</th><th>Total IN</th><th>Total OUT</th><th>Net Available</th><th>Status</th>
+          </tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Search Name, PO#, GC, Supplier..." oninput="renderMovements()">
+          <select id="movFilter" onchange="renderMovements()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option>
+            <option value="IGU">IGU</option>
+          </select>
+          <button class="btn btn-primary" onclick="openModal('entry')">+ Entry (IN)</button>
+          <button class="btn btn-danger" onclick="openModal('exit')">− Dispatch (OUT)</button>
+        </div>
+      </div>
+      
+      <div style="background:var(--bg); padding:10px 15px; border-bottom:1px solid var(--border);">
+        <strong style="font-size:0.75rem; color:var(--navy); text-transform:uppercase; margin-right: 15px;">Toggle Columns:</strong>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('sysDate')" ${colVis.sysDate?'checked':''}> Sys Date</label>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('gc')" ${colVis.gc?'checked':''}> GC</label>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('project')" ${colVis.project?'checked':''}> Project</label>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('supplier')" ${colVis.supplier?'checked':''}> Supplier</label>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('resp')" checked> Responsible</label>
+        <label style="cursor:pointer; font-size:0.8rem; margin-right: 10px;"><input type="checkbox" onchange="toggleCol('matId')" ${colVis.matId?'checked':''}> Mat ID</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('comment')" checked> Comments</label>
+      </div>
+
+      <div class="table-wrapper" id="tableContainer"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="moveOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label>Category (Type)</label>
+        <select id="mType">
+          <option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option>
+          <option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option>
+          <option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option>
+          <option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option>
+          <option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option>
+          <option value="IGU">IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Material Name</label>
+        <input type="text" id="mName" list="matList" placeholder="Escribe o selecciona...">
+        <datalist id="matList"></datalist>
+      </div>
+      <div class="field"><label id="dateLabel">Date</label><input type="date" id="mDateRec"></div>
+      <div class="field"><label>Quantity</label><input type="number" id="mQty" min="1" value="1"></div>
+      <div class="field"><label>Unit</label><select id="mUnit"><option>Unit</option><option>Box</option></select></div>
+      <div class="field"><label>Location</label><input type="text" id="mLoc"></div>
+      <div class="field"><label>Supplier</label><input type="text" id="mSup"></div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field"><label>Project / Client</label><input type="text" id="mProj"></div>
+      <div class="field"><label id="respLabel">Responsible</label><input type="text" id="mResp"></div>
+      <div class="field"><label>Status</label><select id="mStatus"><option value="In Stock">In Stock</option><option value="Dispatched">Dispatched</option><option value="Damaged">Damaged</option></select></div>
+    </div>
+    
+    <div class="form-grid full" style="margin-top:1rem; background: #f8fafc; padding: 10px; border: 1px dashed var(--border); border-radius: 6px;">
+      <div class="field">
+        <label style="color: var(--accent2);">📎 Attach Document (Receipt/PO/Photo)</label>
+        <input type="file" id="mFile" accept="image/*,.pdf" style="border:none; padding-top:5px;">
+      </div>
+    </div>
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field"><label>Comments</label><textarea id="mComm"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save to System</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// PEGA AQUÍ TU URL DE APPS SCRIPT
+// ==========================================
+const API_URL = "https://script.google.com/macros/s/AKfycbwl2s1nn2ECxDey3XklnVo_TRG28VueU75-095SpeKJiKZ9gCOMnYUUK9KFwsJrIliK/exec"; 
+
+let catalog = [];
+let movements = [];
+let currentMoveType = 'ENTRY';
+
+let colVis = {
+  sysDate: false, gc: false, project: false, supplier: false, resp: true, matId: false, comment: true
+};
+
+function getBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+  });
+}
+
+async function loadDataFromGoogle() {
+  document.getElementById('statsRow').innerHTML = "<h3>Cargando sistema en vivo... ⏳</h3>";
+  try {
+    let response = await fetch(API_URL);
+    let data = await response.json();
+    catalog = data.catalog || [];
+    movements = data.movements || [];
+    renderAll();
+    refreshMatDropdown();
+  } catch (error) {
+    alert("Error de conexión. Revisa la consola o tu conexión a internet.");
+  }
+}
+
+function statusBadge(s){
+  const m={OK:'green',DEPLETED:'red','LOW STOCK':'yellow',ENTRY:'green',EXIT:'red'};
+  return `<span class="badge badge-${m[s]||'blue'}">${s}</span>`;
+}
+
+function toggleCol(colName) {
+  colVis[colName] = !colVis[colName];
+  renderMovements(); 
+}
+
+function getStock(){
+  const stock = {};
+  movements.forEach(m => {
+    if(!m.name) return;
+    if(!stock[m.name]) {
+      stock[m.name] = { name: m.name, type: m.type, in: 0, out: 0, avail: 0, status: 'OK' };
+    }
+    let q = parseInt(m.qty) || 0;
+    if(q >= 0) stock[m.name].in += q;
+    else stock[m.name].out += Math.abs(q);
+  });
+  
+  Object.values(stock).forEach(s => {
+    s.avail = s.in - s.out;
+    s.status = s.avail <= 0 ? 'DEPLETED' : 'OK';
+  });
+  return stock;
+}
+
+function renderStock() {
+  const stock = getStock();
+  const q = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const tf = document.getElementById('stockFilter').value;
+
+  let rows = Object.values(stock).filter(s => {
+    // Buscador blindado (ignora nulos)
+    const safeName = (s.name || '').toLowerCase();
+    if(q && !safeName.includes(q)) return false;
+    if(tf && s.type !== tf) return false;
+    return true;
+  });
+
+  document.getElementById('stockBody').innerHTML = rows.map(s => `<tr>
+    <td><strong>${s.name}</strong></td>
+    <td><span class="badge badge-blue">${s.type}</span></td>
+    <td style="color:var(--green)">${s.in}</td>
+    <td style="color:var(--red)">${s.out}</td>
+    <td><strong style="font-size:1.1rem">${s.avail}</strong></td>
+    <td>${statusBadge(s.status)}</td>
+  </tr>`).join('');
+}
+
+function renderMovements(){
+  const q = (document.getElementById('movSearch').value || '').toLowerCase();
+  const tf = document.getElementById('movFilter').value;
+
+  let filteredMoves = [...movements].reverse().filter(m => {
+    // Buscador blindado (evita que celdas vacías rompan el filtro)
+    const safeName = (m.name || '').toString().toLowerCase();
+    const safePo = (m.po || '').toString().toLowerCase();
+    const safeGc = (m.gc || '').toString().toLowerCase();
+    const safeSup = (m.supplier || '').toString().toLowerCase();
+
+    if(q && !safeName.includes(q) && !safePo.includes(q) && !safeGc.includes(q) && !safeSup.includes(q)) return false;
+    if(tf && m.type !== tf) return false;
+    return true;
+  });
+  
+  let tableHTML = `<table><thead><tr>
+      ${colVis.sysDate ? '<th>Sys Date</th>' : ''}
+      <th>Action</th><th>Date</th><th>Material Name</th><th>Qty</th><th>Loc</th><th>PO#</th>
+      ${colVis.gc ? '<th>GC</th>' : ''}
+      ${colVis.project ? '<th>Project</th>' : ''}
+      ${colVis.supplier ? '<th>Supplier</th>' : ''}
+      ${colVis.resp ? '<th>Resp.</th>' : ''}
+      ${colVis.matId ? '<th>Mat ID</th>' : ''}
+      ${colVis.comment ? '<th>Comments</th>' : ''}
+      <th>Status</th><th>Document</th>
+    </tr></thead><tbody>`;
+
+  tableHTML += filteredMoves.map(m=> {
+    let docBtn = "";
+    if (m.docLink) {
+      if (m.docLink.includes("ERROR")) {
+        docBtn = `<span style="color:red; font-size:0.7rem;" title="${m.docLink}">Upload Error</span>`;
+      } else {
+        docBtn = `<a href="${m.docLink}" target="_blank" class="badge badge-blue" style="text-decoration:none;">📄 View</a>`;
+      }
+    } else {
+      docBtn = `<span style="color:#ccc; font-size:0.7rem;">None</span>`;
+    }
+
+    let action = parseInt(m.qty) >= 0 ? 'ENTRY' : 'EXIT';
+    
+    return `<tr>
+      ${colVis.sysDate ? `<td style="color:#888; font-size:0.7rem;">${m.sysDate}</td>` : ''}
+      <td>${statusBadge(action)} <br><small style="color:var(--muted)">${m.type}</small></td>
+      <td>${m.dateRec}</td>
+      <td><strong>${m.name}</strong></td>
+      <td><strong>${m.qty}</strong> <small>${m.unit}</small></td>
+      <td>${m.loc||'-'}</td>
+      <td>${m.po||'-'}</td>
+      ${colVis.gc ? `<td>${m.gc||'-'}</td>` : ''}
+      ${colVis.project ? `<td>${m.project||'-'}</td>` : ''}
+      ${colVis.supplier ? `<td>${m.supplier||'-'}</td>` : ''}
+      ${colVis.resp ? `<td>${m.resp||'-'}</td>` : ''}
+      ${colVis.matId ? `<td style="font-size:0.7rem;">${m.matId||'-'}</td>` : ''}
+      ${colVis.comment ? `<td>${m.comment||'-'}</td>` : ''}
+      <td>${m.status||'-'}</td>
+      <td>${docBtn}</td>
+    </tr>`;
+  }).join('');
+  
+  tableHTML += `</tbody></table>`;
+  document.getElementById('tableContainer').innerHTML = tableHTML;
+}
+
+function renderStats(){
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><label>Total Movements Recorded</label><div class="val">${movements.length}</div></div>
+    <div class="stat green"><label>System Status</label><div class="val">ONLINE</div></div>
+  `;
+}
+
+function renderAll(){ 
+  renderStats(); 
+  renderStock();
+  renderMovements(); 
+}
+
+function showTab(t){ 
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active')); 
+  document.getElementById(t).classList.add('active'); 
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); 
+  event.target.classList.add('active'); 
+  renderAll(); 
+}
+
+function openModal(type){ 
+  currentMoveType=type.toUpperCase(); 
+  
+  // MAGIA ERP: Cambiar etiquetas según el tipo de movimiento
+  if(currentMoveType === 'ENTRY') {
+    document.getElementById('moveTitle').textContent = 'Receive Material (ENTRY)';
+    document.getElementById('dateLabel').textContent = 'Date Received';
+    document.getElementById('respLabel').textContent = 'Received By';
+    document.getElementById('mStatus').value = 'In Stock';
+  } else {
+    document.getElementById('moveTitle').textContent = 'Dispatch Material (EXIT)';
+    document.getElementById('dateLabel').textContent = 'Date Dispatched';
+    document.getElementById('respLabel').textContent = 'Taken By / Given To';
+    document.getElementById('mStatus').value = 'Dispatched';
+  }
+
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0]; 
+  document.getElementById('moveOverlay').classList.add('show'); 
+}
+
+function closeModal(){ document.getElementById('moveOverlay').classList.remove('show'); }
+
+function refreshMatDropdown(){ 
+  const dl=document.getElementById('matList'); 
+  dl.innerHTML=''; 
+  const uniqueNames = [...new Set(movements.map(m => m.name))];
+  uniqueNames.forEach(name=>{
+    if(name) {
+      const o=document.createElement('option');
+      o.value=name; 
+      dl.appendChild(o);
+    }
+  }); 
+}
+
+async function submitMove(){
+  const matType = document.getElementById('mType').value;
+  const matName = document.getElementById('mName').value; 
+  
+  if(!matName) { alert("Please enter a Material Name"); return; }
+
+  let qty = parseInt(document.getElementById('mQty').value) || 0;
+  if(currentMoveType === 'EXIT') qty = -qty; 
+  
+  let fileData = null, fileName = "", fileMimeType = "";
+  const fileInput = document.getElementById('mFile');
+  
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    document.getElementById('moveSubmit').innerText = "Uploading... ⏳";
+    fileData = await getBase64(file);
+    const ext = file.name.split('.').pop();
+    const poStr = document.getElementById('mPO').value || "Doc";
+    fileName = `${poStr} - ${currentMoveType} - ${new Date().toISOString().split('T')[0]}.${ext}`;
+    fileMimeType = file.type;
+  }
+
+  const m = {
+    type: matType, 
+    name: matName, 
+    matId: "", 
+    qty: qty,
+    unit: document.getElementById('mUnit').value,
+    dateRec: document.getElementById('mDateRec').value,
+    loc: document.getElementById('mLoc').value,
+    supplier: document.getElementById('mSup').value,
+    gc: document.getElementById('mGC').value,
+    po: document.getElementById('mPO').value,
+    project: document.getElementById('mProj').value,
+    resp: document.getElementById('mResp').value,
+    status: document.getElementById('mStatus').value,
+    comment: document.getElementById('mComm').value,
+    fileData: fileData,
+    fileName: fileName,
+    fileMimeType: fileMimeType
+  };
+
+  document.getElementById('moveSubmit').innerText = "Saving to Google... ⏳";
+  
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: "addMovement", data: m })
+    });
+  } catch (err) {
+    alert("Error conectando con la nube.");
+  }
+
+  document.getElementById('moveSubmit').innerText = "Save to System";
+  document.getElementById('mFile').value = ""; 
+  document.getElementById('mName').value = ""; 
+  closeModal();
+  loadDataFromGoogle(); 
+}
+
+loadDataFromGoogle();
+</script>
+</body>
+</html>

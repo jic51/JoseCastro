@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse Management System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+  --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+  --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
+  --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
+  --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:0 10px 25px rgba(0,0,0,.08);--radius:10px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:.9rem}
+
+/* NAV */
+.topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{color:#fff;font-size:1.1rem;font-weight:700;letter-spacing:-.02em}
+.topbar span{color:rgba(255,255,255,.5);font-size:.75rem}
+.nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px}
+.nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
+.nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav button.active{background:var(--accent);color:#fff}
+
+/* LAYOUT */
+.container{max-width:1400px;margin:0 auto;padding:1.25rem}
+.section{display:none}.section.active{display:block}
+
+/* CARDS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+.stat.green{border-left-color:var(--green)}.stat.red{border-left-color:var(--red)}.stat.yellow{border-left-color:var(--yellow)}
+.stat label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.stat .val{font-size:1.8rem;font-weight:700;margin-top:.25rem;font-family:'JetBrains Mono',monospace}
+
+/* TABLE */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:1.5rem}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.card-header h2{font-size:1rem;font-weight:700}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap}
+.toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+.toolbar input:focus,.toolbar select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,125,216,.15)}
+.btn{padding:.45rem 1rem;border:none;border-radius:6px;font-size:.8rem;font-weight:600;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#B91C1C}
+.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead{background:var(--navy);color:#fff;position:sticky;top:0}
+th{padding:.6rem .75rem;text-align:left;font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+td{padding:.55rem .75rem;border-bottom:1px solid var(--border)}
+tbody tr:hover{background:#F8FAFC}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+.badge-orange{background:var(--orange-bg);color:var(--orange)}
+.badge-blue{background:#DBEAFE;color:var(--accent2)}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:1.75rem;width:min(560px,92vw);max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal h3{font-size:1.1rem;margin-bottom:1.25rem;font-weight:700}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.form-grid.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:.25rem}
+.field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase}
+.field input,.field select,.field textarea{padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem}
+.field textarea{resize:vertical;min-height:60px}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .stats{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr}
+  table{font-size:.72rem}
+  th,td{padding:.4rem .5rem}
+  .topbar{flex-direction:column;gap:.5rem}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div><h1>WMS — Warehouse Management</h1><span>OX Glass Co.</span></div>
+  <div class="nav">
+    <button class="active" onclick="showTab('dashboard')">Dashboard</button>
+    <button onclick="showTab('movements')">Movements</button>
+    <button onclick="showTab('catalog')">Catalog</button>
+    <button onclick="showTab('history')">History</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="section active">
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Current Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search materials..." oninput="renderStock()">
+          <select id="stockFilter" onchange="renderStock()">
+            <option value="">All Types</option>
+          </select>
+          <select id="statusFilter" onchange="renderStock()">
+            <option value="">All Status</option>
+            <option value="OK">OK</option>
+            <option value="LOW STOCK">Low Stock</option>
+            <option value="DEPLETED">Depleted</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th>ID</th><th>Name</th><th>Type</th><th>IN</th><th>OUT</th><th>Adj</th><th>Available</th><th>Min</th><th>Status</th>
+      </tr></thead><tbody id="stockBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- MOVEMENTS -->
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Register Movement</h2>
+        <div class="toolbar">
+          <button class="btn btn-primary" onclick="openModal('entry')">+ Entry</button>
+          <button class="btn btn-danger" onclick="openModal('exit')">− Exit</button>
+          <button class="btn btn-ghost" onclick="openModal('adjustment')">± Adjustment</button>
+          <button class="btn btn-ghost" onclick="openModal('return')">↩ Return</button>
+          <button class="btn btn-ghost" onclick="openModal('transfer')">⇄ Transfer</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th>Date</th><th>Type</th><th>ID</th><th>Material</th><th>Qty</th><th>Unit</th><th>GC</th><th>PO#</th><th>Project</th><th>Loc</th><th>By</th><th>Status</th><th>Notes</th>
+      </tr></thead><tbody id="movBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- CATALOG -->
+  <div id="catalog" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Material Catalog</h2>
+        <div class="toolbar">
+          <input type="text" id="catSearch" placeholder="Search catalog..." oninput="renderCatalog()">
+          <button class="btn btn-primary" onclick="openCatalogModal()">+ Add Material</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th>ID</th><th>Type</th><th>Name</th><th>Description</th><th>Unit</th><th>Min Stock</th><th>Supplier</th>
+      </tr></thead><tbody id="catBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="history" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="histSearch" placeholder="Search history..." oninput="renderHistory()">
+          <select id="histType" onchange="renderHistory()">
+            <option value="">All Types</option>
+            <option>ENTRY</option><option>EXIT</option><option>ADJUSTMENT</option><option>TRANSFER</option><option>RETURN</option>
+          </select>
+          <input type="date" id="histFrom" onchange="renderHistory()">
+          <input type="date" id="histTo" onchange="renderHistory()">
+          <button class="btn btn-ghost" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr>
+        <th>Date</th><th>Type</th><th>ID</th><th>Material</th><th>Qty</th><th>GC</th><th>PO#</th><th>Project</th><th>Loc</th><th>By</th><th>Notes</th>
+      </tr></thead><tbody id="histBody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- MOVEMENT MODAL -->
+<div class="overlay" id="moveOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div class="form-grid">
+      <div class="field"><label>Material</label><select id="mMat"></select></div>
+      <div class="field"><label>Quantity</label><input type="number" id="mQty" min="1" value="1"></div>
+      <div class="field"><label>Unit</label><select id="mUnit"><option>Unit</option><option>Box</option></select></div>
+      <div class="field"><label>Location</label><select id="mLoc"></select></div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field"><label>Project / Client</label><input type="text" id="mProj"></div>
+      <div class="field"><label>Supplier</label><input type="text" id="mSup"></div>
+      <div class="field"><label>Responsible</label><input type="text" id="mResp"></div>
+      <div class="field"><label>Status</label><select id="mStatus"></select></div>
+    </div>
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field"><label>Comments</label><textarea id="mComm"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="moveOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label>Category (Type)</label>
+        <select id="mType">
+          <option value="WINDOW">WINDOW</option>
+          <option value="SCREEN">SCREEN</option>
+          <option value="WINDOW_PARTS">WINDOW_PARTS</option>
+          <option value="SHOWER">SHOWER</option>
+          <option value="MIRROR">MIRROR</option>
+          <option value="STOREFRONT">STOREFRONT</option>
+          <option value="TOOLS">TOOLS</option>
+          <option value="BONEYARD">BONEYARD</option>
+          <option value="FLASHING">FLASHING</option>
+          <option value="SCREWS">SCREWS</option>
+          <option value="IGU">IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Material Name</label>
+        <input type="text" id="mName" list="matList" placeholder="Escribe o selecciona...">
+        <datalist id="matList"></datalist>
+      </div>
+      
+      <div class="field"><label>Date Received</label><input type="date" id="mDateRec"></div>
+      <div class="field"><label>Quantity</label><input type="number" id="mQty" min="1" value="1"></div>
+      <div class="field"><label>Unit</label><select id="mUnit"><option>Unit</option><option>Box</option></select></div>
+      <div class="field"><label>Location</label><select id="mLoc"></select></div>
+      <div class="field"><label>Supplier</label><input type="text" id="mSup"></div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field"><label>Project / Client</label><input type="text" id="mProj"></div>
+      <div class="field"><label>Responsible</label><input type="text" id="mResp"></div>
+      <div class="field"><label>Status</label><select id="mStatus"></select></div>
+    </div>
+    
+    <div class="form-grid full" style="margin-top:1rem; background: #f8fafc; padding: 10px; border: 1px dashed var(--border); border-radius: 6px;">
+      <div class="field">
+        <label style="color: var(--accent2);">📎 Attach Document (Receipt/PO/Photo)</label>
+        <input type="file" id="mFile" accept="image/*,.pdf" style="border:none; padding-top:5px;">
+      </div>
+    </div>
+
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field"><label>Comments</label><textarea id="mComm"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save to System</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// PEGA AQUÍ TU URL DE APPS SCRIPT QUE YA FUNCIONA
+// ==========================================
+const API_URL = "https://script.google.com/macros/s/AKfycbz_NCkRtLDXvOYimRAzn3zNwyYhPyjhWrLs0R1Q9O2k97KchpLvs6owAS2aaSWFqIXd/exec"; 
+s
+let catalog = [];
+let movements = [];
+let currentMoveType = 'ENTRY';
+
+// Estado de visibilidad de columnas (Por defecto ocultas)
+let colVis = {
+  sysDate: false, gc: false, project: false, supplier: false, resp: false, matId: false
+};
+
+function getBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+  });
+}
+
+async function loadDataFromGoogle() {
+  document.getElementById('statsRow').innerHTML = "<h3>Cargando sistema en vivo... ⏳</h3>";
+  try {
+    let response = await fetch(API_URL);
+    let data = await response.json();
+    catalog = data.catalog || [];
+    movements = data.movements || [];
+    renderAll();
+    refreshMatDropdown();
+  } catch (error) {
+    alert("Error de conexión. Revisa la API_URL.");
+  }
+}
+
+function statusBadge(s){
+  const m={OK:'green',DEPLETED:'red','LOW STOCK':'yellow',ENTRY:'green',EXIT:'red',ADJUSTMENT:'yellow',RETURN:'orange',TRANSFER:'blue'};
+  return `<span class="badge badge-${m[s]||'blue'}">${s}</span>`;
+}
+
+// Función para cambiar visibilidad de una columna
+function toggleCol(colName) {
+  colVis[colName] = !colVis[colName];
+  renderMovements(); 
+}
+
+function renderMovements(){
+  // Quitamos el límite de 50. Ahora muestra todo el historial (invertido para ver lo más nuevo arriba)
+  const allMoves = [...movements].reverse();
+  
+  // Panel de Checkboxes individuales
+  let tableHTML = `
+    <div style="display:flex; flex-wrap:wrap; gap:15px; background:var(--bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
+      <strong style="width:100%; font-size:0.8rem; color:var(--navy); text-transform:uppercase;">Toggle Extra Columns:</strong>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('sysDate')" ${colVis.sysDate?'checked':''}> Sys Date</label>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('gc')" ${colVis.gc?'checked':''}> GC</label>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('project')" ${colVis.project?'checked':''}> Project</label>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('supplier')" ${colVis.supplier?'checked':''}> Supplier</label>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('resp')" ${colVis.resp?'checked':''}> Responsible</label>
+      <label style="cursor:pointer; font-size:0.85rem;"><input type="checkbox" onchange="toggleCol('matId')" ${colVis.matId?'checked':''}> Mat ID</label>
+    </div>
+    <table><thead><tr>
+      ${colVis.sysDate ? '<th>Sys Date</th>' : ''}
+      <th>Date Rec.</th><th>Type</th><th>Material Name</th><th>Qty</th><th>Loc</th><th>PO#</th>
+      ${colVis.gc ? '<th>GC</th>' : ''}
+      ${colVis.project ? '<th>Project</th>' : ''}
+      ${colVis.supplier ? '<th>Supplier</th>' : ''}
+      ${colVis.resp ? '<th>Resp.</th>' : ''}
+      ${colVis.matId ? '<th>Mat ID</th>' : ''}
+      <th>Status</th><th>Document</th>
+    </tr></thead><tbody>`;
+
+  tableHTML += allMoves.map(m=> {
+    let docBtn = m.docLink ? `<a href="${m.docLink}" target="_blank" class="badge badge-blue" style="text-decoration:none;">📄 View</a>` : `<span style="color:#ccc; font-size:0.7rem;">None</span>`;
+    
+    return `<tr>
+      ${colVis.sysDate ? `<td style="color:#888; font-size:0.7rem;">${m.sysDate}</td>` : ''}
+      <td>${m.dateRec}</td>
+      <td>${statusBadge(m.type)}</td>
+      <td><strong>${m.name}</strong></td>
+      <td><strong>${m.type==='EXIT'?'-':''}${m.qty}</strong> <small>${m.unit}</small></td>
+      <td>${m.loc||'-'}</td>
+      <td>${m.po||'-'}</td>
+      ${colVis.gc ? `<td>${m.gc||'-'}</td>` : ''}
+      ${colVis.project ? `<td>${m.project||'-'}</td>` : ''}
+      ${colVis.supplier ? `<td>${m.supplier||'-'}</td>` : ''}
+      ${colVis.resp ? `<td>${m.resp||'-'}</td>` : ''}
+      ${colVis.matId ? `<td style="font-size:0.7rem;">${m.matId||'-'}</td>` : ''}
+      <td>${statusBadge(m.status)}</td>
+      <td>${docBtn}</td>
+    </tr>`;
+  }).join('');
+  
+  tableHTML += `</tbody></table>`;
+  document.getElementById('movBody').parentElement.innerHTML = tableHTML;
+}
+
+// Funciones estándar necesarias
+function renderStats(){ /* Oculto por brevedad, se mantiene igual si la tienes */ }
+function renderStock(){ /* Oculto por brevedad */ }
+function renderCatalog(){ /* Oculto por brevedad */ }
+function renderHistory(){ /* Oculto por brevedad */ }
+function renderAll(){ if(document.getElementById('statsRow')) renderStats(); renderMovements(); }
+
+function showTab(t){ 
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active')); 
+  document.getElementById(t).classList.add('active'); 
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); 
+  event.target.classList.add('active'); 
+  renderAll(); 
+}
+
+function openModal(type){ 
+  currentMoveType=type.toUpperCase(); 
+  document.getElementById('moveTitle').textContent = type + ' Movement'; 
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0]; 
+  document.getElementById('moveOverlay').classList.add('show'); 
+}
+
+function closeModal(){ document.getElementById('moveOverlay').classList.remove('show'); }
+
+// Autocompletado del catálogo
+function refreshMatDropdown(){ 
+  const dl=document.getElementById('matList'); 
+  dl.innerHTML=''; 
+  // Usa nombres únicos del catálogo para sugerencias
+  const uniqueNames = [...new Set(catalog.map(c => c.name))];
+  uniqueNames.forEach(name=>{
+    const o=document.createElement('option');
+    o.value=name; 
+    dl.appendChild(o);
+  }); 
+}
+
+// Guardar
+async function submitMove(){
+  const matType = document.getElementById('mType').value;
+  const matName = document.getElementById('mName').value; // Ahora lee lo que el usuario escribió
+  
+  if(!matName) { alert("Please enter a Material Name"); return; }
+
+  let qty = parseInt(document.getElementById('mQty').value) || 0;
+  if(currentMoveType === 'EXIT') qty = -qty; 
+  
+  let fileData = null, fileName = "", fileMimeType = "";
+  const fileInput = document.getElementById('mFile');
+  
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    document.getElementById('moveSubmit').innerText = "Uploading... ⏳";
+    fileData = await getBase64(file);
+    const ext = file.name.split('.').pop();
+    const poStr = document.getElementById('mPO').value || "Doc";
+    fileName = `${poStr} - ${currentMoveType} - ${new Date().toISOString().split('T')[0]}.${ext}`;
+    fileMimeType = file.type;
+  }
+
+  const m = {
+    type: matType, // Pestaña de destino elegida en el desplegable
+    name: matName, // Nombre escrito
+    matId: "", // Se puede dejar vacío o generar uno luego
+    qty: qty,
+    unit: document.getElementById('mUnit').value,
+    dateRec: document.getElementById('mDateRec').value,
+    loc: document.getElementById('mLoc').value,
+    supplier: document.getElementById('mSup').value,
+    gc: document.getElementById('mGC').value,
+    po: document.getElementById('mPO').value,
+    project: document.getElementById('mProj').value,
+    resp: document.getElementById('mResp').value,
+    status: document.getElementById('mStatus').value,
+    comment: document.getElementById('mComm').value,
+    fileData: fileData,
+    fileName: fileName,
+    fileMimeType: fileMimeType
+  };
+
+  document.getElementById('moveSubmit').innerText = "Saving to Google... ⏳";
+  
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: "addMovement", data: m })
+    });
+  } catch (err) {
+    alert("Error conectando con la nube.");
+  }
+
+  document.getElementById('moveSubmit').innerText = "Save to System";
+  document.getElementById('mFile').value = ""; 
+  document.getElementById('mName').value = ""; // Limpiar input
+  closeModal();
+  loadDataFromGoogle(); 
+}
+
+// Init
+loadDataFromGoogle();
+</script>
+
+</body>
+</html>     

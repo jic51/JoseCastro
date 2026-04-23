@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<title>OX Glass Co. - ERP System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+  --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+  --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
+  --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
+  --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; display:flex; flex-direction:column;}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:.9rem}
+
+.topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100; border-bottom: 3px solid var(--accent); flex-wrap: wrap; gap: 10px;}
+.topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+.nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px; flex-wrap: wrap;}
+.nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
+.nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav button.active{background:var(--accent);color:#fff}
+
+.author-badge { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; color: #a1b0cb; display:inline-flex; align-items:center; gap:5px; margin-top:4px;}
+
+.container{max-width:1400px;margin:0 auto;padding:1.25rem; flex-grow: 1; width: 100%;}
+.section{display:none}.section.active{display:block}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+.stat label{font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600}
+.stat .val{font-size:1.8rem;font-weight:700;margin-top:.25rem}
+
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem; display:flex; flex-direction:column;}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.card-header h2{font-size:1rem;font-weight:700}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap; align-items: center;}
+.toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+
+.btn{padding:.5rem 1rem;border:none;border-radius:6px;font-size:.85rem;font-weight:600; display:inline-flex; align-items:center; justify-content:center;}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+
+.table-wrapper {max-height: 65vh; overflow-y: auto; position: relative;}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{position:sticky; top:0; background:var(--navy); color:#fff; z-index:10; padding:.6rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; white-space:nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+td{padding:.55rem .75rem;border-bottom:1px solid var(--border); vertical-align: middle;}
+tbody tr:hover{background:#F8FAFC}
+
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:#DBEAFE;color:var(--accent2)}
+.btn-icon{background:transparent; border:none; font-size:1.1rem; cursor:pointer; margin-left:5px; transition:0.2s;}
+.btn-icon:hover{transform:scale(1.2);}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center; padding: 15px;}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:1.75rem;width:100%; max-width:600px; max-height:90vh; overflow-y:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.form-grid.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:.3rem}
+.field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase}
+.field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
+
+.system-footer { text-align: center; padding: 1.5rem; color: var(--muted); font-size: 0.75rem; border-top: 1px solid var(--border); background: #e5e7eb;}
+
+@media(max-width: 768px) {
+  .topbar { flex-direction: column; align-items: flex-start; }
+  .nav { width: 100%; justify-content: space-between; margin-top: 10px; }
+  .nav button { flex-grow: 1; text-align: center; padding: .6rem; }
+  .toolbar { flex-direction: column; align-items: stretch; width: 100%; }
+  .toolbar input, .toolbar select, .toolbar button { width: 100%; margin-bottom: 5px; padding: 0.6rem; }
+  .form-grid { grid-template-columns: 1fr; } 
+  .modal { padding: 1.25rem; }
+  th, td { padding: 0.5rem; }
+}
+
+/* Estilo para las filas expandibles */
+.expandable-row { cursor: pointer; transition: background 0.2s; }
+.expandable-row:hover { background: #f1f5f9 !important; }
+.details-row { display: none; background: #fafafa; border-left: 4px solid var(--accent); }
+.details-container { padding: 15px; font-size: 0.75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Contenedor de Gráficos */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.chart-card {
+  background: var(--card);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  height: 300px;
+}
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>WMS — OX Glass Warehouse</h1>
+    <div class="author-badge">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+      Architected & Engineered by: Jose Castro
+    </div>
+  </div>
+  <div class="nav">
+    <button id="btn-dashboard" class="active" onclick="showTab('dashboard', 'btn-dashboard')">Stock Dashboard</button>
+    <button id="btn-movements" onclick="showTab('movements', 'btn-movements')">Movements & History</button>
+    <button id="btn-projects" onclick="showTab('projects', 'btn-projects')">Project View</button>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div id="dashboard" class="section active">
+    <div class="charts-grid">
+      <div class="chart-card" id="catPieChart"></div>
+      <div class="chart-card" id="activityChart"></div>
+    </div>
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search name..." oninput="renderStock()">
+          <select id="stockFilter" onchange="renderStock()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option><option value="IGU">IGU</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Name</th>
+              <th>Available</th>
+              <th>Location</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Search Name, PO#, GC, Supplier..." oninput="renderMovements()">
+          <button class="btn btn-primary" onclick="openModal('entry')">+ Entry (IN)</button>
+          <button class="btn btn-danger" onclick="openModal('exit')">− Dispatch (OUT)</button>
+        </div>
+      </div>
+      
+      <div style="background:var(--bg); padding:10px 15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:10px;">
+        <strong style="font-size:0.75rem; color:var(--navy); text-transform:uppercase; margin-right: 5px;">Toggle Columns:</strong>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('sysDate')" id="chkSysDate"> SysDate</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('gc')" id="chkGc"> GC</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('project')" id="chkProj"> Project</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('supplier')" id="chkSup"> Supplier</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('resp')" checked id="chkResp"> Resp.</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('comment')" checked id="chkComm"> Comments</label>
+      </div>
+
+      <div class="table-wrapper" id="tableContainer"></div>
+    </div>
+  </div>
+
+  <div id="projects" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Project Material Analysis</h2>
+        <div class="toolbar">
+          <select id="projectSelector" onchange="renderProjectView()" style="min-width: 250px; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+            <option value="">Select a Project...</option>
+          </select>
+        </div>
+      </div>
+      <div class="stats" id="projectStats" style="padding: 1.25rem; grid-template-columns: repeat(2, 1fr); margin-bottom: 0;"></div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Name</th>
+              <th>In Bodega</th>
+              <th>Sent to Site</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="projectBody"></tbody> </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="system-footer">
+  &copy; 2026 OX Glass Co. Proprietary Warehouse Management System. <br>
+  Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
+</div>
+
+<div class="overlay" id="moveOverlay" onclick="closeIfOutside(event, 'moveOverlay')">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div class="form-grid">
+      <div class="field"><label>Category</label><select id="mType"><option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option><option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option><option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option><option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option><option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option><option value="IGU">IGU</option></select></div>
+      <div class="field"><label>Name</label><input type="text" id="mName" list="matList" placeholder="Select or type..."><datalist id="matList"></datalist></div>
+      <div class="field"><label id="dateLabel">Date</label><input type="date" id="mDateRec"></div>
+      <div class="field"><label>Quantity</label><input type="number" id="mQty" min="1" value="1"></div>
+      <div class="field"><label>Unit</label><select id="mUnit"><option>Unit</option><option>Box</option></select></div>
+      <div class="field"><label>Location</label><input type="text" id="mLoc"></div>
+      <div class="field"><label>Supplier</label><input type="text" id="mSup"></div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field"><label>Project / Client</label><input type="text" id="mProj"></div>
+      <div class="field"><label id="respLabel">Responsible</label><input type="text" id="mResp"></div>
+      <div class="field"><label>Status</label><select id="mStatus"><option value="In Stock">In Stock</option><option value="Dispatched">Dispatched</option><option value="Damaged">Damaged</option></select></div>
+    </div>
+    
+    <div class="form-grid full" style="margin-top:1rem; background: #f8fafc; padding: 10px; border: 1px dashed var(--border); border-radius: 6px;">
+      <div class="field">
+        <label style="color: var(--accent2);">📎 Attach Documents</label>
+        <div id="fileInputsContainer">
+          <input type="file" class="mFile" accept="image/*,.pdf" style="border:none; padding-top:5px; display:block; margin-bottom:5px;">
+        </div>
+        <button class="btn btn-ghost" style="padding:2px 10px; font-size:1rem; width:fit-content; margin-top:5px;" onclick="addFileInput()">+ Add Another File</button>
+      </div>
+    </div>
+
+    <div class="form-grid full" style="margin-top:.75rem"><div class="field"><label>Comments</label><textarea id="mComm"></textarea></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('moveOverlay')">Cancel</button><button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save to System</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="attachOverlay" onclick="closeIfOutside(event, 'attachOverlay')">
+  <div class="modal" style="max-width:400px;">
+    <h3>Attach Extra Document</h3>
+    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:1rem;">This document will be attached to the selected record.</p>
+    <input type="hidden" id="aRowIdx">
+    <input type="hidden" id="aFolderName">
+    <div class="field" style="margin-bottom:1.5rem;">
+      <input type="file" id="aFile" accept="image/*,.pdf" style="border: 1px dashed var(--accent); padding: 10px;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('attachOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="attachSubmit" onclick="submitAttachment()">Upload & Attach</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let movements = [];
+let currentMoveType = 'ENTRY';
+let colVis = { sysDate: false, gc: false, project: false, supplier: false, resp: true, comment: true };
+let selectedFiles = []; // Array para manejar los archivos en memoria
+
+function showTab(tabName, btnId){ 
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active')); 
+  document.getElementById(tabName).classList.add('active'); 
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active')); 
+  if(btnId) { document.getElementById(btnId).classList.add('active'); }
+  if(tabName === 'projects') refreshProjectDropdown();
+  renderAll(); 
+}
+
+function closeIfOutside(e, modalId) {
+  if(e.target.id === modalId) closeModal(modalId);
+}
+
+// 2. Corregimos el cierre de modales para resetear los botones
+function closeModal(id){ 
+  document.getElementById(id).classList.remove('show'); 
+  // Reseteo manual de botones
+  const btnMove = document.getElementById('moveSubmit');
+  const btnAttach = document.getElementById('attachSubmit');
+  if(btnMove) { btnMove.innerText = "Save to System"; btnMove.disabled = false; }
+  if(btnAttach) { btnAttach.innerText = "Upload & Attach"; btnAttach.disabled = false; }
+  // Limpiar inputs de archivos
+  if(document.getElementById('aFile')) document.getElementById('aFile').value = '';
+}
+
+function openModal(type){ 
+  currentMoveType = type.toUpperCase(); 
+  if(currentMoveType === 'ENTRY') {
+    document.getElementById('moveTitle').textContent = 'Receive Material (ENTRY)';
+    document.getElementById('dateLabel').textContent = 'Date Received';
+    document.getElementById('respLabel').textContent = 'Received By';
+    document.getElementById('mStatus').value = 'In Stock';
+  } else {
+    document.getElementById('moveTitle').textContent = 'Dispatch Material (EXIT)';
+    document.getElementById('dateLabel').textContent = 'Date Dispatched';
+    document.getElementById('respLabel').textContent = 'Taken By / Given To';
+    document.getElementById('mStatus').value = 'Dispatched';
+  }
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0]; 
+  document.getElementById('fileInputsContainer').innerHTML = '<input type="file" class="mFile" accept="image/*,.pdf" style="border:none; padding-top:5px; display:block; margin-bottom:5px;">';
+  document.getElementById('moveOverlay').classList.add('show'); 
+}
+
+function addFileInput() {
+  const container = document.getElementById('fileInputsContainer');
+  const fileId = "file-" + Date.now();
+  
+  const div = document.createElement('div');
+  div.id = fileId;
+  div.className = "field";
+  div.style = "display:flex; align-items:center; gap:10px; margin-bottom:8px; background:#f8fafc; padding:8px; border-radius:6px; border:1px solid var(--border);";
+  
+  div.innerHTML = `
+    <input type="file" class="mFile" accept="image/*,.pdf" style="flex-grow:1; font-size:0.8rem;">
+    <button type="button" onclick="removeFileRow('${fileId}')" class="btn-danger" style="padding:2px 8px; border-radius:4px; font-size:0.7rem;">X</button>
+  `;
+  container.appendChild(div);
+}
+
+function removeFileRow(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function openAttachModal(rowIdx, folderName) {
+  document.getElementById('aRowIdx').value = rowIdx;
+  document.getElementById('aFolderName').value = folderName;
+  document.getElementById('attachOverlay').classList.add('show');
+}
+
+function getBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader(); reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+  });
+}
+
+function loadDataFromGoogle() {
+  document.getElementById('statsRow').innerHTML = "<h3>Cargando sistema seguro... ⏳</h3>";
+  google.script.run
+    .withSuccessHandler(function(data) {
+      movements = data.movements || [];
+      renderAll(); 
+      refreshMatDropdown();
+      refreshProjectDropdown();
+    })
+    .withFailureHandler(function(error) {
+      alert("Error cargando los datos: " + error);
+    })
+    .getInitialData();
+}
+
+function statusBadge(s){
+  const m = {'In Warehouse':'green', 'Delivered':'red', ENTRY:'green', EXIT:'red', 'In Stock': 'green', 'Dispatched': 'red'};
+  return `<span class="badge badge-${m[s]||'blue'}">${s}</span>`;
+}
+
+function toggleCol(colName) { 
+  colVis[colName] = !colVis[colName]; 
+  renderMovements(); 
+}
+
+// 3. Mejoramos el getStock para incluir la ubicación (Loc)
+function getStock(){
+  const stock = {};
+  movements.forEach(m => {
+    const uniqueKey = (m.name || 'Unnamed') + "___" + (m.type || 'N/A');
+    if(!stock[uniqueKey]) { 
+      stock[uniqueKey] = { name: m.name, type: m.type, in: 0, out: 0, avail: 0, loc: m.loc }; 
+    }
+    let q = parseInt(m.qty) || 0;
+    if(q >= 0) { stock[uniqueKey].in += q; } else { stock[uniqueKey].out += Math.abs(q); }
+    if(m.loc) stock[uniqueKey].loc = m.loc; // Actualiza a la última ubicación conocida
+  });
+  Object.values(stock).forEach(s => { s.avail = s.in - s.out; });
+  return stock;
+}
+
+function renderStock() {
+  const stock = getStock();
+  const q = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const tf = document.getElementById('stockFilter').value;
+  
+  let rows = Object.values(stock).filter(s => {
+    const safeName = (s.name || '').toLowerCase();
+    const safeComm = (s.lastComment || '').toLowerCase(); // Buscamos en el último comentario registrado
+    
+    if(q && !safeName.includes(q) && !safeComm.includes(q)) return false;
+    if(tf && s.type !== tf) return false; 
+    return true;
+  });
+
+  document.getElementById('stockBody').innerHTML = rows.map(s => `
+    <tr>
+      <td><span class="badge badge-blue">${s.type || 'N/A'}</span></td>
+      <td><strong>${s.name || 'Unnamed'}</strong></td>
+      <td><strong style="font-size:1.1rem">${s.avail}</strong></td>
+      <td><span style="color:var(--muted)">${s.loc || '-'}</span></td>
+      <td>${statusBadge(s.avail > 0 ? 'In Stock' : 'Out of Stock')}</td>
+    </tr>
+  `).join('');
+}
+
+function renderMovements(){
+  const q = (document.getElementById('movSearch').value || '').toLowerCase();
+  let filteredMoves = [...movements].reverse().filter(m => {
+    const sName = (m.name || '').toLowerCase();
+    const sPo = (m.po || '').toLowerCase();
+    const sProj = (m.project || '').toLowerCase();
+    return !q || sName.includes(q) || sPo.includes(q) || sProj.includes(q);
+  });
+  
+  let tableHTML = `<table><thead><tr>
+      <th>Action</th><th>Date</th><th>Name</th><th>Qty</th><th>PO#</th>
+      ${colVis.project ? '<th>Project</th>' : ''}
+      <th>User</th><th>Doc</th>
+    </tr></thead><tbody>`;
+
+  tableHTML += filteredMoves.map(m=> {
+    let docBtn = m.docLink.includes("http") ? `<a href="${m.docLink.split('\n')[0]}" target="_blank" class="badge badge-blue">📄 View</a>` : `<small>-</small>`;
+    docBtn += `<button class="btn-icon" onclick="openAttachModal(${m.rowIdx}, '${m.po || 'General'}')">➕</button>`;
+
+    return `<tr>
+      <td>${statusBadge(m.qty >= 0 ? 'ENTRY' : 'EXIT')}</td>
+      <td>${m.dateRec}</td>
+      <td><strong>${m.name}</strong></td>
+      <td>${m.qty}</td>
+      <td>${m.po || '-'}</td>
+      ${colVis.project ? `<td>${m.project || '-'}</td>` : ''}
+      <td><small style="font-size:0.7rem; color:var(--muted)">${m.auditUser}</small></td>
+      <td>${docBtn}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tableContainer').innerHTML = tableHTML + `</tbody></table>`;
+}
+
+function renderProjectView() {
+  const selectedProj = document.getElementById('projectSelector').value;
+  const body = document.getElementById('projectBody');
+  const stats = document.getElementById('projectStats');
+  
+  if (!body || !stats) return;
+  if (!selectedProj) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center">Select a project to see history</td></tr>';
+    return;
+  }
+
+  let summary = {};
+  let totalIn = 0; let totalOut = 0;
+
+  // Agrupar por material pero guardar historial de loc/fecha
+  movements.filter(m => m.project === selectedProj).forEach(m => {
+    if (!summary[m.name]) {
+      summary[m.name] = { name: m.name, type: m.type, in: 0, out: 0, history: [] };
+    }
+    let q = parseInt(m.qty) || 0;
+    if (q >= 0) { summary[m.name].in += q; totalIn += q; } 
+    else { summary[m.name].out += Math.abs(q); totalOut += Math.abs(q); }
+    
+    // Guardamos el detalle para el acordeón
+    summary[m.name].history.push({
+      date: m.dateRec,
+      qty: m.qty,
+      loc: m.loc || 'N/A',
+      user: m.auditUser,
+      type: q >= 0 ? 'ENTRY' : 'EXIT'
+    });
+  });
+
+  stats.innerHTML = `
+    <div class="stat" style="border-left-color:var(--green)"><label>In Bodega</label><div class="val">${totalIn - totalOut}</div></div>
+    <div class="stat" style="border-left-color:var(--orange)"><label>Sent to Site</label><div class="val">${totalOut}</div></div>
+  `;
+
+  body.innerHTML = Object.values(summary).map((s, idx) => `
+    <tr class="expandable-row" onclick="toggleDetails('details-${idx}')">
+      <td><span class="badge badge-blue">${s.type}</span></td>
+      <td><strong>${s.name}</strong> 🔽</td>
+      <td>${s.in - s.out}</td>
+      <td>${s.out}</td>
+      <td>${statusBadge(s.in - s.out > 0 ? 'In Stock' : 'Dispatched')}</td>
+    </tr>
+    <tr id="details-${idx}" class="details-row">
+      <td colspan="5">
+        <div class="details-container">
+          <div>
+            <strong>Recent Activity:</strong><br>
+            ${s.history.map(h => `• ${h.date}: ${h.qty} units (${h.type}) at ${h.loc}`).join('<br>')}
+          </div>
+          <div>
+            <strong>Last Location:</strong> ${s.history[s.history.length-1].loc}<br>
+            <strong>Last User:</strong> ${s.history[s.history.length-1].user}
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleDetails(id) {
+  const el = document.getElementById(id);
+  el.style.display = (el.style.display === 'table-row') ? 'none' : 'table-row';
+}
+
+function refreshProjectDropdown() {
+  const sel = document.getElementById('projectSelector');
+  const val = sel.value;
+  const projects = [...new Set(movements.map(m => m.project).filter(p => p))].sort();
+  sel.innerHTML = '<option value="">Select a Project...</option>' + 
+    projects.map(p => `<option value="${p}" ${p === val ? 'selected' : ''}>${p}</option>`).join('');
+}
+
+function renderAll(){ 
+  const stats = document.getElementById('statsRow');
+  if(stats) stats.innerHTML = `<div class="stat"><label>Total Movements</label><div class="val">${movements.length}</div></div><div class="stat" style="border-left-color:var(--green)"><label>System Status</label><div class="val">ONLINE</div></div>`;
+  renderStock(); 
+  renderMovements(); 
+  renderProjectView();
+}
+
+function refreshMatDropdown(){ 
+  const dl=document.getElementById('matList'); dl.innerHTML=''; 
+  [...new Set(movements.map(m => m.name))].forEach(name=>{ if(name) { const o=document.createElement('option'); o.value=name; dl.appendChild(o); } }); 
+}
+
+async function submitMove(){
+  const matName = document.getElementById('mName').value; 
+  if(!matName) { alert("Please enter a Material Name"); return; }
+  let qty = parseInt(document.getElementById('mQty').value) || 0;
+  if(currentMoveType === 'EXIT') qty = -qty; 
+  
+  const btn = document.getElementById('moveSubmit');
+  btn.innerText = "Uploading... ⏳"; btn.disabled = true;
+
+  const filesArray = [];
+  const fileInputs = document.querySelectorAll('.mFile');
+  for(let input of fileInputs) {
+    if (input.files.length > 0) {
+      const file = input.files[0]; 
+      const b64 = await getBase64(file);
+      filesArray.push({ fileData: b64, fileName: file.name, fileMimeType: file.type });
+    }
+  }
+
+  const m = {
+    type: document.getElementById('mType').value, name: matName, qty: qty,
+    unit: document.getElementById('mUnit').value, dateRec: document.getElementById('mDateRec').value,
+    loc: document.getElementById('mLoc').value, supplier: document.getElementById('mSup').value,
+    gc: document.getElementById('mGC').value, po: document.getElementById('mPO').value,
+    project: document.getElementById('mProj').value, resp: document.getElementById('mResp').value,
+    status: document.getElementById('mStatus').value, comment: document.getElementById('mComm').value,
+    files: filesArray 
+  };
+
+  google.script.run
+    .withSuccessHandler(() => {
+      btn.innerText = "Save to System"; btn.disabled = false;
+      closeModal('moveOverlay'); loadDataFromGoogle();
+    })
+    .withFailureHandler((err) => { alert(err); btn.innerText = "Save"; btn.disabled = false; })
+    .processMovement("addMovement", m);
+}
+
+async function submitAttachment() {
+  const fileInput = document.getElementById('aFile');
+  const btn = document.getElementById('attachSubmit');
+  
+  if (fileInput.files.length === 0) {
+    alert("Please select a file first");
+    return;
+  }
+
+  try {
+    btn.innerText = "Uploading... ⏳";
+    btn.disabled = true;
+
+    const file = fileInput.files[0];
+    const b64 = await getBase64(file);
+    
+    const payload = {
+      rowIdx: parseInt(document.getElementById('aRowIdx').value),
+      files: [{
+        fileData: b64,
+        fileName: file.name,
+        fileMimeType: file.type
+      }]
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        alert("File uploaded successfully!");
+        closeModal('attachOverlay'); // Esto resetea el botón automáticamente con la nueva función closeModal
+        loadDataFromGoogle();
+      })
+      .withFailureHandler(function(err) {
+        alert("Error: " + err);
+        btn.innerText = "Upload & Attach";
+        btn.disabled = false;
+      })
+      .processMovement("updateDocument", payload);
+
+  } catch (e) {
+    alert("Error processing file: " + e.message);
+    btn.innerText = "Upload & Attach";
+    btn.disabled = false;
+  }
+}
+
+google.charts.load('current', {'packages':['corechart', 'bar']});
+
+function drawCharts() {
+  if (movements.length === 0) return;
+
+  // 1. Datos para gráfico de categorías (Pie Chart)
+  const catData = {};
+  movements.forEach(m => {
+    catData[m.type] = (catData[m.type] || 0) + Math.abs(m.qty);
+  });
+  
+  const pieData = google.visualization.arrayToDataTable([
+    ['Category', 'Volume'],
+    ...Object.entries(catData)
+  ]);
+
+  const pieChart = new google.visualization.PieChart(document.getElementById('catPieChart'));
+  pieChart.draw(pieData, {
+    title: 'Material Volume by Category',
+    pieHole: 0.4,
+    colors: ['#1B2A4A', '#3B7DD8', '#2563EB', '#059669', '#EA580C'],
+    chartArea: {width: '90%', height: '80%'}
+  });
+
+  // 2. Datos para actividad semanal (Barras)
+  // Aquí podríamos filtrar por los últimos 7 días
+}
+
+loadDataFromGoogle();
+</script>
+</body>
+</html>

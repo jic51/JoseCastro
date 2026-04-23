@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OX Glass Co. - ERP System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+  --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+  --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
+  --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
+  --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; display:flex; flex-direction:column;}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:.9rem}
+
+/* NAV */
+.topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100; border-bottom: 3px solid var(--accent); flex-wrap: wrap; gap: 10px;}
+.topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+.nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px; flex-wrap: wrap;}
+.nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
+.nav button.active{background:var(--accent);color:#fff}
+
+.author-badge { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; color: #a1b0cb; display:inline-flex; align-items:center; gap:5px; margin-top:4px;}
+
+/* LAYOUT */
+.container{max-width:1400px;margin:0 auto;padding:1.25rem; flex-grow: 1; width: 100%;}
+.section{display:none}.section.active{display:block}
+
+/* CARDS & TABLES */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+.stat label{font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600}
+.stat .val{font-size:1.8rem;font-weight:700;margin-top:.25rem}
+
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem; display:flex; flex-direction:column;}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.card-header h2{font-size:1rem;font-weight:700}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap; align-items: center;}
+.toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+
+.btn{padding:.5rem 1rem;border:none;border-radius:6px;font-size:.85rem;font-weight:600; display:inline-flex; align-items:center; justify-content:center;}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+
+.table-wrapper {max-height: 65vh; overflow-y: auto; position: relative;}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{position:sticky; top:0; background:var(--navy); color:#fff; z-index:10; padding:.6rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; white-space:nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+td{padding:.55rem .75rem;border-bottom:1px solid var(--border); vertical-align: middle;}
+tbody tr:hover{background:#F8FAFC}
+
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:#DBEAFE;color:var(--accent2)}
+.btn-icon{background:transparent; border:none; font-size:1.1rem; cursor:pointer; margin-left:5px; transition:0.2s;}
+.btn-icon:hover{transform:scale(1.2);}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center; padding: 15px;}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:1.75rem;width:100%; max-width:600px; max-height:90vh; overflow-y:auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.form-grid.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:.3rem}
+.field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase}
+.field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
+
+.system-footer { text-align: center; padding: 1.5rem; color: var(--muted); font-size: 0.75rem; border-top: 1px solid var(--border); background: #e5e7eb;}
+
+/* ESTILOS PARA MÓVILES (RESPONSIVE) */
+@media(max-width: 768px) {
+  .topbar { flex-direction: column; align-items: flex-start; }
+  .nav { width: 100%; justify-content: space-between; margin-top: 10px; }
+  .nav button { flex-grow: 1; text-align: center; padding: .6rem; }
+  .toolbar { flex-direction: column; align-items: stretch; width: 100%; }
+  .toolbar input, .toolbar select, .toolbar button { width: 100%; margin-bottom: 5px; padding: 0.6rem; }
+  .form-grid { grid-template-columns: 1fr; } /* Modal a una sola columna en móviles */
+  .modal { padding: 1.25rem; }
+  th, td { padding: 0.5rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>WMS — Warehouse Management</h1>
+    <div class="author-badge">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+      Architected & Engineered by: Jose Castro
+    </div>
+  </div>
+  <div class="nav">
+    <button class="active" onclick="showTab('dashboard')">Stock Dashboard</button>
+    <button onclick="showTab('movements')">Movements & History</button>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div id="dashboard" class="section active">
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search material name..." oninput="renderStock()">
+          <select id="stockFilter" onchange="renderStock()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option><option value="IGU">IGU</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Material Name</th><th>Category</th><th>Total IN</th><th>Total OUT</th><th>Net Available</th><th>Status</th></tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Search Name, PO#, GC, Supplier..." oninput="renderMovements()">
+          <button class="btn btn-primary" onclick="openModal('entry')">+ Entry (IN)</button>
+          <button class="btn btn-danger" onclick="openModal('exit')">− Dispatch (OUT)</button>
+        </div>
+      </div>
+      
+      <div style="background:var(--bg); padding:10px 15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:10px;">
+        <strong style="font-size:0.75rem; color:var(--navy); text-transform:uppercase; margin-right: 5px;">Toggle Columns:</strong>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('sysDate')" ${colVis.sysDate?'checked':''}> SysDate</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('gc')" ${colVis.gc?'checked':''}> GC</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('project')" ${colVis.project?'checked':''}> Project</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('supplier')" ${colVis.supplier?'checked':''}> Supplier</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('resp')" checked> Resp.</label>
+        <label style="cursor:pointer; font-size:0.8rem;"><input type="checkbox" onchange="toggleCol('comment')" checked> Comments</label>
+      </div>
+
+      <div class="table-wrapper" id="tableContainer"></div>
+    </div>
+  </div>
+</div>
+
+<div class="system-footer">
+  &copy; 2026 OX Glass Co. Proprietary Warehouse Management System. <br>
+  Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
+</div>
+
+<div class="overlay" id="moveOverlay" onclick="if(event.target===this)closeModal('moveOverlay')">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div class="form-grid">
+      <div class="field"><label>Category</label><select id="mType"><option value="WINDOW">WINDOW</option><option value="SCREEN">SCREEN</option><option value="WINDOW_PARTS">WINDOW_PARTS</option><option value="SHOWER">SHOWER</option><option value="MIRROR">MIRROR</option><option value="STOREFRONT">STOREFRONT</option><option value="TOOLS">TOOLS</option><option value="BONEYARD">BONEYARD</option><option value="FLASHING">FLASHING</option><option value="SCREWS">SCREWS</option><option value="IGU">IGU</option></select></div>
+      <div class="field"><label>Material Name</label><input type="text" id="mName" list="matList" placeholder="Select or type..."><datalist id="matList"></datalist></div>
+      <div class="field"><label id="dateLabel">Date</label><input type="date" id="mDateRec"></div>
+      <div class="field"><label>Quantity</label><input type="number" id="mQty" min="1" value="1"></div>
+      <div class="field"><label>Unit</label><select id="mUnit"><option>Unit</option><option>Box</option></select></div>
+      <div class="field"><label>Location</label><input type="text" id="mLoc"></div>
+      <div class="field"><label>Supplier</label><input type="text" id="mSup"></div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field"><label>Project / Client</label><input type="text" id="mProj"></div>
+      <div class="field"><label id="respLabel">Responsible</label><input type="text" id="mResp"></div>
+      <div class="field"><label>Status</label><select id="mStatus"><option value="In Stock">In Stock</option><option value="Dispatched">Dispatched</option><option value="Damaged">Damaged</option></select></div>
+    </div>
+    <div class="form-grid full" style="margin-top:1rem; background: #f8fafc; padding: 10px; border: 1px dashed var(--border); border-radius: 6px;">
+      <div class="field"><label style="color: var(--accent2);">📎 Attach Document</label><input type="file" id="mFile" accept="image/*,.pdf" style="border:none; padding-top:5px;"></div>
+    </div>
+    <div class="form-grid full" style="margin-top:.75rem"><div class="field"><label>Comments</label><textarea id="mComm"></textarea></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal('moveOverlay')">Cancel</button><button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save to System</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="attachOverlay" onclick="if(event.target===this)closeModal('attachOverlay')">
+  <div class="modal" style="max-width:400px;">
+    <h3>Attach Extra Document</h3>
+    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:1rem;">This document will be attached to the selected record.</p>
+    <input type="hidden" id="aRowIdx">
+    <input type="hidden" id="aFolderName">
+    <div class="field" style="margin-bottom:1.5rem;">
+      <input type="file" id="aFile" accept="image/*,.pdf" style="border: 1px dashed var(--accent); padding: 10px;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('attachOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="attachSubmit" onclick="submitAttachment()">Upload & Attach</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// PEGA AQUÍ TU URL DE APPS SCRIPT NUEVA
+// ==========================================
+const API_URL = "https://script.google.com/macros/s/AKfycbyg3f2ZnEvJ6NsxC1X6Ar1Q7bqeDz94IL0ysFyT5FAn2UJ8Dvm1IQoRMShT2623id5I/exec";
+
+let catalog = [];
+let movements = [];
+let currentMoveType = 'ENTRY';
+
+let colVis = { sysDate: false, gc: false, project: false, supplier: false, resp: true, comment: true };
+
+function getBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader(); reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+  });
+}
+
+async function loadDataFromGoogle() {
+  document.getElementById('statsRow').innerHTML = "<h3>Cargando sistema seguro... ⏳</h3>";
+  try {
+    let response = await fetch(API_URL);
+    let data = await response.json();
+    catalog = data.catalog || []; movements = data.movements || [];
+    renderAll(); refreshMatDropdown();
+  } catch (error) { alert("Error de conexión con la base de datos segura."); }
+}
+
+function statusBadge(s){
+  const m={OK:'green',DEPLETED:'red','LOW STOCK':'yellow',ENTRY:'green',EXIT:'red'};
+  return `<span class="badge badge-${m[s]||'blue'}">${s}</span>`;
+}
+
+function toggleCol(colName) { colVis[colName] = !colVis[colName]; renderMovements(); }
+
+function getStock(){
+  const stock = {};
+  movements.forEach(m => {
+    if(!m.name) return;
+    if(!stock[m.name]) { stock[m.name] = { name: m.name, type: m.type, in: 0, out: 0, avail: 0, status: 'OK' }; }
+    let q = parseInt(m.qty) || 0;
+    if(q >= 0) stock[m.name].in += q; else stock[m.name].out += Math.abs(q);
+  });
+  Object.values(stock).forEach(s => { s.avail = s.in - s.out; s.status = s.avail <= 0 ? 'DEPLETED' : 'OK'; });
+  return stock;
+}
+
+function renderStock() {
+  const stock = getStock();
+  const q = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const tf = document.getElementById('stockFilter').value;
+  let rows = Object.values(stock).filter(s => {
+    const safeName = (s.name || '').toLowerCase();
+    if(q && !safeName.includes(q)) return false;
+    if(tf && s.type !== tf) return false; return true;
+  });
+  document.getElementById('stockBody').innerHTML = rows.map(s => `<tr>
+    <td><strong>${s.name}</strong></td><td><span class="badge badge-blue">${s.type}</span></td>
+    <td style="color:var(--green)">${s.in}</td><td style="color:var(--red)">${s.out}</td>
+    <td><strong style="font-size:1.1rem">${s.avail}</strong></td><td>${statusBadge(s.status)}</td>
+  </tr>`).join('');
+}
+
+function renderMovements(){
+  const q = (document.getElementById('movSearch').value || '').toLowerCase();
+  let filteredMoves = [...movements].reverse().filter(m => {
+    const safeName = (m.name || '').toString().toLowerCase();
+    const safePo = (m.po || '').toString().toLowerCase();
+    const safeGc = (m.gc || '').toString().toLowerCase();
+    if(q && !safeName.includes(q) && !safePo.includes(q) && !safeGc.includes(q)) return false;
+    return true;
+  });
+  
+  let tableHTML = `<table><thead><tr>
+      ${colVis.sysDate ? '<th>Sys Date</th>' : ''}
+      <th>Action</th><th>Date</th><th>Material</th><th>Qty</th><th>Loc</th><th>PO#</th>
+      ${colVis.gc ? '<th>GC</th>' : ''}${colVis.project ? '<th>Project</th>' : ''}${colVis.supplier ? '<th>Supplier</th>' : ''}${colVis.resp ? '<th>Resp.</th>' : ''}${colVis.comment ? '<th>Comments</th>' : ''}
+      <th>Status</th><th>Document</th>
+    </tr></thead><tbody>`;
+
+  tableHTML += filteredMoves.map(m=> {
+    let docBtn = `<span style="color:#ccc; font-size:0.7rem;">None</span>`;
+    // El sistema ahora verifica si es un link "http" real para mostrar el botón
+    if (m.docLink && m.docLink.toString().startsWith("http")) {
+      docBtn = `<a href="${m.docLink}" target="_blank" class="badge badge-blue" style="text-decoration:none;">📄 View</a>`;
+    }
+    
+    // NUEVO: Botón para añadir documento extra (+)
+    let folder = m.po || m.project || m.supplier || "General_Docs";
+    docBtn += `<button class="btn-icon" onclick="openAttachModal(${m.rowIdx}, '${folder}')" title="Attach another document">➕</button>`;
+
+    // Formatear Comentarios para hacer clic en links extra
+    let commentText = m.comment || '-';
+    if(commentText.includes("[Extra Doc]: http")) {
+      commentText = commentText.replace(/\[Extra Doc\]: (https?:\/\/[^\s]+)/g, '<br><a href="$1" target="_blank" style="color:var(--accent2); font-size:0.75rem;">🔗 Extra Doc</a>');
+    }
+
+    let action = parseInt(m.qty) >= 0 ? 'ENTRY' : 'EXIT';
+    
+    return `<tr>
+      ${colVis.sysDate ? `<td style="color:#888; font-size:0.7rem;">${m.sysDate}</td>` : ''}
+      <td>${statusBadge(action)} <br><small style="color:var(--muted)">${m.type}</small></td>
+      <td>${m.dateRec}</td><td><strong>${m.name}</strong></td><td><strong>${m.qty}</strong> <small>${m.unit}</small></td>
+      <td>${m.loc||'-'}</td><td>${m.po||'-'}</td>
+      ${colVis.gc ? `<td>${m.gc||'-'}</td>` : ''}${colVis.project ? `<td>${m.project||'-'}</td>` : ''}${colVis.supplier ? `<td>${m.supplier||'-'}</td>` : ''}${colVis.resp ? `<td>${m.resp||'-'}</td>` : ''}
+      ${colVis.comment ? `<td>${commentText}</td>` : ''}
+      <td>${m.status||'-'}</td><td>${docBtn}</td>
+    </tr>`;
+  }).join('');
+  
+  tableHTML += `</tbody></table>`;
+  document.getElementById('tableContainer').innerHTML = tableHTML;
+}
+
+function renderAll(){ 
+  document.getElementById('statsRow').innerHTML = `<div class="stat"><label>Total Movements</label><div class="val">${movements.length}</div></div><div class="stat green"><label>System Status</label><div class="val">SECURE & ONLINE</div></div>`;
+  renderStock(); renderMovements(); 
+}
+
+function showTab(t){ 
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active')); 
+  document.getElementById(t).classList.add('active'); 
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); 
+  event.target.classList.add('active'); renderAll(); 
+}
+
+function openModal(type){ 
+  currentMoveType=type.toUpperCase(); 
+  if(currentMoveType === 'ENTRY') {
+    document.getElementById('moveTitle').textContent = 'Receive Material (ENTRY)';
+    document.getElementById('dateLabel').textContent = 'Date Received';
+    document.getElementById('respLabel').textContent = 'Received By';
+    document.getElementById('mStatus').value = 'In Stock';
+  } else {
+    document.getElementById('moveTitle').textContent = 'Dispatch Material (EXIT)';
+    document.getElementById('dateLabel').textContent = 'Date Dispatched';
+    document.getElementById('respLabel').textContent = 'Taken By / Given To';
+    document.getElementById('mStatus').value = 'Dispatched';
+  }
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0]; 
+  document.getElementById('moveOverlay').classList.add('show'); 
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+// NUEVO: Funciones para el Modal de Agregar Documentos Extra
+function openAttachModal(rowIdx, folderName) {
+  document.getElementById('aRowIdx').value = rowIdx;
+  document.getElementById('aFolderName').value = folderName;
+  document.getElementById('attachOverlay').classList.add('show');
+}
+
+async function submitAttachment() {
+  const fileInput = document.getElementById('aFile');
+  if (fileInput.files.length === 0) { alert("Please select a file first."); return; }
+  
+  document.getElementById('attachSubmit').innerText = "Uploading... ⏳";
+  const file = fileInput.files[0];
+  const fileData = await getBase64(file);
+  const ext = file.name.split('.').pop();
+  
+  const payload = {
+    rowIdx: parseInt(document.getElementById('aRowIdx').value),
+    folderName: document.getElementById('aFolderName').value,
+    fileData: fileData,
+    fileName: `ExtraDoc_${new Date().getTime()}.${ext}`,
+    fileMimeType: file.type
+  };
+
+  try {
+    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: "updateDocument", data: payload }) });
+  } catch (err) { alert("Upload error."); }
+
+  document.getElementById('attachSubmit').innerText = "Upload & Attach";
+  document.getElementById('aFile').value = "";
+  closeModal('attachOverlay');
+  loadDataFromGoogle(); // Recargar para ver el link nuevo
+}
+
+function refreshMatDropdown(){ 
+  const dl=document.getElementById('matList'); dl.innerHTML=''; 
+  const uniqueNames = [...new Set(movements.map(m => m.name))];
+  uniqueNames.forEach(name=>{ if(name) { const o=document.createElement('option'); o.value=name; dl.appendChild(o); } }); 
+}
+
+async function submitMove(){
+  const matName = document.getElementById('mName').value; 
+  if(!matName) { alert("Please enter a Material Name"); return; }
+
+  let qty = parseInt(document.getElementById('mQty').value) || 0;
+  if(currentMoveType === 'EXIT') qty = -qty; 
+  
+  let fileData = null, fileName = "", fileMimeType = "";
+  const fileInput = document.getElementById('mFile');
+  if (fileInput.files.length > 0) {
+    document.getElementById('moveSubmit').innerText = "Uploading... ⏳";
+    const file = fileInput.files[0]; fileData = await getBase64(file);
+    const ext = file.name.split('.').pop();
+    const poStr = document.getElementById('mPO').value || "Doc";
+    fileName = `${poStr} - ${currentMoveType} - ${new Date().toISOString().split('T')[0]}.${ext}`;
+    fileMimeType = file.type;
+  }
+
+  const m = {
+    type: document.getElementById('mType').value, name: matName, matId: "", qty: qty,
+    unit: document.getElementById('mUnit').value, dateRec: document.getElementById('mDateRec').value,
+    loc: document.getElementById('mLoc').value, supplier: document.getElementById('mSup').value,
+    gc: document.getElementById('mGC').value, po: document.getElementById('mPO').value,
+    project: document.getElementById('mProj').value, resp: document.getElementById('mResp').value,
+    status: document.getElementById('mStatus').value, comment: document.getElementById('mComm').value,
+    fileData: fileData, fileName: fileName, fileMimeType: fileMimeType
+  };
+
+  document.getElementById('moveSubmit').innerText = "Saving Securely... ⏳";
+  try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: "addMovement", data: m }) }); } 
+  catch (err) { alert("Error."); }
+
+  document.getElementById('moveSubmit').innerText = "Save to System";
+  document.getElementById('mFile').value = ""; document.getElementById('mName').value = ""; 
+  closeModal('moveOverlay'); loadDataFromGoogle(); 
+}
+
+loadDataFromGoogle();
+</script>
+</body>
+</html>

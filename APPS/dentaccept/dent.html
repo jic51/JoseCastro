@@ -1,0 +1,963 @@
+<!-- index.html - DentAccept MVP -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DentAccept</title>
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink-soft: #444;
+    --ink-muted: #888;
+    --page: #faf9f6;
+    --surface: #f2f0eb;
+    --surface2: #e8e5de;
+    --accent: #1a472a;
+    --accent-light: #e8f2ec;
+    --accent2: #c8392b;
+    --accent2-light: #fdf0ee;
+    --border: #ddd9d0;
+    --serif: 'Georgia', 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  html, body {
+    height: 100%;
+    font-family: var(--sans);
+    background: var(--page);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  /* Screen container */
+  .screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .screen.active { display: flex; }
+
+  /* Header */
+  .app-header {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--page);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .app-header h1 {
+    font-family: var(--serif);
+    font-size: 22px;
+    letter-spacing: -0.02em;
+  }
+  .app-header h1 em { color: var(--accent); font-style: italic; }
+  
+  .lang-toggle {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .lang-toggle .active { color: var(--accent); font-weight: 600; }
+
+  /* Screen 1: Library */
+  .search-bar {
+    padding: 12px 20px;
+    background: var(--surface);
+  }
+  .search-bar input {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: var(--page);
+    outline: none;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+
+  .proc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 16px 20px;
+  }
+  .proc-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1.5px solid transparent;
+  }
+  .proc-card:active { transform: scale(0.96); }
+  .proc-card:hover { border-color: var(--accent); }
+  .proc-card .icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .proc-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .proc-card p {
+    font-size: 11px;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+
+  /* Screen 2: Animation */
+  .anim-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: var(--page);
+  }
+  .tooth-svg {
+    width: 220px;
+    height: 220px;
+    margin-bottom: 24px;
+  }
+  .proc-title {
+    font-family: var(--serif);
+    font-size: 28px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .proc-desc {
+    font-size: 15px;
+    color: var(--ink-soft);
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.5;
+    margin-bottom: 32px;
+  }
+  .progress-bar {
+    width: 200px;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .nav-dots {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--surface2);
+    transition: background 0.3s;
+  }
+  .nav-dot.active { background: var(--accent); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    max-width: 300px;
+  }
+  .btn-primary:active { opacity: 0.9; }
+
+  /* Screen 3: Consequences */
+  .consequence-hero {
+    background: var(--accent2-light);
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .consequence-hero .warning-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+  }
+  .consequence-hero h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .consequence-hero p {
+    font-size: 14px;
+    color: #7a2218;
+    opacity: 0.8;
+  }
+
+  .timeline {
+    padding: 24px 20px;
+    flex: 1;
+  }
+  .timeline-item {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .timeline-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 30px;
+    width: 2px;
+    height: calc(100% + 4px);
+    background: var(--border);
+  }
+  .t-dot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .t-dot.now { background: var(--accent); border-color: var(--accent); color: white; }
+  .t-dot.warn { background: var(--accent2); border-color: var(--accent2); color: white; }
+  .t-content h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .t-content p {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+  .cost-compare {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 0 20px 20px;
+  }
+  .cost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .cost-row:last-child { border-bottom: none; }
+  .cost-row .label { font-size: 13px; color: var(--ink-soft); }
+  .cost-row .value {
+    font-family: var(--serif);
+    font-size: 20px;
+  }
+  .cost-row .value.now { color: var(--accent); }
+  .cost-row .value.later { color: var(--accent2); }
+
+  /* Screen 4: Close */
+  .close-hero {
+    background: var(--accent-light);
+    padding: 40px 24px;
+    text-align: center;
+  }
+  .close-hero .check {
+    width: 64px; height: 64px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 28px;
+  }
+  .close-hero h2 {
+    font-family: var(--serif);
+    font-size: 28px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .close-hero p {
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+
+  .pricing-card {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 20px;
+    text-align: center;
+  }
+  .pricing-card .price {
+    font-family: var(--serif);
+    font-size: 48px;
+    margin: 8px 0;
+  }
+  .pricing-card .price-note {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin-bottom: 20px;
+  }
+  .financing-options {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .fin-option {
+    flex: 1;
+    padding: 12px;
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .fin-option .amount { font-weight: 600; font-size: 14px; display: block; margin-bottom: 2px; }
+
+  .action-buttons {
+    padding: 0 20px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .btn-schedule {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-later {
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* Back button */
+  .back-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--ink-soft);
+  }
+
+  /* AI Explanation overlay */
+  .ai-explanation {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 0 20px 20px;
+    border-left: 3px solid var(--accent);
+  }
+  .ai-explanation .ai-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .ai-explanation p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+
+  /* Loading */
+  .ai-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-muted);
+    font-size: 13px;
+  }
+  .ai-loading span {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.4s infinite;
+  }
+  .ai-loading span:nth-child(2) { animation-delay: 0.2s; }
+  .ai-loading span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse {
+    0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- SCREEN 1: LIBRARY -->
+<div class="screen active" id="screen-library">
+  <div class="app-header">
+    <h1>Dent<em>Accept</em></h1>
+    <button class="lang-toggle" onclick="toggleLang()">
+      <span class="active" id="lang-en">EN</span> / <span id="lang-es">ES</span>
+    </button>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search procedures..." oninput="filterProcedures()">
+  </div>
+  <div class="proc-grid" id="proc-grid">
+    <!-- Populated by JS -->
+  </div>
+</div>
+
+<!-- SCREEN 2: ANIMATION -->
+<div class="screen" id="screen-animation">
+  <div class="app-header">
+    <button class="back-btn" onclick="goTo('library')">←</button>
+    <h1>Dent<em>Accept</em></h1>
+    <div style="width:32px;"></div>
+  </div>
+  <div class="anim-container">
+    <svg class="tooth-svg" viewBox="0 0 200 200" id="tooth-svg">
+      <!-- Dynamic SVG content -->
+    </svg>
+    <h2 class="proc-title" id="anim-title">Dental Crown</h2>
+    <p class="proc-desc" id="anim-desc">A cap placed over a damaged tooth to restore its shape and strength</p>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="nav-dots" id="nav-dots"></div>
+    <button class="btn-primary" onclick="goTo('consequence')">What happens if I wait?</button>
+  </div>
+</div>
+
+<!-- SCREEN 3: CONSEQUENCES -->
+<div class="screen" id="screen-consequence">
+  <div class="app-header">
+    <button class="back-btn" onclick="goTo('animation')">←</button>
+    <h1>Dent<em>Accept</em></h1>
+    <div style="width:32px;"></div>
+  </div>
+  <div class="consequence-hero">
+    <div class="warning-icon">⚠️</div>
+    <h2 id="cons-title">If You Wait...</h2>
+    <p id="cons-subtitle">What happens without treatment</p>
+  </div>
+  <div class="ai-explanation" id="ai-explanation">
+    <div class="ai-label">AI Explanation</div>
+    <div class="ai-loading" id="ai-loading">
+      <span></span><span></span><span></span>
+      Generating personalized explanation...
+    </div>
+    <p id="ai-text" class="hidden"></p>
+  </div>
+  <div class="timeline" id="timeline">
+    <!-- Populated by JS -->
+  </div>
+  <div class="cost-compare">
+    <div class="cost-row">
+      <span class="label">Cost today</span>
+      <span class="value now" id="cost-now">$1,200</span>
+    </div>
+    <div class="cost-row">
+      <span class="label">Estimated cost in 2 years</span>
+      <span class="value later" id="cost-later">$3,400</span>
+    </div>
+  </div>
+  <div style="padding: 0 20px 24px;">
+    <button class="btn-primary" onclick="goTo('close')">See Treatment Options</button>
+  </div>
+</div>
+
+<!-- SCREEN 4: CLOSE -->
+<div class="screen" id="screen-close">
+  <div class="app-header">
+    <button class="back-btn" onclick="goTo('consequence')">←</button>
+    <h1>Dent<em>Accept</em></h1>
+    <div style="width:32px;"></div>
+  </div>
+  <div class="close-hero">
+    <div class="check">✓</div>
+    <h2 id="close-title">Ready to Move Forward?</h2>
+    <p id="close-subtitle">Same-day scheduling available</p>
+  </div>
+  <div class="pricing-card">
+    <div style="font-size:13px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:0.05em;">Total Investment</div>
+    <div class="price" id="close-price">$1,200</div>
+    <div class="price-note">Includes procedure, materials, and follow-up</div>
+    <div class="financing-options">
+      <div class="fin-option">
+        <span class="amount">$100/mo</span>
+        12 months
+      </div>
+      <div class="fin-option">
+        <span class="amount">$67/mo</span>
+        18 months
+      </div>
+      <div class="fin-option">
+        <span class="amount">$50/mo</span>
+        24 months
+      </div>
+    </div>
+  </div>
+  <div class="action-buttons">
+    <button class="btn-schedule" onclick="schedule()">I'm Ready to Schedule</button>
+    <button class="btn-later" onclick="goTo('library')">I Need More Time</button>
+  </div>
+</div>
+
+<script>
+// ==================== DATA ====================
+const procedures = [
+  {
+    id: 'crown',
+    icon: '🦷',
+    title: { en: 'Dental Crown', es: 'Corona Dental' },
+    desc: { en: 'Cap over damaged tooth', es: 'Cubierta para diente dañado' },
+    price: 1200,
+    priceLater: 3400,
+    steps: [
+      { en: 'Tooth is prepared and shaped', es: 'El diente se prepara y da forma' },
+      { en: 'Custom crown is fitted', es: 'Se ajusta la corona personalizada' },
+      { en: 'Crown is cemented in place', es: 'La corona se cementa en su lugar' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now', 
+        title: { en: 'Minor decay', es: 'Caries menor' },
+        desc: { en: 'Single crown needed', es: 'Solo se necesita una corona' }
+      },
+      { time: '6 mo', icon: '⚠', type: 'warn',
+        title: { en: 'Decay spreads', es: 'La caries se extiende' },
+        desc: { en: 'May need root canal', es: 'Quizás necesite endodoncia' }
+      },
+      { time: '1 yr', icon: '✕', type: 'warn',
+        title: { en: 'Tooth fracture', es: 'Fractura dental' },
+        desc: { en: 'Extraction + implant needed', es: 'Extracción + implante necesario' }
+      },
+      { time: '2 yr', icon: '💀', type: 'warn',
+        title: { en: 'Bone loss', es: 'Pérdida ósea' },
+        desc: { en: 'Complex surgery required', es: 'Cirugía compleja requerida' }
+      }
+    ]
+  },
+  {
+    id: 'implant',
+    icon: '⬡',
+    title: { en: 'Dental Implant', es: 'Implante Dental' },
+    desc: { en: 'Permanent tooth replacement', es: 'Reemplazo permanente' },
+    price: 3500,
+    priceLater: 5800,
+    steps: [
+      { en: 'Titanium post placed in jaw', es: 'Poste de titanio en el hueso' },
+      { en: 'Healing and osseointegration', es: 'Curación y osteointegración' },
+      { en: 'Crown attached to post', es: 'Corona sobre el poste' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now',
+        title: { en: 'Single implant', es: 'Implante único' },
+        desc: { en: 'Straightforward procedure', es: 'Procedimiento directo' }
+      },
+      { time: '1 yr', icon: '⚠', type: 'warn',
+        title: { en: 'Bone resorption', es: 'Reabsorción ósea' },
+        desc: { en: 'Bone graft may be needed', es: 'Quizás injerto óseo' }
+      },
+      { time: '2 yr', icon: '✕', type: 'warn',
+        title: { en: 'Adjacent teeth shift', es: 'Dientes vecinos se mueven' },
+        desc: { en: 'Multiple teeth affected', es: 'Varios dientes afectados' }
+      }
+    ]
+  },
+  {
+    id: 'rootcanal',
+    icon: '🌀',
+    title: { en: 'Root Canal', es: 'Endodoncia' },
+    desc: { en: 'Removes infected pulp', es: 'Elimina pulpa infectada' },
+    price: 900,
+    priceLater: 2800,
+    steps: [
+      { en: 'Infected pulp removed', es: 'Se extrae pulpa infectada' },
+      { en: 'Canal cleaned and sealed', es: 'Conducto limpiado y sellado' },
+      { en: 'Crown placed on top', es: 'Corona colocada encima' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now',
+        title: { en: 'Infected nerve', es: 'Nervio infectado' },
+        desc: { en: 'Root canal + crown', es: 'Endodoncia + corona' }
+      },
+      { time: '3 mo', icon: '⚠', type: 'warn',
+        title: { en: 'Abscess forms', es: 'Absceso dental' },
+        desc: { en: 'Emergency extraction', es: 'Extracción de emergencia' }
+      },
+      { time: '1 yr', icon: '💀', type: 'warn',
+        title: { en: 'Infection spreads', es: 'Infección se extiende' },
+        desc: { en: 'Risk to heart/kidneys', es: 'Riesgo para corazón/riñones' }
+      }
+    ]
+  },
+  {
+    id: 'invisalign',
+    icon: '⟡',
+    title: { en: 'Invisalign', es: 'Invisalign' },
+    desc: { en: 'Clear aligners', es: 'Alineadores transparentes' },
+    price: 4500,
+    priceLater: 5200,
+    steps: [
+      { en: '3D scan of your teeth', es: 'Escaneo 3D de sus dientes' },
+      { en: 'Custom aligners created', es: 'Alineadores personalizados' },
+      { en: 'New aligners every 2 weeks', es: 'Nuevos cada 2 semanas' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now',
+        title: { en: 'Mild misalignment', es: 'Desalineación leve' },
+        desc: { en: '12-18 month treatment', es: 'Tratamiento de 12-18 meses' }
+      },
+      { time: '2 yr', icon: '⚠', type: 'warn',
+        title: { en: 'Bite issues worsen', es: 'Problemas de mordida' },
+        desc: { en: 'TMJ pain, wear on teeth', es: 'Dolor TMJ, desgaste' }
+      }
+    ]
+  },
+  {
+    id: 'whitening',
+    icon: '✨',
+    title: { en: 'Whitening', es: 'Blanqueamiento' },
+    desc: { en: 'Professional bleaching', es: 'Blanqueamiento profesional' },
+    price: 400,
+    priceLater: 400,
+    steps: [
+      { en: 'Protective barrier applied', es: 'Barrera protectora aplicada' },
+      { en: 'Whitening gel activated', es: 'Gel activado con luz' },
+      { en: 'Shades lighter in 1 hour', es: 'Tonos más claros en 1 hora' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now',
+        title: { en: 'Surface stains', es: 'Manchas superficiales' },
+        desc: { en: 'Easy removal', es: 'Remoción fácil' }
+      },
+      { time: '2 yr', icon: '⚠', type: 'warn',
+        title: { en: 'Stains set in', es: 'Manchas fijadas' },
+        desc: { en: 'May need veneers', es: 'Quizás carillas necesarias' }
+      }
+    ]
+  },
+  {
+    id: 'extraction',
+    icon: '🔧',
+    title: { en: 'Extraction', es: 'Extracción' },
+    desc: { en: 'Tooth removal', es: 'Remoción dental' },
+    price: 300,
+    priceLater: 300,
+    steps: [
+      { en: 'Tooth loosened gently', es: 'Diente aflojado suavemente' },
+      { en: 'Extracted carefully', es: 'Extraído cuidadosamente' },
+      { en: 'Socket preserved for implant', es: 'Alvéolo preservado' }
+    ],
+    timeline: [
+      { time: 'Now', icon: '✓', type: 'now',
+        title: { en: 'Simple extraction', es: 'Extracción simple' },
+        desc: { en: 'Quick healing', es: 'Curación rápida' }
+      },
+      { time: '6 mo', icon: '⚠', type: 'warn',
+        title: { en: 'Bone loss begins', es: 'Pérdida ósea inicia' },
+        desc: { en: 'Implant more complex', es: 'Implante más complejo' }
+      }
+    ]
+  }
+];
+
+// ==================== STATE ====================
+let currentLang = 'en';
+let currentProc = null;
+let animInterval = null;
+let currentStep = 0;
+
+// ==================== I18N ====================
+const i18n = {
+  en: {
+    searchPlaceholder: 'Search procedures...',
+    whatIfWait: 'What happens if I wait?',
+    seeOptions: 'See Treatment Options',
+    readyToMove: 'Ready to Move Forward?',
+    sameDay: 'Same-day scheduling available',
+    totalInvestment: 'Total Investment',
+    includes: 'Includes procedure, materials, and follow-up',
+    readySchedule: "I'm Ready to Schedule",
+    needTime: 'I Need More Time',
+    costToday: 'Cost today',
+    costLater: 'Estimated cost in 2 years',
+    ifYouWait: 'If You Wait...',
+    withoutTreatment: 'What happens without treatment',
+    aiLabel: 'AI Explanation',
+    aiLoading: 'Generating personalized explanation...'
+  },
+  es: {
+    searchPlaceholder: 'Buscar procedimientos...',
+    whatIfWait: '¿Qué pasa si espero?',
+    seeOptions: 'Ver Opciones de Tratamiento',
+    readyToMove: '¿Listo para Continuar?',
+    sameDay: 'Agendamiento mismo día disponible',
+    totalInvestment: 'Inversión Total',
+    includes: 'Incluye procedimiento, materiales y seguimiento',
+    readySchedule: 'Estoy Listo para Agendar',
+    needTime: 'Necesito Más Tiempo',
+    costToday: 'Costo hoy',
+    costLater: 'Costo estimado en 2 años',
+    ifYouWait: 'Si Espera...',
+    withoutTreatment: 'Qué ocurre sin tratamiento',
+    aiLabel: 'Explicación IA',
+    aiLoading: 'Generando explicación personalizada...'
+  }
+};
+
+function t(key) {
+  return i18n[currentLang][key] || key;
+}
+
+// ==================== NAVIGATION ====================
+function goTo(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  
+  if (screen === 'library') {
+    clearInterval(animInterval);
+    currentProc = null;
+  }
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'es' : 'en';
+  document.getElementById('lang-en').classList.toggle('active');
+  document.getElementById('lang-es').classList.toggle('active');
+  document.getElementById('search-input').placeholder = t('searchPlaceholder');
+  renderLibrary();
+  if (currentProc) {
+    updateAnimationText();
+    updateConsequenceText();
+  }
+}
+
+// ==================== LIBRARY ====================
+function renderLibrary() {
+  const grid = document.getElementById('proc-grid');
+  const filter = document.getElementById('search-input').value.toLowerCase();
+  grid.innerHTML = '';
+  
+  procedures.forEach(proc => {
+    if (filter && !proc.title[currentLang].toLowerCase().includes(filter) && 
+        !proc.desc[currentLang].toLowerCase().includes(filter)) return;
+    
+    const card = document.createElement('div');
+    card.className = 'proc-card';
+    card.innerHTML = `
+      <span class="icon">${proc.icon}</span>
+      <h3>${proc.title[currentLang]}</h3>
+      <p>${proc.desc[currentLang]}</p>
+    `;
+    card.onclick = () => openProcedure(proc);
+    grid.appendChild(card);
+  });
+}
+
+function filterProcedures() {
+  renderLibrary();
+}
+
+function openProcedure(proc) {
+  currentProc = proc;
+  currentStep = 0;
+  goTo('animation');
+  startAnimation();
+  updateAnimationText();
+}
+
+// ==================== ANIMATION ====================
+function updateAnimationText() {
+  document.getElementById('anim-title').textContent = currentProc.title[currentLang];
+  document.getElementById('anim-desc').textContent = currentProc.steps[currentStep][currentLang];
+  
+  // Update progress
+  const progress = ((currentStep + 1) / currentProc.steps.length) * 100;
+  document.getElementById('progress-fill').style.width = progress + '%';
+  
+  // Update dots
+  const dotsContainer = document.getElementById('nav-dots');
+  dotsContainer.innerHTML = '';
+  currentProc.steps.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'nav-dot' + (i === currentStep ? ' active' : '');
+    dotsContainer.appendChild(dot);
+  });
+  
+  // Update SVG
+  renderToothSVG(currentProc.id, currentStep);
+}
+
+function startAnimation() {
+  clearInterval(animInterval);
+  animInterval = setInterval(() => {
+    currentStep = (currentStep + 1) % currentProc.steps.length;
+    updateAnimationText();
+  }, 3000);
+}
+
+function renderToothSVG(procId, step) {
+  const svg = document.getElementById('tooth-svg');
+  const colors = {
+    crown: ['#e8e5de', '#c8b8a0', '#1a472a'],
+    implant: ['#ddd', '#aaa', '#1a472a'],
+    rootcanal: ['#e8e5de', '#c8392b', '#1a472a'],
+    invisalign: ['#e8e5de', '#87CEEB', '#1a472a'],
+    whitening: ['#d4c4a8', '#f5f5dc', '#fff'],
+    extraction: ['#e8e5de', '#c8392b', '#666']
+  };
+  
+  const c = colors[procId] || colors.crown;
+  const phase = step % 3;
+  
+  // Simplified tooth SVG with animation state
+  const toothPaths = {
+    0: `M60,40 Q100,20 140,40 Q160,80 150,120 Q140,160 100,170 Q60,160 50,120 Q40,80 60,40 Z`,
+    1: `M60,40 Q100,20 140,40 Q160,80 150,120 Q140,160 100,170 Q60,160 50,120 Q40,80 60,40 Z M70,60 Q100,50 130,60`,
+    2: `M60,40 Q100,20 140,40 Q160,80 150,120 Q140,160 100,170 Q60,160 50,120 Q40,80 60,40 Z M70,60 Q100,50 130,60 M80,80 L120,80`
+  };
+  
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="toothGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:${c[0]}"/>
+        <stop offset="100%" style="stop-color:${c[1]}"/>
+      </linearGradient>
+    </defs>
+    <path d="${toothPaths[phase]}" fill="url(#toothGrad)" stroke="${c[2]}" stroke-width="3"/>
+    ${phase >= 1 ? `<circle cx="100" cy="90" r="${8 + phase*4}" fill="${c[2]}" opacity="0.3"/>` : ''}
+    ${phase >= 2 ? `<rect x="75" y="70" width="50" height="40" rx="5" fill="${c[2]}" opacity="0.5"/>` : ''}
+  `;
+}
+
+// ==================== CONSEQUENCES ====================
+function updateConsequenceText() {
+  document.getElementById('cons-title').textContent = t('ifYouWait');
+  document.getElementById('cons-subtitle').textContent = t('withoutTreatment');
+  document.querySelector('.ai-explanation .ai-label').textContent = t('aiLabel');
+  document.getElementById('ai-loading').innerHTML = `
+    <span></span><span></span><span></span>
+    ${t('aiLoading')}
+  `;
+  
+  document.getElementById('cost-now').textContent = '$' + currentProc.price.toLocaleString();
+  document.getElementById('cost-later').textContent = '$' + currentProc.priceLater.toLocaleString();
+  
+  // Render timeline
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '';
+  currentProc.timeline.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'timeline-item';
+    div.innerHTML = `
+      <div class="t-dot ${item.type}">${item.icon}</div>
+      <div class="t-content">
+        <h4>${item.time} — ${item.title[currentLang]}</h4>
+        <p>${item.desc[currentLang]}</p>
+      </div>
+    `;
+    timeline.appendChild(div);
+  });
+  
+  // Simulate AI loading then show explanation
+  document.getElementById('ai-loading').classList.remove('hidden');
+  document.getElementById('ai-text').classList.add('hidden');
+  
+  setTimeout(() => {
+    const explanations = {
+      crown: {
+        en: "Without a crown, the damaged tooth continues to weaken. Bacteria enter through cracks, causing decay to spread inward. Within 6 months, the nerve may become infected, requiring a root canal ($900 extra). Within a year, the tooth may fracture below the gumline, making extraction and implant ($3,500) the only option. Acting now saves you $2,200 and preserves your natural tooth.",
+        es: "Sin una corona, el diente dañado sigue debilitándose. Las bacterias entran por las grietas, causando que la caries se extienda hacia adentro. En 6 meses, el nervio puede infectarse, requiriendo endodoncia ($900 extra). En un año, el diente puede fracturarse bajo la encía, haciendo que la extracción e implante ($3,500) sean la única opción. Actuar ahora le ahorra $2,200 y preserva su diente natural."
+      },
+      implant: {
+        en: "When a tooth is missing, the jawbone beneath it begins to dissolve — losing 25% of its width in the first year. This makes future implant placement more complex and expensive, often requiring bone grafting ($800-$1,200 additional). Adjacent teeth also shift toward the gap, causing bite problems and potential damage to other teeth.",
+        es: "Cuando falta un diente, el hueso de la mandíbula debajo comienza a disolverse — perdiendo el 25% de su anchura en el primer año. Esto hace que la colocación futura del implante sea más compleja y costosa, a menudo requiriendo injerto óseo ($800-$1,200 adicionales). Los dientes adyacentes también se mueven hacia el espacio, causando problemas de mordida y daño potencial a otros dientes."
+      },
+      rootcanal: {
+        en: "An infected tooth is not just a dental problem — it's a ticking time bomb. The infection can spread through your bloodstream to your heart (endocarditis), brain (abscess), or other organs. Emergency room visits for dental infections cost $1,400 on average. A simple root canal today prevents a medical emergency tomorrow.",
+        es: "Un diente infectado no es solo un problema dental — es una bomba de tiempo. La infección puede extenderse por su sangre al corazón (endocarditis), cerebro (absceso) u otros órganos. Las visitas de emergencia por infecciones dentales cuestan $1,400 en promedio. Una endodoncia simple hoy previene una emergencia médica mañana."
+      },
+      invisalign: {
+        en: "Crooked teeth aren't just cosmetic — they create hard-to-clean areas where plaque builds up, increasing decay and gum disease risk by 3x. Misalignment also causes uneven wear, chipping, and TMJ pain. The longer you wait, the more complex (and expensive) the correction becomes.",
+        es: "Los dientes torcidos no son solo estéticos — crean áreas difíciles de limpiar donde se acumula la placa, aumentando el riesgo de caries y enfermedad de encías 3 veces. La desalineación también causa desgaste desigual, astillamiento y dolor de ATM. Mientras más espera, más compleja (y costosa) se vuelve la corrección."
+      },
+      whitening: {
+        en: "Surface stains from coffee, wine, and tobacco penetrate deeper over time. After 2 years, stains become intrinsic (inside the enamel), making them resistant to bleaching. At that point, veneers ($1,200+ per tooth) become the only option for a bright smile. Professional whitening now is 10x cheaper than veneers later.",
+        es: "Las manchas superficiales de café, vino y tabaco penetran más profundo con el tiempo. Después de 2 años, las manchas se vuelven intrínsecas (dentro del esmalte), haciéndolas resistentes al blanqueamiento. En ese punto, las carillas ($1,200+ por diente) se convierten en la única opción para una sonrisa brillante. El blanqueamiento profesional ahora es 10 veces más barato que las carillas después."
+      },
+      extraction: {
+        en: "After extraction, the jawbone in that area begins to resorb (shrink) immediately. Within 6 months, 40-60% of the bone width is lost. This makes future implant placement more invasive and expensive, often requiring sinus lifts or bone grafts. Preserving the socket now with a simple bone graft ($300) saves $1,500+ in reconstructive surgery later.",
+        es: "Después de la extracción, el hueso de la mandíbula en esa área comienza a reabsorberse (encogerse) inmediatamente. En 6 meses, se pierde el 40-60% del ancho óseo. Esto hace que la colocación futura del implante sea más invasiva y costosa, a menudo requiriendo elevación de seno o injertos óseos. Preservar el alvéolo ahora con un simple injerto óseo ($300) ahorra $1,500+ en cirugía reconstructiva después."
+      }
+    };
+    
+    const exp = explanations[currentProc.id] || explanations.crown;
+    document.getElementById('ai-text').textContent = exp[currentLang];
+    document.getElementById('ai-loading').classList.add('hidden');
+    document.getElementById('ai-text').classList.remove('hidden');
+  }, 1500);
+}
+
+// ==================== CLOSE ====================
+function goToClose() {
+  goTo('close');
+  document.getElementById('close-title').textContent = t('readyToMove');
+  document.getElementById('close-subtitle').textContent = t('sameDay');
+  document.getElementById('close-price').textContent = '$' + currentProc.price.toLocaleString();
+  document.querySelector('.pricing-card div:first-child').textContent = t('totalInvestment');
+  document.querySelector('.price-note').textContent = t('includes');
+  document.querySelector('.btn-schedule').textContent = t('readySchedule');
+  document.querySelector('.btn-later').textContent = t('needTime');
+}
+
+// Override the onclick in HTML
+document.querySelector('#screen-consequence .btn-primary').onclick = goToClose;
+
+function schedule() {
+  alert(currentLang === 'en' 
+    ? 'Front desk notified! Please proceed to reception to confirm your appointment.' 
+    : '¡Recepción notificada! Por favor diríjase a recepción para confirmar su cita.');
+  goTo('library');
+}
+
+// ==================== INIT ====================
+renderLibrary();
+</script>
+</body>
+</html>

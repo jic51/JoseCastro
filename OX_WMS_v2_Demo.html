@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OX Glass Co. — WMS v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+  --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+  --green:#059669;--green-bg:#D1FAE5;
+  --red:#DC2626;--red-bg:#FEE2E2;
+  --yellow:#D97706;--yellow-bg:#FEF3C7;
+  --orange:#EA580C;--orange-bg:#FED7AA;
+  --cyan:#0891B2;--cyan-bg:#CFFAFE;
+  --purple:#7C3AED;--purple-bg:#EDE9FE;
+  --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-sans:'IBM Plex Sans',sans-serif;
+}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;font-size:14px}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--navy);border-bottom:3px solid var(--accent);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{width:32px;height:32px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;letter-spacing:.05em;color:#fff;font-family:var(--font-mono)}
+.brand-name{font-weight:600;font-size:15px;letter-spacing:.02em;color:#fff}
+.brand-sub{font-size:11px;color:rgba(255,255,255,.5);font-family:var(--font-mono)}
+.nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px}
+.nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;transition:.2s}
+.nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav button.active{background:var(--accent);color:#fff}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.topbar-time{font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,.4)}
+
+/* ── LAYOUT ── */
+.container{max-width:1600px;margin:0 auto;padding:1.25rem;flex-grow:1;width:100%}
+.section{display:none}.section.active{display:block}
+
+/* ── STAT CARDS ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin-bottom:1.25rem}
+.stat{background:var(--card);border-radius:var(--radius);padding:1rem 1.25rem;box-shadow:var(--shadow);position:relative;overflow:hidden;border-left:4px solid var(--accent)}
+.stat.green{border-left-color:var(--green)}
+.stat.red{border-left-color:var(--red)}
+.stat.amber{border-left-color:var(--yellow)}
+.stat.cyan{border-left-color:var(--cyan)}
+.stat.purple{border-left-color:var(--purple)}
+.stat label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;display:block;margin-bottom:.25rem}
+.stat .val{font-size:1.8rem;font-weight:700;line-height:1}
+.stat .sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+
+/* ── CARDS ── */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.25rem}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.card-header h2{font-size:1rem;font-weight:700;color:var(--text)}
+.toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{background:#fff;border:1px solid var(--border);color:var(--text);padding:.4rem .75rem;border-radius:6px;font-size:.8rem}
+.toolbar input::placeholder{color:var(--muted)}
+.toolbar input:focus,.toolbar select:focus{outline:none;border-color:var(--accent)}
+
+/* ── BUTTONS ── */
+.btn{padding:.5rem 1rem;border:none;border-radius:6px;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(.92)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-success{background:var(--green-bg);color:var(--green);border:1px solid #a7f3d0}
+.btn-transfer{background:var(--cyan-bg);color:var(--cyan);border:1px solid #a5f3fc}
+.btn-return{background:var(--purple-bg);color:var(--purple);border:1px solid #ddd6fe}
+.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);background:#EEF4FD}
+.btn-sm{padding:.3rem .65rem;font-size:.78rem}
+
+/* ── TABLE ── */
+.table-wrapper{overflow-x:auto;max-height:65vh;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:5;padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+td{padding:.55rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover{background:#F8FAFC}
+tbody tr.row-zero{opacity:.5}
+tbody tr.row-entry td:first-child{border-left:3px solid var(--green)}
+tbody tr.row-exit td:first-child{border-left:3px solid var(--red)}
+tbody tr.row-transfer td:first-child{border-left:3px solid var(--cyan)}
+tbody tr.row-return td:first-child{border-left:3px solid var(--purple)}
+.mono{font-family:var(--font-mono);font-size:.78rem}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:#DBEAFE;color:var(--accent2)}
+.badge-amber{background:var(--yellow-bg);color:var(--yellow)}
+.badge-cyan{background:var(--cyan-bg);color:var(--cyan)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+.badge-gray{background:#F3F4F6;color:#6B7280}
+
+/* ── ALERT ── */
+.alert{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none;align-items:center;gap:.5rem;flex-wrap:wrap}
+.alert.show{display:flex}
+
+/* ── CHARTS GRID ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+@media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:1rem}
+.chart-card h3{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.75rem}
+
+/* ── WAREHOUSE MAP ── */
+.map-grid{display:grid;gap:4px;padding:1.25rem}
+.map-section-label{font-size:.7rem;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;margin-top:10px;font-weight:600}
+.rack-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+.rack-cell{width:52px;height:44px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:.15s;border:1px solid transparent;position:relative}
+.rack-cell:hover{transform:scale(1.1);z-index:2;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.rack-cell .rack-name{font-size:9px;font-family:var(--font-mono);font-weight:600}
+.rack-cell .rack-qty{font-size:11px;font-weight:700}
+.rack-empty{background:#F3F4F6;border-color:var(--border);color:#9CA3AF}
+.rack-low{background:var(--yellow-bg);border-color:#FCD34D;color:var(--yellow)}
+.rack-full{background:var(--green-bg);border-color:#6EE7B7;color:var(--green)}
+.rack-truck{background:var(--cyan-bg);border-color:#67E8F9;color:var(--cyan)}
+.rack-special{background:#DBEAFE;border-color:#93C5FD;color:var(--accent2)}
+
+/* ── MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:15px}
+.overlay.show{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:1.75rem;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,.2)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:1.25rem;color:var(--navy)}
+.modal-type-bar{display:flex;gap:.5rem;margin-bottom:1.25rem}
+.modal-type-btn{flex:1;padding:.5rem;border:1px solid var(--border);background:#F9FAFB;color:var(--muted);border-radius:6px;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;transition:.15s}
+.modal-type-btn.active-entry{background:var(--green-bg);color:var(--green);border-color:#6EE7B7}
+.modal-type-btn.active-exit{background:var(--red-bg);color:var(--red);border-color:#FCA5A5}
+.modal-type-btn.active-transfer{background:var(--cyan-bg);color:var(--cyan);border-color:#67E8F9}
+.modal-type-btn.active-return{background:var(--purple-bg);color:var(--purple);border-color:#C4B5FD}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
+.form-grid.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:.3rem}
+.field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{background:#fff;border:1px solid var(--border);color:var(--text);padding:.6rem .75rem;border-radius:6px;font-size:13px}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+.field input::placeholder{color:#9CA3AF}
+.stock-warn{padding:.5rem .75rem;border-radius:6px;font-size:.8rem;margin-bottom:.5rem;display:none}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+.field-group{background:#F9FAFB;border:1px dashed var(--border);border-radius:8px;padding:.85rem;margin-top:.5rem}
+.field-group-title{font-size:.72rem;color:var(--accent2);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:.65rem}
+
+/* ── PROJECT VIEW ── */
+.proj-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;padding:1.25rem;border-bottom:1px solid var(--border)}
+.proj-stat{text-align:center}
+.proj-stat .pval{font-size:1.6rem;font-weight:700}
+.proj-stat .plabel{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.proj-split{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;padding:.75rem 1.25rem;background:#F8FAFC;border-bottom:1px solid var(--border)}
+.proj-split-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:.75rem}
+.proj-split-card h4{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:.5rem}
+
+/* ── RACK TOOLTIP ── */
+.rack-tooltip{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.65rem .85rem;font-size:.8rem;z-index:300;pointer-events:none;display:none;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.rack-tooltip.show{display:block}
+.rack-tooltip strong{color:var(--accent2);font-size:.78rem}
+
+/* ── FOOTER ── */
+.footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#E5E7EB}
+
+/* ── COL TOGGLES ── */
+.col-bar{background:#F8FAFC;padding:.5rem 1rem;border-bottom:1px solid var(--border);display:flex;gap:1rem;flex-wrap:wrap;align-items:center;font-size:.8rem}
+.col-bar label{cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--muted)}
+.col-bar label:hover{color:var(--text)}
+.col-bar label input{accent-color:var(--accent)}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#D1D5DB;border-radius:3px}
+
+/* ── CANVAS CHARTS ── */
+canvas{max-width:100%}
+
+@media(max-width:768px){
+  .topbar{flex-wrap:wrap;height:auto;padding:.75rem 1rem;gap:.5rem}
+  .nav{flex-wrap:wrap;gap:2px;width:100%}
+  .form-grid{grid-template-columns:1fr}
+  .proj-split{grid-template-columns:1fr}
+  .charts-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-logo">OX</div>
+    <div>
+      <div class="brand-name">OX Glass Co.</div>
+      <div class="brand-sub">Warehouse Management System v2</div>
+    </div>
+  </div>
+  <div class="nav">
+    <button id="btn-dashboard" class="active">Dashboard</button>
+    <button id="btn-movements">Movements</button>
+    <button id="btn-projects">Projects</button>
+    <button id="btn-map">Warehouse Map</button>
+  </div>
+  <div class="topbar-right">
+    <div class="status-dot"></div>
+    <div class="topbar-time" id="clock">--:--</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="section active">
+    <div id="alertBanner" class="alert">⚠ <span id="alertText"></span></div>
+    <div class="stats" id="statsRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Stock by Category</h3><canvas id="pieChart" height="200"></canvas></div>
+      <div class="chart-card"><h3>Top 8 Materials in Stock</h3><canvas id="barChart" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search type, name, location...">
+          <select id="stockCatFilter"><option value="">All Categories</option></select>
+          <select id="stockStatusFilter">
+            <option value="">All</option>
+            <option value="in">In Stock</option>
+            <option value="zero">Zero Stock</option>
+            <option value="site">At Site</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Category</th><th>Name / Job</th><th>Loc Type</th><th>Warehouse Loc</th><th>In Warehouse</th><th>At Site</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOVEMENTS -->
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Name, PO#, GC, project, supplier..." style="min-width:220px">
+          <select id="movTypeFilter">
+            <option value="">All Types</option>
+            <option value="entry">Entry (IN)</option>
+            <option value="exit">Dispatch (OUT)</option>
+            <option value="transfer">Transfer</option>
+            <option value="return">Return</option>
+          </select>
+          <select id="movCatFilter"><option value="">All Categories</option></select>
+          <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
+          <button id="btnEntry" class="btn btn-primary btn-sm">+ Entry</button>
+          <button id="btnDispatch" class="btn btn-danger btn-sm">− Dispatch</button>
+          <button id="btnTransfer" class="btn btn-transfer btn-sm">⇄ Transfer</button>
+          <button id="btnReturn" class="btn btn-return btn-sm">↩ Return</button>
+        </div>
+      </div>
+      <div class="col-bar">
+        <strong style="font-size:10px;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase">Columns:</strong>
+        <label><input type="checkbox" id="chkGc"> GC</label>
+        <label><input type="checkbox" id="chkProj" checked> Project</label>
+        <label><input type="checkbox" id="chkSup"> Supplier</label>
+        <label><input type="checkbox" id="chkResp" checked> Responsible</label>
+        <label><input type="checkbox" id="chkComm" checked> Comments</label>
+        <label><input type="checkbox" id="chkSrc"> Source/Dest</label>
+        <label><input type="checkbox" id="chkSysDate"> Sys Date</label>
+      </div>
+      <div id="movTable"></div>
+    </div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div id="projects" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Project View</h2>
+        <div class="toolbar">
+          <select id="projectSelector" style="min-width:260px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.45rem .75rem;border-radius:6px;font-size:13px">
+            <option value="">Select a project...</option>
+          </select>
+          <button id="btnExportProject" class="btn btn-ghost btn-sm">⬇ Export</button>
+        </div>
+      </div>
+      <div id="projectContent">
+        <div style="padding:2rem;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px">Select a project to view material breakdown</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAREHOUSE MAP -->
+  <div id="map" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Warehouse Map</h2>
+        <div class="toolbar">
+          <select id="mapCatFilter" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.4rem .75rem;border-radius:6px;font-size:12px">
+            <option value="">Show all</option>
+          </select>
+          <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">Click a rack to drill down</span>
+        </div>
+      </div>
+      <div id="mapContent" style="padding:1.25rem"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">© 2026 OX Glass Co. — WMS v2 · Engineered by Jose Castro · <span id="footerDate"></span></div>
+
+<!-- RACK TOOLTIP -->
+<div class="rack-tooltip" id="rackTooltip"></div>
+
+<!-- MOVEMENT MODAL -->
+<div class="overlay" id="moveOverlay">
+  <div class="modal">
+    <h3 id="moveTitle">New Movement</h3>
+    <div class="modal-type-bar">
+      <button class="modal-type-btn" data-type="ENTRY">↓ Entry</button>
+      <button class="modal-type-btn" data-type="EXIT">↑ Dispatch</button>
+      <button class="modal-type-btn" data-type="TRANSFER">⇄ Transfer</button>
+      <button class="modal-type-btn" data-type="RETURN">↩ Return</button>
+    </div>
+    <div id="stockWarn" class="stock-warn"></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Category (Type)</label>
+        <select id="mType">
+          <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+          <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+          <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+          <option>SCREWS</option><option>IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="mNameLabel">Name / Job Reference</label>
+        <input type="text" id="mName" list="matList" placeholder="Job name or product...">
+        <datalist id="matList"></datalist>
+      </div>
+      <div class="field" id="mProductField">
+        <label>Product / Material Detail <span style="color:var(--muted)">(FLASHING/CAULK only)</span></label>
+        <input type="text" id="mProduct" placeholder="e.g. Flashing Tape 9''">
+      </div>
+      <div class="field">
+        <label id="mDateLabel">Date</label>
+        <input type="date" id="mDate">
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="mQty" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="mUnit"><option>UNIT</option><option>BOX</option><option>SET</option><option>ROLL</option></select>
+      </div>
+      <div class="field" id="mLocFromField">
+        <label id="mLocFromLabel">Source Location (Rack)</label>
+        <input type="text" id="mLocFrom" list="rackList" placeholder="e.g. A1A">
+        <datalist id="rackList"></datalist>
+      </div>
+      <div class="field" id="mLocToField">
+        <label id="mLocToLabel">Destination</label>
+        <input type="text" id="mLocTo" list="destList" placeholder="Project site or rack...">
+        <datalist id="destList"></datalist>
+      </div>
+    </div>
+    <div class="field-group">
+      <div class="field-group-title">Additional Info</div>
+      <div class="form-grid">
+        <div class="field"><label>Supplier</label><input type="text" id="mSup" list="supList"><datalist id="supList"></datalist></div>
+        <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+        <div class="field"><label>PO #</label><input type="text" id="mPO"></div>
+        <div class="field"><label>Project / Client</label><input type="text" id="mProj" list="projList"><datalist id="projList"></datalist></div>
+        <div class="field"><label id="mRespLabel">Responsible</label><input type="text" id="mResp"></div>
+        <div class="field"><label>Status</label>
+          <select id="mStatus">
+            <option value="In Stock">In Stock</option>
+            <option value="Dispatched">Dispatched</option>
+            <option value="At Site">At Site</option>
+            <option value="Returned">Returned</option>
+            <option value="Damaged">Damaged</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field"><label>Comments</label><textarea id="mComm" rows="2" style="resize:vertical" placeholder="Notes, dimensions, batch info..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button id="btnCancelMove" class="btn btn-ghost">Cancel</button>
+      <button id="moveSubmit" class="btn btn-primary">Save Movement</button>
+    </div>
+  </div>
+</div>
+
+<!-- RACK DRILL MODAL -->
+<div class="overlay" id="rackOverlay">
+  <div class="modal" style="max-width:500px">
+    <h3 id="rackModalTitle">Rack Contents</h3>
+    <div id="rackModalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('rackOverlay')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════
+//  DATA MODEL — seeded with real OX Glass data
+// ════════════════════════════════════════════════════════════
+var movements = [
+  // FLASHING entries (Name = product identifier)
+  {id:1,moveType:'ENTRY',type:'FLASHING',name:'Rain Buster 450',product:'Rain Buster 450',qty:90,unit:'BOX',dateRec:'2026-02-10',locFrom:'',locTo:'O1B',supplier:'RAIN BUSTER',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'White SEALANT',sysDate:'2026-02-10'},
+  {id:2,moveType:'ENTRY',type:'FLASHING',name:"Flashing Paper 9''",product:"Flashing Paper 9''",qty:2,unit:'BOX',dateRec:'2026-02-11',locFrom:'',locTo:'O1A',supplier:'TYVEK',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'Boxes of 16 each, one box not complete',sysDate:'2026-02-11'},
+  {id:3,moveType:'ENTRY',type:'FLASHING',name:"Flashing Paper 9''",product:"Flashing Paper 9''",qty:7,unit:'BOX',dateRec:'2026-02-11',locFrom:'',locTo:'O2A',supplier:'RAIN BUSTER',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'7.5 boxes left',sysDate:'2026-02-11'},
+  {id:4,moveType:'ENTRY',type:'FLASHING',name:"FlashingTape 9''",product:"FlashingTape 9''",qty:28,unit:'BOX',dateRec:'2026-02-15',locFrom:'',locTo:'O2A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:5,moveType:'ENTRY',type:'FLASHING',name:'Flashing tape 6\'\'',product:"Flashing tape 6''",qty:21,unit:'BOX',dateRec:'2026-02-15',locFrom:'',locTo:'O3A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:6,moveType:'ENTRY',type:'FLASHING',name:"Flex Wrap 9''",product:"Flex Wrap 9''",qty:24,unit:'BOX',dateRec:'2026-02-15',locFrom:'',locTo:'O3B',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:7,moveType:'ENTRY',type:'FLASHING',name:"Straight Flash 9''",product:"Straight Flash 9''",qty:12,unit:'BOX',dateRec:'2026-02-15',locFrom:'',locTo:'O2A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  // WINDOW entries (Name = job reference)
+  {id:10,moveType:'ENTRY',type:'WINDOW',name:'HFLot153',product:'',qty:23,unit:'UNIT',dateRec:'2026-02-11',locFrom:'',locTo:'B6A',supplier:'WINDSOR',gc:'',po:'',project:'HOLBROOK CLUBHOUSE',resp:'Jose',status:'In Stock',comment:'Windsor-clay',sysDate:'2026-02-11'},
+  {id:11,moveType:'ENTRY',type:'WINDOW',name:'HFLot135',product:'',qty:19,unit:'UNIT',dateRec:'2026-02-11',locFrom:'',locTo:'B6A',supplier:'WINDSOR',gc:'',po:'',project:'HOLBROOK CLUBHOUSE',resp:'Jose',status:'In Stock',comment:'Windsor-clay',sysDate:'2026-02-11'},
+  {id:12,moveType:'ENTRY',type:'WINDOW',name:'PAT-PVS4',product:'',qty:19,unit:'UNIT',dateRec:'2026-01-05',locFrom:'',locTo:'B2A',supplier:'AMSCO',gc:'PAT',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Amsco-white',sysDate:'2026-01-05'},
+  {id:13,moveType:'ENTRY',type:'WINDOW',name:'HFLot154',product:'',qty:18,unit:'UNIT',dateRec:'2026-01-15',locFrom:'',locTo:'B1A',supplier:'ALSIDE',gc:'',po:'',project:'HOLBROOK2',resp:'Jose',status:'In Stock',comment:'Allside-white',sysDate:'2026-01-15'},
+  {id:14,moveType:'ENTRY',type:'WINDOW',name:'OLAYAN RESIDENCE',product:'',qty:85,unit:'UNIT',dateRec:'2026-01-24',locFrom:'',locTo:'A1A',supplier:'AMSCO',gc:'',po:'',project:'OLAYAN RESIDENCE',resp:'Jose',status:'In Stock',comment:'AMSCO BLACK/WHITE',sysDate:'2026-01-24'},
+  {id:15,moveType:'ENTRY',type:'WINDOW',name:'LGI REDROCK DISCOUNT',product:'',qty:54,unit:'UNIT',dateRec:'2026-02-11',locFrom:'',locTo:'B5A',supplier:'',gc:'LGI',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Unloaded by window installers',sysDate:'2026-02-11'},
+  {id:16,moveType:'ENTRY',type:'WINDOW',name:'BYRON ALLRED',product:'',qty:21,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'A',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:17,moveType:'ENTRY',type:'WINDOW',name:'SAL BUSHMAN FARMS 2',product:'',qty:23,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'A1A',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:18,moveType:'ENTRY',type:'WINDOW',name:'HIG CANNON RESIDENCE',product:'',qty:27,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'B1A',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:19,moveType:'EXIT',type:'WINDOW',name:'OLAYAN RESIDENCE',product:'',qty:-12,unit:'UNIT',dateRec:'2026-03-01',locFrom:'A1A',locTo:'OLAYAN RESIDENCE SITE',supplier:'',gc:'',po:'',project:'OLAYAN RESIDENCE',resp:'Carlos',status:'Dispatched',comment:'First delivery to site',sysDate:'2026-03-01'},
+  {id:20,moveType:'EXIT',type:'WINDOW',name:'LGI REDROCK DISCOUNT',product:'',qty:-30,unit:'UNIT',dateRec:'2026-03-05',locFrom:'B5A',locTo:'WESTERLY SITE',supplier:'',gc:'LGI',po:'',project:'WESTERLY',resp:'Carlos',status:'Dispatched',comment:'',sysDate:'2026-03-05'},
+  // SCREEN entries
+  {id:30,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:26,unit:'UNIT',dateRec:'2026-02-18',locFrom:'',locTo:'P3C',supplier:'ALSIDE',gc:'',po:'3087',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'DOOR SCREEN',sysDate:'2026-02-18'},
+  {id:31,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:8,unit:'UNIT',dateRec:'2026-02-18',locFrom:'',locTo:'P3C',supplier:'ALSIDE',gc:'',po:'3087',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'DOOR SCREEN',sysDate:'2026-02-18'},
+  {id:32,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:8,unit:'UNIT',dateRec:'2026-02-19',locFrom:'',locTo:'C2B',supplier:'ALSIDE',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'WINDOW SCREEN',sysDate:'2026-02-19'},
+  {id:33,moveType:'EXIT',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:-34,unit:'UNIT',dateRec:'2026-03-05',locFrom:'P3C',locTo:'HIGHLAND ROW, SALT LAKE CITY',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'DOOR SCREENS to site',sysDate:'2026-03-05'},
+  {id:34,moveType:'EXIT',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:-15,unit:'UNIT',dateRec:'2026-03-05',locFrom:'C2B',locTo:'HIGHLAND ROW, SALT LAKE CITY',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'WINDOW SCREENS to site',sysDate:'2026-03-05'},
+  {id:35,moveType:'ENTRY',type:'SCREEN',name:'WESTERLY',product:'',qty:13,unit:'UNIT',dateRec:'2026-02-20',locFrom:'',locTo:'C2B',supplier:'ALSIDE',gc:'',po:'4351',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-20'},
+  {id:36,moveType:'ENTRY',type:'SCREEN',name:'WESTERLY',product:'',qty:26,unit:'UNIT',dateRec:'2026-02-20',locFrom:'',locTo:'C2B',supplier:'ALSIDE',gc:'',po:'4351',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-20'},
+  {id:37,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL A',product:'',qty:11,unit:'UNIT',dateRec:'2026-02-14',locFrom:'',locTo:'A1B',supplier:'ALSIDE',gc:'',po:'1072A',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-14'},
+  {id:38,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL B',product:'',qty:33,unit:'UNIT',dateRec:'2026-02-14',locFrom:'',locTo:'A1B',supplier:'ALSIDE',gc:'',po:'1073',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'Multiple batches',sysDate:'2026-02-14'},
+  {id:39,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL C',product:'',qty:27,unit:'UNIT',dateRec:'2026-02-14',locFrom:'',locTo:'A1B',supplier:'ALSIDE',gc:'',po:'1628A',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-14'},
+  {id:40,moveType:'ENTRY',type:'SCREEN',name:'BYRON ALLRED',product:'',qty:14,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'B1B',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:41,moveType:'ENTRY',type:'SCREEN',name:'SAL BUSHMAN FARMS',product:'',qty:15,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'B1B',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:42,moveType:'ENTRY',type:'SCREEN',name:'HIG CANNON RESIDENCE',product:'',qty:14,unit:'UNIT',dateRec:'2026-02-15',locFrom:'',locTo:'B1B',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:43,moveType:'EXIT',type:'SCREEN',name:'CLOUDVEIL A',product:'',qty:-11,unit:'UNIT',dateRec:'2026-03-10',locFrom:'A1B',locTo:'EAGLE RIDGE SITE',supplier:'',gc:'',po:'',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Carlos',status:'Dispatched',comment:'Full batch to site',sysDate:'2026-03-10'},
+  // MIRROR entries
+  {id:50,moveType:'ENTRY',type:'MIRROR',name:'WESTERLY',product:'',qty:382,unit:'UNIT',dateRec:'2026-03-03',locFrom:'',locTo:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Full order received',sysDate:'2026-03-03'},
+  {id:51,moveType:'ENTRY',type:'MIRROR',name:'KUNA',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-03',locFrom:'',locTo:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'KUNA APTS',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:52,moveType:'ENTRY',type:'MIRROR',name:'LIBERTY WELLS BUILDING 2',product:'',qty:2,unit:'UNIT',dateRec:'2026-03-03',locFrom:'',locTo:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'LIBERTY WELLS TOWNHOMES',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:53,moveType:'EXIT',type:'MIRROR',name:'WESTERLY',product:'',qty:-50,unit:'UNIT',dateRec:'2026-03-12',locFrom:'MIRRORS/SHOWERS WAREHOUSE',locTo:'WESTERLY SITE',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Carlos',status:'Dispatched',comment:'First install batch',sysDate:'2026-03-12'},
+  // IGU entries
+  {id:60,moveType:'ENTRY',type:'IGU',name:'TETON CENTER',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'IGU CART',supplier:'UG',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:61,moveType:'ENTRY',type:'IGU',name:'WESTERLY Y 201',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'IGU CART',supplier:'UG',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:62,moveType:'ENTRY',type:'IGU',name:'DRIVE BY',product:'',qty:2,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'IGU CART',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:63,moveType:'ENTRY',type:'IGU',name:'ALTA VISTA',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'IGU CART',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:64,moveType:'ENTRY',type:'IGU',name:'VAL VT 228 HARPER',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'CART #4',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:65,moveType:'ENTRY',type:'IGU',name:'WESERTLY',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',locFrom:'',locTo:'CART #9',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Possible typo: WESTERLY',sysDate:'2026-03-04'},
+  // TRANSFER example
+  {id:70,moveType:'TRANSFER',type:'WINDOW',name:'PAT-PVS4',product:'',qty:5,unit:'UNIT',dateRec:'2026-03-08',locFrom:'B2A',locTo:'A1A',supplier:'',gc:'PAT',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Relocated to make room',sysDate:'2026-03-08'},
+  // RETURN example
+  {id:71,moveType:'RETURN',type:'SCREEN',name:'WESTERLY',product:'',qty:3,unit:'UNIT',dateRec:'2026-03-14',locFrom:'WESTERLY SITE',locTo:'C2B',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Carlos',status:'Returned',comment:'Damaged units returned for inspection',sysDate:'2026-03-14'},
+  // BONEYARD
+  {id:80,moveType:'ENTRY',type:'BONEYARD',name:'WINDOW SCREEN',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-03',locFrom:'',locTo:'A5C',supplier:'',gc:'',po:'',project:'',resp:'Spencer',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:81,moveType:'EXIT',type:'BONEYARD',name:'WINDOW SCREEN',product:'',qty:-2,unit:'UNIT',dateRec:'2026-03-03',locFrom:'A5C',locTo:'HIGHLAND ROW TOWNHOMES',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'Spencer took 2 for resizing',sysDate:'2026-03-03'},
+];
+
+var nextId = 200;
+
+// Config from real data
+var CONFIG = {
+  racks: [
+    {name:'MIRRORS/SHOWERS WAREHOUSE',type:'RACK'},{name:'WINDOW WAREHOUSE',type:'RACK'},{name:'STOREFRONT WAREHOUSE',type:'RACK'},
+    {name:'CART #4',type:'RACK'},{name:'CART #9',type:'RACK'},{name:'IGU CART',type:'RACK'},
+    // A rows
+    {name:'A',type:'RACK'},{name:'A1A',type:'RACK'},{name:'A1B',type:'RACK'},{name:'A1C',type:'RACK'},
+    {name:'A2A',type:'RACK'},{name:'A2B',type:'RACK'},{name:'A2C',type:'RACK'},
+    {name:'A3A',type:'RACK'},{name:'A3B',type:'RACK'},{name:'A3C',type:'RACK'},
+    {name:'A4A',type:'RACK'},{name:'A4B',type:'RACK'},{name:'A4C',type:'RACK'},
+    {name:'A5A',type:'RACK'},{name:'A5B',type:'RACK'},{name:'A5C',type:'RACK'},
+    {name:'A6A',type:'RACK'},{name:'A6B',type:'RACK'},{name:'A6C',type:'RACK'},
+    // B rows
+    {name:'B1A',type:'RACK'},{name:'B1B',type:'RACK'},{name:'B1C',type:'RACK'},
+    {name:'B2A',type:'RACK'},{name:'B2B',type:'RACK'},{name:'B2C',type:'RACK'},
+    {name:'B3A',type:'RACK'},{name:'B3B',type:'RACK'},{name:'B3C',type:'RACK'},
+    {name:'B4A',type:'RACK'},{name:'B4B',type:'RACK'},{name:'B4C',type:'RACK'},
+    {name:'B5A',type:'RACK'},{name:'B5B',type:'RACK'},{name:'B5C',type:'RACK'},
+    {name:'B6A',type:'RACK'},{name:'B6B',type:'RACK'},{name:'B6C',type:'RACK'},
+    // C rows
+    {name:'C1A',type:'RACK'},{name:'C1B',type:'RACK'},{name:'C1C',type:'RACK'},
+    {name:'C2A',type:'RACK'},{name:'C2B',type:'RACK'},{name:'C2C',type:'RACK'},
+    {name:'C3A',type:'RACK'},{name:'C3B',type:'RACK'},{name:'C3C',type:'RACK'},
+    {name:'C4A',type:'RACK'},{name:'C4B',type:'RACK'},{name:'C4C',type:'RACK'},
+    {name:'C5A',type:'RACK'},{name:'C5B',type:'RACK'},{name:'C5C',type:'RACK'},
+    {name:'C6A',type:'RACK'},{name:'C6B',type:'RACK'},{name:'C6C',type:'RACK'},
+    // P rows
+    {name:'P1A',type:'RACK'},{name:'P1B',type:'RACK'},{name:'P1C',type:'RACK'},
+    {name:'P2A',type:'RACK'},{name:'P2B',type:'RACK'},{name:'P2C',type:'RACK'},
+    {name:'P3A',type:'RACK'},{name:'P3B',type:'RACK'},{name:'P3C',type:'RACK'},
+    {name:'P4A',type:'RACK'},{name:'P4B',type:'RACK'},{name:'P4C',type:'RACK'},
+    // O rows (outdoor/truck)
+    {name:'O1A',type:'RACK'},{name:'O1B',type:'RACK'},{name:'O1C',type:'RACK'},
+    {name:'O2A',type:'RACK'},{name:'O2B',type:'RACK'},{name:'O2C',type:'RACK'},
+    {name:'O3A',type:'TRUCK'},{name:'O3B',type:'TRUCK'},{name:'O3C',type:'TRUCK'},
+    {name:'O4A',type:'TRUCK'},{name:'O4B',type:'TRUCK'},{name:'O4C',type:'TRUCK'},
+    // X rows
+    {name:'X1A',type:'RACK'},{name:'X1B',type:'RACK'},{name:'X1C',type:'RACK'},
+  ],
+  projects: ['ACC STUDENT HOUSING','BRIX CONSTRUCTION: STUDY CENTER','CLOUDVEIL (EAGLE RIDGE)','HIGHLAND ROW TOWNHOMES','HOLBROOK CLUBHOUSE','HOLBROOK2','KUNA APTS','KUNA APTS A','KUNA APTS B','LEHI TOWNHOMES','LIBERTY WELLS TOWNHOMES','OLAYAN RESIDENCE','RIVER MEADOWS CLUBHO','RIVER MEADOWS W2','WESTERLY','WESTERLY SHOWER','WHILOT219','WHILOT224POPPY'],
+  suppliers: ['AMSCO','ALSIDE','RAIN BUSTER','DUPONT','ULINE','WINDSOR','QUAKER','HARTUNG','AMI (ASSOCCIATED MATERIALS INCORPORATED)','UG (UTAH GLASS)'],
+  categories: ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU']
+};
+
+var colVis = {gc:false,project:true,supplier:false,resp:true,comment:true,src:false,sysDate:false};
+var pieChartInst = null, barChartInst = null;
+
+// ════════════════════════════════════════════════════════════
+//  STOCK COMPUTATION — dual-tracking (warehouse + site)
+// ════════════════════════════════════════════════════════════
+var knownRackNames = new Set(CONFIG.racks.map(function(r){ return r.name; }));
+var knownProjectNames = new Set(CONFIG.projects);
+
+function isWarehouseLoc(loc){
+  return knownRackNames.has(loc);
+}
+
+// Returns object keyed by "type___name" with {warehouseQty, siteQty, warehouseLocs, siteLocs}
+function getStockSummary(){
+  var summary = {};
+
+  function getKey(m){ return (m.type||'').toUpperCase()+'___'+(m.name||'').trim(); }
+
+  function ensure(key, m){
+    if(!summary[key]) summary[key] = {
+      type:(m.type||'').toUpperCase(), name:(m.name||'').trim(),
+      warehouseQty:0, siteQty:0,
+      warehouseLocs:{}, siteLocs:{},
+      lastComment: m.comment||''
+    };
+  }
+
+  movements.forEach(function(m){
+    var key = getKey(m);
+    ensure(key, m);
+    var s = summary[key];
+    var qty = parseFloat(m.qty)||0;
+    var mt = (m.moveType||'ENTRY').toUpperCase();
+
+    if(mt === 'ENTRY'){
+      var dest = m.locTo || '';
+      if(isWarehouseLoc(dest)){
+        s.warehouseQty += qty;
+        s.warehouseLocs[dest] = (s.warehouseLocs[dest]||0)+qty;
+      } else {
+        // arriving directly to site (rare, but handle)
+        s.siteQty += qty;
+        s.siteLocs[dest] = (s.siteLocs[dest]||0)+qty;
+      }
+    } else if(mt === 'EXIT'){
+      var src = m.locFrom || '';
+      var dest2 = m.locTo || '';
+      var absQty = Math.abs(qty);
+      // Deduct from warehouse
+      if(isWarehouseLoc(src)){
+        s.warehouseLocs[src] = (s.warehouseLocs[src]||0) - absQty;
+        s.warehouseQty -= absQty;
+      } else {
+        // Try to find best warehouse rack for this SKU
+        var bestRack = null, bestAmt = -1;
+        Object.keys(s.warehouseLocs).forEach(function(r){
+          if(s.warehouseLocs[r] > bestAmt){ bestAmt=s.warehouseLocs[r]; bestRack=r; }
+        });
+        if(bestRack){ s.warehouseLocs[bestRack] -= absQty; s.warehouseQty -= absQty; }
+      }
+      // Add to site qty (material is now on site, not gone)
+      s.siteQty += absQty;
+      s.siteLocs[dest2] = (s.siteLocs[dest2]||0) + absQty;
+      if(m.comment) s.lastComment = m.comment;
+
+    } else if(mt === 'TRANSFER'){
+      // Rack-to-rack: just move warehouse qty between locs
+      var tf_src = m.locFrom||'';
+      var tf_dest = m.locTo||'';
+      var tf_qty = Math.abs(qty);
+      s.warehouseLocs[tf_src] = (s.warehouseLocs[tf_src]||0) - tf_qty;
+      s.warehouseLocs[tf_dest] = (s.warehouseLocs[tf_dest]||0) + tf_qty;
+      // warehouseQty stays same (no net change)
+
+    } else if(mt === 'RETURN'){
+      // Site → Warehouse: reduce site, add to warehouse
+      var ret_src = m.locFrom||'';
+      var ret_dest = m.locTo||'';
+      var ret_qty = Math.abs(qty);
+      s.siteQty = Math.max(0, s.siteQty - ret_qty);
+      var siteKey = ret_src || 'Unknown';
+      if(s.siteLocs[siteKey]) s.siteLocs[siteKey] = Math.max(0, s.siteLocs[siteKey] - ret_qty);
+      s.warehouseQty += ret_qty;
+      s.warehouseLocs[ret_dest] = (s.warehouseLocs[ret_dest]||0) + ret_qty;
+    }
+
+    // Zero-floor warehouse quantities per rack (never go negative per slot)
+    Object.keys(s.warehouseLocs).forEach(function(r){
+      if(s.warehouseLocs[r] < 0) s.warehouseLocs[r] = 0;
+    });
+    if(s.warehouseQty < 0) s.warehouseQty = 0;
+    if(s.siteQty < 0) s.siteQty = 0;
+  });
+
+  return summary;
+}
+
+// Returns flat rack stock keyed by rack name → [{type,name,qty}]
+function getRackStock(){
+  var racks = {};
+  var summary = getStockSummary();
+  Object.values(summary).forEach(function(s){
+    Object.keys(s.warehouseLocs).forEach(function(rack){
+      var q = s.warehouseLocs[rack]||0;
+      if(q > 0){
+        if(!racks[rack]) racks[rack] = [];
+        racks[rack].push({type:s.type,name:s.name,qty:q});
+      }
+    });
+  });
+  return racks;
+}
+
+// ════════════════════════════════════════════════════════════
+//  DISPLAY HELPERS
+// ════════════════════════════════════════════════════════════
+var typeColors = {WINDOW:'blue',SCREEN:'green',MIRROR:'purple',IGU:'cyan',FLASHING:'amber',SHOWER:'purple',STOREFRONT:'blue',TOOLS:'gray',BONEYARD:'gray',WINDOW_PARTS:'blue',SCREWS:'gray'};
+function typeBadge(t){ return '<span class="badge badge-'+(typeColors[t]||'gray')+'">'+t+'</span>'; }
+function moveBadge(mt){
+  var map={ENTRY:'green',EXIT:'red',TRANSFER:'cyan',RETURN:'purple'};
+  var icons={ENTRY:'↓',EXIT:'↑',TRANSFER:'⇄',RETURN:'↩'};
+  return '<span class="badge badge-'+(map[mt]||'gray')+'">'+(icons[mt]||'')+'&nbsp;'+mt+'</span>';
+}
+function stockBadge(wq, sq){
+  if(wq > 0 && sq > 0) return '<span class="badge badge-blue">PARTIAL ON SITE</span>';
+  if(wq > 0) return '<span class="badge badge-green">IN WAREHOUSE</span>';
+  if(sq > 0) return '<span class="badge badge-amber">ALL ON SITE</span>';
+  return '<span class="badge badge-gray">ZERO STOCK</span>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER STATS
+// ════════════════════════════════════════════════════════════
+function renderStats(){
+  var s = getStockSummary();
+  var vals = Object.values(s);
+  var totalWarehouse = vals.reduce(function(a,v){ return a+v.warehouseQty; },0);
+  var totalSite = vals.reduce(function(a,v){ return a+v.siteQty; },0);
+  var zeroAll = vals.filter(function(v){ return v.warehouseQty<=0 && v.siteQty<=0; });
+  var inWarehouse = vals.filter(function(v){ return v.warehouseQty>0; }).length;
+  var projects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
+  var dispatches = movements.filter(function(m){ return m.moveType==='EXIT'; }).length;
+
+  if(zeroAll.length>0){
+    var names = zeroAll.slice(0,3).map(function(v){ return v.type+': '+v.name; }).join(', ');
+    document.getElementById('alertText').textContent = zeroAll.length+' SKU(s) at zero stock — '+names+(zeroAll.length>3?'...':'');
+    document.getElementById('alertBanner').classList.add('show');
+  } else {
+    document.getElementById('alertBanner').classList.remove('show');
+  }
+
+  document.getElementById('statsRow').innerHTML =
+    '<div class="stat"><label>SKUs Tracked</label><div class="val mono">'+vals.length+'</div><div class="sub">'+inWarehouse+' in warehouse</div></div>'+
+    '<div class="stat green"><label>In Warehouse</label><div class="val mono">'+totalWarehouse+'</div><div class="sub">units across all racks</div></div>'+
+    '<div class="stat amber"><label>At Project Sites</label><div class="val mono">'+totalSite+'</div><div class="sub">dispatched &amp; on-site</div></div>'+
+    '<div class="stat red"><label>Total Dispatches</label><div class="val mono">'+dispatches+'</div><div class="sub">outbound movements</div></div>'+
+    '<div class="stat cyan"><label>Active Projects</label><div class="val mono">'+projects+'</div><div class="sub">in system</div></div>'+
+    '<div class="stat purple"><label>Zero Stock</label><div class="val mono" style="color:'+(zeroAll.length>0?'var(--amber)':'var(--green)')+'">'+zeroAll.length+'</div><div class="sub">need attention</div></div>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER STOCK TABLE
+// ════════════════════════════════════════════════════════════
+function renderStock(){
+  var s = getStockSummary();
+  var q = (document.getElementById('stockSearch').value||'').toLowerCase();
+  var cf = document.getElementById('stockCatFilter').value;
+  var sf = document.getElementById('stockStatusFilter').value;
+
+  var rows = Object.values(s).filter(function(v){
+    if(cf && v.type !== cf) return false;
+    if(sf==='in' && v.warehouseQty<=0) return false;
+    if(sf==='zero' && (v.warehouseQty>0||v.siteQty>0)) return false;
+    if(sf==='site' && v.siteQty<=0) return false;
+    if(q){
+      var hay = (v.type+' '+v.name+' '+v.lastComment+' '+Object.keys(v.warehouseLocs).join(' ')).toLowerCase();
+      if(hay.indexOf(q)===-1) return false;
+    }
+    return true;
+  }).sort(function(a,b){ return (b.warehouseQty+b.siteQty)-(a.warehouseQty+a.siteQty); });
+
+  var totalW = rows.reduce(function(a,v){return a+v.warehouseQty;},0);
+  var totalS = rows.reduce(function(a,v){return a+v.siteQty;},0);
+
+  var warehouseLocSummary = function(v){
+    var locs = Object.entries(v.warehouseLocs).filter(function(e){return e[1]>0;}).map(function(e){return e[0];});
+    return locs.length ? locs.slice(0,2).join(', ')+(locs.length>2?' +'+( locs.length-2):'') : '—';
+  };
+
+  document.getElementById('stockBody').innerHTML = rows.map(function(v){
+    var zero = v.warehouseQty<=0 && v.siteQty<=0;
+    return '<tr class="'+(zero?'row-zero':'')+'">'+
+      '<td>'+typeBadge(v.type)+'</td>'+
+      '<td><strong>'+v.name+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--muted)">'+warehouseLocSummary(v)+'</td>'+
+      '<td style="font-size:11px;color:var(--muted)">RACK</td>'+
+      '<td><strong class="mono" style="color:'+(v.warehouseQty>0?'var(--green)':'var(--muted)')+'">'+v.warehouseQty+'</strong></td>'+
+      '<td><strong class="mono" style="color:'+(v.siteQty>0?'var(--amber)':'var(--muted)')+'">'+v.siteQty+'</strong></td>'+
+      '<td><strong class="mono">'+(v.warehouseQty+v.siteQty)+'</strong></td>'+
+      '<td>'+stockBadge(v.warehouseQty,v.siteQty)+'</td>'+
+      '</tr>';
+  }).join('')+
+  '<tr style="background:var(--surface)"><td colspan="4" style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">TOTAL ('+rows.length+' SKUs)</td>'+
+  '<td><strong class="mono" style="color:var(--green)">'+totalW+'</strong></td>'+
+  '<td><strong class="mono" style="color:var(--amber)">'+totalS+'</strong></td>'+
+  '<td><strong class="mono">'+(totalW+totalS)+'</strong></td><td></td></tr>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER MOVEMENTS
+// ════════════════════════════════════════════════════════════
+function renderMovements(){
+  var q = (document.getElementById('movSearch').value||'').toLowerCase();
+  var tf = document.getElementById('movTypeFilter').value;
+  var cf = document.getElementById('movCatFilter').value;
+  var v = colVis;
+
+  var filtered = movements.slice().reverse().filter(function(m){
+    var mt = (m.moveType||'ENTRY').toUpperCase();
+    if(tf==='entry' && mt!=='ENTRY') return false;
+    if(tf==='exit' && mt!=='EXIT') return false;
+    if(tf==='transfer' && mt!=='TRANSFER') return false;
+    if(tf==='return' && mt!=='RETURN') return false;
+    if(cf && (m.type||'').toUpperCase()!==cf) return false;
+    if(q){
+      var fields = [m.name,m.po,m.project,m.supplier,m.gc,m.resp,m.comment,m.locTo,m.locFrom,m.product].map(function(x){return (x||'').toLowerCase();});
+      if(!fields.some(function(f){return f.indexOf(q)!==-1;})) return false;
+    }
+    return true;
+  });
+
+  var typeRowClass = {ENTRY:'row-entry',EXIT:'row-exit',TRANSFER:'row-transfer',RETURN:'row-return'};
+
+  var html = '<div class="table-wrapper"><table><thead><tr>'+
+    '<th>Type</th><th>Date</th><th>Category</th><th>Name / Job</th>';
+  if(['FLASHING','CAULK'].indexOf('x')===-1) html += '<th>Product Detail</th>';
+  html += '<th>Qty</th><th>Unit</th><th>PO #</th><th>From</th><th>To</th>'+
+    (v.gc?'<th>GC</th>':'')+
+    (v.project?'<th>Project</th>':'')+
+    (v.supplier?'<th>Supplier</th>':'')+
+    (v.resp?'<th>By</th>':'')+
+    (v.comment?'<th>Comments</th>':'')+
+    (v.sysDate?'<th>Sys Date</th>':'')+
+    '</tr></thead><tbody>';
+
+  html += filtered.map(function(m){
+    var mt = (m.moveType||'ENTRY').toUpperCase();
+    var qty = parseFloat(m.qty)||0;
+    var qColor = mt==='EXIT'?'var(--red)':mt==='ENTRY'?'var(--green)':mt==='TRANSFER'?'var(--cyan)':'var(--purple)';
+    var qPrefix = mt==='ENTRY'||mt==='RETURN'?'+':'';
+    // Product detail: show for FLASHING; show name if product differs
+    var productCell = (m.product && m.product !== m.name) ? '<span style="font-size:11px;color:var(--muted)">'+m.product+'</span>' : '<span style="color:var(--faint);font-size:11px">—</span>';
+    return '<tr class="'+(typeRowClass[mt]||'')+'">'+
+      '<td>'+moveBadge(mt)+'</td>'+
+      '<td class="mono" style="white-space:nowrap">'+(m.dateRec||'—')+'</td>'+
+      '<td>'+typeBadge(m.type)+'</td>'+
+      '<td><strong>'+m.name+'</strong></td>'+
+      productCell+
+      '<td class="mono" style="color:'+qColor+'"><strong>'+(qty>0?qPrefix:'')+qty+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--muted)">'+(m.unit||'—')+'</td>'+
+      '<td class="mono" style="font-size:11px">'+(m.po||'—')+'</td>'+
+      '<td style="font-size:11px;color:var(--muted)">'+(m.locFrom||'—')+'</td>'+
+      '<td style="font-size:11px;color:var(--muted)">'+(m.locTo||'—')+'</td>'+
+      (v.gc?'<td style="font-size:11px">'+(m.gc||'—')+'</td>':'')+
+      (v.project?'<td style="font-size:11px">'+(m.project||'—')+'</td>':'')+
+      (v.supplier?'<td style="font-size:11px">'+(m.supplier||'—')+'</td>':'')+
+      (v.resp?'<td style="font-size:11px">'+(m.resp||'—')+'</td>':'')+
+      (v.comment?'<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+m.comment+'">'+(m.comment||'—')+'</td>':'')+
+      (v.sysDate?'<td class="mono" style="font-size:10px;color:var(--muted)">'+(m.sysDate||'—')+'</td>':'')+
+      '</tr>';
+  }).join('');
+
+  html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .85rem;font-size:11px;color:var(--muted);font-family:var(--font-mono)">'+filtered.length+' records</td></tr></tfoot></table></div>';
+  document.getElementById('movTable').innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER PROJECT VIEW
+// ════════════════════════════════════════════════════════════
+function refreshProjectDropdown(){
+  var sel = document.getElementById('projectSelector');
+  var cur = sel.value;
+  var projects = Array.from(new Set(movements.map(function(m){return m.project;}).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">Select a project...</option>'+
+    projects.map(function(p){return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>';}).join('');
+  if(cur) sel.value=cur;
+}
+
+function renderProjectView(){
+  var proj = document.getElementById('projectSelector').value;
+  var content = document.getElementById('projectContent');
+  if(!proj){
+    content.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px">Select a project to view material breakdown</div>';
+    return;
+  }
+
+  var pMoves = movements.filter(function(m){return (m.project||'')===proj;});
+  var skus = {};
+  var totalIn=0,totalOut=0,totalAtSite=0,totalReturned=0;
+
+  pMoves.forEach(function(m){
+    var k = (m.type||'')+'___'+(m.name||'');
+    if(!skus[k]) skus[k]={type:m.type,name:m.name,warehouseIn:0,dispatched:0,returned:0,movements:[]};
+    var mt=(m.moveType||'ENTRY').toUpperCase();
+    var qty=Math.abs(parseFloat(m.qty)||0);
+    if(mt==='ENTRY'){ skus[k].warehouseIn+=qty; totalIn+=qty; }
+    else if(mt==='EXIT'){ skus[k].dispatched+=qty; totalOut+=qty; totalAtSite+=qty; }
+    else if(mt==='RETURN'){ skus[k].returned+=qty; totalReturned+=qty; }
+    skus[k].movements.push(m);
+  });
+
+  var warehouseNow = Object.values(skus).reduce(function(a,s){return a+s.warehouseIn-s.dispatched+s.returned;},0);
+  var atSite = totalAtSite - totalReturned;
+
+  content.innerHTML =
+    '<div class="proj-stats">'+
+      '<div class="proj-stat"><div class="pval mono" style="color:var(--green)">'+totalIn+'</div><div class="plabel">Received</div></div>'+
+      '<div class="proj-stat"><div class="pval mono" style="color:var(--red)">'+totalOut+'</div><div class="plabel">Dispatched</div></div>'+
+      '<div class="proj-stat"><div class="pval mono" style="color:var(--amber)">'+(atSite>0?atSite:0)+'</div><div class="plabel">At Site</div></div>'+
+      '<div class="proj-stat"><div class="pval mono" style="color:var(--accent2)">'+(warehouseNow>0?warehouseNow:0)+'</div><div class="plabel">In Warehouse</div></div>'+
+      '<div class="proj-stat"><div class="pval mono">'+Object.keys(skus).length+'</div><div class="plabel">SKUs</div></div>'+
+    '</div>'+
+    '<div class="proj-split">'+
+      '<div class="proj-split-card"><h4>Material in Warehouse</h4>'+
+        Object.values(skus).filter(function(s){return s.warehouseIn-s.dispatched+s.returned>0;}).map(function(s){
+          var net=s.warehouseIn-s.dispatched+s.returned;
+          return '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">'+
+            '<span>'+typeBadge(s.type)+' '+s.name+'</span>'+
+            '<strong class="mono" style="color:var(--green)">'+net+'</strong></div>';
+        }).join('')+
+      '</div>'+
+      '<div class="proj-split-card"><h4>Material at Site</h4>'+
+        Object.values(skus).filter(function(s){return s.dispatched-s.returned>0;}).map(function(s){
+          var onSite=s.dispatched-s.returned;
+          return '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">'+
+            '<span>'+typeBadge(s.type)+' '+s.name+'</span>'+
+            '<strong class="mono" style="color:var(--amber)">'+onSite+'</strong></div>';
+        }).join('')+
+      '</div>'+
+    '</div>'+
+    '<div class="table-wrapper"><table><thead><tr><th>Category</th><th>Name</th><th>Received</th><th>Dispatched</th><th>Returned</th><th>At Site</th><th>In Warehouse</th><th>Status</th></tr></thead><tbody>'+
+    Object.values(skus).map(function(s){
+      var inWh=Math.max(0,s.warehouseIn-s.dispatched+s.returned);
+      var onSite=Math.max(0,s.dispatched-s.returned);
+      return '<tr>'+
+        '<td>'+typeBadge(s.type)+'</td>'+
+        '<td><strong>'+s.name+'</strong></td>'+
+        '<td class="mono" style="color:var(--green)">'+s.warehouseIn+'</td>'+
+        '<td class="mono" style="color:var(--red)">'+s.dispatched+'</td>'+
+        '<td class="mono" style="color:var(--purple)">'+s.returned+'</td>'+
+        '<td class="mono" style="color:var(--amber)">'+onSite+'</td>'+
+        '<td class="mono" style="color:var(--accent2)">'+inWh+'</td>'+
+        '<td>'+stockBadge(inWh,onSite)+'</td></tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+
+// ════════════════════════════════════════════════════════════
+//  WAREHOUSE MAP
+// ════════════════════════════════════════════════════════════
+function renderWarehouseMap(){
+  var rackStock = getRackStock();
+  var catFilter = document.getElementById('mapCatFilter').value;
+
+  function getRackTotal(name){
+    var items = rackStock[name]||[];
+    if(catFilter) items = items.filter(function(i){return i.type===catFilter;});
+    return items.reduce(function(a,i){return a+i.qty;},0);
+  }
+
+  function rackCell(name, locType){
+    var total = getRackTotal(name);
+    var items = rackStock[name]||[];
+    var cls = total===0?'rack-empty':total<5?'rack-low':'rack-full';
+    if(locType==='TRUCK') cls='rack-truck';
+    if(['IGU CART','CART #4','CART #9','MIRRORS/SHOWERS WAREHOUSE','WINDOW WAREHOUSE','STOREFRONT WAREHOUSE'].indexOf(name)!==-1) cls='rack-special rack-full';
+    var shortName = name.length>6?name.substring(0,5)+'…':name;
+    return '<div class="rack-cell '+cls+'" data-rack="'+name+'" title="'+name+': '+total+' units">'+
+      '<span class="rack-name">'+name+'</span>'+
+      '<span class="rack-qty">'+(total>0?total:'·')+'</span>'+
+      '</div>';
+  }
+
+  function rackRow(prefix, nums, letters){
+    var html = '<div class="rack-row">';
+    nums.forEach(function(n){
+      letters.forEach(function(l){
+        html += rackCell(prefix+n+l,'RACK');
+      });
+    });
+    html += '</div>';
+    return html;
+  }
+
+  var html = '<div style="overflow-x:auto">';
+
+  // Special locations
+  html += '<div class="map-section-label">Special Locations</div>';
+  html += '<div class="rack-row">';
+  ['MIRRORS/SHOWERS WAREHOUSE','WINDOW WAREHOUSE','STOREFRONT WAREHOUSE','IGU CART','CART #4','CART #9'].forEach(function(n){
+    html += rackCell(n,'RACK');
+  });
+  html += '</div>';
+
+  // Row A
+  html += '<div class="map-section-label">Row A (Window Warehouse)</div>';
+  for(var i=1;i<=6;i++) html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('A'+i+l,'RACK');}).join('')+'</div>';
+
+  // Row B
+  html += '<div class="map-section-label">Row B</div>';
+  for(var i=1;i<=6;i++) html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('B'+i+l,'RACK');}).join('')+'</div>';
+
+  // Row C
+  html += '<div class="map-section-label">Row C</div>';
+  for(var i=1;i<=6;i++) html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('C'+i+l,'RACK');}).join('')+'</div>';
+
+  // Row P (Screen area)
+  html += '<div class="map-section-label">Row P (Screen Area)</div>';
+  for(var i=1;i<=4;i++) html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('P'+i+l,'RACK');}).join('')+'</div>';
+
+  // Row O (Outdoor / Flashing)
+  html += '<div class="map-section-label">Row O (Outdoor / Flashing)</div>';
+  for(var i=1;i<=4;i++){
+    var lt = i>=3 ? 'TRUCK':'RACK';
+    html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('O'+i+l,lt);}).join('')+'</div>';
+  }
+
+  // Row X
+  html += '<div class="map-section-label">Row X (Overflow)</div>';
+  html += '<div class="rack-row">'+['A','B','C'].map(function(l){return rackCell('X1'+l,'RACK');}).join('')+'</div>';
+
+  html += '<div style="display:flex;gap:1rem;margin-top:1rem;font-size:11px;font-family:var(--font-mono)">'+
+    '<span style="color:var(--muted)">■ Empty</span>'+
+    '<span style="color:var(--amber)">■ Low (&lt;5)</span>'+
+    '<span style="color:var(--green)">■ Stocked</span>'+
+    '<span style="color:var(--cyan)">■ Truck Zone</span>'+
+    '<span style="color:var(--purple)">■ Special</span>'+
+  '</div>';
+  html += '</div>';
+
+  document.getElementById('mapContent').innerHTML = html;
+
+  // Rack click → drill modal
+  document.querySelectorAll('.rack-cell').forEach(function(cell){
+    cell.addEventListener('click', function(){
+      var rack = cell.dataset.rack;
+      var items = rackStock[rack]||[];
+      var title = document.getElementById('rackModalTitle');
+      var body = document.getElementById('rackModalBody');
+      title.textContent = rack + ' — Contents';
+      if(!items.length){
+        body.innerHTML = '<p style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:.5rem 0">Empty rack</p>';
+      } else {
+        body.innerHTML = '<table style="width:100%;font-size:12px"><thead><tr>'+
+          '<th style="text-align:left;padding:.4rem .6rem;color:var(--muted);font-family:var(--font-mono);font-size:10px">CATEGORY</th>'+
+          '<th style="text-align:left;padding:.4rem .6rem;color:var(--muted);font-family:var(--font-mono);font-size:10px">NAME</th>'+
+          '<th style="text-align:right;padding:.4rem .6rem;color:var(--muted);font-family:var(--font-mono);font-size:10px">QTY</th>'+
+          '</tr></thead><tbody>'+
+          items.map(function(i){
+            return '<tr><td style="padding:.4rem .6rem">'+typeBadge(i.type)+'</td>'+
+              '<td style="padding:.4rem .6rem"><strong>'+i.name+'</strong></td>'+
+              '<td style="padding:.4rem .6rem;text-align:right" class="mono">'+i.qty+'</td></tr>';
+          }).join('')+
+          '</tbody></table>';
+      }
+      document.getElementById('rackOverlay').classList.add('show');
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  CHARTS
+// ════════════════════════════════════════════════════════════
+function renderCharts(){
+  var s = getStockSummary();
+  var catTotals = {};
+  Object.values(s).forEach(function(v){
+    if(v.warehouseQty>0) catTotals[v.type]=(catTotals[v.type]||0)+v.warehouseQty;
+  });
+
+  // Pie
+  var pieLabels = Object.keys(catTotals);
+  var pieData = pieLabels.map(function(k){return catTotals[k];});
+  var pieColors = ['#1B2A4A','#3B7DD8','#2563EB','#059669','#EA580C','#D97706','#7C3AED','#DB2777','#0891B2','#F97316','#6366F1'];
+  if(pieChartInst) pieChartInst.destroy();
+  var ctx1 = document.getElementById('pieChart').getContext('2d');
+  pieChartInst = new Chart(ctx1,{
+    type:'doughnut',
+    data:{labels:pieLabels,datasets:[{data:pieData,backgroundColor:pieColors.slice(0,pieLabels.length),borderColor:'#FFFFFF',borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#6B7280',font:{size:11,family:'IBM Plex Sans'},boxWidth:12,padding:8}}}}
+  });
+
+  // Bar — top 8 SKUs by warehouse qty
+  var sorted = Object.values(s).filter(function(v){return v.warehouseQty>0;}).sort(function(a,b){return b.warehouseQty-a.warehouseQty;}).slice(0,8);
+  if(barChartInst) barChartInst.destroy();
+  var ctx2 = document.getElementById('barChart').getContext('2d');
+  barChartInst = new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:sorted.map(function(v){return v.name.length>16?v.name.substring(0,14)+'…':v.name;}),
+      datasets:[
+        {label:'In Warehouse',data:sorted.map(function(v){return v.warehouseQty;}),backgroundColor:'#3B7DD8',borderRadius:4},
+        {label:'At Site',data:sorted.map(function(v){return v.siteQty;}),backgroundColor:'rgba(217,119,6,0.5)',borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true,indexAxis:'y',
+      scales:{
+        x:{ticks:{color:'#6B7280',font:{size:10}},grid:{color:'#E5E7EB'}},
+        y:{ticks:{color:'#1a1a2e',font:{size:10,family:'IBM Plex Sans'}},grid:{display:false}}
+      },
+      plugins:{legend:{labels:{color:'#6B7280',font:{size:10,family:'IBM Plex Sans'},boxWidth:10,padding:6}}}
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  CATEGORY FILTER DROPDOWNS — populate
+// ════════════════════════════════════════════════════════════
+function populateCatFilters(){
+  var cats = CONFIG.categories;
+  ['stockCatFilter','movCatFilter','mapCatFilter'].forEach(function(id){
+    var sel = document.getElementById(id);
+    var cur = sel.value;
+    while(sel.options.length>1) sel.remove(1);
+    cats.forEach(function(c){
+      var o = document.createElement('option');
+      o.value=c; o.textContent=c;
+      sel.appendChild(o);
+    });
+    if(cur) sel.value=cur;
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  MODAL
+// ════════════════════════════════════════════════════════════
+var currentMoveType = 'ENTRY';
+
+function openModal(type){
+  currentMoveType = type.toUpperCase();
+  setModalType(currentMoveType);
+  document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mQty').value = '1';
+  ['mName','mProduct','mLocFrom','mLocTo','mSup','mGC','mPO','mProj','mResp','mComm'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  document.getElementById('mStatus').value = 'In Stock';
+  document.getElementById('stockWarn').style.display='none';
+  updateMatList();
+  refreshModalDropdowns();
+  document.getElementById('moveOverlay').classList.add('show');
+}
+
+function setModalType(type){
+  currentMoveType = type;
+  // Update button styles
+  document.querySelectorAll('.modal-type-btn').forEach(function(btn){
+    var bt = btn.dataset.type;
+    btn.className='modal-type-btn';
+    if(bt===type){
+      var cls={ENTRY:'active-entry',EXIT:'active-exit',TRANSFER:'active-transfer',RETURN:'active-return'};
+      btn.classList.add(cls[bt]||'');
+    }
+  });
+  // Update labels
+  var isFlashing = ['FLASHING','CAULK'].indexOf(document.getElementById('mType').value)!==-1;
+  document.getElementById('mProductField').style.display = isFlashing ? 'flex':'none';
+
+  var lf = document.getElementById('mLocFromField');
+  var lt = document.getElementById('mLocToField');
+  var dateLabel = document.getElementById('mDateLabel');
+  var respLabel = document.getElementById('mRespLabel');
+
+  if(type==='ENTRY'){
+    lf.style.display='none';
+    document.getElementById('mLocFromLabel').textContent='Source (Rack)';
+    document.getElementById('mLocToLabel').textContent='Warehouse Location (Rack)';
+    lt.style.display='flex';
+    dateLabel.textContent='Date Received';
+    respLabel.textContent='Received By';
+    document.getElementById('mStatus').value='In Stock';
+  } else if(type==='EXIT'){
+    lf.style.display='flex';
+    document.getElementById('mLocFromLabel').textContent='From Rack';
+    document.getElementById('mLocToLabel').textContent='Destination (Site / Address)';
+    lt.style.display='flex';
+    dateLabel.textContent='Date Dispatched';
+    respLabel.textContent='Taken By / Delivered To';
+    document.getElementById('mStatus').value='Dispatched';
+  } else if(type==='TRANSFER'){
+    lf.style.display='flex';
+    document.getElementById('mLocFromLabel').textContent='From Rack';
+    document.getElementById('mLocToLabel').textContent='To Rack';
+    lt.style.display='flex';
+    dateLabel.textContent='Transfer Date';
+    respLabel.textContent='Performed By';
+    document.getElementById('mStatus').value='In Stock';
+  } else if(type==='RETURN'){
+    lf.style.display='flex';
+    document.getElementById('mLocFromLabel').textContent='Returning From (Site)';
+    document.getElementById('mLocToLabel').textContent='Return to Rack';
+    lt.style.display='flex';
+    dateLabel.textContent='Return Date';
+    respLabel.textContent='Returned By';
+    document.getElementById('mStatus').value='Returned';
+  }
+}
+
+function closeModal(id){
+  document.getElementById(id).classList.remove('show');
+}
+
+function updateMatList(){
+  var type = document.getElementById('mType').value;
+  var isFlashing = ['FLASHING','CAULK'].indexOf(type.toUpperCase())!==-1;
+  document.getElementById('mProductField').style.display = isFlashing?'flex':'none';
+
+  var dl = document.getElementById('matList'); dl.innerHTML='';
+  var names = Array.from(new Set(movements.filter(function(m){return (m.type||'').toUpperCase()===type.toUpperCase();}).map(function(m){return m.name;}).filter(Boolean))).sort();
+  names.forEach(function(n){var o=document.createElement('option');o.value=n;dl.appendChild(o);});
+}
+
+function refreshModalDropdowns(){
+  var rd=document.getElementById('rackList'); rd.innerHTML='';
+  CONFIG.racks.forEach(function(r){var o=document.createElement('option');o.value=r.name;rd.appendChild(o);});
+
+  var dd=document.getElementById('destList'); dd.innerHTML='';
+  CONFIG.racks.forEach(function(r){var o=document.createElement('option');o.value=r.name;dd.appendChild(o);});
+  CONFIG.projects.forEach(function(p){var o=document.createElement('option');o.value=p;dd.appendChild(o);});
+
+  var pd=document.getElementById('projList'); pd.innerHTML='';
+  CONFIG.projects.forEach(function(p){var o=document.createElement('option');o.value=p;pd.appendChild(o);});
+
+  var sd=document.getElementById('supList'); sd.innerHTML='';
+  CONFIG.suppliers.forEach(function(s){var o=document.createElement('option');o.value=s;sd.appendChild(o);});
+}
+
+function checkStockForDispatch(){
+  if(currentMoveType!=='EXIT') return;
+  var name = document.getElementById('mName').value.trim();
+  var type = document.getElementById('mType').value;
+  if(!name) return;
+  var s = getStockSummary();
+  var key = type.toUpperCase()+'___'+name;
+  var item = s[key];
+  var warn = document.getElementById('stockWarn');
+  if(item && item.warehouseQty>0){
+    var locList = Object.entries(item.warehouseLocs).filter(function(e){return e[1]>0;}).map(function(e){return e[0]+' ('+e[1]+')';}).join(', ');
+    warn.innerHTML='✓ Available: <strong>'+item.warehouseQty+'</strong> in warehouse — '+locList;
+    warn.style.background='rgba(34,197,94,.1)';warn.style.color='var(--green)';warn.style.border='1px solid rgba(34,197,94,.25)';warn.style.borderRadius='6px';warn.style.padding='.4rem .75rem';warn.style.display='block';
+  } else if(item){
+    warn.innerHTML='⚠ None in warehouse. On site: '+item.siteQty;
+    warn.style.background='rgba(245,158,11,.1)';warn.style.color='var(--amber)';warn.style.border='1px solid rgba(245,158,11,.25)';warn.style.borderRadius='6px';warn.style.padding='.4rem .75rem';warn.style.display='block';
+  } else {
+    warn.innerHTML='⛔ No stock found for this item';
+    warn.style.background='rgba(239,68,68,.1)';warn.style.color='var(--red)';warn.style.border='1px solid rgba(239,68,68,.25)';warn.style.borderRadius='6px';warn.style.padding='.4rem .75rem';warn.style.display='block';
+  }
+}
+
+function submitMovement(){
+  var name = document.getElementById('mName').value.trim();
+  var qty = parseInt(document.getElementById('mQty').value)||0;
+  var type = document.getElementById('mType').value;
+  if(!name){ alert('Please enter a name/job reference'); return; }
+  if(qty<=0){ alert('Quantity must be > 0'); return; }
+
+  var locFrom = document.getElementById('mLocFrom').value.trim();
+  var locTo = document.getElementById('mLocTo').value.trim();
+
+  if(currentMoveType==='ENTRY' && !locTo){ alert('Please enter a warehouse location'); return; }
+  if(currentMoveType==='EXIT' && !locFrom){ alert('Please enter source rack'); return; }
+  if(currentMoveType==='TRANSFER' && (!locFrom||!locTo)){ alert('Please enter both source and destination racks'); return; }
+  if(currentMoveType==='RETURN' && (!locFrom||!locTo)){ alert('Please enter site origin and return rack'); return; }
+
+  // Over-dispatch warning for EXIT
+  if(currentMoveType==='EXIT'){
+    var s = getStockSummary();
+    var key = type.toUpperCase()+'___'+name;
+    var item = s[key];
+    if(item && qty > item.warehouseQty){
+      if(!confirm('⚠ Trying to dispatch '+qty+' but only '+item.warehouseQty+' in warehouse.\n\nProceed anyway (will flag as over-dispatch)?')) return;
+    }
+  }
+
+  var actualQty = (currentMoveType==='EXIT') ? -qty : qty;
+
+  var rec = {
+    id: nextId++,
+    moveType: currentMoveType,
+    type: type,
+    name: name,
+    product: document.getElementById('mProduct').value.trim(),
+    qty: actualQty,
+    unit: document.getElementById('mUnit').value,
+    dateRec: document.getElementById('mDate').value,
+    locFrom: locFrom,
+    locTo: locTo,
+    supplier: document.getElementById('mSup').value.trim(),
+    gc: document.getElementById('mGC').value.trim(),
+    po: document.getElementById('mPO').value.trim(),
+    project: document.getElementById('mProj').value.trim(),
+    resp: document.getElementById('mResp').value.trim(),
+    status: document.getElementById('mStatus').value,
+    comment: document.getElementById('mComm').value.trim(),
+    sysDate: new Date().toISOString().split('T')[0]
+  };
+
+  movements.push(rec);
+  closeModal('moveOverlay');
+  renderAll();
+}
+
+// ════════════════════════════════════════════════════════════
+//  EXPORT
+// ════════════════════════════════════════════════════════════
+function exportCSV(){
+  var headers=['Move Type','Date','Category','Name','Product','Qty','Unit','PO','From','To','GC','Project','Supplier','Responsible','Status','Comments'];
+  var rows = movements.slice().reverse().map(function(m){
+    return [m.moveType,m.dateRec||m.sysDate,m.type,m.name,m.product||'',m.qty,m.unit||'',m.po||'',m.locFrom||'',m.locTo||'',m.gc||'',m.project||'',m.supplier||'',m.resp||'',m.status||'',m.comment||'']
+      .map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
+  });
+  var csv=[headers.join(',')].concat(rows).join('\n');
+  var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='OX_Movements_'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
+}
+
+function exportProjectCSV(){
+  var proj=document.getElementById('projectSelector').value;
+  if(!proj){alert('Select a project first');return;}
+  var rows=movements.filter(function(m){return m.project===proj;});
+  var headers=['Move Type','Date','Category','Name','Qty','Unit','From','To','Supplier','Responsible','Comments'];
+  var csv=[headers.join(',')].concat(rows.map(function(m){
+    return [m.moveType,m.dateRec||m.sysDate,m.type,m.name,m.qty,m.unit||'',m.locFrom||'',m.locTo||'',m.supplier||'',m.resp||'',m.comment||'']
+      .map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
+  })).join('\n');
+  var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='OX_'+proj.replace(/[^a-z0-9]/gi,'_')+'.csv'; a.click();
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER ALL
+// ════════════════════════════════════════════════════════════
+function renderAll(){
+  renderStats();
+  renderStock();
+  renderMovements();
+  renderCharts();
+  renderWarehouseMap();
+  refreshProjectDropdown();
+  document.getElementById('projectSelector').dispatchEvent(new Event('change'));
+}
+
+// ════════════════════════════════════════════════════════════
+//  TAB NAVIGATION
+// ════════════════════════════════════════════════════════════
+function showTab(tab, btn){
+  document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active');});
+  document.getElementById(tab).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('active');});
+  document.getElementById(btn).classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════
+//  CLOCK
+// ════════════════════════════════════════════════════════════
+function updateClock(){
+  var now=new Date();
+  document.getElementById('clock').textContent=now.toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('footerDate').textContent=now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+}
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',function(){
+  populateCatFilters();
+  renderAll();
+  updateClock(); setInterval(updateClock,1000);
+
+  document.getElementById('btn-dashboard').addEventListener('click',function(){showTab('dashboard','btn-dashboard');});
+  document.getElementById('btn-movements').addEventListener('click',function(){showTab('movements','btn-movements');});
+  document.getElementById('btn-projects').addEventListener('click',function(){showTab('projects','btn-projects');});
+  document.getElementById('btn-map').addEventListener('click',function(){showTab('map','btn-map');});
+
+  document.getElementById('stockSearch').addEventListener('input',renderStock);
+  document.getElementById('stockCatFilter').addEventListener('change',renderStock);
+  document.getElementById('stockStatusFilter').addEventListener('change',renderStock);
+  document.getElementById('movSearch').addEventListener('input',renderMovements);
+  document.getElementById('movTypeFilter').addEventListener('change',renderMovements);
+  document.getElementById('movCatFilter').addEventListener('change',renderMovements);
+  document.getElementById('mapCatFilter').addEventListener('change',renderWarehouseMap);
+  document.getElementById('projectSelector').addEventListener('change',renderProjectView);
+
+  document.getElementById('chkGc').addEventListener('change',function(){colVis.gc=this.checked;renderMovements();});
+  document.getElementById('chkProj').checked=true;
+  document.getElementById('chkProj').addEventListener('change',function(){colVis.project=this.checked;renderMovements();});
+  document.getElementById('chkSup').addEventListener('change',function(){colVis.supplier=this.checked;renderMovements();});
+  document.getElementById('chkResp').checked=true;
+  document.getElementById('chkResp').addEventListener('change',function(){colVis.resp=this.checked;renderMovements();});
+  document.getElementById('chkComm').checked=true;
+  document.getElementById('chkComm').addEventListener('change',function(){colVis.comment=this.checked;renderMovements();});
+  document.getElementById('chkSrc').addEventListener('change',function(){colVis.src=this.checked;renderMovements();});
+  document.getElementById('chkSysDate').addEventListener('change',function(){colVis.sysDate=this.checked;renderMovements();});
+
+  document.getElementById('btnEntry').addEventListener('click',function(){openModal('ENTRY');});
+  document.getElementById('btnDispatch').addEventListener('click',function(){openModal('EXIT');});
+  document.getElementById('btnTransfer').addEventListener('click',function(){openModal('TRANSFER');});
+  document.getElementById('btnReturn').addEventListener('click',function(){openModal('RETURN');});
+  document.getElementById('btnExportCSV').addEventListener('click',exportCSV);
+  document.getElementById('btnExportProject').addEventListener('click',exportProjectCSV);
+
+  document.querySelectorAll('.modal-type-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){setModalType(btn.dataset.type);});
+  });
+  document.getElementById('mType').addEventListener('change',function(){updateMatList();checkStockForDispatch();});
+  document.getElementById('mName').addEventListener('input',checkStockForDispatch);
+  document.getElementById('btnCancelMove').addEventListener('click',function(){closeModal('moveOverlay');});
+  document.getElementById('moveSubmit').addEventListener('click',submitMovement);
+  document.getElementById('moveOverlay').addEventListener('click',function(e){if(e.target.id==='moveOverlay')closeModal('moveOverlay');});
+  document.getElementById('rackOverlay').addEventListener('click',function(e){if(e.target.id==='rackOverlay')closeModal('rackOverlay');});
+});
+</script>
+</body>
+</html>

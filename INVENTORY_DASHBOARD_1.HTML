@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OX Glass Co. - WMS</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box }
+    :root {
+      --navy: #1B2A4A; --steel: #2C3E6B; --accent: #3B7DD8; --accent2: #2563EB;
+      --bg: #F0F2F5; --card: #FFFFFF; --text: #1a1a2e; --muted: #6B7280;
+      --green: #059669; --green-bg: #D1FAE5; --red: #DC2626; --red-bg: #FEE2E2;
+      --yellow: #D97706; --yellow-bg: #FEF3C7; --orange: #EA580C; --orange-bg: #FED7AA;
+      --border: #E5E7EB; --shadow: 0 1px 3px rgba(0,0,0,.08); --radius: 10px;
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    button { font-family: inherit; cursor: pointer }
+    input, select, textarea { font-family: inherit; font-size: .9rem }
+
+    .topbar { background: var(--navy); padding: .75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid var(--accent); flex-wrap: wrap; gap: 10px; }
+    .topbar h1 { color: #fff; font-size: 1.1rem; font-weight: 700 }
+    .nav { display: flex; gap: 2px; background: var(--steel); padding: 3px; border-radius: 8px; flex-wrap: wrap; }
+    .nav button { background: none; border: none; color: rgba(255,255,255,.6); padding: .45rem 1rem; border-radius: 6px; font-size: .8rem; font-weight: 600; transition: .2s }
+    .nav button:hover { color: #fff; background: rgba(255,255,255,.08) }
+    .nav button.active { background: var(--accent); color: #fff }
+    .author-badge { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; color: #a1b0cb; display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 1.25rem; flex-grow: 1; width: 100%; }
+    .section { display: none }
+    .section.active { display: block }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem }
+    .stat { background: var(--card); border-radius: var(--radius); padding: 1.25rem; box-shadow: var(--shadow); border-left: 4px solid var(--accent) }
+    .stat label { font-size: .72rem; color: var(--muted); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: .25rem }
+    .stat .val { font-size: 1.8rem; font-weight: 700 }
+    .stat .sub { font-size: .72rem; color: var(--muted); margin-top: .15rem }
+
+    .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 1.5rem; display: flex; flex-direction: column; }
+    .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem }
+    .card-header h2 { font-size: 1rem; font-weight: 700 }
+    .toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    .toolbar input, .toolbar select { padding: .4rem .75rem; border: 1px solid var(--border); border-radius: 6px; font-size: .8rem; background: #fff }
+
+    .btn { padding: .5rem 1rem; border: none; border-radius: 6px; font-size: .85rem; font-weight: 600; display: inline-flex; align-items: center; gap: .35rem; justify-content: center; transition: .15s; }
+    .btn:hover { filter: brightness(.92) }
+    .btn-primary { background: var(--accent); color: #fff }
+    .btn-danger { background: var(--red); color: #fff }
+    .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--border) }
+    .btn-sm { padding: .3rem .65rem; font-size: .78rem }
+    .btn-icon { background: transparent; border: none; font-size: 1rem; cursor: pointer; transition: .15s; }
+    .btn-icon:hover { transform: scale(1.15); }
+
+    .table-wrapper { overflow-x: auto; max-height: 65vh; overflow-y: auto; position: relative; }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem }
+    thead th { position: sticky; top: 0; background: var(--navy); color: #fff; z-index: 10; padding: .6rem .75rem; text-align: left; font-size: .72rem; text-transform: uppercase; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:hover { background: #F8FAFC }
+    tr.row-zero td { opacity: .5 }
+    tr.row-dispatch td:first-child { border-left: 3px solid var(--red) }
+    tr.row-entry td:first-child { border-left: 3px solid var(--green) }
+
+    .badge { display: inline-block; padding: .15rem .55rem; border-radius: 20px; font-size: .7rem; font-weight: 600 }
+    .badge-green { background: var(--green-bg); color: var(--green) }
+    .badge-red { background: var(--red-bg); color: var(--red) }
+    .badge-blue { background: #DBEAFE; color: var(--accent2) }
+    .badge-yellow { background: var(--yellow-bg); color: var(--yellow) }
+    .badge-orange { background: var(--orange-bg); color: var(--orange) }
+    .badge-gray { background: #F3F4F6; color: #6B7280 }
+
+    .alert-banner { background: var(--yellow-bg); border: 1px solid var(--yellow); border-radius: 8px; padding: .6rem 1rem; margin-bottom: 1rem; font-size: .82rem; color: var(--yellow); display: none; }
+    .alert-banner.show { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; padding: 15px; }
+    .overlay.show { display: flex }
+    .modal { background: var(--card); border-radius: 12px; padding: 1.75rem; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem }
+    .form-grid.full { grid-template-columns: 1fr }
+    .field { display: flex; flex-direction: column; gap: .3rem }
+    .field label { font-size: .72rem; font-weight: 600; color: var(--muted); text-transform: uppercase }
+    .field input, .field select, .field textarea { padding: .6rem .75rem; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+    .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,125,216,.15); }
+    .modal-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1.5rem }
+
+    .expandable-row { cursor: pointer; transition: background .2s; }
+    .expandable-row:hover { background: #f1f5f9 !important; }
+    .details-row { display: none; background: #fafafa; border-left: 4px solid var(--accent); }
+    .details-container { padding: 15px; font-size: .75rem; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+
+    .col-toggle-bar { background: var(--bg); padding: 8px 15px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .col-toggle-bar strong { font-size: .72rem; color: var(--navy); text-transform: uppercase; }
+    .col-toggle-bar label { cursor: pointer; font-size: .8rem; display: flex; align-items: center; gap: 4px; }
+
+    .system-footer { text-align: center; padding: 1.5rem; color: var(--muted); font-size: .75rem; border-top: 1px solid var(--border); background: #e5e7eb; }
+
+    @media(max-width: 768px) {
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .nav { width: 100%; flex-wrap: wrap; }
+      .nav button { flex-grow: 1; text-align: center; padding: .6rem; }
+      .toolbar { flex-direction: column; align-items: stretch; width: 100%; }
+      .toolbar input, .toolbar select, .toolbar button { width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+      .modal { padding: 1.25rem; }
+      th, td { padding: .45rem .5rem; }
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>WMS — OX Glass Warehouse</h1>
+    <div class="author-badge">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Architected & Engineered by: Jose Castro
+    </div>
+  </div>
+  <div class="nav">
+    <button id="btn-dashboard" class="active" onclick="showTab('dashboard','btn-dashboard')">Stock Dashboard</button>
+    <button id="btn-movements" onclick="showTab('movements','btn-movements')">Movements & History</button>
+    <button id="btn-projects" onclick="showTab('projects','btn-projects')">Project View</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="section active">
+    <div id="alertBanner" class="alert-banner">⚠️ <span id="alertText"></span></div>
+    <div class="charts-grid">
+      <div class="card" style="padding:10px;height:300px;"><div id="piechart_div" style="width:100%;height:100%"></div></div>
+      <div class="card" style="padding:10px;height:300px;"><div id="barchart_div" style="width:100%;height:100%"></div></div>
+    </div>
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search name, comment..." oninput="renderStock()">
+          <select id="stockFilter" onchange="renderStock()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option>
+            <option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option>
+            <option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option>
+            <option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option>
+            <option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option>
+            <option value="SCREWS">SCREWS</option>
+            <option value="IGU">IGU</option>
+          </select>
+          <select id="stockStatusFilter" onchange="renderStock()">
+            <option value="">All Status</option>
+            <option value="in">In Stock only</option>
+            <option value="zero">Zero Stock only</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Name / Description</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Available</th>
+              <th>Location</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOVEMENTS -->
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Name, PO#, GC, Supplier, Project..." oninput="renderMovements()" style="min-width:240px;">
+          <select id="movTypeFilter" onchange="renderMovements()">
+            <option value="">All Types</option>
+            <option value="entry">Entries only</option>
+            <option value="exit">Dispatches only</option>
+          </select>
+          <select id="movCatFilter" onchange="renderMovements()">
+            <option value="">All Categories</option>
+            <option value="WINDOW">WINDOW</option>
+            <option value="SCREEN">SCREEN</option>
+            <option value="WINDOW_PARTS">WINDOW_PARTS</option>
+            <option value="SHOWER">SHOWER</option>
+            <option value="MIRROR">MIRROR</option>
+            <option value="STOREFRONT">STOREFRONT</option>
+            <option value="TOOLS">TOOLS</option>
+            <option value="BONEYARD">BONEYARD</option>
+            <option value="FLASHING">FLASHING</option>
+            <option value="SCREWS">SCREWS</option>
+            <option value="IGU">IGU</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="exportMovementsCSV()">⬇ CSV</button>
+          <button class="btn btn-primary" onclick="openModal('entry')">+ Entry (IN)</button>
+          <button class="btn btn-danger" onclick="openModal('exit')">− Dispatch (OUT)</button>
+        </div>
+      </div>
+      <div class="col-toggle-bar">
+        <strong>Columns:</strong>
+        <label><input type="checkbox" id="chkSysDate" onchange="toggleCol('sysDate')"> Sys Date</label>
+        <label><input type="checkbox" id="chkGc" onchange="toggleCol('gc')"> GC</label>
+        <label><input type="checkbox" id="chkProj" onchange="toggleCol('project')" checked> Project</label>
+        <label><input type="checkbox" id="chkSup" onchange="toggleCol('supplier')"> Supplier</label>
+        <label><input type="checkbox" id="chkResp" onchange="toggleCol('resp')" checked> Responsible</label>
+        <label><input type="checkbox" id="chkComm" onchange="toggleCol('comment')" checked> Comments</label>
+      </div>
+      <div class="table-wrapper" id="tableContainer"></div>
+    </div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div id="projects" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Project Material Analysis</h2>
+        <div class="toolbar">
+          <select id="projectSelector" onchange="renderProjectView()" style="min-width:260px;padding:.5rem .75rem;border-radius:6px;border:1px solid var(--border);">
+            <option value="">Select a project...</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="exportProjectCSV()">⬇ Export</button>
+        </div>
+      </div>
+      <div class="stats" id="projectStats" style="padding:1.25rem;margin:0;"></div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Category</th><th>Name / Description</th><th>In Bodega</th><th>Sent to Site</th><th>Net</th><th>Status</th></tr>
+          </thead>
+          <tbody id="projectBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="system-footer">
+  &copy; 2026 OX Glass Co. Proprietary Warehouse Management System.<br>
+  Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
+</div>
+
+<!-- MOVEMENT MODAL -->
+<div class="overlay" id="moveOverlay" onclick="closeIfOutside(event,'moveOverlay')">
+  <div class="modal">
+    <h3 id="moveTitle">New Entry</h3>
+    <div style="margin:.75rem 0;padding:.5rem .75rem;border-radius:6px;font-size:.8rem;" id="stockWarning"></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Category</label>
+        <select id="mType" onchange="updateMatList()">
+          <option value="WINDOW">WINDOW</option>
+          <option value="SCREEN">SCREEN</option>
+          <option value="WINDOW_PARTS">WINDOW_PARTS</option>
+          <option value="SHOWER">SHOWER</option>
+          <option value="MIRROR">MIRROR</option>
+          <option value="STOREFRONT">STOREFRONT</option>
+          <option value="TOOLS">TOOLS</option>
+          <option value="BONEYARD">BONEYARD</option>
+          <option value="FLASHING">FLASHING</option>
+          <option value="SCREWS">SCREWS</option>
+          <option value="IGU">IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Name / PO</label>
+        <input type="text" id="mName" list="matList" placeholder="Type or select..." oninput="checkStock()">
+        <datalist id="matList"></datalist>
+      </div>
+      <div class="field">
+        <label id="dateLabel">Date Received</label>
+        <input type="date" id="mDateRec">
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="mQty" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="mUnit"><option>Unit</option><option>Box</option><option>Set</option><option>Roll</option></select>
+      </div>
+      <div class="field">
+        <label>Location / Rack</label>
+        <input type="text" id="mLoc" list="rackList" placeholder="e.g. A1A">
+        <datalist id="rackList"></datalist>
+      </div>
+      <div class="field">
+        <label>Supplier</label>
+        <input type="text" id="mSup" list="supplierList">
+        <datalist id="supplierList"></datalist>
+      </div>
+      <div class="field">
+        <label>GC</label>
+        <input type="text" id="mGC">
+      </div>
+      <div class="field">
+        <label>PO#</label>
+        <input type="text" id="mPO">
+      </div>
+      <div class="field">
+        <label>Project / Client</label>
+        <input type="text" id="mProj" list="projList">
+        <datalist id="projList"></datalist>
+      </div>
+      <div class="field">
+        <label id="respLabel">Responsible</label>
+        <input type="text" id="mResp">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="mStatus">
+          <option value="In Stock">In Stock</option>
+          <option value="Dispatched">Dispatched</option>
+          <option value="Damaged">Damaged</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid full" style="margin-top:1rem;background:#f8fafc;padding:10px;border:1px dashed var(--border);border-radius:6px;">
+      <div class="field">
+        <label style="color:var(--accent2)">📎 Attach Documents</label>
+        <div id="fileInputsContainer">
+          <input type="file" class="mFile" accept="image/*,.pdf" style="border:none;padding-top:5px;display:block;margin-bottom:5px;">
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:fit-content;margin-top:4px;" onclick="addFileInput()">+ Add File</button>
+      </div>
+    </div>
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field"><label>Comments</label><textarea id="mComm" rows="2" placeholder="Notes, dimensions, special instructions..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('moveOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="moveSubmit" onclick="submitMove()">Save to System</button>
+    </div>
+  </div>
+</div>
+
+<!-- ATTACH MODAL -->
+<div class="overlay" id="attachOverlay" onclick="closeIfOutside(event,'attachOverlay')">
+  <div class="modal" style="max-width:420px;">
+    <h3>Attach Extra Document</h3>
+    <p style="font-size:.8rem;color:var(--muted);margin:.5rem 0 1rem;">Will be linked to the selected record.</p>
+    <input type="hidden" id="aRowIdx">
+    <input type="hidden" id="aFolderName">
+    <div class="field" style="margin-bottom:1.5rem;">
+      <input type="file" id="aFile" accept="image/*,.pdf" style="border:1px dashed var(--accent);padding:10px;border-radius:6px;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('attachOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="attachSubmit" onclick="submitAttachment()">Upload & Attach</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let movements = [];
+let config = { projects: [], racks: [], suppliers: [], categories: [] };
+let currentMoveType = 'ENTRY';
+let colVis = { sysDate: false, gc: false, project: true, supplier: false, resp: true, comment: true };
+let chartsReady = false;
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+function normalizeType(t) {
+  return (t || '').toUpperCase().trim();
+}
+
+function displayName(m) {
+  const name = (m.name || '').trim();
+  if (name) return name;
+  // BONEYARD and other items may have description in comments
+  return (m.comment || '').substring(0, 60) || 'Unnamed';
+}
+
+function getBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+  });
+}
+
+function statusBadge(s) {
+  const map = { 'In Stock': 'green', 'In Warehouse': 'green', 'ENTRY': 'green', 'Dispatched': 'red', 'Delivered': 'red', 'EXIT': 'red', 'Damaged': 'yellow', 'Out of Stock': 'gray' };
+  return `<span class="badge badge-${map[s] || 'blue'}">${s}</span>`;
+}
+
+function toggleDetails(id) {
+  const el = document.getElementById(id);
+  el.style.display = (el.style.display === 'table-row') ? 'none' : 'table-row';
+}
+
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function showTab(tab, btnId) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  if (btnId) document.getElementById(btnId).classList.add('active');
+  if (tab === 'projects') refreshProjectDropdown();
+  renderAll();
+}
+
+// ─── STOCK CALCULATION ───────────────────────────────────────────────────────
+function getStock() {
+  const stock = {};
+  movements.forEach(m => {
+    const type = normalizeType(m.type);
+    const name = displayName(m);
+    const key = name + '___' + type;
+    if (!stock[key]) {
+      stock[key] = { name, type, in: 0, out: 0, avail: 0, loc: m.loc, lastComment: m.comment };
+    }
+    const q = parseFloat(m.qty) || 0;
+    if (q >= 0) { stock[key].in += q; } else { stock[key].out += Math.abs(q); }
+    if (m.loc) stock[key].loc = m.loc;
+    if (m.comment) stock[key].lastComment = m.comment;
+  });
+  Object.values(stock).forEach(s => { s.avail = s.in - s.out; });
+  return stock;
+}
+
+// ─── DASHBOARD RENDER ────────────────────────────────────────────────────────
+function renderStats() {
+  const stock = getStock();
+  const vals = Object.values(stock);
+  const totalItems = vals.length;
+  const inStockCount = vals.filter(s => s.avail > 0).length;
+  const zeroCount = vals.filter(s => s.avail <= 0).length;
+  const totalUnits = vals.reduce((a, s) => a + Math.max(0, s.avail), 0);
+  const dispatchCount = movements.filter(m => (parseFloat(m.qty) || 0) < 0).length;
+  const activeProjects = new Set(movements.map(m => m.project).filter(p => p)).size;
+
+  // Alert banner for zero-stock items
+  if (zeroCount > 0) {
+    const zeroNames = vals.filter(s => s.avail <= 0).map(s => s.name).slice(0, 3).join(', ');
+    document.getElementById('alertText').textContent = `${zeroCount} item(s) at zero stock: ${zeroNames}${zeroCount > 3 ? '...' : ''}`;
+    document.getElementById('alertBanner').classList.add('show');
+  } else {
+    document.getElementById('alertBanner').classList.remove('show');
+  }
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><label>SKUs Tracked</label><div class="val">${totalItems}</div><div class="sub">${inStockCount} with stock</div></div>
+    <div class="stat" style="border-left-color:var(--green)"><label>Total Units In Stock</label><div class="val">${totalUnits.toLocaleString()}</div><div class="sub">across all locations</div></div>
+    <div class="stat" style="border-left-color:var(--red)"><label>Total Dispatches</label><div class="val">${dispatchCount}</div><div class="sub">movements out</div></div>
+    <div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">${activeProjects}</div><div class="sub">in system</div></div>
+    <div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock Items</label><div class="val" style="color:${zeroCount>0?'var(--yellow)':'var(--green)'}">${zeroCount}</div><div class="sub">need restocking</div></div>
+  `;
+}
+
+function renderStock() {
+  const stock = getStock();
+  const q = (document.getElementById('stockSearch').value || '').toLowerCase();
+  const tf = document.getElementById('stockFilter').value;
+  const sf = document.getElementById('stockStatusFilter').value;
+
+  let rows = Object.values(stock).filter(s => {
+    if (q && !s.name.toLowerCase().includes(q) && !(s.lastComment || '').toLowerCase().includes(q)) return false;
+    if (tf && s.type !== tf) return false;
+    if (sf === 'in' && s.avail <= 0) return false;
+    if (sf === 'zero' && s.avail > 0) return false;
+    return true;
+  }).sort((a, b) => b.avail - a.avail);
+
+  document.getElementById('stockBody').innerHTML = rows.map(s => {
+    const isZero = s.avail <= 0;
+    return `<tr class="${isZero ? 'row-zero' : ''}">
+      <td><span class="badge badge-blue">${s.type}</span></td>
+      <td><strong>${s.name}</strong></td>
+      <td style="color:var(--green)">${s.in}</td>
+      <td style="color:var(--red)">${s.out}</td>
+      <td><strong style="font-size:1.05rem;color:${isZero ? 'var(--red)' : 'inherit'}">${s.avail}</strong></td>
+      <td><span style="color:var(--muted);font-size:.8rem">${s.loc || '—'}</span></td>
+      <td>${statusBadge(s.avail > 0 ? 'In Stock' : 'Out of Stock')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── MOVEMENTS RENDER ────────────────────────────────────────────────────────
+function toggleCol(col) {
+  colVis[col] = !colVis[col];
+  renderMovements();
+}
+
+function renderMovements() {
+  const q = (document.getElementById('movSearch').value || '').toLowerCase();
+  const typeF = document.getElementById('movTypeFilter').value;
+  const catF = document.getElementById('movCatFilter').value;
+
+  let filtered = [...movements].reverse().filter(m => {
+    const qty = parseFloat(m.qty) || 0;
+    if (typeF === 'entry' && qty < 0) return false;
+    if (typeF === 'exit' && qty >= 0) return false;
+    if (catF && normalizeType(m.type) !== catF) return false;
+    if (q) {
+      const fields = [m.name, m.po, m.project, m.supplier, m.gc, m.resp, m.comment, m.loc].map(x => (x || '').toLowerCase());
+      if (!fields.some(f => f.includes(q))) return false;
+    }
+    return true;
+  });
+
+  const v = colVis;
+  let html = `<table><thead><tr>
+    <th>Action</th>
+    <th>Date</th>
+    <th>Category</th>
+    <th>Name</th>
+    <th>Qty</th>
+    <th>Unit</th>
+    <th>PO#</th>
+    <th>Location</th>
+    ${v.gc ? '<th>GC</th>' : ''}
+    ${v.project ? '<th>Project</th>' : ''}
+    ${v.supplier ? '<th>Supplier</th>' : ''}
+    ${v.resp ? '<th>Responsible</th>' : ''}
+    ${v.comment ? '<th>Comments</th>' : ''}
+    ${v.sysDate ? '<th>Sys Date</th>' : ''}
+    <th>User</th>
+    <th>Doc</th>
+  </tr></thead><tbody>`;
+
+  html += filtered.map(m => {
+    const qty = parseFloat(m.qty) || 0;
+    const isExit = qty < 0;
+    const docBtn = (m.docLink || '').includes('http')
+      ? `<a href="${m.docLink.split('\n')[0]}" target="_blank" class="badge badge-blue">📄</a>`
+      : '<small style="color:var(--muted)">—</small>';
+    const attachBtn = `<button class="btn-icon" title="Attach doc" onclick="openAttachModal(${m.rowIdx},'${(m.po || 'General').replace(/'/g,"\\'")}')">📎</button>`;
+
+    return `<tr class="${isExit ? 'row-dispatch' : 'row-entry'}">
+      <td>${statusBadge(isExit ? 'EXIT' : 'ENTRY')}</td>
+      <td style="white-space:nowrap">${m.dateRec || m.sysDate || '—'}</td>
+      <td><span class="badge badge-gray">${normalizeType(m.type)}</span></td>
+      <td><strong>${displayName(m)}</strong></td>
+      <td style="color:${isExit ? 'var(--red)' : 'var(--green)'}"><strong>${qty}</strong></td>
+      <td style="color:var(--muted);font-size:.78rem">${m.unit || '—'}</td>
+      <td style="font-size:.78rem">${m.po || '—'}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${m.loc || '—'}</td>
+      ${v.gc ? `<td style="font-size:.78rem">${m.gc || '—'}</td>` : ''}
+      ${v.project ? `<td style="font-size:.78rem">${m.project || '—'}</td>` : ''}
+      ${v.supplier ? `<td style="font-size:.78rem">${m.supplier || '—'}</td>` : ''}
+      ${v.resp ? `<td style="font-size:.78rem">${m.resp || '—'}</td>` : ''}
+      ${v.comment ? `<td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.comment||'').replace(/"/g,'&quot;')}">${m.comment || '—'}</td>` : ''}
+      ${v.sysDate ? `<td style="font-size:.72rem;color:var(--muted)">${m.sysDate || '—'}</td>` : ''}
+      <td style="font-size:.7rem;color:var(--muted)">${m.auditUser || '—'}</td>
+      <td>${docBtn}${attachBtn}</td>
+    </tr>`;
+  }).join('');
+
+  html += `</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${filtered.length} records shown</td></tr></tfoot></table>`;
+  document.getElementById('tableContainer').innerHTML = html;
+}
+
+// ─── PROJECT VIEW ─────────────────────────────────────────────────────────────
+function refreshProjectDropdown() {
+  const sel = document.getElementById('projectSelector');
+  const cur = sel.value;
+  const projects = [...new Set(movements.map(m => m.project).filter(p => p))].sort();
+  sel.innerHTML = '<option value="">Select a project...</option>' +
+    projects.map(p => `<option value="${p}" ${p === cur ? 'selected' : ''}>${p}</option>`).join('');
+}
+
+function renderProjectView() {
+  const proj = document.getElementById('projectSelector').value;
+  const body = document.getElementById('projectBody');
+  const stats = document.getElementById('projectStats');
+
+  if (!proj) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">Select a project above to view material history</td></tr>';
+    stats.innerHTML = '';
+    return;
+  }
+
+  const summary = {};
+  let totalIn = 0, totalOut = 0;
+
+  movements.filter(m => (m.project || '') === proj).forEach(m => {
+    const name = displayName(m);
+    if (!summary[name]) summary[name] = { name, type: normalizeType(m.type), in: 0, out: 0, history: [] };
+    const q = parseFloat(m.qty) || 0;
+    if (q >= 0) { summary[name].in += q; totalIn += q; }
+    else { summary[name].out += Math.abs(q); totalOut += Math.abs(q); }
+    summary[name].history.push({ date: m.dateRec || m.sysDate, qty: q, loc: m.loc || '—', user: m.auditUser || '—', comment: m.comment || '' });
+  });
+
+  const net = totalIn - totalOut;
+  stats.innerHTML = `
+    <div class="stat" style="border-left-color:var(--green)"><label>Total Received</label><div class="val">${totalIn}</div></div>
+    <div class="stat" style="border-left-color:var(--red)"><label>Total Dispatched</label><div class="val">${totalOut}</div></div>
+    <div class="stat" style="border-left-color:var(--accent)"><label>Still in Bodega</label><div class="val">${net}</div></div>
+    <div class="stat" style="border-left-color:var(--orange)"><label>SKUs</label><div class="val">${Object.keys(summary).length}</div></div>
+  `;
+
+  body.innerHTML = Object.values(summary).map((s, i) => {
+    const netVal = s.in - s.out;
+    return `
+      <tr class="expandable-row" onclick="toggleDetails('pd-${i}')">
+        <td><span class="badge badge-blue">${s.type}</span></td>
+        <td><strong>${s.name}</strong> <span style="font-size:.75rem;color:var(--muted)">▾</span></td>
+        <td style="color:var(--green)">${s.in}</td>
+        <td style="color:var(--red)">${s.out}</td>
+        <td><strong style="color:${netVal<=0?'var(--red)':'inherit'}">${netVal}</strong></td>
+        <td>${statusBadge(netVal > 0 ? 'In Stock' : 'Dispatched')}</td>
+      </tr>
+      <tr id="pd-${i}" class="details-row">
+        <td colspan="6">
+          <div class="details-container">
+            <div>
+              <strong>Movement history:</strong><br>
+              ${s.history.map(h => `• ${h.date}: <span style="color:${h.qty<0?'var(--red)':'var(--green)'}">${h.qty > 0 ? '+' : ''}${h.qty}</span> @ ${h.loc}${h.comment ? ' — ' + h.comment.substring(0,60) : ''}`).join('<br>')}
+            </div>
+            <div>
+              <strong>Last location:</strong> ${s.history[s.history.length-1].loc}<br>
+              <strong>Last user:</strong> ${s.history[s.history.length-1].user}
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function drawInventoryCharts() {
+  if (!chartsReady || !movements.length) return;
+
+  const stock = getStock();
+
+  // Pie — distribution by category
+  const catData = {};
+  Object.values(stock).forEach(s => {
+    if (s.avail > 0) catData[s.type] = (catData[s.type] || 0) + s.avail;
+  });
+  const pieArr = [['Category', 'Available Units'], ...Object.entries(catData).filter(([,v]) => v > 0)];
+  if (pieArr.length > 1) {
+    const dataPie = google.visualization.arrayToDataTable(pieArr);
+    new google.visualization.PieChart(document.getElementById('piechart_div')).draw(dataPie, {
+      title: 'Stock distribution by category',
+      pieHole: 0.4,
+      colors: ['#1B2A4A','#3B7DD8','#2563EB','#059669','#EA580C','#D97706','#7C3AED','#DB2777'],
+      fontName: 'DM Sans', chartArea: { width: '90%', height: '78%' }, legend: { position: 'bottom', textStyle: { fontSize: 11 } }
+    });
+  }
+
+  // Bar — top 8 by available units
+  const sorted = Object.values(stock).filter(s => s.avail > 0).sort((a, b) => b.avail - a.avail).slice(0, 8);
+  const barArr = [['Material', 'Units', { role: 'style' }],
+    ...sorted.map((s, i) => [s.name.length > 20 ? s.name.substring(0,18)+'…' : s.name, s.avail, i % 2 === 0 ? '#3B7DD8' : '#1B2A4A'])
+  ];
+  if (barArr.length > 1) {
+    const dataBar = google.visualization.arrayToDataTable(barArr);
+    new google.visualization.BarChart(document.getElementById('barchart_div')).draw(dataBar, {
+      title: 'Top 8 materials in stock',
+      fontName: 'DM Sans', legend: { position: 'none' },
+      chartArea: { width: '65%', height: '72%' }, hAxis: { title: 'Units', minValue: 0 }
+    });
+  }
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+function exportMovementsCSV() {
+  const headers = ['Date','Type','Name','Qty','Unit','PO','Location','GC','Project','Supplier','Responsible','Status','Comments','User'];
+  const rows = [...movements].reverse().map(m => [
+    m.dateRec || m.sysDate, normalizeType(m.type), displayName(m), m.qty, m.unit || '',
+    m.po || '', m.loc || '', m.gc || '', m.project || '', m.supplier || '',
+    m.resp || '', m.status || '', (m.comment || '').replace(/\n/g,' '), m.auditUser || ''
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `OX_Movements_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function exportProjectCSV() {
+  const proj = document.getElementById('projectSelector').value;
+  if (!proj) return alert('Select a project first');
+  const pMoves = movements.filter(m => (m.project || '') === proj);
+  const headers = ['Date','Type','Name','Qty','Unit','Location','Supplier','Responsible','Comments'];
+  const rows = pMoves.map(m => [
+    m.dateRec || m.sysDate, normalizeType(m.type), displayName(m), m.qty, m.unit || '',
+    m.loc || '', m.supplier || '', m.resp || '', (m.comment || '').replace(/\n/g,' ')
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `OX_${proj.replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+function openModal(type) {
+  currentMoveType = type.toUpperCase();
+  const isExit = currentMoveType === 'EXIT';
+  document.getElementById('moveTitle').textContent = isExit ? 'Dispatch Material (EXIT)' : 'Receive Material (ENTRY)';
+  document.getElementById('dateLabel').textContent = isExit ? 'Date Dispatched' : 'Date Received';
+  document.getElementById('respLabel').textContent = isExit ? 'Taken By / Given To' : 'Received By';
+  document.getElementById('mStatus').value = isExit ? 'Dispatched' : 'In Stock';
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0];
+  document.getElementById('fileInputsContainer').innerHTML = '<input type="file" class="mFile" accept="image/*,.pdf" style="border:none;padding-top:5px;display:block;">';
+  document.getElementById('stockWarning').innerHTML = '';
+  document.getElementById('stockWarning').style.background = '';
+  // Clear fields
+  ['mName','mQty','mLoc','mSup','mGC','mPO','mProj','mResp','mComm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === 'mQty' ? '1' : '';
+  });
+  document.getElementById('moveOverlay').classList.add('show');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  const btnMove = document.getElementById('moveSubmit');
+  const btnAttach = document.getElementById('attachSubmit');
+  if (btnMove) { btnMove.textContent = 'Save to System'; btnMove.disabled = false; }
+  if (btnAttach) { btnAttach.textContent = 'Upload & Attach'; btnAttach.disabled = false; }
+  if (document.getElementById('aFile')) document.getElementById('aFile').value = '';
+}
+
+function closeIfOutside(e, id) { if (e.target.id === id) closeModal(id); }
+
+function addFileInput() {
+  const fid = 'f' + Date.now();
+  const div = document.createElement('div');
+  div.id = fid;
+  div.style = 'display:flex;align-items:center;gap:8px;margin-top:6px;';
+  div.innerHTML = `<input type="file" class="mFile" accept="image/*,.pdf" style="flex:1;font-size:.8rem;">
+    <button type="button" onclick="document.getElementById('${fid}').remove()" class="btn btn-danger btn-sm">✕</button>`;
+  document.getElementById('fileInputsContainer').appendChild(div);
+}
+
+function openAttachModal(rowIdx, folderName) {
+  document.getElementById('aRowIdx').value = rowIdx;
+  document.getElementById('aFolderName').value = folderName;
+  document.getElementById('attachOverlay').classList.add('show');
+}
+
+// Stock check for EXIT modal
+function checkStock() {
+  if (currentMoveType !== 'EXIT') return;
+  const name = document.getElementById('mName').value.trim();
+  const type = normalizeType(document.getElementById('mType').value);
+  if (!name) return;
+  const stock = getStock();
+  const key = name + '___' + type;
+  const s = stock[key];
+  const warn = document.getElementById('stockWarning');
+  if (s) {
+    const color = s.avail <= 0 ? '#FEE2E2' : s.avail < 5 ? '#FEF3C7' : '#D1FAE5';
+    const msg = s.avail <= 0 ? `⛔ Zero stock for this item` : `Stock available: ${s.avail} ${s.loc ? '@ ' + s.loc : ''}`;
+    warn.innerHTML = msg;
+    warn.style.background = color;
+    warn.style.color = s.avail <= 0 ? 'var(--red)' : s.avail < 5 ? 'var(--yellow)' : 'var(--green)';
+  } else {
+    warn.innerHTML = '⚠️ Item not found in stock — will create new entry';
+    warn.style.background = '#FEF3C7';
+    warn.style.color = 'var(--yellow)';
+  }
+}
+
+function updateMatList() {
+  const type = normalizeType(document.getElementById('mType').value);
+  const dl = document.getElementById('matList');
+  dl.innerHTML = '';
+  [...new Set(movements.filter(m => normalizeType(m.type) === type).map(m => displayName(m)).filter(Boolean))].sort()
+    .forEach(name => { const o = document.createElement('option'); o.value = name; dl.appendChild(o); });
+}
+
+// ─── SUBMIT ──────────────────────────────────────────────────────────────────
+async function submitMove() {
+  const matName = document.getElementById('mName').value.trim();
+  if (!matName) { alert('Please enter a material name'); return; }
+  let qty = parseInt(document.getElementById('mQty').value) || 0;
+  if (qty <= 0) { alert('Quantity must be greater than 0'); return; }
+  if (currentMoveType === 'EXIT') qty = -qty;
+
+  // Client-side stock validation for exits
+  if (currentMoveType === 'EXIT') {
+    const stock = getStock();
+    const type = normalizeType(document.getElementById('mType').value);
+    const key = matName + '___' + type;
+    const s = stock[key];
+    if (s && s.avail < Math.abs(qty)) {
+      if (!confirm(`⚠️ You're trying to dispatch ${Math.abs(qty)} but only ${s.avail} are in stock.\n\nProceed anyway?`)) return;
+    }
+  }
+
+  const btn = document.getElementById('moveSubmit');
+  btn.textContent = 'Saving... ⏳'; btn.disabled = true;
+
+  const filesArray = [];
+  for (const input of document.querySelectorAll('.mFile')) {
+    if (input.files.length > 0) {
+      const file = input.files[0];
+      filesArray.push({ fileData: await getBase64(file), fileName: file.name, fileMimeType: file.type });
+    }
+  }
+
+  const m = {
+    type: document.getElementById('mType').value,
+    name: matName, qty,
+    unit: document.getElementById('mUnit').value,
+    dateRec: document.getElementById('mDateRec').value,
+    loc: document.getElementById('mLoc').value,
+    supplier: document.getElementById('mSup').value,
+    gc: document.getElementById('mGC').value,
+    po: document.getElementById('mPO').value,
+    project: document.getElementById('mProj').value,
+    resp: document.getElementById('mResp').value,
+    status: document.getElementById('mStatus').value,
+    comment: document.getElementById('mComm').value,
+    files: filesArray
+  };
+
+  google.script.run
+    .withSuccessHandler(() => { closeModal('moveOverlay'); loadDataFromGoogle(); })
+    .withFailureHandler(err => { alert('Error: ' + err.message); btn.textContent = 'Save to System'; btn.disabled = false; })
+    .processMovement('addMovement', m);
+}
+
+async function submitAttachment() {
+  const fileInput = document.getElementById('aFile');
+  const btn = document.getElementById('attachSubmit');
+  if (!fileInput.files.length) { alert('Please select a file'); return; }
+  btn.textContent = 'Uploading... ⏳'; btn.disabled = true;
+  try {
+    const file = fileInput.files[0];
+    google.script.run
+      .withSuccessHandler(() => { alert('File uploaded!'); closeModal('attachOverlay'); loadDataFromGoogle(); })
+      .withFailureHandler(err => { alert('Error: ' + err.message); btn.textContent = 'Upload & Attach'; btn.disabled = false; })
+      .processMovement('updateDocument', {
+        rowIdx: parseInt(document.getElementById('aRowIdx').value),
+        files: [{ fileData: await getBase64(file), fileName: file.name, fileMimeType: file.type }]
+      });
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.textContent = 'Upload & Attach'; btn.disabled = false;
+  }
+}
+
+// ─── DATALISTS ───────────────────────────────────────────────────────────────
+function refreshDropdowns() {
+  // Material names (scoped to selected category initially all)
+  updateMatList();
+
+  // Projects
+  const projDl = document.getElementById('projList');
+  projDl.innerHTML = '';
+  [...new Set(movements.map(m => m.project).filter(p => p))].sort()
+    .forEach(p => { const o = document.createElement('option'); o.value = p; projDl.appendChild(o); });
+
+  // Racks from config
+  const rackDl = document.getElementById('rackList');
+  rackDl.innerHTML = '';
+  config.racks.forEach(r => { const o = document.createElement('option'); o.value = r; rackDl.appendChild(o); });
+
+  // Suppliers from config + movements
+  const supSet = new Set([...config.suppliers, ...movements.map(m => m.supplier).filter(s => s)]);
+  const supDl = document.getElementById('supplierList');
+  supDl.innerHTML = '';
+  [...supSet].sort().forEach(s => { const o = document.createElement('option'); o.value = s; supDl.appendChild(o); });
+}
+
+// ─── RENDER ALL ──────────────────────────────────────────────────────────────
+function renderAll() {
+  renderStats();
+  renderStock();
+  renderMovements();
+  drawInventoryCharts();
+}
+
+// ─── DATA LOAD ───────────────────────────────────────────────────────────────
+function loadDataFromGoogle() {
+  document.getElementById('statsRow').innerHTML = '<p style="padding:1rem;color:var(--muted)">Loading system data...</p>';
+  google.script.run
+    .withSuccessHandler(data => {
+      movements = data.movements || [];
+      config = data.config || config;
+      refreshDropdowns();
+      refreshProjectDropdown();
+      renderAll();
+    })
+    .withFailureHandler(err => {
+      document.getElementById('statsRow').innerHTML = `<p style="padding:1rem;color:var(--red)">Error loading data: ${err.message}</p>`;
+    })
+    .getInitialData();
+}
+
+// ─── CHARTS INIT (single load call) ─────────────────────────────────────────
+google.charts.load('current', { packages: ['corechart'] });
+google.charts.setOnLoadCallback(() => {
+  chartsReady = true;
+  drawInventoryCharts();
+});
+
+loadDataFromGoogle();
+</script>
+</body>
+</html>
