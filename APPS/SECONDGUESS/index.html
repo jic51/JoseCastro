@@ -91,7 +91,20 @@
     </defs>
   </svg>
 
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX', { 
+      send_page_view: false,
+      cookie_flags: 'SameSite=None;Secure'
+    });
+  </script>
+
   <!-- SCRIPTS -->
+
   <script src="JS/i18n.js"></script>
   <script src="JS/questions.js"></script>
   <script src="JS/security.js"></script>

@@ -18,10 +18,22 @@ const App = {
   currentQuestion: null,
   timerInterval: null,
 
+  // ===== ANALYTICS =====
+  track(eventName, params = {}) {
+    if (typeof gtag === 'function') {
+      gtag('event', eventName, params);
+    }
+  },
+
   init() {
     this.loadData();
     this.setupLanguage();
     this.registerSW();
+    this.track('app_open', { 
+      language: currentLang,
+      games_played: this.data.gamesPlayed,
+      streak: this.data.streak
+    });
 
     if (!this.data.onboardingDone) {
       this.showOnboarding();
@@ -84,6 +96,7 @@ const App = {
       btn.onclick = () => {
         this.data.onboardingDone = true;
         this.saveData();
+        this.track('onboarding_complete', { step: 3 });
         this.showApp();
       };
     } else {
@@ -95,6 +108,12 @@ const App = {
   showApp() {
     document.getElementById('onboarding').style.display = 'none';
     document.getElementById('app-container').style.display = 'block';
+    if (this.data.streak > 1) {
+      this.track('return_user', { 
+        streak: this.data.streak,
+        games_played: this.data.gamesPlayed 
+      });
+    }
     this.renderMainView();
   },
 
@@ -230,6 +249,14 @@ const App = {
     this.data.gamesPlayed++;
     this.data.totalAccuracy += accuracy;
     this.data.totalPoints += points;
+
+    this.track('answer_submit', {
+      question_id: q.id,
+      question_type: q.type,
+      accuracy: accuracy,
+      points: points,
+      streak: this.data.streak
+    });
     this.data.lastPlayed = new Date().toISOString();
     this.data.answeredDates[todayStr] = {
       questionId: q.id,
@@ -406,6 +433,7 @@ const App = {
   showSharePreview() {
     const data = this.getShareData();
     if (!data) return;
+    this.track('share_preview_open', { accuracy: data.accuracy });
 
     const modal = document.getElementById('modal-overlay');
     const content = document.getElementById('modal-content');
@@ -486,6 +514,7 @@ Can you beat me? 🎯 secondguess.app`;
   downloadCard() {
     const data = this.getShareData();
     if (!data) return;
+    this.track('download_card', { accuracy: data.accuracy });
     UI.generateShareCard(data, (canvas) => {
       const link = document.createElement('a');
       link.download = 'secondguess-result.png';
@@ -496,6 +525,7 @@ Can you beat me? 🎯 secondguess.app`;
 
 // ===== MODALS =====
   showSettings() {
+    this.track('settings_open');
     const modal = document.getElementById('modal-overlay');
     const content = document.getElementById('modal-content');
     modal.classList.add('active');
@@ -531,9 +561,11 @@ Can you beat me? 🎯 secondguess.app`;
 
   setLanguage(lang) {
     setLang(lang);
+    this.track('change_language', { from: currentLang, to: lang });
     this.closeModal();
     this.renderMainView();
-    document.getElementById('lang-toggle').textContent = lang.toUpperCase();
+    const langToggle = document.getElementById('lang-toggle');
+    if (langToggle) langToggle.textContent = lang.toUpperCase();
   },
 
   confirmReset() {
@@ -549,10 +581,12 @@ Can you beat me? 🎯 secondguess.app`;
   },
 
   doReset() {
+    this.track('reset_progress');
     this.data = {
       name: '', streak: 0, bestStreak: 0, gamesPlayed: 0,
       totalAccuracy: 0, totalPoints: 0, history: [],
-      answeredDates: {}, lastPlayed: null, onboardingDone: true
+      answeredDates: {}, lastPlayed: null, onboardingDone: true,
+      leaderboardCache: null, leaderboardCacheDate: null
     };
     localStorage.removeItem(Security.DATA_KEY);
     localStorage.removeItem(Security.CHECK_KEY);
