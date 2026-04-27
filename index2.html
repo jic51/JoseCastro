@@ -214,8 +214,8 @@ canvas{max-width:100%}
     <div id="alertBanner" class="alert">⚠ <span id="alertText"></span></div>
     <div class="stats" id="statsRow"></div>
     <div class="charts-grid">
-      <div class="chart-card"><h3>Stock by Category</h3><div id="pieChart" style="width:100%;height:220px"></div></div>
-      <div class="chart-card"><h3>Top 8 Materials in Stock</h3><div id="barChart" style="width:100%;height:220px"></div></div>
+      <div class="chart-card"><h3>Stock by Category</h3><canvas id="pieChart" height="200"></canvas></div>
+      <div class="chart-card"><h3>Top 8 Materials in Stock</h3><canvas id="barChart" height="200"></canvas></div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -425,58 +425,125 @@ canvas{max-width:100%}
   </div>
 </div>
 
-<script src="https://www.gstatic.com/charts/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-google.charts.load('current', {packages: ['corechart']});
-var googleChartsReady = false;
-google.charts.setOnLoadCallback(function(){ googleChartsReady = true; });
 // ════════════════════════════════════════════════════════════
-//  DATA — loaded from Google Sheets via google.script.run
-//  These start empty and are populated by loadFromSheet()
+//  DATA MODEL — seeded with real OX Glass data
 // ════════════════════════════════════════════════════════════
-var movements = [];
-var nextId    = 1;
-var CONFIG    = { racks:[], projects:[], suppliers:[], categories:[], locations:[] };
+var movements = [
+  // FLASHING entries (Name = product identifier)
+  {id:1,moveType:'ENTRY',type:'FLASHING',name:'Rain Buster 450',product:'Rain Buster 450',qty:90,unit:'BOX',dateRec:'2026-02-10',loc:'',destination:'O1B',supplier:'RAIN BUSTER',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'White SEALANT',sysDate:'2026-02-10'},
+  {id:2,moveType:'ENTRY',type:'FLASHING',name:"Flashing Paper 9''",product:"Flashing Paper 9''",qty:2,unit:'BOX',dateRec:'2026-02-11',loc:'',destination:'O1A',supplier:'TYVEK',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'Boxes of 16 each, one box not complete',sysDate:'2026-02-11'},
+  {id:3,moveType:'ENTRY',type:'FLASHING',name:"Flashing Paper 9''",product:"Flashing Paper 9''",qty:7,unit:'BOX',dateRec:'2026-02-11',loc:'',destination:'O2A',supplier:'RAIN BUSTER',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'7.5 boxes left',sysDate:'2026-02-11'},
+  {id:4,moveType:'ENTRY',type:'FLASHING',name:"FlashingTape 9''",product:"FlashingTape 9''",qty:28,unit:'BOX',dateRec:'2026-02-15',loc:'',destination:'O2A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:5,moveType:'ENTRY',type:'FLASHING',name:'Flashing tape 6\'\'',product:"Flashing tape 6''",qty:21,unit:'BOX',dateRec:'2026-02-15',loc:'',destination:'O3A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:6,moveType:'ENTRY',type:'FLASHING',name:"Flex Wrap 9''",product:"Flex Wrap 9''",qty:24,unit:'BOX',dateRec:'2026-02-15',loc:'',destination:'O3B',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:7,moveType:'ENTRY',type:'FLASHING',name:"Straight Flash 9''",product:"Straight Flash 9''",qty:12,unit:'BOX',dateRec:'2026-02-15',loc:'',destination:'O2A',supplier:'DUPONT',gc:'',po:'',project:'',resp:'',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  // WINDOW entries (Name = job reference)
+  {id:10,moveType:'ENTRY',type:'WINDOW',name:'HFLot153',product:'',qty:23,unit:'UNIT',dateRec:'2026-02-11',loc:'',destination:'B6A',supplier:'WINDSOR',gc:'',po:'',project:'HOLBROOK CLUBHOUSE',resp:'Jose',status:'In Stock',comment:'Windsor-clay',sysDate:'2026-02-11'},
+  {id:11,moveType:'ENTRY',type:'WINDOW',name:'HFLot135',product:'',qty:19,unit:'UNIT',dateRec:'2026-02-11',loc:'',destination:'B6A',supplier:'WINDSOR',gc:'',po:'',project:'HOLBROOK CLUBHOUSE',resp:'Jose',status:'In Stock',comment:'Windsor-clay',sysDate:'2026-02-11'},
+  {id:12,moveType:'ENTRY',type:'WINDOW',name:'PAT-PVS4',product:'',qty:19,unit:'UNIT',dateRec:'2026-01-05',loc:'',destination:'B2A',supplier:'AMSCO',gc:'PAT',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Amsco-white',sysDate:'2026-01-05'},
+  {id:13,moveType:'ENTRY',type:'WINDOW',name:'HFLot154',product:'',qty:18,unit:'UNIT',dateRec:'2026-01-15',loc:'',destination:'B1A',supplier:'ALSIDE',gc:'',po:'',project:'HOLBROOK2',resp:'Jose',status:'In Stock',comment:'Allside-white',sysDate:'2026-01-15'},
+  {id:14,moveType:'ENTRY',type:'WINDOW',name:'OLAYAN RESIDENCE',product:'',qty:85,unit:'UNIT',dateRec:'2026-01-24',loc:'',destination:'A1A',supplier:'AMSCO',gc:'',po:'',project:'OLAYAN RESIDENCE',resp:'Jose',status:'In Stock',comment:'AMSCO BLACK/WHITE',sysDate:'2026-01-24'},
+  {id:15,moveType:'ENTRY',type:'WINDOW',name:'LGI REDROCK DISCOUNT',product:'',qty:54,unit:'UNIT',dateRec:'2026-02-11',loc:'',destination:'B5A',supplier:'',gc:'LGI',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Unloaded by window installers',sysDate:'2026-02-11'},
+  {id:16,moveType:'ENTRY',type:'WINDOW',name:'BYRON ALLRED',product:'',qty:21,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'A',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:17,moveType:'ENTRY',type:'WINDOW',name:'SAL BUSHMAN FARMS 2',product:'',qty:23,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'A1A',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:18,moveType:'ENTRY',type:'WINDOW',name:'HIG CANNON RESIDENCE',product:'',qty:27,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'B1A',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:19,moveType:'EXIT',type:'WINDOW',name:'OLAYAN RESIDENCE',product:'',qty:-12,unit:'UNIT',dateRec:'2026-03-01',loc:'A1A',destination:'OLAYAN RESIDENCE SITE',supplier:'',gc:'',po:'',project:'OLAYAN RESIDENCE',resp:'Carlos',status:'Dispatched',comment:'First delivery to site',sysDate:'2026-03-01'},
+  {id:20,moveType:'EXIT',type:'WINDOW',name:'LGI REDROCK DISCOUNT',product:'',qty:-30,unit:'UNIT',dateRec:'2026-03-05',loc:'B5A',destination:'WESTERLY SITE',supplier:'',gc:'LGI',po:'',project:'WESTERLY',resp:'Carlos',status:'Dispatched',comment:'',sysDate:'2026-03-05'},
+  // SCREEN entries
+  {id:30,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:26,unit:'UNIT',dateRec:'2026-02-18',loc:'',destination:'P3C',supplier:'ALSIDE',gc:'',po:'3087',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'DOOR SCREEN',sysDate:'2026-02-18'},
+  {id:31,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:8,unit:'UNIT',dateRec:'2026-02-18',loc:'',destination:'P3C',supplier:'ALSIDE',gc:'',po:'3087',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'DOOR SCREEN',sysDate:'2026-02-18'},
+  {id:32,moveType:'ENTRY',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:8,unit:'UNIT',dateRec:'2026-02-19',loc:'',destination:'C2B',supplier:'ALSIDE',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Jose',status:'In Stock',comment:'WINDOW SCREEN',sysDate:'2026-02-19'},
+  {id:33,moveType:'EXIT',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:-34,unit:'UNIT',dateRec:'2026-03-05',loc:'P3C',destination:'HIGHLAND ROW, SALT LAKE CITY',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'DOOR SCREENS to site',sysDate:'2026-03-05'},
+  {id:34,moveType:'EXIT',type:'SCREEN',name:'HIGHLAND ROW TOWNHOMES',product:'',qty:-15,unit:'UNIT',dateRec:'2026-03-05',loc:'C2B',destination:'HIGHLAND ROW, SALT LAKE CITY',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'WINDOW SCREENS to site',sysDate:'2026-03-05'},
+  {id:35,moveType:'ENTRY',type:'SCREEN',name:'WESTERLY',product:'',qty:13,unit:'UNIT',dateRec:'2026-02-20',loc:'',destination:'C2B',supplier:'ALSIDE',gc:'',po:'4351',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-20'},
+  {id:36,moveType:'ENTRY',type:'SCREEN',name:'WESTERLY',product:'',qty:26,unit:'UNIT',dateRec:'2026-02-20',loc:'',destination:'C2B',supplier:'ALSIDE',gc:'',po:'4351',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-20'},
+  {id:37,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL A',product:'',qty:11,unit:'UNIT',dateRec:'2026-02-14',loc:'',destination:'A1B',supplier:'ALSIDE',gc:'',po:'1072A',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-14'},
+  {id:38,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL B',product:'',qty:33,unit:'UNIT',dateRec:'2026-02-14',loc:'',destination:'A1B',supplier:'ALSIDE',gc:'',po:'1073',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'Multiple batches',sysDate:'2026-02-14'},
+  {id:39,moveType:'ENTRY',type:'SCREEN',name:'CLOUDVEIL C',product:'',qty:27,unit:'UNIT',dateRec:'2026-02-14',loc:'',destination:'A1B',supplier:'ALSIDE',gc:'',po:'1628A',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-14'},
+  {id:40,moveType:'ENTRY',type:'SCREEN',name:'BYRON ALLRED',product:'',qty:14,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'B1B',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:41,moveType:'ENTRY',type:'SCREEN',name:'SAL BUSHMAN FARMS',product:'',qty:15,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'B1B',supplier:'ALSIDE',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:42,moveType:'ENTRY',type:'SCREEN',name:'HIG CANNON RESIDENCE',product:'',qty:14,unit:'UNIT',dateRec:'2026-02-15',loc:'',destination:'B1B',supplier:'AMSCO',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-02-15'},
+  {id:43,moveType:'EXIT',type:'SCREEN',name:'CLOUDVEIL A',product:'',qty:-11,unit:'UNIT',dateRec:'2026-03-10',loc:'A1B',destination:'EAGLE RIDGE SITE',supplier:'',gc:'',po:'',project:'CLOUDVEIL (EAGLE RIDGE)',resp:'Carlos',status:'Dispatched',comment:'Full batch to site',sysDate:'2026-03-10'},
+  // MIRROR entries
+  {id:50,moveType:'ENTRY',type:'MIRROR',name:'WESTERLY',product:'',qty:382,unit:'UNIT',dateRec:'2026-03-03',loc:'',destination:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Full order received',sysDate:'2026-03-03'},
+  {id:51,moveType:'ENTRY',type:'MIRROR',name:'KUNA',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-03',loc:'',destination:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'KUNA APTS',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:52,moveType:'ENTRY',type:'MIRROR',name:'LIBERTY WELLS BUILDING 2',product:'',qty:2,unit:'UNIT',dateRec:'2026-03-03',loc:'',destination:'MIRRORS/SHOWERS WAREHOUSE',supplier:'UG',gc:'',po:'',project:'LIBERTY WELLS TOWNHOMES',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:53,moveType:'EXIT',type:'MIRROR',name:'WESTERLY',product:'',qty:-50,unit:'UNIT',dateRec:'2026-03-12',loc:'MIRRORS/SHOWERS WAREHOUSE',destination:'WESTERLY SITE',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Carlos',status:'Dispatched',comment:'First install batch',sysDate:'2026-03-12'},
+  // IGU entries
+  {id:60,moveType:'ENTRY',type:'IGU',name:'TETON CENTER',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'IGU CART',supplier:'UG',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:61,moveType:'ENTRY',type:'IGU',name:'WESTERLY Y 201',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'IGU CART',supplier:'UG',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:62,moveType:'ENTRY',type:'IGU',name:'DRIVE BY',product:'',qty:2,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'IGU CART',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:63,moveType:'ENTRY',type:'IGU',name:'ALTA VISTA',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'IGU CART',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:64,moveType:'ENTRY',type:'IGU',name:'VAL VT 228 HARPER',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'CART #4',supplier:'',gc:'',po:'',project:'',resp:'Jose',status:'In Stock',comment:'',sysDate:'2026-03-04'},
+  {id:65,moveType:'ENTRY',type:'IGU',name:'WESERTLY',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-04',loc:'',destination:'CART #9',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Possible typo: WESTERLY',sysDate:'2026-03-04'},
+  // TRANSFER example
+  {id:70,moveType:'TRANSFER',type:'WINDOW',name:'PAT-PVS4',product:'',qty:5,unit:'UNIT',dateRec:'2026-03-08',loc:'B2A',destination:'A1A',supplier:'',gc:'PAT',po:'',project:'WESTERLY',resp:'Jose',status:'In Stock',comment:'Relocated to make room',sysDate:'2026-03-08'},
+  // RETURN example
+  {id:71,moveType:'RETURN',type:'SCREEN',name:'WESTERLY',product:'',qty:3,unit:'UNIT',dateRec:'2026-03-14',loc:'WESTERLY SITE',destination:'C2B',supplier:'',gc:'',po:'',project:'WESTERLY',resp:'Carlos',status:'Returned',comment:'Damaged units returned for inspection',sysDate:'2026-03-14'},
+  // BONEYARD
+  {id:80,moveType:'ENTRY',type:'BONEYARD',name:'WINDOW SCREEN',product:'',qty:1,unit:'UNIT',dateRec:'2026-03-03',loc:'',destination:'A5C',supplier:'',gc:'',po:'',project:'',resp:'Spencer',status:'In Stock',comment:'',sysDate:'2026-03-03'},
+  {id:81,moveType:'EXIT',type:'BONEYARD',name:'WINDOW SCREEN',product:'',qty:-2,unit:'UNIT',dateRec:'2026-03-03',loc:'A5C',destination:'HIGHLAND ROW TOWNHOMES',supplier:'',gc:'',po:'',project:'HIGHLAND ROW TOWNHOMES',resp:'Spencer',status:'Dispatched',comment:'Spencer took 2 for resizing',sysDate:'2026-03-03'},
+];
 
-var colVis = {gc:false,project:true,supplier:false,resp:true,comment:true,sysDate:false};
+var nextId = 200;
+
+// Config from real data
+var CONFIG = {
+  racks: [
+    {name:'MIRRORS/SHOWERS WAREHOUSE',type:'RACK'},{name:'WINDOW WAREHOUSE',type:'RACK'},{name:'STOREFRONT WAREHOUSE',type:'RACK'},
+    {name:'CART #4',type:'RACK'},{name:'CART #9',type:'RACK'},{name:'IGU CART',type:'RACK'},
+    // A rows
+    {name:'A',type:'RACK'},{name:'A1A',type:'RACK'},{name:'A1B',type:'RACK'},{name:'A1C',type:'RACK'},
+    {name:'A2A',type:'RACK'},{name:'A2B',type:'RACK'},{name:'A2C',type:'RACK'},
+    {name:'A3A',type:'RACK'},{name:'A3B',type:'RACK'},{name:'A3C',type:'RACK'},
+    {name:'A4A',type:'RACK'},{name:'A4B',type:'RACK'},{name:'A4C',type:'RACK'},
+    {name:'A5A',type:'RACK'},{name:'A5B',type:'RACK'},{name:'A5C',type:'RACK'},
+    {name:'A6A',type:'RACK'},{name:'A6B',type:'RACK'},{name:'A6C',type:'RACK'},
+    // B rows
+    {name:'B1A',type:'RACK'},{name:'B1B',type:'RACK'},{name:'B1C',type:'RACK'},
+    {name:'B2A',type:'RACK'},{name:'B2B',type:'RACK'},{name:'B2C',type:'RACK'},
+    {name:'B3A',type:'RACK'},{name:'B3B',type:'RACK'},{name:'B3C',type:'RACK'},
+    {name:'B4A',type:'RACK'},{name:'B4B',type:'RACK'},{name:'B4C',type:'RACK'},
+    {name:'B5A',type:'RACK'},{name:'B5B',type:'RACK'},{name:'B5C',type:'RACK'},
+    {name:'B6A',type:'RACK'},{name:'B6B',type:'RACK'},{name:'B6C',type:'RACK'},
+    // C rows
+    {name:'C1A',type:'RACK'},{name:'C1B',type:'RACK'},{name:'C1C',type:'RACK'},
+    {name:'C2A',type:'RACK'},{name:'C2B',type:'RACK'},{name:'C2C',type:'RACK'},
+    {name:'C3A',type:'RACK'},{name:'C3B',type:'RACK'},{name:'C3C',type:'RACK'},
+    {name:'C4A',type:'RACK'},{name:'C4B',type:'RACK'},{name:'C4C',type:'RACK'},
+    {name:'C5A',type:'RACK'},{name:'C5B',type:'RACK'},{name:'C5C',type:'RACK'},
+    {name:'C6A',type:'RACK'},{name:'C6B',type:'RACK'},{name:'C6C',type:'RACK'},
+    // P rows
+    {name:'P1A',type:'RACK'},{name:'P1B',type:'RACK'},{name:'P1C',type:'RACK'},
+    {name:'P2A',type:'RACK'},{name:'P2B',type:'RACK'},{name:'P2C',type:'RACK'},
+    {name:'P3A',type:'RACK'},{name:'P3B',type:'RACK'},{name:'P3C',type:'RACK'},
+    {name:'P4A',type:'RACK'},{name:'P4B',type:'RACK'},{name:'P4C',type:'RACK'},
+    // O rows (outdoor/truck)
+    {name:'O1A',type:'RACK'},{name:'O1B',type:'RACK'},{name:'O1C',type:'RACK'},
+    {name:'O2A',type:'RACK'},{name:'O2B',type:'RACK'},{name:'O2C',type:'RACK'},
+    {name:'O3A',type:'TRUCK'},{name:'O3B',type:'TRUCK'},{name:'O3C',type:'TRUCK'},
+    {name:'O4A',type:'TRUCK'},{name:'O4B',type:'TRUCK'},{name:'O4C',type:'TRUCK'},
+    // X rows
+    {name:'X1A',type:'RACK'},{name:'X1B',type:'RACK'},{name:'X1C',type:'RACK'},
+  ],
+  projects: ['ACC STUDENT HOUSING','BRIX CONSTRUCTION: STUDY CENTER','CLOUDVEIL (EAGLE RIDGE)','HIGHLAND ROW TOWNHOMES','HOLBROOK CLUBHOUSE','HOLBROOK2','KUNA APTS','KUNA APTS A','KUNA APTS B','LEHI TOWNHOMES','LIBERTY WELLS TOWNHOMES','OLAYAN RESIDENCE','RIVER MEADOWS CLUBHO','RIVER MEADOWS W2','WESTERLY','WESTERLY SHOWER','WHILOT219','WHILOT224POPPY'],
+  suppliers: ['AMSCO','ALSIDE','RAIN BUSTER','DUPONT','ULINE','WINDSOR','QUAKER','HARTUNG','AMI (ASSOCCIATED MATERIALS INCORPORATED)','UG (UTAH GLASS)'],
+  categories: ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU']
+};
+
+var colVis = {gc:false,project:true,supplier:false,resp:true,comment:true,src:false,sysDate:false};
+var pieChartInst = null, barChartInst = null;
 
 // ════════════════════════════════════════════════════════════
 //  STOCK COMPUTATION — dual-tracking (warehouse + site)
 // ════════════════════════════════════════════════════════════
-var knownRackNames = new Set();
-
-function rebuildRackIndex(){
-  knownRackNames = new Set(CONFIG.racks.map(function(r){ return r.name; }));
-}
+var knownRackNames = new Set(CONFIG.racks.map(function(r){ return r.name; }));
+var knownProjectNames = new Set(CONFIG.projects);
 
 function isWarehouseLoc(loc){
   return knownRackNames.has(loc);
-}
-
-// Splits a location string that may contain multiple racks separated by
-// " - ", "," or ";" and returns the first recognized rack, or the full string.
-function resolveRack(loc){
-  if(!loc) return '';
-  // Try the full string first
-  if(isWarehouseLoc(loc)) return loc;
-  // Try splitting on common separators
-  var parts = loc.split(/\s*[-,;]\s*/);
-  for(var i=0; i<parts.length; i++){
-    var p = parts[i].trim();
-    if(p && isWarehouseLoc(p)) return p;
-  }
-  // Not a known rack — it's a site/address
-  return loc;
-}
-
-function isAnyWarehouseLoc(loc){
-  if(!loc) return false;
-  if(isWarehouseLoc(loc)) return true;
-  var parts = loc.split(/\s*[-,;]\s*/);
-  for(var i=0; i<parts.length; i++){
-    if(isWarehouseLoc(parts[i].trim())) return true;
-  }
-  return false;
 }
 
 // Returns object keyed by "type___name" with {warehouseQty, siteQty, warehouseLocs, siteLocs}
@@ -497,91 +564,60 @@ function getStockSummary(){
   movements.forEach(function(m){
     var key = getKey(m);
     ensure(key, m);
-    var s   = summary[key];
+    var s = summary[key];
     var qty = parseFloat(m.qty)||0;
-    var mt  = (m.moveType||'ENTRY').toUpperCase();
+    var mt = (m.moveType||'ENTRY').toUpperCase();
 
     if(mt === 'ENTRY'){
-      // m.loc holds the warehouse rack for ENTRY (legacy and v2)
       var dest = m.loc || '';
-      if(isAnyWarehouseLoc(dest)){
-        // Split multi-rack entries (e.g. "A1A - A2A - A3A") across each rack
-        var parts = dest.split(/\s*[-,;]\s*/);
-        var validParts = parts.filter(function(p){ return isWarehouseLoc(p.trim()); });
-        var perRack = validParts.length > 0 ? qty / validParts.length : qty;
-        validParts.forEach(function(p){
-          var rack = p.trim();
-          s.warehouseLocs[rack] = (s.warehouseLocs[rack]||0) + perRack;
-        });
+      if(isWarehouseLoc(dest)){
         s.warehouseQty += qty;
+        s.warehouseLocs[dest] = (s.warehouseLocs[dest]||0)+qty;
       } else {
-        // Arriving directly to a site (edge case)
         s.siteQty += qty;
-        s.siteLocs[dest] = (s.siteLocs[dest]||0) + qty;
+        s.siteLocs[dest] = (s.siteLocs[dest]||0)+qty;
       }
-
     } else if(mt === 'EXIT'){
-      var src    = m.loc         || '';
-      var dest2  = m.destination || '';
+      var src   = m.loc         || '';
+      var dest2 = m.destination || '';
       var absQty = Math.abs(qty);
-      var deducted = 0;
-
-      if(isAnyWarehouseLoc(src)){
-        // Known rack — deduct from it
-        var rack = resolveRack(src);
-        s.warehouseLocs[rack] = (s.warehouseLocs[rack]||0) - absQty;
+      if(isWarehouseLoc(src)){
+        s.warehouseLocs[src] = (s.warehouseLocs[src]||0) - absQty;
         s.warehouseQty -= absQty;
-        deducted = absQty;
       } else {
-        // src is not a known rack (e.g. address, blank) —
-        // find the rack with most stock for this SKU and deduct there
         var bestRack = null, bestAmt = -1;
         Object.keys(s.warehouseLocs).forEach(function(r){
-          if((s.warehouseLocs[r]||0) > bestAmt){
-            bestAmt = s.warehouseLocs[r];
-            bestRack = r;
-          }
+          if(s.warehouseLocs[r] > bestAmt){ bestAmt=s.warehouseLocs[r]; bestRack=r; }
         });
-        if(bestRack !== null && bestAmt > 0){
-          s.warehouseLocs[bestRack] -= absQty;
-          s.warehouseQty -= absQty;
-          deducted = absQty;
-        }
-        // If no warehouse stock found at all, don't add to siteQty —
-        // material was never logged as received, so we can't track it
+        if(bestRack){ s.warehouseLocs[bestRack] -= absQty; s.warehouseQty -= absQty; }
       }
-
-      // Only add to siteQty if we actually deducted from warehouse
-      if(deducted > 0){
-        s.siteQty += deducted;
-        s.siteLocs[dest2] = (s.siteLocs[dest2]||0) + deducted;
-      }
+      s.siteQty += absQty;
+      s.siteLocs[dest2] = (s.siteLocs[dest2]||0) + absQty;
       if(m.comment) s.lastComment = m.comment;
 
     } else if(mt === 'TRANSFER'){
-      var tf_src  = resolveRack(m.loc         || '');
-      var tf_dest = resolveRack(m.destination || '');
+      var tf_src  = m.loc         || '';
+      var tf_dest = m.destination || '';
       var tf_qty  = Math.abs(qty);
       s.warehouseLocs[tf_src]  = (s.warehouseLocs[tf_src] ||0) - tf_qty;
       s.warehouseLocs[tf_dest] = (s.warehouseLocs[tf_dest]||0) + tf_qty;
-      // warehouseQty net stays the same
 
     } else if(mt === 'RETURN'){
-      var ret_site = m.loc         || '';
-      var ret_rack = resolveRack(m.destination || '');
+      var ret_src  = m.loc         || '';
+      var ret_dest = m.destination || '';
       var ret_qty  = Math.abs(qty);
-      s.siteQty    = Math.max(0, s.siteQty - ret_qty);
-      if(s.siteLocs[ret_site]) s.siteLocs[ret_site] = Math.max(0, s.siteLocs[ret_site] - ret_qty);
+      s.siteQty = Math.max(0, s.siteQty - ret_qty);
+      if(s.siteLocs[ret_src]) s.siteLocs[ret_src] = Math.max(0, s.siteLocs[ret_src] - ret_qty);
       s.warehouseQty += ret_qty;
-      s.warehouseLocs[ret_rack] = (s.warehouseLocs[ret_rack]||0) + ret_qty;
+      s.warehouseLocs[ret_dest] = (s.warehouseLocs[ret_dest]||0) + ret_qty;
     }
 
-    // Zero-floor per-rack values (never go below 0)
+    // Zero-floor warehouse quantities per rack (never go negative per slot)
     Object.keys(s.warehouseLocs).forEach(function(r){
       if(s.warehouseLocs[r] < 0) s.warehouseLocs[r] = 0;
     });
     if(s.warehouseQty < 0) s.warehouseQty = 0;
-    if(s.siteQty      < 0) s.siteQty      = 0;
+    if(s.siteQty < 0) s.siteQty = 0;
   });
 
   return summary;
@@ -960,72 +996,46 @@ function renderWarehouseMap(){
 //  CHARTS
 // ════════════════════════════════════════════════════════════
 function renderCharts(){
-  if(!googleChartsReady){ setTimeout(renderCharts, 200); return; }
-
   var s = getStockSummary();
-  var pieColors = ['#1B2A4A','#3B7DD8','#2563EB','#059669','#EA580C','#D97706','#7C3AED','#DB2777','#0891B2','#F97316','#6366F1'];
-
-  // ── PIE CHART — total stock by category (warehouse + site) ──
   var catTotals = {};
   Object.values(s).forEach(function(v){
-    var total = v.warehouseQty + v.siteQty;
-    if(total > 0) catTotals[v.type] = (catTotals[v.type]||0) + total;
+    if(v.warehouseQty>0) catTotals[v.type]=(catTotals[v.type]||0)+v.warehouseQty;
   });
 
-  var pieData = [['Category','Units']];
-  Object.entries(catTotals).forEach(function(e){ pieData.push([e[0], e[1]]); });
-
-  if(pieData.length > 1){
-    var pieChart = new google.visualization.PieChart(document.getElementById('pieChart'));
-    pieChart.draw(
-      google.visualization.arrayToDataTable(pieData),
-      {
-        pieHole: 0.4,
-        colors: pieColors,
-        fontName: 'IBM Plex Sans',
-        legend: {position:'right', textStyle:{fontSize:11, color:'#6B7280'}},
-        chartArea: {width:'90%', height:'85%'},
-        backgroundColor: 'transparent',
-        pieSliceBorderColor: '#FFFFFF'
-      }
-    );
-  } else {
-    document.getElementById('pieChart').innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9CA3AF;font-size:12px">No stock data</div>';
-  }
-
-  // ── BAR CHART — top 8 SKUs ──────────────────────────────────
-  var sorted = Object.values(s)
-    .filter(function(v){ return v.warehouseQty > 0 || v.siteQty > 0; })
-    .sort(function(a,b){ return (b.warehouseQty+b.siteQty) - (a.warehouseQty+a.siteQty); })
-    .slice(0, 8);
-
-  var barData = [['Material','In Warehouse',{role:'annotation'},'At Site',{role:'annotation'}]];
-  sorted.forEach(function(v){
-    var label = v.name.length > 18 ? v.name.substring(0,16)+'…' : v.name;
-    barData.push([label, v.warehouseQty, v.warehouseQty > 0 ? String(v.warehouseQty) : '', v.siteQty, v.siteQty > 0 ? String(v.siteQty) : '']);
+  // Pie
+  var pieLabels = Object.keys(catTotals);
+  var pieData = pieLabels.map(function(k){return catTotals[k];});
+  var pieColors = ['#1B2A4A','#3B7DD8','#2563EB','#059669','#EA580C','#D97706','#7C3AED','#DB2777','#0891B2','#F97316','#6366F1'];
+  if(pieChartInst) pieChartInst.destroy();
+  var ctx1 = document.getElementById('pieChart').getContext('2d');
+  pieChartInst = new Chart(ctx1,{
+    type:'doughnut',
+    data:{labels:pieLabels,datasets:[{data:pieData,backgroundColor:pieColors.slice(0,pieLabels.length),borderColor:'#FFFFFF',borderWidth:2}]},
+    options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#6B7280',font:{size:11,family:'IBM Plex Sans'},boxWidth:12,padding:8}}}}
   });
 
-  if(barData.length > 1){
-    var barChart = new google.visualization.BarChart(document.getElementById('barChart'));
-    barChart.draw(
-      google.visualization.arrayToDataTable(barData),
-      {
-        fontName: 'IBM Plex Sans',
-        colors: ['#3B7DD8','#D97706'],
-        legend: {position:'top', textStyle:{fontSize:11, color:'#6B7280'}},
-        chartArea: {width:'60%', height:'80%'},
-        backgroundColor: 'transparent',
-        hAxis: {textStyle:{fontSize:10, color:'#6B7280'}, gridlines:{color:'#E5E7EB'}, minValue:0},
-        vAxis: {textStyle:{fontSize:10, color:'#1a1a2e'}},
-        isStacked: false,
-        annotations: {textStyle:{fontSize:9, color:'#6B7280'}}
-      }
-    );
-  } else {
-    document.getElementById('barChart').innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9CA3AF;font-size:12px">No stock data</div>';
-  }
+  // Bar — top 8 SKUs by warehouse qty
+  var sorted = Object.values(s).filter(function(v){return v.warehouseQty>0;}).sort(function(a,b){return b.warehouseQty-a.warehouseQty;}).slice(0,8);
+  if(barChartInst) barChartInst.destroy();
+  var ctx2 = document.getElementById('barChart').getContext('2d');
+  barChartInst = new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:sorted.map(function(v){return v.name.length>16?v.name.substring(0,14)+'…':v.name;}),
+      datasets:[
+        {label:'In Warehouse',data:sorted.map(function(v){return v.warehouseQty;}),backgroundColor:'#3B7DD8',borderRadius:4},
+        {label:'At Site',data:sorted.map(function(v){return v.siteQty;}),backgroundColor:'rgba(217,119,6,0.5)',borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true,indexAxis:'y',
+      scales:{
+        x:{ticks:{color:'#6B7280',font:{size:10}},grid:{color:'#E5E7EB'}},
+        y:{ticks:{color:'#1a1a2e',font:{size:10,family:'IBM Plex Sans'}},grid:{display:false}}
+      },
+      plugins:{legend:{labels:{color:'#6B7280',font:{size:10,family:'IBM Plex Sans'},boxWidth:10,padding:6}}}
+    }
+  });
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1214,40 +1224,30 @@ function submitMovement(){
 
   var actualQty = (currentMoveType==='EXIT') ? -qty : qty;
 
-  var btn = document.getElementById('moveSubmit');
-  btn.textContent = 'Saving... ⏳';
-  btn.disabled = true;
+  movements.push({
+    id:          nextId++,
+    moveType:    currentMoveType,
+    type:        type,
+    name:        name,
+    qty:         actualQty,
+    unit:        document.getElementById('mUnit').value,
+    dateRec:     document.getElementById('mDate').value,
+    loc:         loc,
+    destination: dest,
+    // ENTRY-only fields (blank for other types)
+    supplier:    currentMoveType==='ENTRY' ? document.getElementById('mSup').value.trim()  : '',
+    gc:          currentMoveType==='ENTRY' ? document.getElementById('mGC').value.trim()   : '',
+    po:          currentMoveType==='ENTRY' ? document.getElementById('mPO').value.trim()   : '',
+    project:     currentMoveType==='ENTRY' ? document.getElementById('mProj').value.trim() : '',
+    // Common fields
+    resp:        document.getElementById('mResp').value.trim(),
+    status:      document.getElementById('mStatus').value,
+    comment:     document.getElementById('mComm').value.trim(),
+    sysDate:     new Date().toISOString().split('T')[0]
+  });
 
-  google.script.run
-    .withSuccessHandler(function(){
-      closeModal('moveOverlay');
-      btn.textContent = 'Save Movement';
-      btn.disabled = false;
-      loadFromSheet(); // reload fresh data from Sheet
-    })
-    .withFailureHandler(function(err){
-      alert('Error saving: ' + err.message);
-      btn.textContent = 'Save Movement';
-      btn.disabled = false;
-    })
-    .processMovement('addMovement', {
-      moveType: currentMoveType,
-      type:     type,
-      name:     name,
-      qty:      actualQty,
-      unit:     document.getElementById('mUnit').value,
-      dateRec:  document.getElementById('mDate').value,
-      loc:      loc,
-      dest:     dest,
-      supplier: currentMoveType==='ENTRY' ? document.getElementById('mSup').value.trim()  : '',
-      gc:       currentMoveType==='ENTRY' ? document.getElementById('mGC').value.trim()   : '',
-      po:       currentMoveType==='ENTRY' ? document.getElementById('mPO').value.trim()   : '',
-      project:  currentMoveType==='ENTRY' ? document.getElementById('mProj').value.trim() : '',
-      resp:     document.getElementById('mResp').value.trim(),
-      status:   document.getElementById('mStatus').value,
-      comment:  document.getElementById('mComm').value.trim(),
-      files:    []
-    });
+  closeModal('moveOverlay');
+  renderAll();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1281,8 +1281,6 @@ function exportProjectCSV(){
 //  RENDER ALL
 // ════════════════════════════════════════════════════════════
 function renderAll(){
-  rebuildRackIndex();
-  populateCatFilters();
   renderStats();
   renderStock();
   renderMovements();
@@ -1290,33 +1288,6 @@ function renderAll(){
   renderWarehouseMap();
   refreshProjectDropdown();
   document.getElementById('projectSelector').dispatchEvent(new Event('change'));
-}
-
-// ════════════════════════════════════════════════════════════
-//  LOAD FROM GOOGLE SHEETS
-// ════════════════════════════════════════════════════════════
-function loadFromSheet(){
-  // Show loading message while waiting for data
-  document.getElementById('statsRow').innerHTML =
-    '<div style="padding:1.5rem;color:var(--muted);font-size:.85rem">⏳ Loading data from Google Sheets...</div>';
-
-  google.script.run
-    .withSuccessHandler(function(data){
-      // Replace in-memory data with real Sheet data
-      movements = data.movements || [];
-      CONFIG    = data.config   || CONFIG;
-
-      // Assign sequential IDs if missing
-      movements.forEach(function(m, i){ if(!m.id) m.id = i+1; });
-      nextId = movements.length + 1;
-
-      renderAll();
-    })
-    .withFailureHandler(function(err){
-      document.getElementById('statsRow').innerHTML =
-        '<div style="padding:1.5rem;color:var(--red);font-size:.85rem">❌ Error loading data: ' + err.message + '</div>';
-    })
-    .getInitialData();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1342,10 +1313,9 @@ function updateClock(){
 //  INIT
 // ════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',function(){
+  populateCatFilters();
+  renderAll();
   updateClock(); setInterval(updateClock,1000);
-
-  // Load all data from Google Sheets — this is the only data source
-  loadFromSheet();
 
   document.getElementById('btn-dashboard').addEventListener('click',function(){showTab('dashboard','btn-dashboard');});
   document.getElementById('btn-movements').addEventListener('click',function(){showTab('movements','btn-movements');});
