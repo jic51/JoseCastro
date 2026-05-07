@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Scraper Zone helps small businesses automate lead generation, sales outreach, proposals, and invoicing." />
+  <title>Scraper Zone | Automate Your Sales Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #071526;
+      --navy-2: #0d2138;
+      --blue: #2563eb;
+      --blue-2: #38bdf8;
+      --cyan: #22d3ee;
+      --accent: #14f1c9;
+      --slate: #475569;
+      --slate-dark: #1e293b;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --bg: #f8fafc;
+      --white: #ffffff;
+      --shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--slate-dark);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .container {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 999px;
+      color: #cffafe;
+      background: rgba(255,255,255,0.08);
+      font-size: 14px;
+      font-weight: 600;
+      backdrop-filter: blur(12px);
+    }
+
+    .eyebrow::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(20, 241, 201, 0.16);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 0;
+      border-radius: 999px;
+      padding: 15px 24px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+
+    .btn-primary {
+      color: #031524;
+      background: linear-gradient(135deg, var(--accent), var(--blue-2));
+      box-shadow: 0 16px 38px rgba(34, 211, 238, 0.35);
+    }
+
+    .btn-secondary {
+      color: var(--blue);
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.22);
+    }
+
+    .section {
+      padding: 96px 0;
+    }
+
+    .section-header {
+      max-width: 760px;
+      margin: 0 auto 48px;
+      text-align: center;
+    }
+
+    .section-kicker {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      color: var(--white);
+      font-size: clamp(44px, 8vw, 78px);
+      line-height: 0.97;
+      letter-spacing: -0.06em;
+      margin: 26px 0 22px;
+    }
+
+    h2 {
+      color: #0f172a;
+      font-size: clamp(32px, 5vw, 52px);
+      line-height: 1.05;
+      letter-spacing: -0.045em;
+      margin-bottom: 18px;
+    }
+
+    h3 {
+      color: #0f172a;
+      font-size: 21px;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+
+    .lead {
+      color: #cbd5e1;
+      font-size: clamp(18px, 2.4vw, 22px);
+      max-width: 720px;
+      margin-bottom: 34px;
+    }
+
+    .muted { color: var(--muted); }
+
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 15% 18%, rgba(34, 211, 238, 0.34), transparent 34%),
+        radial-gradient(circle at 85% 5%, rgba(37, 99, 235, 0.42), transparent 32%),
+        linear-gradient(135deg, #06111f 0%, #0b1930 54%, #112f54 100%);
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), transparent 85%);
+    }
+
+    .nav {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      padding: 26px 0;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--white);
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--blue-2));
+      color: #06111f;
+      font-weight: 900;
+      box-shadow: 0 16px 35px rgba(20, 241, 201, 0.24);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: #cbd5e1;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .nav-links a { transition: color .2s ease; }
+    .nav-links a:hover { color: var(--accent); }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      padding: 140px 0 96px;
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 56px;
+      align-items: center;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .hero-card {
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 32px;
+      background: rgba(255,255,255,0.09);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .pipeline-card {
+      background: var(--white);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.25);
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .metric {
+      padding: 16px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+    }
+
+    .metric strong {
+      display: block;
+      color: #0f172a;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pipeline-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .pipeline-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 15px;
+      border-radius: 18px;
+      border: 1px solid #e2e8f0;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+    }
+
+    .pipeline-item .left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .check {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #dcfce7;
+      color: #16a34a;
+      font-weight: 900;
+    }
+
+    .tag {
+      color: #0369a1;
+      background: #e0f2fe;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .problem {
+      background: var(--white);
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 34px;
+      align-items: center;
+    }
+
+    .pain-list {
+      display: grid;
+      gap: 16px;
+      margin: 26px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pain-list li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 18px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    .x-icon {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #fee2e2;
+      color: #dc2626;
+      font-weight: 900;
+    }
+
+    .time-card {
+      padding: 34px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #0f172a, #1e3a8a);
+      color: var(--white);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .time-card::after {
+      content: '';
+      position: absolute;
+      right: -60px;
+      top: -60px;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: rgba(34, 211, 238, 0.25);
+    }
+
+    .time-card .big {
+      display: block;
+      font-size: clamp(64px, 10vw, 112px);
+      line-height: .9;
+      font-weight: 900;
+      letter-spacing: -0.07em;
+      color: var(--accent);
+    }
+
+    .time-card p { color: #cbd5e1; margin-bottom: 0; }
+
+    .features {
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card,
+    .testimonial,
+    .step-card {
+      border: 1px solid #e2e8f0;
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: 0 16px 42px rgba(15, 23, 42, 0.08);
+      transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    }
+
+    .feature-card {
+      padding: 26px;
+      min-height: 250px;
+    }
+
+    .feature-card:hover,
+    .testimonial:hover,
+    .step-card:hover {
+      transform: translateY(-7px);
+      border-color: #bfdbfe;
+      box-shadow: 0 28px 60px rgba(15, 23, 42, 0.13);
+    }
+
+    .icon {
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      margin-bottom: 22px;
+      color: #082f49;
+      background: linear-gradient(135deg, #ccfbf1, #dbeafe);
+      font-size: 25px;
+      font-weight: 900;
+    }
+
+    .how {
+      background: #0f172a;
+      color: var(--white);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .how h2 { color: var(--white); }
+    .how .muted { color: #cbd5e1; }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .step-card {
+      padding: 28px;
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.13);
+      color: #e2e8f0;
+      backdrop-filter: blur(12px);
+    }
+
+    .step-card h3 { color: var(--white); }
+
+    .step-number {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      margin-bottom: 28px;
+      color: #06111f;
+      background: var(--accent);
+      font-weight: 900;
+    }
+
+    .pricing {
+      background: var(--white);
+    }
+
+    .pricing-card {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 42px;
+      border-radius: 32px;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.18), transparent 36%),
+        linear-gradient(135deg, #ffffff, #f8fafc);
+      border: 1px solid #dbeafe;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .price {
+      color: #0f172a;
+      font-size: clamp(46px, 7vw, 68px);
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: -0.06em;
+      margin: 0 0 10px;
+    }
+
+    .price span {
+      font-size: 20px;
+      color: var(--muted);
+      letter-spacing: -0.02em;
+    }
+
+    .included {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+
+    .included li {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: #334155;
+      font-weight: 700;
+    }
+
+    .testimonials {
+      background: #f8fafc;
+    }
+
+    .testimonial-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+
+    .testimonial {
+      padding: 28px;
+    }
+
+    .placeholder-label {
+      display: inline-flex;
+      margin-bottom: 16px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .quote {
+      color: #334155;
+      font-size: 16px;
+      margin-bottom: 22px;
+    }
+
+    .person {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      color: var(--white);
+      font-weight: 900;
+    }
+
+    .person strong { display: block; color: #0f172a; line-height: 1.1; }
+    .person span { display: block; color: var(--muted); font-size: 13px; }
+
+    .contact {
+      background: linear-gradient(135deg, #071526, #102a47);
+      color: var(--white);
+    }
+
+    .contact h2 { color: var(--white); }
+    .contact .muted { color: #cbd5e1; }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: .9fr 1.1fr;
+      gap: 42px;
+      align-items: start;
+    }
+
+    .contact-panel {
+      padding: 30px;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.13);
+      backdrop-filter: blur(12px);
+    }
+
+    .contact-detail {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 0;
+      color: #e2e8f0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    form {
+      padding: 30px;
+      border-radius: 28px;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    label {
+      display: block;
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 16px;
+      padding: 14px 15px;
+      color: #0f172a;
+      background: #f8fafc;
+      font: inherit;
+      outline: none;
+      transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--blue);
+      background: var(--white);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    textarea { min-height: 132px; resize: vertical; }
+    .full { grid-column: 1 / -1; }
+
+    .form-note {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      padding: 30px 0;
+      background: #050b14;
+      color: #94a3b8;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 14px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: reveal .75s ease forwards;
+    }
+
+    .delay-1 { animation-delay: .12s; }
+    .delay-2 { animation-delay: .24s; }
+    .delay-3 { animation-delay: .36s; }
+
+    @keyframes reveal {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-14px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .hero-content,
+      .problem-grid,
+      .pricing-card,
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card-grid { grid-template-columns: repeat(2, 1fr); }
+      .steps, .testimonial-grid { grid-template-columns: 1fr; }
+      .hero-card { max-width: 640px; }
+    }
+
+    @media (max-width: 720px) {
+      .container { width: min(100% - 28px, 1120px); }
+      .section { padding: 70px 0; }
+      .nav-links { display: none; }
+      .hero { min-height: auto; }
+      .hero-content { padding: 124px 0 70px; gap: 34px; }
+      .lead { font-size: 17px; }
+      .hero-actions .btn { width: 100%; }
+      .metric-row, .card-grid, .form-grid { grid-template-columns: 1fr; }
+      .pricing-card, form, .contact-panel { padding: 24px; }
+      .pipeline-item { align-items: flex-start; flex-direction: column; }
+      .tag { align-self: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero" id="top">
+    <nav class="nav" aria-label="Primary navigation">
+      <div class="container nav-inner">
+        <a class="brand" href="#top" aria-label="Scraper Zone home">
+          <span class="brand-mark">SZ</span>
+          <span>Scraper Zone</span>
+        </a>
+        <div class="nav-links" aria-label="Page sections">
+          <a href="#services">Services</a>
+          <a href="#process">How It Works</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#contact">Contact</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container hero-content">
+      <div>
+        <span class="eyebrow reveal">B2B automation for small teams</span>
+        <h1 class="reveal delay-1">Automate Your Sales Pipeline. Close More Deals.</h1>
+        <p class="lead reveal delay-2">Scraper Zone handles lead generation, outbound outreach, proposal drafting, and invoicing on autopilot so small businesses can spend less time on admin and more time winning customers.</p>
+        <div class="hero-actions reveal delay-3">
+          <a class="btn btn-primary" href="#contact">Get Started</a>
+          <a class="btn btn-secondary" href="#services">See What We Automate</a>
+        </div>
+      </div>
+
+      <aside class="hero-card reveal delay-2" aria-label="Automation pipeline preview">
+        <div class="pipeline-card">
+          <div class="metric-row">
+            <div class="metric"><strong>20+</strong><span>hours saved weekly</span></div>
+            <div class="metric"><strong>4x</strong><span>faster follow-up</span></div>
+            <div class="metric"><strong>24/7</strong><span>pipeline coverage</span></div>
+          </div>
+          <div class="pipeline-list">
+            <div class="pipeline-item">
+              <div class="left"><span class="check">✓</span><span>Find qualified leads</span></div>
+              <span class="tag">Automated</span>
+            </div>
+            <div class="pipeline-item">
+              <div class="left"><span class="check">✓</span><span>Send personalized sequences</span></div>
+              <span class="tag">Booked meetings</span>
+            </div>
+            <div class="pipeline-item">
+              <div class="left"><span class="check">✓</span><span>Draft proposals and invoices</span></div>
+              <span class="tag">Ready to send</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <section class="section problem" id="problem">
+      <div class="container problem-grid">
+        <div class="reveal">
+          <p class="section-kicker">The hidden bottleneck</p>
+          <h2>You're spending 20+ hours/week on manual sales work</h2>
+          <p class="muted">Prospecting, chasing follow-ups, writing custom proposals, and sending invoices can quietly consume your week. For small teams, that means fewer conversations, slower quotes, and delayed cash flow.</p>
+          <ul class="pain-list" aria-label="Manual sales pain points">
+            <li><span class="x-icon">×</span><span>Hours lost searching for prospects, verifying details, and deciding who is worth contacting.</span></li>
+            <li><span class="x-icon">×</span><span>Follow-ups slip through the cracks when your team is busy serving customers.</span></li>
+            <li><span class="x-icon">×</span><span>Proposal writing delays hot deals and makes your business look slower than it is.</span></li>
+            <li><span class="x-icon">×</span><span>Manual invoicing creates extra admin and slows down payment collection.</span></li>
+          </ul>
+        </div>
+        <div class="time-card reveal delay-1">
+          <span class="big">20+</span>
+          <h3 style="color:#fff;font-size:30px;margin-bottom:12px;">hours every week</h3>
+          <p>Reclaim time from repetitive sales tasks and redirect it toward closing, delivery, and customer relationships.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section features" id="services">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-kicker">Services</p>
+          <h2>One automation partner for the work between lead and payment</h2>
+          <p class="muted">Scraper Zone builds practical automation systems for small businesses with lean teams and ambitious revenue goals.</p>
+        </div>
+        <div class="card-grid">
+          <article class="feature-card reveal">
+            <div class="icon">⌁</div>
+            <h3>Lead Generation &amp; Enrichment</h3>
+            <p class="muted">We find and qualify your ideal prospects automatically.</p>
+          </article>
+          <article class="feature-card reveal delay-1">
+            <div class="icon">✉</div>
+            <h3>Outbound Email Sequences</h3>
+            <p class="muted">Personalized outreach that books meetings while you sleep.</p>
+          </article>
+          <article class="feature-card reveal delay-2">
+            <div class="icon">◩</div>
+            <h3>Proposal Drafting</h3>
+            <p class="muted">Professional proposals generated in minutes, not hours.</p>
+          </article>
+          <article class="feature-card reveal delay-3">
+            <div class="icon">$</div>
+            <h3>Invoice Automation</h3>
+            <p class="muted">Get paid faster with automatic invoice generation and delivery.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section how" id="process">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-kicker" style="color:var(--accent);">How it works</p>
+          <h2>A simple path from manual tasks to automated growth</h2>
+          <p class="muted">We focus on the parts of your sales workflow that create the most leverage first.</p>
+        </div>
+        <div class="steps">
+          <article class="step-card reveal">
+            <div class="step-number">1</div>
+            <h3>Tell us your ideal customer</h3>
+            <p>Share your target market, best-fit customer traits, offer, and sales process so we can map the right automation plan.</p>
+          </article>
+          <article class="step-card reveal delay-1">
+            <div class="step-number">2</div>
+            <h3>We set up your automation pipeline</h3>
+            <p>Scraper Zone builds the lead sourcing, enrichment, outreach, proposal, and invoice workflows around your business.</p>
+          </article>
+          <article class="step-card reveal delay-2">
+            <div class="step-number">3</div>
+            <h3>Watch qualified leads and deals flow in</h3>
+            <p>Your pipeline runs in the background while you review opportunities, take meetings, and close more deals.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section pricing" id="pricing">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-kicker">Pricing</p>
+          <h2>Clean pricing for serious growth</h2>
+          <p class="muted">Start with one focused automation pipeline and expand as the system proves ROI.</p>
+        </div>
+        <div class="pricing-card reveal">
+          <div>
+            <p class="section-kicker">Automation Pipeline</p>
+            <p class="price">Starting at $1,500<span>/mo</span></p>
+            <p class="muted">Built for small businesses that want a done-for-you system without hiring extra sales operations staff.</p>
+          </div>
+          <div>
+            <ul class="included" aria-label="Included services">
+              <li><span class="check">✓</span> Lead source setup</li>
+              <li><span class="check">✓</span> Prospect qualification workflow</li>
+              <li><span class="check">✓</span> Email sequence automation</li>
+              <li><span class="check">✓</span> Proposal and invoice handoff</li>
+            </ul>
+            <div style="margin-top:26px;">
+              <a class="btn btn-primary" href="#contact">Book a Call</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section testimonials" id="testimonials">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-kicker">Social proof</p>
+          <h2>Placeholder testimonials you can replace with real customer wins</h2>
+          <p class="muted">These examples are clearly marked as placeholders and should be swapped for actual client results when available.</p>
+        </div>
+        <div class="testimonial-grid">
+          <article class="testimonial reveal">
+            <span class="placeholder-label">Placeholder testimonial</span>
+            <p class="quote">“Scraper Zone helped us turn a messy manual prospecting process into a predictable weekly lead flow.”</p>
+            <div class="person">
+              <div class="avatar">MR</div>
+              <div><strong>Maya Rodriguez</strong><span>Founder, BrightPath Consulting</span></div>
+            </div>
+          </article>
+          <article class="testimonial reveal delay-1">
+            <span class="placeholder-label">Placeholder testimonial</span>
+            <p class="quote">“Our follow-ups used to depend on memory. Now our outreach keeps moving even when the team is busy.”</p>
+            <div class="person">
+              <div class="avatar">JT</div>
+              <div><strong>Jordan Taylor</strong><span>Owner, Northstar IT Services</span></div>
+            </div>
+          </article>
+          <article class="testimonial reveal delay-2">
+            <span class="placeholder-label">Placeholder testimonial</span>
+            <p class="quote">“The proposal and invoice workflows gave us back hours every week and helped us respond faster.”</p>
+            <div class="person">
+              <div class="avatar">AL</div>
+              <div><strong>Ari Lee</strong><span>Managing Partner, LocalEdge Marketing</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section contact" id="contact">
+      <div class="container contact-grid">
+        <div class="contact-panel reveal">
+          <p class="section-kicker" style="color:var(--accent);">Get started</p>
+          <h2>Book a Free Strategy Call</h2>
+          <p class="muted">Tell us where your sales process is getting stuck. We will identify the highest-leverage automation opportunities and recommend the fastest path to launch.</p>
+          <div class="contact-detail"><span class="check">✓</span><span>Built for 1-50 employee businesses</span></div>
+          <div class="contact-detail"><span class="check">✓</span><span>Lead gen, outreach, proposals, and invoicing</span></div>
+          <div class="contact-detail"><span class="check">✓</span><span>Email: <a href="mailto:joseisrael5101@gmail.com">joseisrael5101@gmail.com</a></span></div>
+        </div>
+
+        <form class="reveal delay-1" action="mailto:joseisrael5101@gmail.com" method="post" enctype="text/plain">
+          <div class="form-grid">
+            <div>
+              <label for="name">Name</label>
+              <input id="name" name="Name" type="text" placeholder="Your name" required />
+            </div>
+            <div>
+              <label for="email">Email</label>
+              <input id="email" name="Email" type="email" placeholder="you@company.com" required />
+            </div>
+            <div class="full">
+              <label for="company">Company</label>
+              <input id="company" name="Company" type="text" placeholder="Your company" />
+            </div>
+            <div class="full">
+              <label for="message">Message</label>
+              <textarea id="message" name="Message" placeholder="Tell us what you want to automate: lead generation, outreach, proposals, invoicing, or all of the above."></textarea>
+            </div>
+            <div class="full">
+              <button class="btn btn-primary" type="submit">Book a Free Strategy Call</button>
+              <p class="form-note">This form uses a simple mailto fallback and opens the visitor's email app. No backend is required.</p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div class="brand" style="color:#fff;"><span class="brand-mark">SZ</span><span>Scraper Zone</span></div>
+      <div><a href="mailto:joseisrael5101@gmail.com">joseisrael5101@gmail.com</a></div>
+      <div>© 2026 Scraper Zone. All rights reserved.</div>
+    </div>
+  </footer>
+</body>
+</html>
