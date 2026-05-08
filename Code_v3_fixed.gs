@@ -138,13 +138,18 @@ function getInitialData() {
 
     var stock = calculateStock(movements, reservations);
 
+    // Register this user's presence and return active users list
+    var activeUsers = [];
+    try { activeUsers = heartbeat(); } catch(e) {}
+
     return {
       movements:    movements,
       stock:        stock,
       config:       config,
       reservations: reservations,
       userRole:     auth.role,
-      userEmail:    auth.email
+      userEmail:    auth.email,
+      activeUsers:  activeUsers
     };
   } catch (err) {
     throw new Error('getInitialData: ' + err.message);
@@ -555,8 +560,7 @@ function _addMovement(ss, archive, data, auth) {
         for (var em = 0; em < emailList.length; em++) {
           var addr = emailList[em].trim();
           if (addr && addr.indexOf('@') !== -1) {
-            MailApp.sendEmail({ to: addr, subject: subject, body: msgBody,
-              name: 'OX Glass Co. — Warehouse' });
+            MailApp.sendEmail(addr, subject, msgBody);
             sent++;
           }
         }
@@ -798,23 +802,23 @@ function _updateDocument(ss, archive, data, auth) {
 }
 
 function _uploadFiles(files, materialName, po) {
-  try {
-    var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
-    var folder = _getOrCreateFolder('OX_WMS_v3_Docs/' + safe);
-    var links  = [];
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      if (!f.fileData) continue;
-      var blob = Utilities.newBlob(Utilities.base64Decode(f.fileData), f.fileMimeType, f.fileName);
-      var file = folder.createFile(blob);
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      links.push(file.getUrl());
-    }
-    return links.join('\n');
-  } catch (e) {
-    Logger.log('Upload error: ' + e.message);
-    return '';
+  // NOTE: intentionally NO try/catch here — errors propagate to _addMovement
+  // where they are captured in fileError and returned to the frontend.
+  var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
+  var folder = _getOrCreateFolder('OX_WMS_v3_Docs/' + safe);
+  var links  = [];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (!f || !f.fileData) continue;
+    var mimeType = f.fileMimeType || 'application/octet-stream';
+    var fileName = f.fileName     || ('attachment_' + (i + 1));
+    var bytes = Utilities.base64Decode(f.fileData);
+    var blob  = Utilities.newBlob(bytes, mimeType, fileName);
+    var file  = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    links.push(file.getUrl());
   }
+  return links.join('\n');
 }
 
 function _getOrCreateFolder(path) {
@@ -965,6 +969,35 @@ function menuReconcile() {
 function menuOpenApp() {
   var url = ScriptApp.getService().getUrl();
   SpreadsheetApp.getUi().alert('Open this URL in your browser:\n\n' + url);
+}
+
+// ─── PRESENCE / HEARTBEAT ────────────────────────────────────────────────────
+// Called on page load and every 90 s from the frontend.
+// Stores a timestamp per user in ScriptProperties and returns the active list.
+function heartbeat() {
+  var auth = getUserRole();
+  if (!auth || auth.role === 'DENIED') return [];
+
+  var props    = PropertiesService.getScriptProperties();
+  var raw      = props.getProperty('WMS_SESSIONS');
+  var sessions = {};
+  try { if (raw) sessions = JSON.parse(raw); } catch(e) {}
+
+  var now    = new Date().getTime();
+  var cutoff = now - 10 * 60 * 1000;  // prune sessions older than 10 min
+
+  // Update this user
+  sessions[auth.email] = { email: auth.email, role: auth.role, time: now };
+
+  // Prune stale entries
+  Object.keys(sessions).forEach(function(k) {
+    if (sessions[k].time < cutoff) delete sessions[k];
+  });
+
+  props.setProperty('WMS_SESSIONS', JSON.stringify(sessions));
+
+  // Return sorted list: most-recent first
+  return Object.values(sessions).sort(function(a, b) { return b.time - a.time; });
 }
 
 // ─── LOCKING ─────────────────────────────────────────────────────────────────

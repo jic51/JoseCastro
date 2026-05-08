@@ -149,6 +149,36 @@
     .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    /* ── SPINNING HOURGLASS ── */
+    @keyframes hg-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .spin-hg{display:inline-block;animation:hg-spin 1s linear infinite;will-change:transform}
+    /* ── CONNECTION INDICATOR ── */
+    @keyframes pulse-stale{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{box-shadow:0 0 0 7px rgba(245,158,11,0)}}
+    @keyframes pulse-offline{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0)}}
+    .conn-btn{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.2);font-size:.75rem;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;line-height:1}
+    .conn-btn.online {background:#10B981;color:#fff}
+    .conn-btn.stale  {background:#F59E0B;color:#fff;animation:pulse-stale 1.5s ease-in-out infinite}
+    .conn-btn.loading{background:#6B7280;color:#fff}
+    .conn-btn.offline{background:#EF4444;color:#fff;animation:pulse-offline 1s ease-in-out infinite}
+    /* ── PRESENCE DROPDOWN ── */
+    .presence-wrap{position:relative}
+    .presence-chip{cursor:pointer;user-select:none;transition:.15s}
+    .presence-chip:hover,.presence-chip.open{background:rgba(255,255,255,.2)!important}
+    .presence-dropdown{display:none;position:absolute;right:0;top:calc(100% + 10px);background:var(--card);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);border:1px solid var(--border);min-width:250px;z-index:600;overflow:hidden}
+    .presence-dropdown.open{display:block}
+    .presence-hdr{background:var(--navy);color:#fff;padding:.55rem 1rem;font-size:.75rem;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+    .presence-hdr button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 4px}
+    .presence-hdr button:hover{color:#fff}
+    .presence-user{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;font-size:.78rem;border-bottom:1px solid var(--border)}
+    .presence-user:last-child{border-bottom:none}
+    .presence-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .presence-dot.active{background:#10B981;box-shadow:0 0 0 2px rgba(16,185,129,.25)}
+    .presence-dot.away  {background:#F59E0B;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
+    .presence-email{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .presence-you{font-weight:700;color:var(--accent2)}
+    .presence-role{font-size:.68rem;background:#F3F4F6;color:var(--muted);border-radius:10px;padding:1px 7px;flex-shrink:0}
+    .presence-time{font-size:.68rem;color:var(--muted);white-space:nowrap}
+    .presence-empty{padding:.75rem 1rem;font-size:.8rem;color:var(--muted);text-align:center}
     /* ── STOCK WARNING ── */
     .stock-warn{padding:.5rem .75rem;border-radius:6px;font-size:.82rem;min-height:2rem;display:flex;align-items:center}
     /* ── EXPANDABLE ROWS ── */
@@ -197,7 +227,23 @@
       <button id="btn-projects">Project View</button>
       <button id="btn-warehouse">Warehouse Map</button>
     </div>
-    <div class="user-chip" id="userChip">Loading...</div>
+
+    <!-- Connection indicator -->
+    <button id="connBtn" class="conn-btn loading" title="Connecting…" onclick="loadDataFromGoogle()">●</button>
+
+    <!-- User chip + active-users dropdown -->
+    <div class="presence-wrap" id="presenceWrap">
+      <div class="user-chip presence-chip" id="userChip" onclick="togglePresence(event)">
+        <span class="spin-hg">⏳</span> Loading…
+      </div>
+      <div class="presence-dropdown" id="presenceDropdown">
+        <div class="presence-hdr">
+          <span>👥 Active Users</span>
+          <button onclick="togglePresence(event)">✕</button>
+        </div>
+        <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -418,7 +464,10 @@
     <div class="multi-exit-section" id="exitLocsSection" style="display:none">
       <div class="multi-loc-header">
         <label style="color:var(--red)">Pull From — Locations</label>
-        <span class="multi-loc-total" style="background:var(--red-bg);color:var(--red)" id="exitTotalDisplay">Total: 0</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="exitAutoTag" style="display:none;font-size:.68rem;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:600">✦ auto-filled</span>
+          <span class="multi-loc-total" style="background:var(--red-bg);color:var(--red)" id="exitTotalDisplay">Total: 0</span>
+        </div>
       </div>
       <div style="display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center">
         <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Rack / Location</span>
@@ -942,6 +991,36 @@ function updateExitTotal(){
   document.getElementById('mQty').value = total;
 }
 
+// Auto-fill EXIT rows with every rack that has stock (desc qty).
+// Called when material name changes while in EXIT mode.
+function autoFillExitRows(){
+  if (currentMoveType !== 'EXIT') return;
+  var cat  = nt(document.getElementById('mType').value);
+  var name = (document.getElementById('mName').value || '').trim().toUpperCase();
+  if (!name) return;
+  var key  = cat + '|||' + name;
+  var locs = stockData[key] && stockData[key].warehouseLocs;
+  if (!locs) return;
+
+  // Collect racks with positive stock, sorted by qty descending
+  var racks = Object.keys(locs)
+    .filter(function(r){ return locs[r] > 0; })
+    .sort(function(a, b){ return locs[b] - locs[a]; });
+
+  if (!racks.length) return;
+
+  // Clear and rebuild rows — one row per rack, qty field blank (user fills in how much to take)
+  document.getElementById('exitRowsContainer').innerHTML = '';
+  racks.forEach(function(rack){
+    addExitRow(rack, '');  // rack pre-filled, qty intentionally blank
+  });
+  // Show "auto-filled" badge and focus first qty
+  var tag = document.getElementById('exitAutoTag');
+  if (tag) tag.style.display = 'inline';
+  var firstQty = document.querySelector('#exitRowsContainer .exit-qty');
+  if (firstQty) firstQty.focus();
+}
+
 function validateExitRows(){
   var cat  = nt(document.getElementById('mType').value);
   var name = (document.getElementById('mName').value || '').trim().toUpperCase();
@@ -978,6 +1057,8 @@ function openMoveModal(type){
   // Reset multi-location rows (always start with one empty row)
   document.getElementById('locRowsContainer').innerHTML  = '';
   document.getElementById('exitRowsContainer').innerHTML = '';
+  var tag = document.getElementById('exitAutoTag');
+  if (tag) tag.style.display = 'none';
   addLocRow();
   addExitRow();
   document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0];
@@ -1065,6 +1146,8 @@ function setModalType(type){
     dateLabel.textContent = 'Date Dispatched';
     respLabel.textContent = 'Taken By / Given To';
     mStatus.value = 'Out';
+    // Auto-fill racks if material is already typed (e.g. user switches type mid-form)
+    setTimeout(autoFillExitRows, 0);
 
   } else if (type === 'TRANSFER'){
     srcField.style.display = 'flex';
@@ -1265,7 +1348,7 @@ async function submitMovement(){
 
   // File uploads
   var btn = document.getElementById('moveSubmit');
-  btn.textContent = 'Saving... ⏳'; btn.disabled = true;
+  btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
 
   var filesArray = [];
   if (currentMoveType === 'ENTRY'){
@@ -1327,7 +1410,7 @@ async function submitAttachment(){
   var fileInput = document.getElementById('aFile');
   var btn = document.getElementById('attachSubmit');
   if (!fileInput.files.length){ alert('Please select a file'); return; }
-  btn.textContent = 'Uploading... ⏳'; btn.disabled = true;
+  btn.innerHTML = 'Uploading… <span class="spin-hg">⏳</span>'; btn.disabled = true;
   try {
     var f = fileInput.files[0];
     google.script.run
@@ -1508,7 +1591,10 @@ function renderAll(){
 
 // ── Load Data from Backend ────────────────────────────────────────────────────
 function loadDataFromGoogle(){
-  document.getElementById('statsRow').innerHTML = '<p style="padding:1rem;color:var(--muted)">Loading system data...</p>';
+  lastLoadTime = null;
+  setConnStatus('loading');
+  document.getElementById('statsRow').innerHTML =
+    '<p style="padding:1rem;color:var(--muted)"><span class="spin-hg">⏳</span> Loading data…</p>';
   google.script.run
     .withSuccessHandler(function(data){
       movements    = data.movements    || [];
@@ -1517,14 +1603,18 @@ function loadDataFromGoogle(){
       reservations = data.reservations || [];
       userRole     = data.userRole     || 'WAREHOUSE';
       userEmail    = data.userEmail    || '';
+      lastLoadTime = Date.now();
+      setConnStatus('online');
       document.getElementById('userChip').textContent = userEmail + ' · ' + userRole;
+      if (data.activeUsers) renderActiveUsers(data.activeUsers);
       refreshDropdowns();
       refreshProjectDropdown();
       renderAll();
     })
     .withFailureHandler(function(err){
+      setConnStatus('offline');
       document.getElementById('statsRow').innerHTML =
-        '<p style="padding:1rem;color:var(--red)">Error loading data: '+(err.message||err)+'</p>';
+        '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+(err.message||err)+'</p>';
     })
     .getInitialData();
 }
@@ -1580,8 +1670,12 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('mType').addEventListener('change', function(){ updateMatList(); checkStock(); });
 
   // Modal: name input → stock check + notify preview
-  document.getElementById('mName').addEventListener('input', function(){ checkStock(); updateNotifyPreview(); validateExitRows(); });
-  document.getElementById('mType').addEventListener('change', function(){ validateExitRows(); });
+  document.getElementById('mName').addEventListener('input', function(){
+    checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows();
+  });
+  document.getElementById('mType').addEventListener('change', function(){
+    validateExitRows(); autoFillExitRows();
+  });
   document.getElementById('mQty').addEventListener('input',  updateNotifyPreview);
   document.getElementById('mUnit').addEventListener('change',updateNotifyPreview);
   document.getElementById('mProj').addEventListener('input', updateNotifyPreview);
@@ -1608,6 +1702,85 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btnCancelAttach').addEventListener('click', function(){ closeModal('attachOverlay'); });
   document.getElementById('attachOverlay').addEventListener('click', function(e){ closeIfOutside(e,'attachOverlay'); });
 });
+
+// ── Connection status ─────────────────────────────────────────────────────────
+var lastLoadTime = null;
+
+function setConnStatus(status){
+  var btn = document.getElementById('connBtn');
+  if (!btn) return;
+  btn.className = 'conn-btn ' + status;
+  var labels = {
+    online:  '● Online — click to refresh',
+    stale:   '● Data is stale — click to refresh',
+    loading: '● Connecting…',
+    offline: '● Offline — click to retry'
+  };
+  btn.title = labels[status] || '';
+}
+
+// Check every 60 s — if last load > 5 min ago, mark stale
+setInterval(function(){
+  if (!lastLoadTime) return;
+  var ageSec = (Date.now() - lastLoadTime) / 1000;
+  if (ageSec > 300) setConnStatus('stale');
+}, 60000);
+
+// ── Active users presence ─────────────────────────────────────────────────────
+function togglePresence(e){
+  if (e) e.stopPropagation();
+  var dd   = document.getElementById('presenceDropdown');
+  var chip = document.getElementById('userChip');
+  var open = dd.classList.toggle('open');
+  chip.classList.toggle('open', open);
+  if (open){
+    // Refresh list on open
+    google.script.run
+      .withSuccessHandler(renderActiveUsers)
+      .withFailureHandler(function(){})
+      .heartbeat();
+  }
+}
+
+// Close presence when clicking anywhere outside
+document.addEventListener('click', function(e){
+  var wrap = document.getElementById('presenceWrap');
+  if (wrap && !wrap.contains(e.target)){
+    document.getElementById('presenceDropdown').classList.remove('open');
+    document.getElementById('userChip').classList.remove('open');
+  }
+});
+
+function renderActiveUsers(users){
+  var list = document.getElementById('activeUsersList');
+  if (!list) return;
+  if (!users || !users.length){
+    list.innerHTML = '<p class="presence-empty">Only you are here.</p>';
+    return;
+  }
+  list.innerHTML = users.map(function(u){
+    var ageSec = (Date.now() - u.time) / 1000;
+    var ageStr = ageSec < 60 ? 'just now' : Math.round(ageSec / 60) + ' min ago';
+    var isYou  = (u.email === userEmail);
+    var away   = ageSec > 180; // > 3 min = away
+    return '<div class="presence-user">' +
+      '<span class="presence-dot ' + (away ? 'away' : 'active') + '"></span>' +
+      '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '">' +
+        u.email + (isYou ? ' (you)' : '') +
+      '</span>' +
+      '<span class="presence-role">' + (u.role || '—') + '</span>' +
+      '<span class="presence-time">' + ageStr + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+// Heartbeat every 90 s — keeps this user visible, refreshes list
+setInterval(function(){
+  google.script.run
+    .withSuccessHandler(renderActiveUsers)
+    .withFailureHandler(function(){})
+    .heartbeat();
+}, 90000);
 
 // Start
 loadDataFromGoogle();
