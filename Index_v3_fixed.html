@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OX Glass Co. — WMS v3.0</title>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
+      --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
+      --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
+      --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
+      --purple:#7C3AED;--purple-bg:#EDE9FE;
+      --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+    }
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    button{font-family:inherit;cursor:pointer}
+    input,select,textarea{font-family:inherit;font-size:.9rem}
+    /* ── TOPBAR ── */
+    .topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:3px solid var(--accent);flex-wrap:wrap;gap:10px}
+    .topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+    .topbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap}
+    .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
+    .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
+    .nav button.active{background:var(--accent);color:#fff}
+    .author-badge{background:rgba(0,0,0,.2);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.7rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
+    .user-chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:.72rem;color:rgba(255,255,255,.75)}
+    /* ── LAYOUT ── */
+    .container{max-width:1400px;margin:0 auto;padding:1.25rem;flex-grow:1;width:100%}
+    .section{display:none}.section.active{display:block}
+    /* ── STAT CARDS ── */
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem;margin-bottom:1.5rem}
+    .stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+    .stat label{font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:.25rem}
+    .stat .val{font-size:1.8rem;font-weight:700}
+    .stat .sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+    /* ── CARDS ── */
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem;display:flex;flex-direction:column}
+    .card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+    .card-header h2{font-size:1rem;font-weight:700}
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+    .toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+    /* ── BUTTONS ── */
+    .btn{padding:.5rem 1rem;border:none;border-radius:6px;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:.35rem;justify-content:center;transition:.15s}
+    .btn:hover{filter:brightness(.92)}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-danger{background:var(--red);color:#fff}
+    .btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+    .btn-sm{padding:.3rem .65rem;font-size:.78rem}
+    .btn-icon{background:transparent;border:none;font-size:1rem;cursor:pointer;transition:.15s;padding:2px}
+    .btn-icon:hover{transform:scale(1.15)}
+    /* ── TABLES ── */
+    .table-wrapper{overflow-x:auto;max-height:65vh;overflow-y:auto;position:relative}
+    table{width:100%;border-collapse:collapse;font-size:.82rem}
+    thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:10;padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+    td{padding:.55rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+    tbody tr:hover{background:#F8FAFC}
+    tr.row-zero td{opacity:.5}
+    tr.row-exit td:first-child{border-left:3px solid var(--red)}
+    tr.row-entry td:first-child{border-left:3px solid var(--green)}
+    tr.row-transfer td:first-child{border-left:3px solid var(--accent)}
+    tr.row-return td:first-child{border-left:3px solid #9CA3AF}
+    tr.row-waste td:first-child{border-left:3px solid #111827}
+    /* ── BADGES ── */
+    .badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600;white-space:nowrap}
+    .badge-green{background:var(--green-bg);color:var(--green)}
+    .badge-red{background:var(--red-bg);color:var(--red)}
+    .badge-blue{background:#DBEAFE;color:var(--accent2)}
+    .badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+    .badge-orange{background:var(--orange-bg);color:var(--orange)}
+    .badge-purple{background:var(--purple-bg);color:var(--purple)}
+    .badge-gray{background:#F3F4F6;color:#6B7280}
+    .badge-dark{background:#1F2937;color:#F9FAFB}
+    .badge-teal{background:#CCFBF1;color:#0F766E}
+    .badge-pink{background:#FCE7F3;color:#BE185D}
+    .badge-navy{background:#DBEAFE;color:#1E3A8A}
+    /* ── WAREHOUSE MAP ── */
+    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;padding:1.25rem}
+    .rack-card{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
+    .rack-header{background:var(--navy);color:#fff;padding:.6rem 1rem;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:700}
+    .rack-header .rack-total{font-size:.72rem;opacity:.8;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:10px}
+    .rack-items{padding:.5rem}
+    .rack-item{display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:6px;font-size:.78rem;margin-bottom:2px}
+    .rack-item:hover{background:#F8FAFC}
+    .rack-qty{margin-left:auto;font-weight:700;color:var(--accent2);font-size:.8rem}
+    .rack-empty{padding:2rem;text-align:center;color:var(--muted);font-size:.85rem}
+    /* ── ALERTS ── */
+    .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
+    .alert-banner.show{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+    /* ── OVERLAY / MODAL ── */
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:15px}
+    .overlay.show{display:flex}
+    .modal{background:var(--card);border-radius:14px;padding:1.75rem;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
+    /* ── MOVE TYPE BAR ── */
+    .modal-type-bar{display:flex;gap:4px;background:#F3F4F6;padding:4px;border-radius:8px;margin-bottom:1.25rem;flex-wrap:wrap}
+    .modal-type-bar button{flex:1;border:none;border-radius:6px;padding:.45rem .5rem;font-size:.78rem;font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
+    .modal-type-bar button:hover{background:rgba(0,0,0,.06);color:var(--text)}
+    .modal-type-bar button.active-entry{background:var(--green-bg);color:var(--green)}
+    .modal-type-bar button.active-exit{background:var(--red-bg);color:var(--red)}
+    .modal-type-bar button.active-transfer{background:#DBEAFE;color:var(--accent2)}
+    .modal-type-bar button.active-return{background:var(--purple-bg);color:var(--purple)}
+    .modal-type-bar button.active-waste{background:var(--yellow-bg);color:var(--yellow)}
+    /* ── FORM ── */
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .form-grid.full{grid-template-columns:1fr}
+    .field{display:flex;flex-direction:column;gap:.3rem}
+    .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+    .field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
+    .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
+    /* ── NOTIFY SECTION ── */
+    .notify-section{margin-top:1rem;padding:1rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
+    .notify-section label.check-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--navy)}
+    .notify-section label.check-label input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+    .notify-fields{margin-top:.85rem;display:flex;flex-direction:column;gap:.75rem}
+    /* ── FILE ATTACH ── */
+    .file-section{margin-top:1rem;padding:.75rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
+    .file-section label.sec-label{font-size:.72rem;font-weight:600;color:var(--accent2);text-transform:uppercase;display:block;margin-bottom:.5rem}
+    /* ── MULTI-LOCATION (ENTRY) ── */
+    .multi-loc-section{margin-top:.75rem;padding:.85rem 1rem;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px}
+    .multi-loc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .multi-loc-header label{font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em}
+    .multi-loc-total{font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px}
+    .loc-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .loc-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .loc-row input[type="text"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
+    .loc-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
+    .loc-row input[type="number"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
+    .loc-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .loc-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    .btn-add-loc{background:none;border:1px dashed #059669;color:var(--green);border-radius:6px;padding:.35rem .85rem;font-size:.8rem;font-weight:600;cursor:pointer;margin-top:.35rem;width:100%;transition:.15s}
+    .btn-add-loc:hover{background:var(--green-bg)}
+    /* ── MULTI-SOURCE (EXIT) ── */
+    .multi-exit-section{margin-top:.75rem;padding:.85rem 1rem;background:#FFF5F5;border:1px solid #FECACA;border-radius:8px}
+    .exit-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .exit-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .exit-row input[type="text"]:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
+    .exit-row input[type="number"]:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-row .exit-avail{flex:1.6;font-size:.78rem;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;min-width:80px}
+    .exit-avail.ok{color:var(--green);background:var(--green-bg)}
+    .exit-avail.warn{color:var(--red);background:var(--red-bg)}
+    .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
+    .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    /* ── STOCK WARNING ── */
+    .stock-warn{padding:.5rem .75rem;border-radius:6px;font-size:.82rem;min-height:2rem;display:flex;align-items:center}
+    /* ── EXPANDABLE ROWS ── */
+    .expandable-row{cursor:pointer;transition:background .2s}
+    .expandable-row:hover{background:#f1f5f9 !important}
+    .details-row{display:none;background:#fafafa;border-left:4px solid var(--accent)}
+    .details-container{padding:15px;font-size:.75rem;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    /* ── CHARTS ── */
+    .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
+    /* ── COL TOGGLE ── */
+    .col-toggle-bar{background:var(--bg);padding:8px 15px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    .col-toggle-bar strong{font-size:.72rem;color:var(--navy);text-transform:uppercase}
+    .col-toggle-bar label{cursor:pointer;font-size:.8rem;display:flex;align-items:center;gap:4px}
+    /* ── FOOTER ── */
+    .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
+    /* ── RESPONSIVE ── */
+    @media(max-width:768px){
+      .topbar{flex-direction:column;align-items:flex-start}
+      .nav{width:100%;flex-wrap:wrap}
+      .nav button{flex-grow:1;text-align:center;padding:.6rem}
+      .toolbar{flex-direction:column;align-items:stretch;width:100%}
+      .toolbar input,.toolbar select,.toolbar button{width:100%}
+      .form-grid{grid-template-columns:1fr}
+      .modal{padding:1.25rem}
+      th,td{padding:.45rem .5rem}
+      .charts-grid{grid-template-columns:1fr}
+      .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <div>
+    <h1>WMS — OX Glass Warehouse</h1>
+    <div class="author-badge">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Architected &amp; Engineered by: Jose Castro
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="nav">
+      <button id="btn-dashboard" class="active">Stock Dashboard</button>
+      <button id="btn-movements">Movements &amp; History</button>
+      <button id="btn-projects">Project View</button>
+      <button id="btn-warehouse">Warehouse Map</button>
+    </div>
+    <div class="user-chip" id="userChip">Loading...</div>
+  </div>
+</div>
+
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════════════ -->
+<div class="container">
+
+  <!-- ── DASHBOARD ── -->
+  <div id="dashboard" class="section active">
+    <div id="alertBanner" class="alert-banner">⚠️ <span id="alertText"></span></div>
+    <div class="charts-grid">
+      <div class="card" style="padding:10px;height:300px"><div id="piechart_div" style="width:100%;height:100%"></div></div>
+      <div class="card" style="padding:10px;height:300px"><div id="barchart_div" style="width:100%;height:100%"></div></div>
+    </div>
+    <div class="stats" id="statsRow"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Live Inventory Stock</h2>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Search name or comment...">
+          <select id="stockFilter">
+            <option value="">All Categories</option>
+            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+            <option>SCREWS</option><option>IGU</option>
+          </select>
+          <select id="stockStatusFilter">
+            <option value="">All Status</option>
+            <option value="in">In Stock only</option>
+            <option value="zero">Zero Stock only</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Category</th><th>Name / Description</th>
+            <th title="Units in warehouse">In Warehouse</th>
+            <th title="Units dispatched to site">At Site</th>
+            <th title="Warehouse minus reservations">Available</th>
+            <th>Reserved</th><th>Rack(s)</th><th>Status</th>
+          </tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MOVEMENTS ── -->
+  <div id="movements" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Movement History</h2>
+        <div class="toolbar">
+          <input type="text" id="movSearch" placeholder="Name, PO#, GC, Supplier, Project..." style="min-width:230px">
+          <select id="movTypeFilter">
+            <option value="">All Types</option>
+            <option value="ENTRY">Entry (IN)</option>
+            <option value="EXIT">Exit / Dispatch (OUT)</option>
+            <option value="TRANSFER">Transfer</option>
+            <option value="RETURN">Return</option>
+            <option value="WASTE">Waste</option>
+          </select>
+          <select id="movCatFilter">
+            <option value="">All Categories</option>
+            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+            <option>SCREWS</option><option>IGU</option>
+          </select>
+          <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
+          <button id="btnEntry" class="btn btn-primary">+ Entry (IN)</button>
+          <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
+        </div>
+      </div>
+      <div class="col-toggle-bar">
+        <strong>Columns:</strong>
+        <label><input type="checkbox" id="chkSysDate"> Sys Date</label>
+        <label><input type="checkbox" id="chkGc"> GC</label>
+        <label><input type="checkbox" id="chkProj" checked> Project</label>
+        <label><input type="checkbox" id="chkSup"> Supplier</label>
+        <label><input type="checkbox" id="chkResp" checked> Responsible</label>
+        <label><input type="checkbox" id="chkComm" checked> Comments</label>
+        <label><input type="checkbox" id="chkSrcDest"> Src / Dest</label>
+      </div>
+      <div class="table-wrapper" id="tableContainer"></div>
+    </div>
+  </div>
+
+  <!-- ── PROJECTS ── -->
+  <div id="projects" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Project Material Analysis</h2>
+        <div class="toolbar">
+          <select id="projectSelector" style="min-width:260px;padding:.5rem .75rem;border-radius:6px;border:1px solid var(--border)">
+            <option value="">Select a project...</option>
+          </select>
+          <button id="btnExportProject" class="btn btn-ghost btn-sm">⬇ Export</button>
+        </div>
+      </div>
+      <div class="stats" id="projectStats" style="padding:1.25rem;margin:0"></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Category</th><th>Name / Description</th>
+            <th>In Bodega</th><th>Sent to Site</th><th>Net</th><th>Status</th>
+          </tr></thead>
+          <tbody id="projectBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WAREHOUSE MAP ── -->
+  <div id="warehouse" class="section">
+    <div class="card">
+      <div class="card-header">
+        <h2>Warehouse Map</h2>
+        <div class="toolbar">
+          <input type="text" id="mapSearch" placeholder="Search rack or material...">
+          <select id="mapCatFilter">
+            <option value="">All Categories</option>
+            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+            <option>SCREWS</option><option>IGU</option>
+          </select>
+        </div>
+      </div>
+      <div id="warehouseMapBody" class="rack-grid"></div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="system-footer">
+  &copy; 2026 OX Glass Co. Proprietary Warehouse Management System.<br>
+  Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
+</div>
+
+<!-- ══ MOVEMENT MODAL ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="moveOverlay">
+  <div class="modal">
+    <h3 id="moveTitle">New Movement</h3>
+
+    <!-- Move Type Selector -->
+    <div class="modal-type-bar" id="moveTypeBar">
+      <button data-type="ENTRY"    onclick="setModalType('ENTRY')">↓ Entry</button>
+      <button data-type="EXIT"     onclick="setModalType('EXIT')">↑ Exit</button>
+      <button data-type="TRANSFER" onclick="setModalType('TRANSFER')">⇄ Transfer</button>
+      <button data-type="RETURN"   onclick="setModalType('RETURN')">↩ Return</button>
+      <button data-type="WASTE"    onclick="setModalType('WASTE')">✕ Waste</button>
+    </div>
+
+    <!-- Stock Warning -->
+    <div class="stock-warn" id="stockWarning"></div>
+
+    <!-- ── Core Fields ── -->
+    <div class="form-grid" style="margin-top:.75rem">
+      <div class="field">
+        <label>Category</label>
+        <select id="mType">
+          <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+          <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+          <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+          <option>SCREWS</option><option>IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Name / Description</label>
+        <input type="text" id="mName" list="matList" placeholder="Type or select...">
+        <datalist id="matList"></datalist>
+      </div>
+      <div class="field">
+        <label id="dateLabel">Date Received</label>
+        <input type="date" id="mDateRec">
+      </div>
+      <div class="field" id="mQtyField">
+        <label>Quantity</label>
+        <input type="number" id="mQty" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="mUnit">
+          <option value="UNIT">Unit</option>
+          <option value="BOX">Box</option>
+          <option value="SET">Set</option>
+          <option value="ROLL">Roll</option>
+          <option value="SHEET">Sheet</option>
+          <option value="LF">LF</option>
+        </select>
+      </div>
+      <div class="field" id="mTruckField" style="display:none">
+        <label>Truck</label>
+        <select id="mTruck">
+          <option value="">— None —</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Multi-Location (ENTRY only) ── -->
+    <div class="multi-loc-section" id="entryLocsSection" style="display:none">
+      <div class="multi-loc-header">
+        <label>Received At — Locations</label>
+        <span class="multi-loc-total" id="locTotalDisplay">Total: 0</span>
+      </div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.35rem">
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Rack / Location</span>
+        <span style="flex:1;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>
+        <span style="width:32px"></span>
+      </div>
+      <div id="locRowsContainer"></div>
+      <button type="button" class="btn-add-loc" onclick="addLocRow()">+ Add Location</button>
+    </div>
+
+    <!-- ── EXIT Multi-Source Locations ── -->
+    <div class="multi-exit-section" id="exitLocsSection" style="display:none">
+      <div class="multi-loc-header">
+        <label style="color:var(--red)">Pull From — Locations</label>
+        <span class="multi-loc-total" style="background:var(--red-bg);color:var(--red)" id="exitTotalDisplay">Total: 0</span>
+      </div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center">
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Rack / Location</span>
+        <span style="flex:1;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>
+        <span style="flex:1.6;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Available</span>
+        <span style="width:32px"></span>
+      </div>
+      <div id="exitRowsContainer"></div>
+      <button type="button" class="btn-add-loc" style="border-color:var(--red);color:var(--red)" onclick="addExitRow()">+ Add Source Location</button>
+    </div>
+
+    <!-- ── Location Fields (non-ENTRY, non-EXIT) ── -->
+    <div class="form-grid" style="margin-top:.75rem" id="singleLocGrid">
+      <div class="field" id="mSrcField" style="display:none">
+        <label id="mSrcLabel">Source Rack</label>
+        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
+        <datalist id="rackList"></datalist>
+      </div>
+      <div class="field" id="mDestField" style="display:none">
+        <label id="mDestLabel">Destination</label>
+        <input type="text" id="mDest" list="rackListDest" placeholder="e.g. B2B">
+        <datalist id="rackListDest"></datalist>
+      </div>
+    </div>
+
+    <!-- EXIT destination (project/site) — shown for EXIT -->
+    <div class="form-grid" style="margin-top:.75rem">
+      <div class="field" id="exitDestField" style="display:none">
+        <label>Destination (Project / Site / Address)</label>
+        <input type="text" id="mExitDest" list="projList" placeholder="Project name, site, address…">
+      </div>
+    </div>
+
+    <!-- ── Secondary Fields ── -->
+    <div class="form-grid" style="margin-top:.75rem">
+      <div class="field" id="mSupField">
+        <label>Supplier</label>
+        <input type="text" id="mSup" list="supplierList">
+        <datalist id="supplierList"></datalist>
+      </div>
+      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field">
+        <label>Project / Client</label>
+        <input type="text" id="mProj" list="projList">
+        <datalist id="projList"></datalist>
+      </div>
+      <div class="field">
+        <label id="respLabel">Responsible</label>
+        <input type="text" id="mResp">
+      </div>
+      <div class="field" id="mStatusField" style="display:none">
+        <label>Status</label>
+        <select id="mStatus">
+          <option value="In Stock">In Stock</option>
+          <option value="Out">Out</option>
+          <option value="Damaged">Damaged</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Comments ── -->
+    <div class="form-grid full" style="margin-top:.75rem">
+      <div class="field">
+        <label id="commLabel">Comments</label>
+        <textarea id="mComm" rows="2" placeholder="Notes, dimensions, instructions..."></textarea>
+      </div>
+    </div>
+
+    <!-- ── File Attach (ENTRY only) ── -->
+    <div class="file-section" id="fileSection" style="display:none;margin-top:.75rem">
+      <label class="sec-label">📎 Attach Documents</label>
+      <div id="fileInputsContainer">
+        <input type="file" class="mFile" accept="image/*,.pdf" style="border:none;display:block;margin-bottom:5px">
+      </div>
+      <button id="btnAddFile" class="btn btn-ghost btn-sm" style="width:fit-content;margin-top:4px">+ Add File</button>
+    </div>
+
+    <!-- ── Notification Section (ENTRY only) ── -->
+    <div class="notify-section" id="notifySection" style="display:none;margin-top:.75rem">
+      <label class="check-label">
+        <input type="checkbox" id="mNotify">
+        <span>📧 Send notification email</span>
+      </label>
+      <div class="notify-fields" id="notifyFields" style="display:none">
+        <div class="field">
+          <label>Recipients (comma-separated)</label>
+          <input type="text" id="mNotifyEmails" placeholder="john@example.com, maria@company.com">
+        </div>
+        <div class="field">
+          <label>Recipient Name (auto-filled, editable)</label>
+          <input type="text" id="mNotifyName" placeholder="John Doe">
+        </div>
+        <div class="field">
+          <label>Message Preview (editable)</label>
+          <textarea id="mNotifyMsg" rows="5" style="font-size:.82rem;font-family:'JetBrains Mono',monospace"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Actions ── -->
+    <div class="modal-actions">
+      <button id="btnCancelMove" class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary" id="moveSubmit">Save to System</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ATTACH MODAL ══════════════════════════════════════════════════════════ -->
+<div class="overlay" id="attachOverlay">
+  <div class="modal" style="max-width:420px">
+    <h3>Attach Extra Document</h3>
+    <p style="font-size:.8rem;color:var(--muted);margin:.5rem 0 1rem">Will be linked to the selected record.</p>
+    <input type="hidden" id="aRowIdx">
+    <input type="hidden" id="aFolderName">
+    <div class="field" style="margin-bottom:1.5rem">
+      <input type="file" id="aFile" accept="image/*,.pdf" style="border:1px dashed var(--accent);padding:10px;border-radius:6px">
+    </div>
+    <div class="modal-actions">
+      <button id="btnCancelAttach" class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary" id="attachSubmit">Upload &amp; Attach</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCRIPT ════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Global State ──────────────────────────────────────────────────────────────
+var movements   = [];
+var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, siteQty, ...} }
+var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
+var reservations = [];
+var currentMoveType = 'ENTRY';
+var colVis = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false };
+var chartsReady = false;
+var userRole = 'WAREHOUSE';
+var userEmail = '';
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function nz(v){ return v || ''; }
+function nt(v){ return (v || '').toUpperCase().trim(); }
+
+function displayName(m){
+  return (m.name||'').trim() || (m.comments||'').substring(0,60) || 'Unnamed';
+}
+
+function getBase64(file){
+  return new Promise(function(res,rej){
+    var r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = function(){ res(r.result.split(',')[1]); };
+    r.onerror = rej;
+  });
+}
+
+function locSummary(locs){
+  if (!locs || typeof locs !== 'object') return '—';
+  var keys = Object.keys(locs).filter(function(k){ return locs[k] > 0; });
+  if (!keys.length) return '—';
+  return keys.map(function(k){ return k + ' (' + locs[k] + ')'; }).join(', ');
+}
+
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+
+// Move-type badge: ENTRY=green, EXIT=red, TRANSFER=purple, RETURN=gray, WASTE=black
+function normMT(mt){
+  var n = nt(mt);
+  if (n === 'DISPATCH' || n === 'DISPATCHED' || n === 'DEL') return 'EXIT';
+  if (!n || n === 'IN STOCK') return 'ENTRY';
+  return n;
+}
+
+function moveBadge(mt){
+  var norm = normMT(mt);
+  var map = {
+    'ENTRY':    '<span class="badge badge-green">↓ ENTRY</span>',
+    'EXIT':     '<span class="badge badge-red">↑ EXIT</span>',
+    'TRANSFER': '<span class="badge badge-purple">⇄ TRANSFER</span>',
+    'RETURN':   '<span class="badge badge-gray">↩ RETURN</span>',
+    'WASTE':    '<span class="badge badge-dark">✕ WASTE</span>'
+  };
+  return map[norm] || '<span class="badge badge-gray">'+mt+'</span>';
+}
+
+// Category badge: each material type has its own color
+var CAT_BADGE = {
+  'WINDOW':       'badge-blue',
+  'SCREEN':       'badge-teal',
+  'WINDOW_PARTS': 'badge-navy',
+  'SHOWER':       'badge-orange',
+  'MIRROR':       'badge-pink',
+  'STOREFRONT':   'badge-purple',
+  'TOOLS':        'badge-yellow',
+  'BONEYARD':     'badge-dark',
+  'FLASHING':     'badge-orange',
+  'SCREWS':       'badge-gray',
+  'IGU':          'badge-green'
+};
+function catBadge(cat){
+  var c = nt(cat);
+  var cls = CAT_BADGE[c] || 'badge-gray';
+  return '<span class="badge '+cls+'">'+( c || '—')+'</span>';
+}
+
+function stockBadge(item){
+  if (item.availableQty > 0) return '<span class="badge badge-green">In Stock</span>';
+  if (item.warehouseQty > 0) return '<span class="badge badge-yellow">Reserved</span>';
+  if (item.siteQty > 0)      return '<span class="badge badge-blue">All at Site</span>';
+  return '<span class="badge badge-gray">Zero Stock</span>';
+}
+
+function rowClass(mt){
+  var map = {ENTRY:'row-entry',EXIT:'row-exit',TRANSFER:'row-transfer',RETURN:'row-return',WASTE:'row-waste'};
+  return map[normMT(mt)] || '';
+}
+
+// ── Tab Navigation ────────────────────────────────────────────────────────────
+function showTab(tab, btnId){
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById(tab).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById(btnId).classList.add('active');
+  if (tab === 'projects')  refreshProjectDropdown();
+  if (tab === 'warehouse') renderWarehouseMap();
+  renderAll();
+}
+
+// ── Dashboard: Stats ──────────────────────────────────────────────────────────
+function renderStats(){
+  var items = Object.values(stockData);
+  var inStock  = items.filter(function(s){ return s.availableQty > 0; }).length;
+  var zeroStock= items.filter(function(s){ return s.warehouseQty <= 0 && s.siteQty <= 0; }).length;
+  var totalWh  = items.reduce(function(a,s){ return a + Math.max(0, s.warehouseQty); }, 0);
+  var totalSite= items.reduce(function(a,s){ return a + Math.max(0, s.siteQty); }, 0);
+  var activeProjects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
+
+  if (zeroStock > 0){
+    var names = items.filter(function(s){ return s.warehouseQty<=0&&s.siteQty<=0; })
+                     .map(function(s){ return s.name; }).slice(0,3).join(', ');
+    document.getElementById('alertText').textContent = zeroStock + ' item(s) at zero stock: ' + names + (zeroStock>3?'…':'');
+    document.getElementById('alertBanner').classList.add('show');
+  } else {
+    document.getElementById('alertBanner').classList.remove('show');
+  }
+
+  document.getElementById('statsRow').innerHTML =
+    '<div class="stat"><label>SKUs Tracked</label><div class="val">'+items.length+'</div><div class="sub">'+inStock+' with stock</div></div>'+
+    '<div class="stat" style="border-left-color:var(--green)"><label>In Warehouse</label><div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
+    '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
+    '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
+    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroStock>0?'var(--yellow)':'var(--green)')+'">'+zeroStock+'</div><div class="sub">need restocking</div></div>';
+}
+
+// ── Dashboard: Stock Table ────────────────────────────────────────────────────
+function renderStock(){
+  var q  = (document.getElementById('stockSearch').value || '').toLowerCase();
+  var cf = document.getElementById('stockFilter').value;
+  var sf = document.getElementById('stockStatusFilter').value;
+
+  var items = Object.values(stockData).filter(function(s){
+    if (cf && nt(s.category) !== cf) return false;
+    if (sf === 'in'   && s.warehouseQty <= 0) return false;
+    if (sf === 'zero' && (s.warehouseQty > 0 || s.siteQty > 0)) return false;
+    if (q){
+      var haystack = (s.name + ' ' + s.category + ' ' + s.project).toLowerCase();
+      if (haystack.indexOf(q) === -1) return false;
+    }
+    return true;
+  }).sort(function(a,b){ return b.warehouseQty - a.warehouseQty; });
+
+  document.getElementById('stockBody').innerHTML = items.map(function(s){
+    var zero = s.warehouseQty <= 0 && s.siteQty <= 0;
+    return '<tr class="'+(zero?'row-zero':'')+'">'+
+      '<td>'+catBadge(s.category)+'</td>'+
+      '<td><strong>'+s.name+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+s.project+'</span>':'')+'</td>'+
+      '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
+      '<td style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
+      '<td><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
+      '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
+      '<td style="color:var(--muted);font-size:.78rem;max-width:180px">'+locSummary(s.warehouseLocs)+'</td>'+
+      '<td>'+stockBadge(s)+'</td></tr>';
+  }).join('');
+}
+
+// ── Movements: Column Toggle ──────────────────────────────────────────────────
+function toggleCol(col){ colVis[col] = !colVis[col]; renderMovements(); }
+
+// ── Movements: Table ──────────────────────────────────────────────────────────
+function renderMovements(){
+  var q    = (document.getElementById('movSearch').value || '').toLowerCase();
+  var tf   = document.getElementById('movTypeFilter').value;
+  var cf   = document.getElementById('movCatFilter').value;
+  var v    = colVis;
+
+  var filtered = movements.slice().reverse().filter(function(m){
+    var norm = normMT(m.moveType);
+    if (tf && norm !== tf) return false;
+    if (cf && nt(m.category) !== cf) return false;
+    if (q){
+      var fields = [m.name,m.po,m.project,m.supplier,m.gc,m.responsible,m.comments,m.sourceLoc,m.destLoc,m.truck]
+        .map(function(x){ return (x||'').toLowerCase(); });
+      if (!fields.some(function(f){ return f.indexOf(q) !== -1; })) return false;
+    }
+    return true;
+  });
+
+  var html = '<table><thead><tr>'+
+    '<th>Type</th><th>Date</th><th>Category</th><th>Name</th><th>Qty</th><th>Unit</th><th>PO#</th><th>Location</th>'+
+    (v.srcDest ? '<th>Src→Dest</th>' : '')+
+    (v.gc      ? '<th>GC</th>'       : '')+
+    (v.project ? '<th>Project</th>'  : '')+
+    (v.supplier? '<th>Supplier</th>' : '')+
+    (v.resp    ? '<th>Responsible</th>':'')+
+    (v.comment ? '<th>Comments</th>' : '')+
+    (v.sysDate ? '<th>Sys Date</th>' : '')+
+    '<th>User</th><th>Doc</th></tr></thead><tbody>';
+
+  html += filtered.map(function(m){
+    var norm = normMT(m.moveType);
+    var isOut = (norm === 'EXIT' || norm === 'WASTE');
+    var locDisplay = m.sourceLoc || m.destLoc || '—';
+    var docBtn = (m.docLinks||'').indexOf('http') !== -1
+      ? '<a href="'+m.docLinks.split('\n')[0]+'" target="_blank" class="badge badge-blue">📄</a>'
+      : '<small style="color:var(--muted)">—</small>';
+    var attachBtn = '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
+    var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
+    return '<tr class="'+rowClass(m.moveType)+'">'+
+      '<td>'+moveBadge(m.moveType)+'</td>'+
+      '<td style="white-space:nowrap">'+(m.dateRec||m.timestamp||'—')+'</td>'+
+      '<td>'+catBadge(m.category)+'</td>'+
+      '<td><strong>'+displayName(m)+'</strong></td>'+
+      '<td style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+
+        (isOut?'−':'+')+m.qty+'</td>'+
+      '<td style="color:var(--muted);font-size:.78rem">'+(m.unit||'—')+'</td>'+
+      '<td style="font-size:.78rem">'+(m.po||'—')+'</td>'+
+      '<td style="font-size:.78rem;color:var(--muted)">'+locDisplay+'</td>'+
+      (v.srcDest?'<td style="font-size:.75rem;color:var(--muted)">'+srcDest+'</td>':'')+
+      (v.gc     ?'<td style="font-size:.78rem">'+(m.gc||'—')+'</td>':'')+
+      (v.project?'<td style="font-size:.78rem">'+(m.project||'—')+'</td>':'')+
+      (v.supplier?'<td style="font-size:.78rem">'+(m.supplier||'—')+'</td>':'')+
+      (v.resp   ?'<td style="font-size:.78rem">'+(m.responsible||'—')+'</td>':'')+
+      (v.comment?'<td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(m.comments||'').replace(/"/g,'&quot;')+'">'+(m.comments||'—')+'</td>':'')+
+      (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
+      '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
+      '<td>'+docBtn+attachBtn+'</td></tr>';
+  }).join('');
+
+  html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
+  document.getElementById('tableContainer').innerHTML = html;
+
+  document.getElementById('tableContainer').querySelectorAll('[data-row]').forEach(function(btn){
+    btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
+  });
+}
+
+// ── Project View ──────────────────────────────────────────────────────────────
+function refreshProjectDropdown(){
+  var sel = document.getElementById('projectSelector');
+  var cur = sel.value;
+  var projs = Array.from(new Set(movements.map(function(m){ return m.project; }).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">Select a project...</option>' +
+    projs.map(function(p){ return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>'; }).join('');
+}
+
+function renderProjectView(){
+  var proj = document.getElementById('projectSelector').value;
+  var body = document.getElementById('projectBody');
+  var stats= document.getElementById('projectStats');
+  if (!proj){
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">Select a project above to view material history</td></tr>';
+    stats.innerHTML = '';
+    return;
+  }
+  var summary = {};
+  var totalIn = 0, totalOut = 0;
+  movements.filter(function(m){ return (m.project||'') === proj; }).forEach(function(m){
+    var name = displayName(m);
+    var norm = normMT(m.moveType);
+    if (!summary[name]) summary[name] = {name:name, category:nt(m.category), in:0, out:0, history:[]};
+    var q = m.qty || 0;
+    var isOut = (norm === 'EXIT' || norm === 'WASTE');
+    if (isOut){ summary[name].out += q; totalOut += q; }
+    else       { summary[name].in  += q; totalIn  += q; }
+    summary[name].history.push({date:m.dateRec||m.timestamp, qty:q, isOut:isOut, loc:m.sourceLoc||m.destLoc||'—', user:m.userEmail||'—', comment:m.comments||''});
+  });
+
+  stats.innerHTML =
+    '<div class="stat" style="border-left-color:var(--green)"><label>Total Received</label><div class="val">'+totalIn+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--red)"><label>Total Dispatched</label><div class="val">'+totalOut+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--accent)"><label>Still in Bodega</label><div class="val">'+(totalIn-totalOut)+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--orange)"><label>SKUs</label><div class="val">'+Object.keys(summary).length+'</div></div>';
+
+  body.innerHTML = Object.values(summary).map(function(s,i){
+    var net = s.in - s.out;
+    return '<tr class="expandable-row" data-detail="pd-'+i+'">'+
+      '<td><span class="badge badge-blue">'+s.category+'</span></td>'+
+      '<td><strong>'+s.name+'</strong> <span style="font-size:.75rem;color:var(--muted)">▾</span></td>'+
+      '<td style="color:var(--green)">'+s.in+'</td>'+
+      '<td style="color:var(--red)">'+s.out+'</td>'+
+      '<td><strong style="color:'+(net<=0?'var(--red)':'inherit')+'">'+net+'</strong></td>'+
+      '<td>'+stockBadge({availableQty:net,warehouseQty:net,siteQty:0,reservedQty:0})+'</td></tr>'+
+      '<tr id="pd-'+i+'" class="details-row"><td colspan="6"><div class="details-container">'+
+        '<div><strong>Movement history:</strong><br>'+
+        s.history.map(function(h){ return '• '+h.date+': <span style="color:'+(h.isOut?'var(--red)':'var(--green)')+'">'+
+          (h.isOut?'−':'+')+h.qty+'</span> @ '+h.loc+(h.comment?' — '+h.comment.substring(0,60):''); }).join('<br>')+
+        '</div><div><strong>Last location:</strong> '+s.history[s.history.length-1].loc+'<br>'+
+        '<strong>Last user:</strong> '+s.history[s.history.length-1].user+'</div>'+
+      '</div></td></tr>';
+  }).join('');
+
+  document.getElementById('projectBody').querySelectorAll('.expandable-row').forEach(function(row){
+    row.addEventListener('click', function(){
+      var el = document.getElementById(row.dataset.detail);
+      el.style.display = el.style.display === 'table-row' ? 'none' : 'table-row';
+    });
+  });
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function drawInventoryCharts(){
+  if (!chartsReady || !Object.keys(stockData).length) return;
+  var catData = {};
+  Object.values(stockData).forEach(function(s){
+    if (s.warehouseQty > 0) catData[s.category] = (catData[s.category]||0) + s.warehouseQty;
+  });
+  var pieArr = [['Category','Units']].concat(Object.entries(catData).filter(function(e){ return e[1]>0; }));
+  if (pieArr.length > 1){
+    new google.visualization.PieChart(document.getElementById('piechart_div')).draw(
+      google.visualization.arrayToDataTable(pieArr),
+      {title:'Warehouse stock by category',pieHole:.4,colors:['#1B2A4A','#3B7DD8','#2563EB','#059669','#EA580C','#D97706','#7C3AED','#DB2777'],
+       fontName:'DM Sans',chartArea:{width:'90%',height:'78%'},legend:{position:'bottom',textStyle:{fontSize:11}}}
+    );
+  }
+  var sorted = Object.values(stockData).filter(function(s){ return s.warehouseQty>0; })
+               .sort(function(a,b){ return b.warehouseQty-a.warehouseQty; }).slice(0,8);
+  var barArr = [['Material','Units',{role:'style'}]].concat(sorted.map(function(s,i){
+    return [s.name.length>22?s.name.substring(0,20)+'…':s.name, s.warehouseQty, i%2===0?'#3B7DD8':'#1B2A4A'];
+  }));
+  if (barArr.length > 1){
+    new google.visualization.BarChart(document.getElementById('barchart_div')).draw(
+      google.visualization.arrayToDataTable(barArr),
+      {title:'Top 8 items in warehouse',fontName:'DM Sans',legend:{position:'none'},
+       chartArea:{width:'65%',height:'72%'},hAxis:{title:'Units',minValue:0}}
+    );
+  }
+}
+
+// ── Multi-Location (ENTRY) ────────────────────────────────────────────────────
+function addLocRow(rack, qty){
+  var container = document.getElementById('locRowsContainer');
+  var row = document.createElement('div');
+  row.className = 'loc-row';
+  // Build inner HTML: rack input | qty input | remove button
+  var rackVal = rack || '';
+  var qtyVal  = qty  || 1;
+  row.innerHTML =
+    '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location">' +
+    '<input type="number" class="loc-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
+    '<button type="button" class="btn-remove-loc" onclick="removeLocRow(this)" title="Remove row">×</button>';
+  if (rackVal) row.querySelector('.loc-rack').value = rackVal;
+  row.querySelector('.loc-qty').addEventListener('input', updateLocTotal);
+  container.appendChild(row);
+  updateLocTotal();
+  row.querySelector('.loc-rack').focus();
+}
+
+function removeLocRow(btn){
+  var container = document.getElementById('locRowsContainer');
+  if (container.querySelectorAll('.loc-row').length <= 1) return; // keep minimum 1
+  btn.closest('.loc-row').remove();
+  updateLocTotal();
+}
+
+function updateLocTotal(){
+  var total = 0;
+  document.querySelectorAll('#locRowsContainer .loc-qty').forEach(function(inp){
+    total += Math.max(0, parseInt(inp.value) || 0);
+  });
+  document.getElementById('locTotalDisplay').textContent = 'Total: ' + total;
+  document.getElementById('mQty').value = total; // keep hidden mQty in sync (used by notify preview)
+  // Update notification preview since qty changed
+  if (typeof updateNotifyPreview === 'function') updateNotifyPreview();
+}
+
+// ── Multi-Source EXIT ─────────────────────────────────────────────────────────
+function addExitRow(rack, qty){
+  var container = document.getElementById('exitRowsContainer');
+  var row = document.createElement('div');
+  row.className = 'exit-row';
+  var qtyVal = qty || 1;
+  row.innerHTML =
+    '<input type="text"   class="exit-rack" list="rackList" placeholder="Rack / Location">' +
+    '<input type="number" class="exit-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
+    '<span  class="exit-avail neutral">—</span>' +
+    '<button type="button" class="btn-remove-loc" onclick="removeExitRow(this)" title="Remove">×</button>';
+  if (rack) row.querySelector('.exit-rack').value = rack;
+  var rackInp = row.querySelector('.exit-rack');
+  var qtyInp  = row.querySelector('.exit-qty');
+  rackInp.addEventListener('input', function(){ validateExitRows(); updateExitTotal(); });
+  qtyInp.addEventListener('input',  function(){ validateExitRows(); updateExitTotal(); });
+  container.appendChild(row);
+  validateExitRows();
+  updateExitTotal();
+  rackInp.focus();
+}
+
+function removeExitRow(btn){
+  var container = document.getElementById('exitRowsContainer');
+  if (container.querySelectorAll('.exit-row').length <= 1) return;
+  btn.closest('.exit-row').remove();
+  validateExitRows();
+  updateExitTotal();
+}
+
+function updateExitTotal(){
+  var total = 0;
+  document.querySelectorAll('#exitRowsContainer .exit-qty').forEach(function(inp){
+    total += Math.max(0, parseInt(inp.value) || 0);
+  });
+  document.getElementById('exitTotalDisplay').textContent = 'Total: ' + total;
+  document.getElementById('mQty').value = total;
+}
+
+function validateExitRows(){
+  var cat  = nt(document.getElementById('mType').value);
+  var name = (document.getElementById('mName').value || '').trim().toUpperCase();
+  if (!name) return;
+  var key  = cat + '|||' + name;
+  var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
+
+  document.querySelectorAll('#exitRowsContainer .exit-row').forEach(function(row){
+    var rack = (row.querySelector('.exit-rack').value || '').trim().toUpperCase();
+    var qty  = Math.max(0, parseInt(row.querySelector('.exit-qty').value) || 0);
+    var chip = row.querySelector('.exit-avail');
+    if (!rack || qty <= 0){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
+    var avail = locs[rack] !== undefined ? locs[rack] : null;
+    if (avail === null){
+      chip.textContent = '? unknown rack'; chip.className = 'exit-avail neutral';
+    } else if (qty > avail){
+      chip.textContent = '⚠ only ' + avail + ' avail'; chip.className = 'exit-avail warn';
+    } else {
+      chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok';
+    }
+  });
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openMoveModal(type){
+  currentMoveType = (type || 'ENTRY').toUpperCase();
+
+  // Reset form
+  ['mName','mQty','mSrc','mDest','mSup','mGC','mPO','mProj','mResp','mComm',
+   'mNotifyEmails','mNotifyName','mNotifyMsg'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = (id === 'mQty' ? '1' : '');
+  });
+  // Reset multi-location rows (always start with one empty row)
+  document.getElementById('locRowsContainer').innerHTML  = '';
+  document.getElementById('exitRowsContainer').innerHTML = '';
+  addLocRow();
+  addExitRow();
+  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mStatus').value  = 'In Stock';
+  document.getElementById('mUnit').value    = 'UNIT';
+  document.getElementById('fileInputsContainer').innerHTML =
+    '<input type="file" class="mFile" accept="image/*,.pdf" style="border:none;display:block;margin-bottom:5px">';
+  var notifyChk = document.getElementById('mNotify');
+  if (notifyChk) notifyChk.checked = false;
+  document.getElementById('notifyFields').style.display = 'none';
+  document.getElementById('stockWarning').innerHTML = '';
+  document.getElementById('stockWarning').style.background = '';
+
+  setModalType(currentMoveType);
+
+  // FIX #1: actually show the overlay
+  document.getElementById('moveOverlay').classList.add('show');
+}
+
+function setModalType(type){
+  currentMoveType = type.toUpperCase();
+
+  // Reset all type-bar buttons
+  document.querySelectorAll('.modal-type-bar button').forEach(function(b){ b.className = ''; });
+
+  // Activate the pressed button
+  var activeClass = { ENTRY:'active-entry', EXIT:'active-exit', TRANSFER:'active-transfer', RETURN:'active-return', WASTE:'active-waste' };
+  document.querySelectorAll('.modal-type-bar button').forEach(function(b){
+    if (b.dataset.type === type) b.className = activeClass[type] || '';
+  });
+
+  // Field visibility helpers
+  var srcField  = document.getElementById('mSrcField');
+  var destField = document.getElementById('mDestField');
+  var srcLabel  = document.getElementById('mSrcLabel');
+  var destLabel = document.getElementById('mDestLabel');
+  var supField  = document.getElementById('mSupField');
+  var fileSection   = document.getElementById('fileSection');
+  var notifySection = document.getElementById('notifySection');
+  var dateLabel = document.getElementById('dateLabel');
+  var respLabel = document.getElementById('respLabel');
+  var commLabel = document.getElementById('commLabel');
+  var mStatus   = document.getElementById('mStatus');
+  var mDestDl   = document.getElementById('rackListDest');
+
+  var entryLocsSection = document.getElementById('entryLocsSection');
+  var exitLocsSection  = document.getElementById('exitLocsSection');
+  var exitDestField    = document.getElementById('exitDestField');
+  var mQtyField        = document.getElementById('mQtyField');
+
+  // Default: hide all dynamic sections
+  srcField.style.display = 'none';
+  destField.style.display = 'none';
+  supField.style.display = 'flex';
+  fileSection.style.display = 'none';
+  notifySection.style.display = 'none';
+  entryLocsSection.style.display = 'none';
+  exitLocsSection.style.display  = 'none';
+  exitDestField.style.display    = 'none';
+  mQtyField.style.display = 'flex';  // show normal qty by default
+
+  // Point rackListDest at racks by default
+  mDestDl.id = 'rackListDest';
+
+  document.getElementById('moveTitle').textContent =
+    { ENTRY:'Receive Material (ENTRY)', EXIT:'Dispatch Material (EXIT)',
+      TRANSFER:'Transfer Between Racks', RETURN:'Return from Site (RETURN)',
+      WASTE:'Record Waste / Loss' }[type] || 'New Movement';
+
+  if (type === 'ENTRY'){
+    // ENTRY uses multi-location widget; qty is driven by loc rows
+    entryLocsSection.style.display = 'block';
+    mQtyField.style.display = 'none';
+    fileSection.style.display = 'block';
+    notifySection.style.display = 'block';
+    dateLabel.textContent = 'Date Received';
+    respLabel.textContent = 'Received By';
+    mStatus.value = 'In Stock';
+
+  } else if (type === 'EXIT'){
+    // EXIT uses multi-source widget; qty is driven by source rows
+    exitLocsSection.style.display = 'block';
+    exitDestField.style.display   = 'flex';
+    mQtyField.style.display       = 'none';
+    dateLabel.textContent = 'Date Dispatched';
+    respLabel.textContent = 'Taken By / Given To';
+    mStatus.value = 'Out';
+
+  } else if (type === 'TRANSFER'){
+    srcField.style.display = 'flex';
+    srcLabel.textContent = 'From Rack';
+    destField.style.display = 'flex';
+    destLabel.textContent = 'To Rack';
+    supField.style.display = 'none';
+    dateLabel.textContent = 'Date Transferred';
+    respLabel.textContent = 'Moved By';
+
+  } else if (type === 'RETURN'){
+    destField.style.display = 'flex';
+    destLabel.textContent = 'Return to Rack';
+    supField.style.display = 'none';
+    dateLabel.textContent = 'Date Returned';
+    respLabel.textContent = 'Returned By';
+    mStatus.value = 'In Stock';
+
+  } else if (type === 'WASTE'){
+    srcField.style.display = 'flex';
+    srcLabel.textContent = 'Source Rack (pull from)';
+    supField.style.display = 'none';
+    commLabel.textContent = 'Reason for Waste (required)';
+    dateLabel.textContent = 'Date';
+    respLabel.textContent = 'Recorded By';
+    mStatus.value = 'Damaged';
+  }
+
+  updateMatList();
+  checkStock();
+}
+
+// ── Stock Check (live warning while typing in EXIT modal) ─────────────────────
+function checkStock(){
+  var warn = document.getElementById('stockWarning');
+  if (currentMoveType !== 'EXIT' && currentMoveType !== 'WASTE' && currentMoveType !== 'TRANSFER') {
+    warn.innerHTML = ''; warn.style.background = '';
+    return;
+  }
+  var name = (document.getElementById('mName').value || '').trim().toUpperCase();
+  var cat  = nt(document.getElementById('mType').value);
+  if (!name){ warn.innerHTML = ''; warn.style.background = ''; return; }
+
+  var key = cat + '|||' + name;
+  var s = stockData[key];
+  if (s){
+    if (s.availableQty <= 0){
+      warn.innerHTML = '⛔ Zero available stock (Warehouse: '+s.warehouseQty+', Reserved: '+s.reservedQty+')';
+      warn.style.cssText = 'background:#FEE2E2;color:var(--red);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
+    } else if (s.availableQty < 5){
+      warn.innerHTML = '⚠️ Low stock: '+s.availableQty+' available @ '+locSummary(s.warehouseLocs);
+      warn.style.cssText = 'background:#FEF3C7;color:var(--yellow);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
+    } else {
+      warn.innerHTML = '✓ Available: '+s.availableQty+' units | '+locSummary(s.warehouseLocs);
+      warn.style.cssText = 'background:#D1FAE5;color:var(--green);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
+    }
+  } else {
+    warn.innerHTML = '⚠️ Item not found in stock — will create new SKU on ENTRY';
+    warn.style.cssText = 'background:#FEF3C7;color:var(--yellow);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
+  }
+}
+
+// ── Notification Helpers ──────────────────────────────────────────────────────
+function autoExtractName(emailsStr){
+  var firstEmail = (emailsStr || '').split(',')[0].trim();
+  if (!firstEmail || firstEmail.indexOf('@') === -1) return;
+  var local = firstEmail.split('@')[0];
+  var name = local.replace(/[._\-]/g, ' ')
+                  .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  document.getElementById('mNotifyName').value = name;
+  updateNotifyPreview();
+}
+
+function updateNotifyPreview(){
+  var name     = document.getElementById('mNotifyName').value || 'Team';
+  var qty      = document.getElementById('mQty').value || '';
+  var unit     = document.getElementById('mUnit').value || 'UNIT';
+  var material = document.getElementById('mName').value || '[material]';
+  var project  = document.getElementById('mProj').value || '[project]';
+  var location = document.getElementById('mDest').value  || '[location]';
+  var msg = 'Hi ' + name + ',\n\n' +
+    'The ' + qty + ' ' + unit + '(s) of ' + material.toUpperCase() + ' for ' + project +
+    ' were received today and are now stored in ' + location + '.' +
+    '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+  document.getElementById('mNotifyMsg').value = msg;
+}
+
+// ── Modal: Submit ─────────────────────────────────────────────────────────────
+async function submitMovement(){
+  var cat  = document.getElementById('mType').value;
+  var name = (document.getElementById('mName').value || '').trim();
+  if (!name){ alert('Please enter a material name'); return; }
+
+  // ── ENTRY: gather multi-location rows ──────────────────────────────────────
+  var entryLocations = [];
+  if (currentMoveType === 'ENTRY'){
+    document.querySelectorAll('#locRowsContainer .loc-row').forEach(function(row){
+      var loc = (row.querySelector('.loc-rack').value || '').trim();
+      var q   = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
+      if (q > 0) entryLocations.push({ loc: loc, qty: q });
+    });
+    if (!entryLocations.length){
+      alert('Add at least one location with a quantity greater than 0'); return;
+    }
+  }
+
+  // ── EXIT: gather multi-source rows ──────────────────────────────────────────
+  var exitLocations = [];
+  if (currentMoveType === 'EXIT'){
+    document.querySelectorAll('#exitRowsContainer .exit-row').forEach(function(row){
+      var loc = (row.querySelector('.exit-rack').value || '').trim();
+      var q   = Math.max(0, parseInt(row.querySelector('.exit-qty').value) || 0);
+      if (q > 0) exitLocations.push({ loc: loc, qty: q });
+    });
+    if (!exitLocations.length){
+      alert('Add at least one source location with quantity > 0'); return;
+    }
+    // Warn if any row exceeds available stock in that rack
+    var matKey  = nt(cat) + '|||' + name.toUpperCase();
+    var matLocs = (stockData[matKey] && stockData[matKey].warehouseLocs) || {};
+    var overages = exitLocations.filter(function(el){
+      return el.loc && matLocs[el.loc.toUpperCase()] !== undefined && el.qty > matLocs[el.loc.toUpperCase()];
+    });
+    if (overages.length){
+      var msg = overages.map(function(el){
+        return el.loc + ': trying ' + el.qty + ', only ' + (matLocs[el.loc.toUpperCase()] || 0) + ' available';
+      }).join('\n');
+      if (!confirm('⚠️ Some locations exceed available stock:\n\n' + msg + '\n\nProceed anyway?')) return;
+    }
+  }
+
+  var qty = parseInt(document.getElementById('mQty').value) || 0;
+  // For ENTRY/EXIT, qty is driven by the multi-loc widgets (mQty synced automatically)
+  if (currentMoveType !== 'ENTRY' && currentMoveType !== 'EXIT' && qty <= 0){
+    alert('Quantity must be greater than 0'); return;
+  }
+
+  var srcVal  = (document.getElementById('mSrc').value  || '').trim();
+  var destVal = (document.getElementById('mDest').value || '').trim();
+
+  var sourceLoc = '';
+  var destLoc   = '';
+
+  if (currentMoveType === 'ENTRY'){
+    sourceLoc = '';
+    destLoc   = ''; // locations sent in entryLocations[]
+  } else if (currentMoveType === 'EXIT'){
+    sourceLoc = ''; // locations sent in exitLocations[]
+    destLoc   = (document.getElementById('mExitDest').value || '').trim();
+  } else if (currentMoveType === 'TRANSFER'){
+    sourceLoc = srcVal;
+    destLoc   = destVal;
+    if (!sourceLoc || !destLoc){ alert('Both source and destination racks are required for TRANSFER'); return; }
+  } else if (currentMoveType === 'RETURN'){
+    destLoc   = destVal;
+    sourceLoc = '';
+  } else if (currentMoveType === 'WASTE'){
+    sourceLoc = srcVal;
+    destLoc   = '';
+  }
+
+  // Validation: source required for TRANSFER/WASTE (EXIT uses exitLocations[])
+  if ((currentMoveType === 'TRANSFER' || currentMoveType === 'WASTE') && !sourceLoc){
+    alert('Source rack is required for ' + currentMoveType); return;
+  }
+
+  // Destination required for RETURN
+  if (currentMoveType === 'RETURN' && !destLoc){
+    if (!confirm('No rack/location specified. Continue anyway?')) return;
+  }
+
+  // WASTE requires comments
+  var comments = (document.getElementById('mComm').value || '').trim();
+  if (currentMoveType === 'WASTE' && !comments){ alert('Waste movements require a reason in the Comments field'); return; }
+
+  // Advisory total-stock check for TRANSFER/WASTE
+  if (currentMoveType === 'TRANSFER' || currentMoveType === 'WASTE'){
+    var key2 = nt(cat) + '|||' + name.toUpperCase();
+    var s2 = stockData[key2];
+    if (s2 && s2.availableQty < qty){
+      if (!confirm('⚠️ Only '+s2.availableQty+' available, trying to remove '+qty+'.\n\nProceed anyway?')) return;
+    }
+  }
+
+  // Notification payload (ENTRY only when checkbox checked)
+  var notifyPayload = null;
+  if (currentMoveType === 'ENTRY'){
+    var chk = document.getElementById('mNotify');
+    if (chk && chk.checked){
+      var emails = (document.getElementById('mNotifyEmails').value || '').trim();
+      if (!emails){ alert('Please enter at least one recipient email'); return; }
+      notifyPayload = {
+        emails:  emails,
+        message: document.getElementById('mNotifyMsg').value
+      };
+    }
+  }
+
+  // File uploads
+  var btn = document.getElementById('moveSubmit');
+  btn.textContent = 'Saving... ⏳'; btn.disabled = true;
+
+  var filesArray = [];
+  if (currentMoveType === 'ENTRY'){
+    var inputs = document.querySelectorAll('.mFile');
+    for (var i = 0; i < inputs.length; i++){
+      if (inputs[i].files.length > 0){
+        var f = inputs[i].files[0];
+        try { filesArray.push({fileData: await getBase64(f), fileName: f.name, fileMimeType: f.type}); }
+        catch(e) { /* skip unreadable file */ }
+      }
+    }
+  }
+
+  var proj = (document.getElementById('mProj').value || '').trim();
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      closeModal('moveOverlay');
+      loadDataFromGoogle();
+      // Show non-blocking warnings for email/file issues
+      if (res && (res.emailError || res.fileError)){
+        var msgs = [];
+        if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
+        if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
+        setTimeout(function(){ alert('Movement saved ✓\n\nNote:\n' + msgs.join('\n')); }, 400);
+      }
+    })
+    .withFailureHandler(function(err){
+      alert('Error: ' + (err.message || err));
+      btn.textContent = 'Save to System'; btn.disabled = false;
+    })
+    .processMovement('addMovement', {
+      moveType:         currentMoveType,
+      category:         cat,
+      name:             name,
+      project:          proj,
+      isGeneric:        !proj,
+      gc:               document.getElementById('mGC').value,
+      po:               document.getElementById('mPO').value,
+      qty:              qty,
+      unit:             document.getElementById('mUnit').value,
+      dateRec:          document.getElementById('mDateRec').value,
+      sourceLoc:        sourceLoc,
+      destLoc:          destLoc,
+      locations:        currentMoveType === 'ENTRY' ? entryLocations : null,
+      exitLocations:    currentMoveType === 'EXIT'  ? exitLocations  : null,
+      supplier:         document.getElementById('mSup').value,
+      comments:         comments,
+      status:           document.getElementById('mStatus').value,
+      responsible:      document.getElementById('mResp').value,
+      truck:            document.getElementById('mTruck').value,
+      files:            filesArray,
+      notifyRecipients: notifyPayload
+    });
+}
+
+// ── Attachment Upload ─────────────────────────────────────────────────────────
+async function submitAttachment(){
+  var fileInput = document.getElementById('aFile');
+  var btn = document.getElementById('attachSubmit');
+  if (!fileInput.files.length){ alert('Please select a file'); return; }
+  btn.textContent = 'Uploading... ⏳'; btn.disabled = true;
+  try {
+    var f = fileInput.files[0];
+    google.script.run
+      .withSuccessHandler(function(){ alert('File uploaded!'); closeModal('attachOverlay'); loadDataFromGoogle(); })
+      .withFailureHandler(function(err){ alert('Error: '+err.message); btn.textContent='Upload & Attach'; btn.disabled=false; })
+      .processMovement('updateDocument',{
+        rowIdx: parseInt(document.getElementById('aRowIdx').value),
+        files: [{fileData: await getBase64(f), fileName: f.name, fileMimeType: f.type}]
+      });
+  } catch(e){ alert('Error: '+e.message); btn.textContent='Upload & Attach'; btn.disabled=false; }
+}
+
+// ── Close / Open helpers ──────────────────────────────────────────────────────
+function closeModal(id){
+  document.getElementById(id).classList.remove('show');
+  var bm = document.getElementById('moveSubmit');
+  var ba = document.getElementById('attachSubmit');
+  if (bm){ bm.textContent = 'Save to System'; bm.disabled = false; }
+  if (ba){ ba.textContent = 'Upload & Attach'; ba.disabled = false; }
+  var af = document.getElementById('aFile'); if (af) af.value = '';
+}
+
+function closeIfOutside(e, id){ if (e.target.id === id) closeModal(id); }
+
+function openAttachModal(rowIdx, folderName){
+  document.getElementById('aRowIdx').value    = rowIdx;
+  document.getElementById('aFolderName').value = folderName;
+  document.getElementById('attachOverlay').classList.add('show');
+}
+
+function addFileInput(){
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:6px';
+  div.innerHTML = '<input type="file" class="mFile" accept="image/*,.pdf" style="flex:1;font-size:.8rem"><button class="btn btn-danger btn-sm" type="button">✕</button>';
+  div.querySelector('button').addEventListener('click', function(){ div.remove(); });
+  document.getElementById('fileInputsContainer').appendChild(div);
+}
+
+// ── Dropdowns ─────────────────────────────────────────────────────────────────
+function updateMatList(){
+  var type = nt(document.getElementById('mType').value);
+  var dl   = document.getElementById('matList'); dl.innerHTML = '';
+  var names = Array.from(new Set(
+    movements.filter(function(m){ return nt(m.category) === type; })
+             .map(function(m){ return displayName(m); })
+             .filter(Boolean)
+  )).sort();
+  names.forEach(function(n){ var o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+}
+
+function refreshDropdowns(){
+  updateMatList();
+
+  var pd = document.getElementById('projList'); pd.innerHTML = '';
+  Array.from(new Set(movements.map(function(m){ return m.project; }).filter(Boolean))).sort()
+    .forEach(function(p){ var o = document.createElement('option'); o.value = p; pd.appendChild(o); });
+
+  var rd1 = document.getElementById('rackList'); rd1.innerHTML = '';
+  var rd2 = document.getElementById('rackListDest'); rd2.innerHTML = '';
+  var rackNames = config.locations.map(function(l){ return l.name; });
+  var rackSet   = Array.from(new Set(
+    rackNames.concat(
+      movements.map(function(m){ return m.sourceLoc; }).filter(Boolean),
+      movements.map(function(m){ return m.destLoc; }).filter(Boolean)
+    )
+  )).sort();
+  rackSet.forEach(function(r){
+    [rd1, rd2].forEach(function(dl){
+      var o = document.createElement('option'); o.value = r; dl.appendChild(o);
+    });
+  });
+
+  var sd = document.getElementById('supplierList'); sd.innerHTML = '';
+  var supSet = Array.from(new Set(config.suppliers.concat(movements.map(function(m){ return m.supplier; }).filter(Boolean)))).sort();
+  supSet.forEach(function(s){ var o = document.createElement('option'); o.value = s; sd.appendChild(o); });
+
+  var td = document.getElementById('mTruck');
+  td.innerHTML = '<option value="">— None —</option>';
+  (config.trucks || []).filter(function(t){ return t.status !== 'INACTIVE'; }).forEach(function(t){
+    var o = document.createElement('option'); o.value = t.name;
+    o.textContent = t.name + (t.person ? ' — ' + t.person : '');
+    td.appendChild(o);
+  });
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────────
+function exportMovementsCSV(){
+  var headers = ['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Responsible','Comments','User'];
+  var rows = movements.slice().reverse().map(function(m){
+    return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.project||'',
+            m.qty,m.unit||'',m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' '),m.userEmail||'']
+      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'OX_Movements_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+function exportProjectCSV(){
+  var proj = document.getElementById('projectSelector').value;
+  if (!proj){ alert('Select a project first'); return; }
+  var pm = movements.filter(function(m){ return (m.project||'') === proj; });
+  var headers = ['MoveType','Date','Category','Name','Qty','Unit','Source','Destination','Responsible','Comments'];
+  var rows = pm.map(function(m){
+    return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.qty,m.unit||'',
+            m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' ')]
+      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'OX_'+proj.replace(/[^a-z0-9]/gi,'_')+'_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+// ── Warehouse Map ─────────────────────────────────────────────────────────────
+function renderWarehouseMap(){
+  var q   = (document.getElementById('mapSearch').value   || '').toLowerCase();
+  var cf  = document.getElementById('mapCatFilter').value;
+
+  // Build rack → items map from stockData
+  var rackMap = {};
+  Object.values(stockData).forEach(function(s){
+    if (!s.warehouseLocs) return;
+    Object.keys(s.warehouseLocs).forEach(function(rack){
+      var qty = s.warehouseLocs[rack];
+      if (qty <= 0) return;
+      if (cf && nt(s.category) !== cf) return;
+      if (q && rack.toLowerCase().indexOf(q) === -1 && s.name.toLowerCase().indexOf(q) === -1) return;
+      if (!rackMap[rack]) rackMap[rack] = [];
+      rackMap[rack].push({ category: s.category, name: s.name, qty: qty, unit: s.unit || 'UNIT' });
+    });
+  });
+
+  var racks = Object.keys(rackMap).sort();
+  var container = document.getElementById('warehouseMapBody');
+
+  if (!racks.length){
+    container.innerHTML = '<div class="rack-empty">No items currently in warehouse' +
+      (q || cf ? ' matching the current filter.' : '.') + '</div>';
+    return;
+  }
+
+  container.innerHTML = racks.map(function(rack){
+    var items = rackMap[rack].sort(function(a,b){ return b.qty - a.qty; });
+    var total = items.reduce(function(acc, i){ return acc + i.qty; }, 0);
+    return '<div class="rack-card">'+
+      '<div class="rack-header">'+
+        '<span>📦 '+rack+'</span>'+
+        '<span class="rack-total">'+total+' units</span>'+
+      '</div>'+
+      '<div class="rack-items">'+
+        items.map(function(item){
+          return '<div class="rack-item">'+
+            catBadge(item.category)+
+            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.name+'">'+item.name+'</span>'+
+            '<span class="rack-qty">'+item.qty+' '+item.unit+'</span>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── Render All ────────────────────────────────────────────────────────────────
+function renderAll(){
+  renderStats();
+  renderStock();
+  renderMovements();
+  drawInventoryCharts();
+  // Only render map if tab is visible (performance)
+  if (document.getElementById('warehouse').classList.contains('active')){
+    renderWarehouseMap();
+  }
+}
+
+// ── Load Data from Backend ────────────────────────────────────────────────────
+function loadDataFromGoogle(){
+  document.getElementById('statsRow').innerHTML = '<p style="padding:1rem;color:var(--muted)">Loading system data...</p>';
+  google.script.run
+    .withSuccessHandler(function(data){
+      movements    = data.movements    || [];
+      stockData    = data.stock        || {};
+      config       = data.config       || config;
+      reservations = data.reservations || [];
+      userRole     = data.userRole     || 'WAREHOUSE';
+      userEmail    = data.userEmail    || '';
+      document.getElementById('userChip').textContent = userEmail + ' · ' + userRole;
+      refreshDropdowns();
+      refreshProjectDropdown();
+      renderAll();
+    })
+    .withFailureHandler(function(err){
+      document.getElementById('statsRow').innerHTML =
+        '<p style="padding:1rem;color:var(--red)">Error loading data: '+(err.message||err)+'</p>';
+    })
+    .getInitialData();
+}
+
+// ── Charts Load ───────────────────────────────────────────────────────────────
+google.charts.load('current', {packages:['corechart']});
+google.charts.setOnLoadCallback(function(){ chartsReady = true; drawInventoryCharts(); });
+
+// ── Event Listeners ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function(){
+
+  // Nav
+  document.getElementById('btn-dashboard').addEventListener('click', function(){ showTab('dashboard','btn-dashboard'); });
+  document.getElementById('btn-movements').addEventListener('click', function(){ showTab('movements','btn-movements'); });
+  document.getElementById('btn-projects').addEventListener('click',  function(){ showTab('projects','btn-projects'); });
+  document.getElementById('btn-warehouse').addEventListener('click', function(){ showTab('warehouse','btn-warehouse'); });
+
+  // Warehouse Map filters
+  document.getElementById('mapSearch').addEventListener('input',    renderWarehouseMap);
+  document.getElementById('mapCatFilter').addEventListener('change', renderWarehouseMap);
+
+  // Dashboard filters
+  document.getElementById('stockSearch').addEventListener('input', renderStock);
+  document.getElementById('stockFilter').addEventListener('change', renderStock);
+  document.getElementById('stockStatusFilter').addEventListener('change', renderStock);
+
+  // Movement filters
+  document.getElementById('movSearch').addEventListener('input', renderMovements);
+  document.getElementById('movTypeFilter').addEventListener('change', renderMovements);
+  document.getElementById('movCatFilter').addEventListener('change', renderMovements);
+
+  // Column toggles
+  document.getElementById('chkSysDate').addEventListener('change', function(){ toggleCol('sysDate'); });
+  document.getElementById('chkGc').addEventListener('change',      function(){ toggleCol('gc'); });
+  document.getElementById('chkProj').addEventListener('change',    function(){ toggleCol('project'); });
+  document.getElementById('chkSup').addEventListener('change',     function(){ toggleCol('supplier'); });
+  document.getElementById('chkResp').addEventListener('change',    function(){ toggleCol('resp'); });
+  document.getElementById('chkComm').addEventListener('change',    function(){ toggleCol('comment'); });
+  document.getElementById('chkSrcDest').addEventListener('change', function(){ toggleCol('srcDest'); });
+
+  // Export
+  document.getElementById('btnExportCSV').addEventListener('click', exportMovementsCSV);
+  document.getElementById('btnExportProject').addEventListener('click', exportProjectCSV);
+
+  // Open modal buttons
+  document.getElementById('btnEntry').addEventListener('click', function(){ openMoveModal('ENTRY'); });
+  document.getElementById('btnExit').addEventListener('click',  function(){ openMoveModal('EXIT'); });
+
+  // Project selector
+  document.getElementById('projectSelector').addEventListener('change', renderProjectView);
+
+  // Modal: category change
+  document.getElementById('mType').addEventListener('change', function(){ updateMatList(); checkStock(); });
+
+  // Modal: name input → stock check + notify preview
+  document.getElementById('mName').addEventListener('input', function(){ checkStock(); updateNotifyPreview(); validateExitRows(); });
+  document.getElementById('mType').addEventListener('change', function(){ validateExitRows(); });
+  document.getElementById('mQty').addEventListener('input',  updateNotifyPreview);
+  document.getElementById('mUnit').addEventListener('change',updateNotifyPreview);
+  document.getElementById('mProj').addEventListener('input', updateNotifyPreview);
+  document.getElementById('mDest').addEventListener('input', function(){ updateNotifyPreview(); });
+
+  // File attach
+  document.getElementById('btnAddFile').addEventListener('click', addFileInput);
+
+  // Notification checkbox
+  document.getElementById('mNotify').addEventListener('change', function(){
+    document.getElementById('notifyFields').style.display = this.checked ? 'flex' : 'none';
+    if (this.checked) updateNotifyPreview();
+  });
+  document.getElementById('mNotifyEmails').addEventListener('blur', function(){ autoExtractName(this.value); });
+  document.getElementById('mNotifyName').addEventListener('input', updateNotifyPreview);
+
+  // Modal submit / cancel
+  document.getElementById('moveSubmit').addEventListener('click', submitMovement);
+  document.getElementById('btnCancelMove').addEventListener('click', function(){ closeModal('moveOverlay'); });
+  document.getElementById('moveOverlay').addEventListener('click', function(e){ closeIfOutside(e,'moveOverlay'); });
+
+  // Attach modal
+  document.getElementById('attachSubmit').addEventListener('click', submitAttachment);
+  document.getElementById('btnCancelAttach').addEventListener('click', function(){ closeModal('attachOverlay'); });
+  document.getElementById('attachOverlay').addEventListener('click', function(e){ closeIfOutside(e,'attachOverlay'); });
+});
+
+// Start
+loadDataFromGoogle();
+</script>
+</body>
+</html>
