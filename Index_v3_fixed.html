@@ -699,18 +699,51 @@ function showTab(tab, btnId){
 function renderStats(){
   var items = Object.values(stockData);
   var inStock  = items.filter(function(s){ return s.availableQty > 0; }).length;
-  var zeroStock= items.filter(function(s){ return s.warehouseQty <= 0 && s.siteQty <= 0; }).length;
   var totalWh  = items.reduce(function(a,s){ return a + Math.max(0, s.warehouseQty); }, 0);
   var totalSite= items.reduce(function(a,s){ return a + Math.max(0, s.siteQty); }, 0);
   var activeProjects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
 
-  if (zeroStock > 0){
-    var names = items.filter(function(s){ return s.warehouseQty<=0&&s.siteQty<=0; })
-                     .map(function(s){ return s.name; }).slice(0,3).join(', ');
-    document.getElementById('alertText').textContent = zeroStock + ' item(s) at zero stock: ' + names + (zeroStock>3?'…':'');
-    document.getElementById('alertBanner').classList.add('show');
+  // ── Low-stock alert: zero stock + below minimum ───────────────────────────
+  var zeroItems = items.filter(function(s){ return s.warehouseQty <= 0 && s.siteQty <= 0; });
+
+  // Below-minimum: matches config.minStock keys against item names
+  var belowMin = [];
+  if (config.minStock) {
+    items.forEach(function(s){
+      var min = config.minStock[s.name] || config.minStock[(s.name||'').toUpperCase()];
+      if (min > 0 && s.availableQty < min && s.availableQty > 0){
+        belowMin.push({ name: s.name, current: s.availableQty, min: min });
+      }
+    });
+  }
+
+  var banner    = document.getElementById('alertBanner');
+  var alertText = document.getElementById('alertText');
+
+  if (zeroItems.length || belowMin.length){
+    var parts = [];
+    if (zeroItems.length){
+      var zeroNames = zeroItems.slice(0,4).map(function(s){ return s.name; }).join(', ');
+      if (zeroItems.length > 4) zeroNames += ' +' + (zeroItems.length-4) + ' more';
+      parts.push('<span style="color:var(--red);font-weight:700">🚫 Zero stock (' + zeroItems.length + '):</span> ' + zeroNames);
+    }
+    if (belowMin.length){
+      var lowNames = belowMin.slice(0,4).map(function(b){
+        return b.name + ' <span style="opacity:.75">(' + b.current + '/' + b.min + ')</span>';
+      }).join(', ');
+      if (belowMin.length > 4) lowNames += ' +' + (belowMin.length-4) + ' more';
+      parts.push('<span style="color:var(--yellow);font-weight:700">⚠ Below minimum (' + belowMin.length + '):</span> ' + lowNames);
+    }
+    alertText.innerHTML = parts.join('<br style="margin:.15rem 0">');
+    banner.style.flexDirection = 'column';
+    banner.style.alignItems    = 'flex-start';
+    banner.style.gap           = '.3rem';
+    // Red border when there are zero-stock items, yellow when only low
+    banner.style.borderColor  = zeroItems.length ? 'var(--red)'    : 'var(--yellow)';
+    banner.style.background   = zeroItems.length ? 'var(--red-bg)' : 'var(--yellow-bg)';
+    banner.classList.add('show');
   } else {
-    document.getElementById('alertBanner').classList.remove('show');
+    banner.classList.remove('show');
   }
 
   document.getElementById('statsRow').innerHTML =
@@ -718,7 +751,7 @@ function renderStats(){
     '<div class="stat" style="border-left-color:var(--green)"><label>In Warehouse</label><div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
     '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
     '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
-    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroStock>0?'var(--yellow)':'var(--green)')+'">'+zeroStock+'</div><div class="sub">need restocking</div></div>';
+    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>';
 }
 
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
@@ -929,6 +962,7 @@ function addLocRow(rack, qty){
     '<button type="button" class="btn-remove-loc" onclick="removeLocRow(this)" title="Remove row">×</button>';
   if (rackVal) row.querySelector('.loc-rack').value = rackVal;
   row.querySelector('.loc-qty').addEventListener('input', updateLocTotal);
+  row.querySelector('.loc-rack').addEventListener('input', function(){ updateNotifyPreview(); });
   container.appendChild(row);
   updateLocTotal();
   row.querySelector('.loc-rack').focus();
@@ -1046,6 +1080,10 @@ function validateExitRows(){
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openMoveModal(type){
+  if (userRole === 'VIEWER'){
+    alert('👁 View-only access — you cannot record movements.\nContact Jose or an admin to get write permissions.');
+    return;
+  }
   currentMoveType = (type || 'ENTRY').toUpperCase();
 
   // Reset form
@@ -1227,7 +1265,20 @@ function updateNotifyPreview(){
   var unit     = document.getElementById('mUnit').value || 'UNIT';
   var material = document.getElementById('mName').value || '[material]';
   var project  = document.getElementById('mProj').value || '[project]';
-  var location = document.getElementById('mDest').value  || '[location]';
+
+  // For ENTRY, location comes from the multi-loc rack rows (not mDest which is unused for ENTRY)
+  var location;
+  if (currentMoveType === 'ENTRY') {
+    var racks = [];
+    document.querySelectorAll('#locRowsContainer .loc-rack').forEach(function(inp){
+      var v = (inp.value || '').trim();
+      if (v) racks.push(v);
+    });
+    location = racks.length ? racks.join(', ') : '[location]';
+  } else {
+    location = (document.getElementById('mDest').value || '').trim() || '[location]';
+  }
+
   var msg = 'Hi ' + name + ',\n\n' +
     'The ' + qty + ' ' + unit + '(s) of ' + material.toUpperCase() + ' for ' + project +
     ' were received today and are now stored in ' + location + '.' +
@@ -1607,6 +1658,7 @@ function loadDataFromGoogle(){
       setConnStatus('online');
       document.getElementById('userChip').textContent = userEmail + ' · ' + userRole;
       if (data.activeUsers) renderActiveUsers(data.activeUsers);
+      applyRoleUI();
       refreshDropdowns();
       refreshProjectDropdown();
       renderAll();
@@ -1702,6 +1754,27 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btnCancelAttach').addEventListener('click', function(){ closeModal('attachOverlay'); });
   document.getElementById('attachOverlay').addEventListener('click', function(e){ closeIfOutside(e,'attachOverlay'); });
 });
+
+// ── Role-based UI ─────────────────────────────────────────────────────────────
+function applyRoleUI(){
+  var isViewer = (userRole === 'VIEWER');
+  // Hide write buttons for viewers
+  ['btnEntry','btnExit'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = isViewer ? 'none' : '';
+  });
+  // Show a "View Only" tag next to the user chip when in VIEWER mode
+  var tag = document.getElementById('viewerTag');
+  if (!tag && isViewer){
+    tag = document.createElement('span');
+    tag.id = 'viewerTag';
+    tag.textContent = '👁 View Only';
+    tag.style.cssText = 'font-size:.68rem;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 10px;font-weight:700;margin-left:4px';
+    var chip = document.getElementById('userChip');
+    if (chip) chip.after(tag);
+  }
+  if (tag) tag.style.display = isViewer ? 'inline' : 'none';
+}
 
 // ── Connection status ─────────────────────────────────────────────────────────
 var lastLoadTime = null;

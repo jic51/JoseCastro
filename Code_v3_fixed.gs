@@ -348,7 +348,8 @@ function findFirstWarehouseLoc(locs, needed) {
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
 function processMovement(action, data) {
   var auth = getUserRole();
-  if (auth.role === 'DENIED') throw new Error('Access denied.');
+  if (auth.role === 'DENIED')  throw new Error('Access denied.');
+  if (auth.role === 'VIEWER')  throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
 
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
