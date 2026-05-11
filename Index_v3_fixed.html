@@ -788,6 +788,39 @@ function renderStock(){
 // ── Movements: Column Toggle ──────────────────────────────────────────────────
 function toggleCol(col){ colVis[col] = !colVis[col]; renderMovements(); }
 
+// ── Feature C: Doc / Photo thumbnail helpers ──────────────────────────────────
+function extractDriveId(url){
+  // Handles /file/d/ID/view  and  ?id=ID  formats
+  var m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  return null;
+}
+
+function renderDocLinks(linksStr){
+  if (!linksStr || linksStr.indexOf('http') === -1)
+    return '<small style="color:var(--muted)">—</small>';
+  var links = linksStr.split('\n').map(function(l){ return l.trim(); })
+                      .filter(function(l){ return l.indexOf('http') !== -1; });
+  if (!links.length) return '<small style="color:var(--muted)">—</small>';
+  return links.map(function(url, i){
+    var fileId = extractDriveId(url);
+    if (fileId){
+      var thumb = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w80';
+      return '<a href="' + url + '" target="_blank" title="Doc ' + (i + 1) + '" ' +
+             'style="display:inline-block;margin:1px;vertical-align:middle">' +
+             '<img src="' + thumb + '" loading="lazy" ' +
+             'style="width:38px;height:38px;object-fit:cover;border-radius:4px;' +
+             'border:1px solid var(--border);background:var(--surface2)" ' +
+             'onerror="this.outerHTML=\'<span class=\\\"badge badge-blue\\\">📄</span>\'">' +
+             '</a>';
+    }
+    // Fallback for non-Drive links
+    return '<a href="' + url + '" target="_blank" class="badge badge-blue" title="Doc ' + (i+1) + '">📄</a>';
+  }).join('');
+}
+
 // ── Movements: Table ──────────────────────────────────────────────────────────
 function renderMovements(){
   var q    = (document.getElementById('movSearch').value || '').toLowerCase();
@@ -822,9 +855,7 @@ function renderMovements(){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
     var locDisplay = m.sourceLoc || m.destLoc || '—';
-    var docBtn = (m.docLinks||'').indexOf('http') !== -1
-      ? '<a href="'+m.docLinks.split('\n')[0]+'" target="_blank" class="badge badge-blue">📄</a>'
-      : '<small style="color:var(--muted)">—</small>';
+    var docBtn = renderDocLinks(m.docLinks);
     var attachBtn = '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
     return '<tr class="'+rowClass(m.moveType)+'">'+
@@ -845,7 +876,7 @@ function renderMovements(){
       (v.comment?'<td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(m.comments||'').replace(/"/g,'&quot;')+'">'+(m.comments||'—')+'</td>':'')+
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
-      '<td>'+docBtn+attachBtn+'</td></tr>';
+      '<td style="min-width:52px;white-space:nowrap">'+docBtn+attachBtn+'</td></tr>';
   }).join('');
 
   html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
@@ -962,7 +993,9 @@ function addLocRow(rack, qty){
     '<button type="button" class="btn-remove-loc" onclick="removeLocRow(this)" title="Remove row">×</button>';
   if (rackVal) row.querySelector('.loc-rack').value = rackVal;
   row.querySelector('.loc-qty').addEventListener('input', updateLocTotal);
-  row.querySelector('.loc-rack').addEventListener('input', function(){ updateNotifyPreview(); });
+  var rackInp = row.querySelector('.loc-rack');
+  rackInp.addEventListener('input',  updateNotifyPreview);
+  rackInp.addEventListener('change', updateNotifyPreview); // catches datalist selection
   container.appendChild(row);
   updateLocTotal();
   row.querySelector('.loc-rack').focus();
@@ -1263,6 +1296,7 @@ function updateNotifyPreview(){
   var name     = document.getElementById('mNotifyName').value || 'Team';
   var qty      = document.getElementById('mQty').value || '';
   var unit     = document.getElementById('mUnit').value || 'UNIT';
+  var category = (document.getElementById('mType').value || '').trim().toUpperCase();
   var material = document.getElementById('mName').value || '[material]';
   var project  = document.getElementById('mProj').value || '[project]';
 
@@ -1279,8 +1313,10 @@ function updateNotifyPreview(){
     location = (document.getElementById('mDest').value || '').trim() || '[location]';
   }
 
+  // qty · [CATEGORY] · unit(s) · of · MATERIAL  e.g. "The 4 SCREEN UNIT(s) of LGI OQU185..."
   var msg = 'Hi ' + name + ',\n\n' +
-    'The ' + qty + ' ' + unit + '(s) of ' + material.toUpperCase() + ' for ' + project +
+    'The ' + qty + (category ? ' ' + category : '') + ' ' + unit + '(s) of ' +
+    material.toUpperCase() + ' for ' + project +
     ' were received today and are now stored in ' + location + '.' +
     '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
   document.getElementById('mNotifyMsg').value = msg;
