@@ -149,17 +149,23 @@
     .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
-    /* ── SPINNING HOURGLASS ── */
-    @keyframes hg-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    .spin-hg{display:inline-block;animation:hg-spin 1s linear infinite;will-change:transform}
+    /* ── HOURGLASS: flip 180°, pause 1s, flip 180°, pause 1s ── */
+    @keyframes hg-flip{
+      0%        {transform:rotate(0deg)}
+      15%       {transform:rotate(180deg)}
+      50%       {transform:rotate(180deg)}
+      65%       {transform:rotate(360deg)}
+      100%      {transform:rotate(360deg)}
+    }
+    .spin-hg{display:inline-block;animation:hg-flip 2.6s ease-in-out infinite;will-change:transform}
     /* ── CONNECTION INDICATOR ── */
     @keyframes pulse-stale{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{box-shadow:0 0 0 7px rgba(245,158,11,0)}}
     @keyframes pulse-offline{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0)}}
-    .conn-btn{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.2);font-size:.75rem;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;line-height:1}
-    .conn-btn.online {background:#10B981;color:#fff}
-    .conn-btn.stale  {background:#F59E0B;color:#fff;animation:pulse-stale 1.5s ease-in-out infinite}
-    .conn-btn.loading{background:#6B7280;color:#fff}
-    .conn-btn.offline{background:#EF4444;color:#fff;animation:pulse-offline 1s ease-in-out infinite}
+    .conn-btn{width:10px;height:10px;border-radius:50%;border:none;font-size:0;cursor:pointer;transition:background .3s,box-shadow .3s;flex-shrink:0;padding:0;outline:none}
+    .conn-btn.online {background:#10B981}
+    .conn-btn.stale  {background:#F59E0B;animation:pulse-stale 1.5s ease-in-out infinite}
+    .conn-btn.loading{background:#9CA3AF}
+    .conn-btn.offline{background:#EF4444;animation:pulse-offline 1s ease-in-out infinite}
     /* ── PRESENCE DROPDOWN ── */
     .presence-wrap{position:relative}
     .presence-chip{cursor:pointer;user-select:none;transition:.15s}
@@ -249,6 +255,14 @@
     .monitor-item:hover{background:var(--bg);border-color:var(--border)}
     .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
     .monitor-item label{cursor:pointer;flex:1}
+    /* ── AI Extract review panel ── */
+    .ai-review-panel{background:var(--purple-bg);border:1px solid #C4B5FD;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
+    .ai-review-panel h4{font-size:.8rem;font-weight:700;color:var(--purple);margin-bottom:.5rem}
+    .ai-field-row{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.8rem}
+    .ai-field-row label{width:90px;color:var(--muted);font-size:.73rem;flex-shrink:0}
+    .ai-field-row input,.ai-field-row select{flex:1;padding:.25rem .5rem;border:1px solid #C4B5FD;border-radius:4px;font-size:.8rem;background:#fff}
+    .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:6px;padding:.35rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:.5rem}
+    .ai-accept-btn:hover{filter:brightness(.9)}
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
       .topbar{flex-direction:column;align-items:flex-start}
@@ -285,7 +299,7 @@
     </div>
 
     <!-- Connection indicator -->
-    <button id="connBtn" class="conn-btn loading" title="Connecting…" onclick="loadDataFromGoogle()">●</button>
+    <button id="connBtn" class="conn-btn loading" title="Connecting…" onclick="loadDataFromGoogle()"></button>
 
     <!-- User chip + active-users dropdown -->
     <div class="presence-wrap" id="presenceWrap">
@@ -504,8 +518,15 @@
 <!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="incomingOverlay">
   <div class="modal" style="max-width:500px">
-    <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+      <h3 id="incomingModalTitle" style="margin:0">📦 Add Expected Material</h3>
+      <button class="btn btn-ghost btn-sm" onclick="aiExtractFromIncoming()" title="Upload a PO or delivery confirmation and let AI fill the fields"
+        style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
+        🪄 AI Extract from PO
+      </button>
+    </div>
     <input type="hidden" id="incId">
+    <div id="incAiStatus" style="display:none;margin-bottom:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
     <div class="form-grid">
       <div class="field">
         <label>Estimated Arrival Date *</label>
@@ -743,11 +764,18 @@
 
     <!-- ── File Attach (ENTRY only) ── -->
     <div class="file-section" id="fileSection" style="display:none;margin-top:.75rem">
-      <label class="sec-label">📎 Attach Documents</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+        <label class="sec-label" style="margin:0">📎 Attach Documents</label>
+        <button id="btnAiExtract" class="btn btn-ghost btn-sm" onclick="aiExtractFromModal()" title="Upload a photo of the delivery receipt or invoice and let AI fill the fields"
+          style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
+          🪄 AI Extract
+        </button>
+      </div>
       <div id="fileInputsContainer">
         <input type="file" class="mFile" accept="image/*,.pdf" style="border:none;display:block;margin-bottom:5px">
       </div>
       <button id="btnAddFile" class="btn btn-ghost btn-sm" style="width:fit-content;margin-top:4px">+ Add File</button>
+      <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
     </div>
 
     <!-- ── Notification Section (ENTRY only) ── -->
@@ -951,7 +979,12 @@ function renderStats(){
       if (belowMin.length > 4) lowNames += ' +' + (belowMin.length-4) + ' more';
       parts.push('<span style="color:var(--yellow);font-weight:700">⚠ Below minimum (' + belowMin.length + '):</span> ' + lowNames);
     }
-    alertText.innerHTML = parts.join('<br style="margin:.15rem 0">');
+    // Append filter indicator if monitoring only specific materials
+    var filterTag = '';
+    if (monitoredMaterials && monitoredMaterials.length) {
+      filterTag = ' <span style="font-size:.68rem;background:rgba(0,0,0,.12);border-radius:20px;padding:1px 7px;opacity:.85">🔍 ' + monitoredMaterials.length + ' monitored</span>';
+    }
+    alertText.innerHTML = parts.join('<br style="margin:.15rem 0">') + filterTag;
     // Red border when there are zero-stock items, yellow when only low
     banner.style.borderColor  = zeroItems.length ? 'var(--red)'    : 'var(--yellow)';
     banner.style.background   = zeroItems.length ? 'var(--red-bg)' : 'var(--yellow-bg)';
@@ -1020,25 +1053,27 @@ function extractDriveId(url){
 
 function renderDocLinks(linksStr){
   if (!linksStr || linksStr.indexOf('http') === -1)
-    return '<small style="color:var(--muted)">—</small>';
+    return '<span style="color:var(--muted);font-size:.75rem">—</span>';
   var links = linksStr.split('\n').map(function(l){ return l.trim(); })
                       .filter(function(l){ return l.indexOf('http') !== -1; });
-  if (!links.length) return '<small style="color:var(--muted)">—</small>';
-  return links.map(function(url, i){
+  if (!links.length) return '<span style="color:var(--muted);font-size:.75rem">—</span>';
+  var thumbs = links.map(function(url, i){
     var fileId = extractDriveId(url);
     if (fileId){
-      var thumb = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w80';
-      return '<a href="' + url + '" target="_blank" title="Doc ' + (i + 1) + '" ' +
-             'style="display:inline-block;margin:1px;vertical-align:middle">' +
+      var thumb = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100';
+      return '<a href="' + url + '" target="_blank" title="Open doc ' + (i + 1) + '" ' +
+             'style="display:block;flex-shrink:0">' +
              '<img src="' + thumb + '" loading="lazy" ' +
-             'style="width:38px;height:38px;object-fit:cover;border-radius:4px;' +
-             'border:1px solid var(--border);background:var(--surface2)" ' +
-             'onerror="this.outerHTML=\'<span class=\\\"badge badge-blue\\\">📄</span>\'">' +
+             'style="width:34px;height:34px;object-fit:cover;border-radius:5px;' +
+             'border:1px solid var(--border);display:block;background:#f3f4f6" ' +
+             'onerror="this.parentNode.outerHTML=\'<a href=\\\"' + url.replace(/'/g,'%27') + '\\\" target=\\\"_blank\\\" style=\\\"display:block;flex-shrink:0\\\"><span style=\\\"display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem\\\">📄</span></a>\'">' +
              '</a>';
     }
-    // Fallback for non-Drive links
-    return '<a href="' + url + '" target="_blank" class="badge badge-blue" title="Doc ' + (i+1) + '">📄</a>';
+    return '<a href="' + url + '" target="_blank" title="Doc ' + (i+1) + '" style="display:block;flex-shrink:0">' +
+           '<span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;border:1px solid #BFDBFE">📄</span>' +
+           '</a>';
   }).join('');
+  return '<div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap">' + thumbs + '</div>';
 }
 
 // ── Movements: Table ──────────────────────────────────────────────────────────
@@ -1096,7 +1131,7 @@ function renderMovements(){
       (v.comment?'<td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(m.comments||'').replace(/"/g,'&quot;')+'">'+(m.comments||'—')+'</td>':'')+
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
-      '<td style="min-width:52px;white-space:nowrap">'+docBtn+attachBtn+'</td></tr>';
+      '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td></tr>';
   }).join('');
 
   html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
@@ -1944,14 +1979,15 @@ function openMonitorModal() {
     monitoredMaterials.forEach(function(n){ monSet[(n||'').toUpperCase()] = true; });
   }
   var allMonitored = !monitoredMaterials || monitoredMaterials.length === 0;
-  document.getElementById('monitorGrid').innerHTML = items.map(function(s, i) {
-    var checked = allMonitored || monSet[(s.name||'').toUpperCase()];
+  document.getElementById('monitorGrid').innerHTML = items.map(function(s) {
+    var upperName = (s.name || '').toUpperCase().trim();
+    var checked = allMonitored || !!monSet[upperName];
     return '<label class="monitor-item">' +
-      '<input type="checkbox" class="mon-chk" value="' + s.name.replace(/"/g,'&quot;') + '"' +
+      '<input type="checkbox" class="mon-chk" value="' + upperName.replace(/"/g,'&quot;') + '"' +
         (checked ? ' checked' : '') + '>' +
-      '<span>' + catBadge(s.category) + ' </span>' +
-      '<span style="flex:1">' + s.name + '</span>' +
-      '<span style="color:var(--muted);font-size:.75rem">' + s.warehouseQty + '</span>' +
+      '<span>' + catBadge(s.category) + '</span>' +
+      '<span style="flex:1;margin-left:.35rem">' + s.name + '</span>' +
+      '<span style="color:var(--muted);font-size:.73rem;font-family:monospace">' + (s.warehouseQty||0) + ' wh</span>' +
     '</label>';
   }).join('');
   document.getElementById('monitorOverlay').classList.add('show');
@@ -1963,19 +1999,24 @@ function monitorSelectAll(val) {
 
 function saveMonitorSettings() {
   var selected = [];
-  document.querySelectorAll('.mon-chk:checked').forEach(function(c){ selected.push(c.value); });
-  // If everything checked, treat as "no filter"
+  document.querySelectorAll('.mon-chk:checked').forEach(function(c){
+    selected.push((c.value || '').toUpperCase().trim()); // always uppercase
+  });
+  // If everything is checked, treat as "no filter" (watch all)
   var total = document.querySelectorAll('.mon-chk').length;
-  var names = (selected.length === total) ? [] : selected;
+  var names = (selected.length === 0 || selected.length === total) ? [] : selected;
 
+  // Apply locally IMMEDIATELY (no server round-trip needed for UX)
+  monitoredMaterials = names.length ? names : null;
+  closeModal('monitorOverlay');
+  renderStats(); // updates banner right away
+
+  // Persist to ScriptProperties in background (best-effort)
   google.script.run
-    .withSuccessHandler(function(){
-      monitoredMaterials = names.length ? names : null;
-      closeModal('monitorOverlay');
-      renderStats();
-      alert('✓ Monitor settings saved.');
+    .withSuccessHandler(function(){ /* silent — already applied locally */ })
+    .withFailureHandler(function(err){
+      console.warn('Monitor save failed (local state is fine):', err.message);
     })
-    .withFailureHandler(function(err){ alert('Error: ' + err.message); })
     .processMovement('setMonitoredMaterials', { names: names });
 }
 
@@ -2216,6 +2257,146 @@ function showMorningPopup(items, todayStr) {
 
 function closeMorningPopup() {
   document.getElementById('morningOverlay').classList.remove('show');
+}
+
+// ── AI Document Extraction ────────────────────────────────────────────────────
+function _readFileAsBase64(file, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    // e.target.result = "data:mime/type;base64,XXXX"
+    var b64 = e.target.result.split(',')[1];
+    callback(b64, file.type || 'image/jpeg');
+  };
+  reader.onerror = function(){ callback(null, null); };
+  reader.readAsDataURL(file);
+}
+
+function _pickFileForAI(callback) {
+  // Try to reuse a file already selected in the modal first
+  var existing = null;
+  document.querySelectorAll('.mFile,.incFile').forEach(function(inp){
+    if (inp.files && inp.files.length) existing = inp.files[0];
+  });
+  if (existing) { callback(existing); return; }
+  // Otherwise create a temporary file picker
+  var tmp = document.createElement('input');
+  tmp.type = 'file';
+  tmp.accept = 'image/*,.pdf';
+  tmp.onchange = function(){ if (tmp.files.length) callback(tmp.files[0]); };
+  tmp.click();
+}
+
+// Called from ENTRY modal → fills the ENTRY form fields
+function aiExtractFromModal() {
+  var statusEl = document.getElementById('aiExtractStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '🪄 Select your invoice or delivery receipt photo…';
+
+  _pickFileForAI(function(file) {
+    statusEl.textContent = '⏳ Reading file…';
+    _readFileAsBase64(file, function(b64, mime) {
+      if (!b64) { statusEl.textContent = '⚠ Could not read file.'; return; }
+      statusEl.innerHTML = '<span class="spin-hg">⏳</span> Analyzing document with AI — please wait…';
+      google.script.run
+        .withSuccessHandler(function(res) {
+          statusEl.style.display = 'none';
+          if (res && res.data) _applyAiResultToEntryModal(res.data);
+          else statusEl.textContent = '⚠ AI returned no data.';
+        })
+        .withFailureHandler(function(err) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = '⚠ ' + err.message;
+        })
+        .extractDocumentInfo(b64, mime);
+    });
+  });
+}
+
+function _applyAiResultToEntryModal(d) {
+  // Category
+  if (d.category) {
+    var sel = document.getElementById('mType');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value.toUpperCase() === d.category.toUpperCase()) { sel.selectedIndex = i; break; }
+    }
+  }
+  if (d.name)     document.getElementById('mName').value    = d.name;
+  if (d.unit) {
+    var uSel = document.getElementById('mUnit');
+    for (var j = 0; j < uSel.options.length; j++) {
+      if (uSel.options[j].value.toUpperCase() === d.unit.toUpperCase()) { uSel.selectedIndex = j; break; }
+    }
+  }
+  if (d.supplier) document.getElementById('mSup').value     = d.supplier;
+  if (d.po)       document.getElementById('mPO').value      = d.po;
+  if (d.gc)       document.getElementById('mGC').value      = d.gc;
+  if (d.project)  document.getElementById('mProj').value    = d.project;
+  if (d.comments) document.getElementById('mComm').value    = d.comments;
+  if (d.dateReceived) document.getElementById('mDateRec').value = d.dateReceived;
+  // For multi-location qty: fill first row's qty
+  if (d.qty) {
+    var firstQtyInput = document.querySelector('#locRowsContainer .loc-qty');
+    if (firstQtyInput) firstQtyInput.value = d.qty;
+    document.getElementById('mQty').value = d.qty; // single-qty fallback
+  }
+  // Trigger dependent updates
+  updateMatList(); checkStock(); updateLocTotal(); updateNotifyPreview();
+  // Show confirmation
+  var statusEl = document.getElementById('aiExtractStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '✓ Fields filled from document — please review and correct if needed.';
+  statusEl.style.background = '#D1FAE5'; statusEl.style.color = '#065F46';
+}
+
+// Called from Incoming modal → fills the incoming form fields
+function aiExtractFromIncoming() {
+  var statusEl = document.getElementById('incAiStatus');
+  statusEl.style.display = 'block';
+  statusEl.textContent = '🪄 Select your PO or delivery confirmation…';
+
+  _pickFileForAI(function(file) {
+    statusEl.innerHTML = '<span class="spin-hg">⏳</span> Analyzing with AI — please wait…';
+    _readFileAsBase64(file, function(b64, mime) {
+      if (!b64) { statusEl.textContent = '⚠ Could not read file.'; return; }
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.data) {
+            _applyAiResultToIncomingModal(res.data);
+            statusEl.style.display = 'block';
+            statusEl.textContent = '✓ Fields filled — please review and correct if needed.';
+            statusEl.style.background = '#D1FAE5'; statusEl.style.color = '#065F46';
+          } else {
+            statusEl.textContent = '⚠ AI returned no data.';
+          }
+        })
+        .withFailureHandler(function(err) {
+          statusEl.textContent = '⚠ ' + err.message;
+        })
+        .extractDocumentInfo(b64, mime);
+    });
+  });
+}
+
+function _applyAiResultToIncomingModal(d) {
+  if (d.category) {
+    var sel = document.getElementById('incCategory');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value.toUpperCase() === d.category.toUpperCase()) { sel.selectedIndex = i; break; }
+    }
+  }
+  if (d.name)         document.getElementById('incName').value     = d.name;
+  if (d.qty)          document.getElementById('incQty').value      = d.qty;
+  if (d.unit) {
+    var uSel = document.getElementById('incUnit');
+    for (var j = 0; j < uSel.options.length; j++) {
+      if (uSel.options[j].value.toUpperCase() === d.unit.toUpperCase()) { uSel.selectedIndex = j; break; }
+    }
+  }
+  if (d.supplier)     document.getElementById('incSupplier').value = d.supplier;
+  if (d.po)           document.getElementById('incPO').value       = d.po;
+  if (d.comments || d.project)
+    document.getElementById('incNotes').value = [d.project, d.comments].filter(Boolean).join(' · ');
+  if (d.dateReceived) document.getElementById('incDate').value     = d.dateReceived;
 }
 
 // ── Load Data from Backend ────────────────────────────────────────────────────

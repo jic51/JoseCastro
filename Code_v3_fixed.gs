@@ -1158,6 +1158,93 @@ function getMonitoredMaterials() {
   catch (e) { return null; }
 }
 
+// ─── AI DOCUMENT EXTRACTION ──────────────────────────────────────────────────
+// Calls Gemini 1.5 Flash to extract structured data from an invoice / delivery note.
+// Requires GEMINI_API_KEY in Script Properties (Project Settings → Script Properties).
+//
+// To add the key:  GAS Editor → ⚙ Project Settings → Script Properties → Add:
+//   Property: GEMINI_API_KEY   Value: your_key_from_aistudio.google.com
+//
+function extractDocumentInfo(fileData, mimeType) {
+  var auth = getUserRole();
+  if (auth.role === 'DENIED') throw new Error('Access denied.');
+
+  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error(
+    'GEMINI_API_KEY not configured.\n' +
+    'Ask your admin to add it:\n' +
+    'GAS Editor → ⚙ Project Settings → Script Properties\n' +
+    'Property: GEMINI_API_KEY  |  Value: your key from aistudio.google.com'
+  );
+
+  var prompt =
+    'You are analyzing a delivery receipt, invoice, or purchase order for a glass and window ' +
+    'installation warehouse.\n\n' +
+    'Extract all relevant fields and return ONLY a valid JSON object — no markdown, no explanation:\n' +
+    '{\n' +
+    '  "name":         "material or product name / description",\n' +
+    '  "category":     "one of: WINDOW | SCREEN | WINDOW_PARTS | SHOWER | MIRROR | STOREFRONT | TOOLS | BONEYARD | FLASHING | SCREWS | IGU",\n' +
+    '  "qty":          number_or_null,\n' +
+    '  "unit":         "UNIT | SQ FT | LN FT | PIECE | BOX | PALLET",\n' +
+    '  "supplier":     "vendor / supplier name",\n' +
+    '  "po":           "PO number or order number",\n' +
+    '  "dateReceived": "YYYY-MM-DD or null",\n' +
+    '  "gc":           "general contractor name if present",\n' +
+    '  "project":      "project name or delivery address if mentioned",\n' +
+    '  "comments":     "any other relevant notes (truck, time, special instructions)"\n' +
+    '}\n\n' +
+    'If a field is not clearly present, use null. ' +
+    'For category, infer from the product description. ' +
+    'For qty, extract the total quantity being delivered.';
+
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+
+  var requestBody = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: mimeType || 'image/jpeg', data: fileData } }
+      ]
+    }],
+    generationConfig: { temperature: 0.05 }
+  };
+
+  var response = UrlFetchApp.fetch(url, {
+    method: 'POST',
+    contentType: 'application/json',
+    payload: JSON.stringify(requestBody),
+    muteHttpExceptions: true
+  });
+
+  var code = response.getResponseCode();
+  var body = response.getContentText();
+
+  if (code !== 200) {
+    var errObj = {};
+    try { errObj = JSON.parse(body); } catch(e) {}
+    throw new Error('Gemini API error ' + code + ': ' + (errObj.error ? errObj.error.message : body.substring(0, 200)));
+  }
+
+  var result = JSON.parse(body);
+  if (!result.candidates || !result.candidates.length) {
+    throw new Error('Gemini returned no candidates. The document may be unclear or blocked.');
+  }
+
+  var text = (result.candidates[0].content.parts[0].text || '').trim();
+
+  // Strip optional markdown code fences
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  try {
+    return { status: 'success', data: JSON.parse(text) };
+  } catch(e) {
+    // Last-resort: pull the first {...} block
+    var match = text.match(/\{[\s\S]*\}/);
+    if (match) return { status: 'success', data: JSON.parse(match[0]) };
+    throw new Error('Could not parse AI response. Raw: ' + text.substring(0, 300));
+  }
+}
+
 function setMonitoredMaterials(names) {
   var auth = getUserRole();
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
@@ -1166,6 +1253,8 @@ function setMonitoredMaterials(names) {
     props.deleteProperty('WMS_MONITORED_MATERIALS');
     return { status: 'success', message: 'Monitoring all materials (no filter applied).' };
   }
-  props.setProperty('WMS_MONITORED_MATERIALS', JSON.stringify(names));
+  // Normalize to uppercase for reliable comparison
+  var normalized = names.map(function(n){ return String(n).toUpperCase().trim(); });
+  props.setProperty('WMS_MONITORED_MATERIALS', JSON.stringify(normalized));
   return { status: 'success' };
 }
