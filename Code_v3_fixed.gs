@@ -386,7 +386,8 @@ function processMovement(action, data) {
           supplier:         data.supplier,
           comments:         data.comments,
           responsible:      data.responsible,
-          files:            li === 0 ? (data.files || []) : [],
+          files:            li === 0 ? (data.files     || []) : [],
+          docGroups:        li === 0 ? (data.docGroups || []) : [],
           notifyRecipients: li === 0 ? data.notifyRecipients : null
         };
         lastResult = _addMovement(ss, archive, singleData, auth);
@@ -531,12 +532,16 @@ function _addMovement(ss, archive, data, auth) {
     var newRowIdx = archive.getLastRow();
     archive.getRange(newRowIdx, AC.TIMESTAMP + 1).setNumberFormat('mm/dd/yyyy hh:mm');
 
-    // ── File uploads ──────────────────────────────────────────────────────────
+    // ── File / Document uploads ───────────────────────────────────────────────
     var fileLinks = '';
     var fileError = '';
-    if (data.files && data.files.length > 0) {
+    var hasDocGroups = data.docGroups && data.docGroups.length > 0;
+    var hasFiles     = data.files     && data.files.length     > 0;
+    if (hasDocGroups || hasFiles) {
       try {
-        var links = _uploadFiles(data.files, name, data.po || 'DOC');
+        var links = hasDocGroups
+          ? _uploadDocGroups(data.docGroups, name)  // new multi-photo named groups
+          : _uploadFiles(data.files, name, data.po || 'DOC'); // legacy
         if (links) {
           archive.getRange(newRowIdx, AC.DOC_LINKS + 1).setValue(links);
           fileLinks = links;
@@ -814,9 +819,9 @@ function _updateDocument(ss, archive, data, auth) {
   return { status: 'success' };
 }
 
+// Legacy single-file upload (kept for backward compatibility with older clients / attach modal)
 function _uploadFiles(files, materialName, po) {
-  // NOTE: intentionally NO try/catch here — errors propagate to _addMovement
-  // where they are captured in fileError and returned to the frontend.
+  // NOTE: no try/catch — errors propagate to caller (_addMovement / _updateDocument)
   var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
   var folder = _getOrCreateFolder('OX_WMS_v3_Docs/' + safe);
   var links  = [];
@@ -832,6 +837,89 @@ function _uploadFiles(files, materialName, po) {
     links.push(file.getUrl());
   }
   return links.join('\n');
+}
+
+// ─── MULTI-PHOTO NAMED DOCUMENT GROUPS ───────────────────────────────────────
+// docGroups = [ { name: "Invoice", photos: [ {fileData, fileMimeType} ] }, … ]
+// Returns newline-separated "DocName||DriveURL" strings for storage in DOC_LINKS.
+//
+// Single-photo groups → uploaded as JPEG (fast, no PDF overhead).
+// Multi-photo groups  → stitched into a Google Doc → exported as PDF → temp Doc trashed.
+//
+function _uploadDocGroups(docGroups, materialName) {
+  var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
+  var folder = _getOrCreateFolder('OX_WMS_v3_Docs/' + safe);
+  var links  = [];
+
+  for (var i = 0; i < docGroups.length; i++) {
+    var group  = docGroups[i];
+    var photos = group.photos || [];
+    if (!photos.length) continue;
+
+    var rawName  = (group.name || ('Document ' + (i + 1))).trim();
+    var safeName = rawName.replace(/[\/\\?%*:|"<>]/g, '_');
+    var url;
+
+    if (photos.length === 1) {
+      // Single photo → store as image directly (faster)
+      var p    = photos[0];
+      var bytes = Utilities.base64Decode(p.fileData);
+      var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg', safeName);
+      var imgFile = folder.createFile(blob);
+      imgFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      url = imgFile.getUrl();
+    } else {
+      // Multiple photos → create Google Doc with one image per page → export PDF
+      url = _photosToDocPdf(photos, safeName, folder);
+    }
+
+    if (url) links.push(rawName + '||' + url);
+  }
+  return links.join('\n');
+}
+
+// Creates a Google Doc with one photo per page, exports it as PDF, trashes the Doc.
+// Returns the Drive URL of the saved PDF.
+function _photosToDocPdf(photos, docName, targetFolder) {
+  // Create a temporary Google Doc
+  var tempTitle = 'WMS_TMP_' + new Date().getTime();
+  var doc  = DocumentApp.create(tempTitle);
+  var body = doc.getBody();
+
+  // Remove default blank paragraph so images start cleanly
+  body.clear();
+
+  for (var i = 0; i < photos.length; i++) {
+    if (i > 0) body.appendPageBreak();
+    var p     = photos[i];
+    var bytes = Utilities.base64Decode(p.fileData);
+    var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg');
+    var img   = body.appendImage(blob);
+    // Scale to fit within a standard letter-width (~6 inches at 72dpi ≈ 432 pts)
+    var originalWidth  = img.getWidth();
+    var originalHeight = img.getHeight();
+    var maxW = 432;
+    if (originalWidth > maxW) {
+      img.setWidth(maxW);
+      img.setHeight(Math.round(originalHeight * maxW / originalWidth));
+    }
+  }
+
+  doc.saveAndClose();
+
+  // Export as PDF blob
+  var docFile = DriveApp.getFileById(doc.getId());
+  var pdfBlob = docFile.getAs('application/pdf');
+  pdfBlob.setName(docName + '.pdf');
+
+  // Save PDF to target folder
+  var pdfFile = targetFolder.createFile(pdfBlob);
+  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  // Trash the temporary Doc
+  docFile.setTrashed(true);
+
+  return pdfFile.getUrl();
 }
 
 function _getOrCreateFolder(path) {

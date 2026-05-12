@@ -255,6 +255,26 @@
     .monitor-item:hover{background:var(--bg);border-color:var(--border)}
     .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
     .monitor-item label{cursor:pointer;flex:1}
+    /* ── DOCUMENT BUILDER ── */
+    .doc-builder-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+    .doc-group{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.65rem .75rem;margin-bottom:.5rem;position:relative}
+    .doc-group-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+    .doc-group-name{flex:1;border:1px solid var(--border);border-radius:6px;padding:.3rem .55rem;font-size:.85rem;font-weight:600;background:#fff;min-width:0}
+    .doc-group-name:focus{outline:none;border-color:var(--accent)}
+    .doc-group-remove{background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0}
+    .doc-group-remove:hover{background:var(--red-bg);color:var(--red)}
+    .doc-photos-strip{display:flex;flex-wrap:wrap;gap:6px;min-height:44px;align-items:flex-start;margin-bottom:.4rem}
+    .doc-photo-thumb{position:relative;width:54px;height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:#e5e7eb}
+    .doc-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .doc-photo-thumb .remove-photo{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+    .doc-group-actions{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+    .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:.38rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:36px}
+    .btn-camera:hover{filter:brightness(1.15)}
+    .btn-camera:active{transform:scale(.97)}
+    .btn-gallery{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:7px;padding:.38rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:36px}
+    .btn-gallery:hover{border-color:var(--accent);color:var(--accent)}
+    .doc-photo-count{font-size:.72rem;color:var(--muted);font-weight:500;margin-left:auto}
+    .doc-processing{font-size:.75rem;color:var(--purple);font-style:italic}
     /* ── AI Extract review panel ── */
     .ai-review-panel{background:var(--purple-bg);border:1px solid #C4B5FD;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
     .ai-review-panel h4{font-size:.8rem;font-weight:700;color:var(--purple);margin-bottom:.5rem}
@@ -762,20 +782,22 @@
       </div>
     </div>
 
-    <!-- ── File Attach (ENTRY only) ── -->
+    <!-- ── Document Builder (ENTRY only) ── -->
     <div class="file-section" id="fileSection" style="display:none;margin-top:.75rem">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-        <label class="sec-label" style="margin:0">📎 Attach Documents</label>
-        <button id="btnAiExtract" class="btn btn-ghost btn-sm" onclick="aiExtractFromModal()" title="Upload a photo of the delivery receipt or invoice and let AI fill the fields"
+      <div class="doc-builder-hdr">
+        <label class="sec-label" style="margin:0">📎 Documents</label>
+        <button id="btnAiExtract" class="btn btn-ghost btn-sm" onclick="aiExtractFromModal()"
+          title="Take a photo of the invoice and AI will fill the fields for you"
           style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
           🪄 AI Extract
         </button>
       </div>
-      <div id="fileInputsContainer">
-        <input type="file" class="mFile" accept="image/*,.pdf" style="border:none;display:block;margin-bottom:5px">
-      </div>
-      <button id="btnAddFile" class="btn btn-ghost btn-sm" style="width:fit-content;margin-top:4px">+ Add File</button>
+      <!-- Doc groups rendered here by JS -->
+      <div id="docGroupsContainer"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
       <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
+      <!-- Hidden file input (kept for AI extract compatibility) -->
+      <input type="file" id="legacyFileInput" class="mFile" accept="image/*,.pdf" style="display:none">
     </div>
 
     <!-- ── Notification Section (ENTRY only) ── -->
@@ -1054,26 +1076,43 @@ function extractDriveId(url){
 function renderDocLinks(linksStr){
   if (!linksStr || linksStr.indexOf('http') === -1)
     return '<span style="color:var(--muted);font-size:.75rem">—</span>';
-  var links = linksStr.split('\n').map(function(l){ return l.trim(); })
-                      .filter(function(l){ return l.indexOf('http') !== -1; });
-  if (!links.length) return '<span style="color:var(--muted);font-size:.75rem">—</span>';
-  var thumbs = links.map(function(url, i){
+
+  var entries = linksStr.split('\n').map(function(l){ return l.trim(); })
+                        .filter(function(l){ return l.indexOf('http') !== -1; });
+  if (!entries.length) return '<span style="color:var(--muted);font-size:.75rem">—</span>';
+
+  var thumbs = entries.map(function(entry, i){
+    // Support both "DocName||URL" (new) and plain "URL" (legacy)
+    var docName = 'Doc ' + (i + 1);
+    var url     = entry;
+    if (entry.indexOf('||') !== -1) {
+      var parts = entry.split('||');
+      docName   = (parts[0] || '').trim() || docName;
+      url       = (parts[1] || '').trim();
+    }
+    if (!url) return '';
+
+    var shortLabel = docName.length > 8 ? docName.substring(0, 7) + '…' : docName;
     var fileId = extractDriveId(url);
     if (fileId){
       var thumb = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100';
-      return '<a href="' + url + '" target="_blank" title="Open doc ' + (i + 1) + '" ' +
-             'style="display:block;flex-shrink:0">' +
+      return '<a href="' + url + '" target="_blank" title="' + docName + '" ' +
+             'style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;text-decoration:none">' +
              '<img src="' + thumb + '" loading="lazy" ' +
-             'style="width:34px;height:34px;object-fit:cover;border-radius:5px;' +
-             'border:1px solid var(--border);display:block;background:#f3f4f6" ' +
-             'onerror="this.parentNode.outerHTML=\'<a href=\\\"' + url.replace(/'/g,'%27') + '\\\" target=\\\"_blank\\\" style=\\\"display:block;flex-shrink:0\\\"><span style=\\\"display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem\\\">📄</span></a>\'">' +
+             'style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border);display:block;background:#f3f4f6" ' +
+             'onerror="this.src=\'\';this.style.display=\'none\';this.nextSibling&&(this.nextSibling.style.display=\'flex\')">' +
+             '<span style="display:none;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;align-items:center;justify-content:center">📄</span>' +
+             '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + shortLabel + '</span>' +
              '</a>';
     }
-    return '<a href="' + url + '" target="_blank" title="Doc ' + (i+1) + '" style="display:block;flex-shrink:0">' +
+    // Non-Drive or PDF icon fallback
+    return '<a href="' + url + '" target="_blank" title="' + docName + '" ' +
+           'style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;text-decoration:none">' +
            '<span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;border:1px solid #BFDBFE">📄</span>' +
+           '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + shortLabel + '</span>' +
            '</a>';
   }).join('');
-  return '<div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap">' + thumbs + '</div>';
+  return '<div style="display:flex;gap:5px;align-items:flex-end;flex-wrap:wrap">' + thumbs + '</div>';
 }
 
 // ── Movements: Table ──────────────────────────────────────────────────────────
@@ -1390,8 +1429,8 @@ function openMoveModal(type){
   document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0];
   document.getElementById('mStatus').value  = 'In Stock';
   document.getElementById('mUnit').value    = 'UNIT';
-  document.getElementById('fileInputsContainer').innerHTML =
-    '<input type="file" class="mFile" accept="image/*,.pdf" style="border:none;display:block;margin-bottom:5px">';
+  // Reset document builder (creates one default "Invoice" group)
+  resetDocBuilder();
   var notifyChk = document.getElementById('mNotify');
   if (notifyChk) notifyChk.checked = false;
   document.getElementById('notifyFields').style.display = 'none';
@@ -1692,17 +1731,8 @@ async function submitMovement(){
   var btn = document.getElementById('moveSubmit');
   btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
 
-  var filesArray = [];
-  if (currentMoveType === 'ENTRY'){
-    var inputs = document.querySelectorAll('.mFile');
-    for (var i = 0; i < inputs.length; i++){
-      if (inputs[i].files.length > 0){
-        var f = inputs[i].files[0];
-        try { filesArray.push({fileData: await getBase64(f), fileName: f.name, fileMimeType: f.type}); }
-        catch(e) { /* skip unreadable file */ }
-      }
-    }
-  }
+  // Collect document groups from the builder (already compressed + previewed)
+  var docGroups = (currentMoveType === 'ENTRY') ? _collectDocGroups() : [];
 
   var proj = (document.getElementById('mProj').value || '').trim();
 
@@ -1742,7 +1772,8 @@ async function submitMovement(){
       status:           document.getElementById('mStatus').value,
       responsible:      document.getElementById('mResp').value,
       truck:            document.getElementById('mTruck').value,
-      files:            filesArray,
+      docGroups:        docGroups,        // new: named multi-photo document groups
+      files:            [],               // legacy field kept for compat (not used now)
       notifyRecipients: notifyPayload
     });
 }
@@ -1784,11 +1815,166 @@ function openAttachModal(rowIdx, folderName){
 }
 
 function addFileInput(){
+  // kept for backward compat (attach modal uses it)
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:6px';
   div.innerHTML = '<input type="file" class="mFile" accept="image/*,.pdf" style="flex:1;font-size:.8rem"><button class="btn btn-danger btn-sm" type="button">✕</button>';
   div.querySelector('button').addEventListener('click', function(){ div.remove(); });
-  document.getElementById('fileInputsContainer').appendChild(div);
+  var container = document.getElementById('fileInputsContainer');
+  if (container) container.appendChild(div);
+}
+
+// ── Document Builder ──────────────────────────────────────────────────────────
+var _docGroupCounter = 0;
+
+function _suggestedDocName() {
+  // Return contextual default names in order
+  var defaults = ['Invoice', 'Delivery Receipt', 'Packing List', 'Bill of Lading', 'Other'];
+  var used = [];
+  document.querySelectorAll('.doc-group-name').forEach(function(inp){ used.push(inp.value.trim()); });
+  for (var i = 0; i < defaults.length; i++) {
+    if (used.indexOf(defaults[i]) === -1) return defaults[i];
+  }
+  return 'Document ' + (used.length + 1);
+}
+
+function addDocGroup(suggestedName) {
+  var container = document.getElementById('docGroupsContainer');
+  var gid       = ++_docGroupCounter;
+  var name      = suggestedName || _suggestedDocName();
+  var group     = document.createElement('div');
+  group.className = 'doc-group';
+  group.dataset.gid = gid;
+  group.innerHTML =
+    '<div class="doc-group-hdr">' +
+      '<input class="doc-group-name" type="text" value="' + name.replace(/"/g,'&quot;') + '" placeholder="Document name (e.g. Invoice)">' +
+      '<button class="doc-group-remove" title="Remove this document" onclick="this.closest(\'.doc-group\').remove();_updateDocPhotoCount()">×</button>' +
+    '</div>' +
+    '<div class="doc-photos-strip" id="strip-' + gid + '"></div>' +
+    '<div class="doc-group-actions">' +
+      '<button class="btn-camera" onclick="triggerCameraCapture(' + gid + ')">📸 Camera</button>' +
+      '<button class="btn-gallery" onclick="triggerGalleryPick(' + gid + ')">📁 Files</button>' +
+      '<span class="doc-photo-count" id="pcount-' + gid + '">No photos yet</span>' +
+    '</div>' +
+    /* Camera capture (one photo at a time, opens native camera) */
+    '<input type="file" class="doc-cam-input" id="docCamInput-' + gid + '" accept="image/*" capture="environment" style="display:none">' +
+    /* Gallery / filesystem picker (multiple files, no camera force) */
+    '<input type="file" class="doc-file-input" id="docFileInput-' + gid + '" accept="image/*,.pdf" style="display:none" multiple>';
+
+  // Wire both hidden inputs
+  container.appendChild(group);
+  document.getElementById('docCamInput-' + gid).addEventListener('change', function(e) {
+    _handlePhotoFiles(gid, Array.from(e.target.files));
+    this.value = '';
+  });
+  document.getElementById('docFileInput-' + gid).addEventListener('change', function(e) {
+    _handlePhotoFiles(gid, Array.from(e.target.files));
+    this.value = ''; // reset so same file can be picked again
+  });
+}
+
+function triggerCameraCapture(gid) {
+  var inp = document.getElementById('docCamInput-' + gid);
+  if (inp) inp.click();
+}
+
+function triggerGalleryPick(gid) {
+  var inp = document.getElementById('docFileInput-' + gid);
+  if (inp) inp.click();
+}
+
+// Compress + add photos to a group's strip
+function _handlePhotoFiles(gid, files) {
+  var strip  = document.getElementById('strip-' + gid);
+  var pcount = document.getElementById('pcount-' + gid);
+  if (!strip) return;
+
+  files.forEach(function(file) {
+    if (!file) return;
+    // Client-side compression to keep payload under limits
+    _compressImage(file, 1200, 0.82, function(b64, mime) {
+      var thumb = document.createElement('div');
+      thumb.className = 'doc-photo-thumb';
+      thumb.dataset.b64  = b64;
+      thumb.dataset.mime = mime;
+      var isImage = mime.indexOf('image') === 0;
+      thumb.innerHTML = isImage
+        ? '<img src="data:' + mime + ';base64,' + b64 + '" alt="photo">' +
+          '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>'
+        : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.4rem;flex-direction:column;gap:2px">📄<span style="font-size:.5rem;color:#555;padding:0 3px;text-align:center;overflow:hidden;max-width:50px;word-break:break-all">' + file.name.substring(0,10) + '</span></div>' +
+          '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>';
+      strip.appendChild(thumb);
+      _updateDocPhotoCount();
+    });
+  });
+}
+
+function _updateDocPhotoCount() {
+  document.querySelectorAll('.doc-group').forEach(function(group) {
+    var gid   = group.dataset.gid;
+    var count = group.querySelectorAll('.doc-photo-thumb').length;
+    var el    = document.getElementById('pcount-' + gid);
+    if (el) el.textContent = count === 0 ? 'No photos yet' : count + ' photo' + (count !== 1 ? 's' : '');
+  });
+}
+
+// Client-side image compression using Canvas (keeps mobile photos under 300KB)
+function _compressImage(file, maxWidth, quality, callback) {
+  // Non-image files (PDFs) → read as-is, skip canvas
+  if (!file.type || file.type.indexOf('image') === -1) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var b64 = e.target.result.split(',')[1];
+      callback(b64, file.type || 'application/octet-stream');
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+  var objectUrl = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    URL.revokeObjectURL(objectUrl);
+    var w = img.naturalWidth, h = img.naturalHeight;
+    // Only downscale if wider than maxWidth
+    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    var dataUrl = canvas.toDataURL('image/jpeg', quality);
+    callback(dataUrl.split(',')[1], 'image/jpeg');
+  };
+  img.onerror = function() {
+    // Fallback: read raw
+    URL.revokeObjectURL(objectUrl);
+    var reader = new FileReader();
+    reader.onload = function(e) { callback(e.target.result.split(',')[1], file.type); };
+    reader.readAsDataURL(file);
+  };
+  img.src = objectUrl;
+}
+
+// Collect docGroups from the builder for submission
+function _collectDocGroups() {
+  var groups = [];
+  document.querySelectorAll('.doc-group').forEach(function(groupEl) {
+    var name   = (groupEl.querySelector('.doc-group-name').value || '').trim() || 'Document';
+    var photos = [];
+    groupEl.querySelectorAll('.doc-photo-thumb').forEach(function(thumb) {
+      if (thumb.dataset.b64) {
+        photos.push({ fileData: thumb.dataset.b64, fileMimeType: thumb.dataset.mime || 'image/jpeg' });
+      }
+    });
+    if (photos.length) groups.push({ name: name, photos: photos });
+  });
+  return groups;
+}
+
+// Reset document builder (called by openMoveModal)
+function resetDocBuilder() {
+  var c = document.getElementById('docGroupsContainer');
+  if (c) c.innerHTML = '';
+  _docGroupCounter = 0;
+  addDocGroup('Invoice'); // start with one "Invoice" group
 }
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
@@ -2505,9 +2691,6 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('mUnit').addEventListener('change',updateNotifyPreview);
   document.getElementById('mProj').addEventListener('input', updateNotifyPreview);
   document.getElementById('mDest').addEventListener('input', function(){ updateNotifyPreview(); });
-
-  // File attach
-  document.getElementById('btnAddFile').addEventListener('click', addFileInput);
 
   // Notification checkbox
   document.getElementById('mNotify').addEventListener('change', function(){
