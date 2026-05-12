@@ -142,14 +142,22 @@ function getInitialData() {
     var activeUsers = [];
     try { activeUsers = heartbeat(); } catch(e) {}
 
+    // Incoming materials + monitored-materials filter
+    var incoming = [];
+    try { incoming = getIncoming(); } catch(e) { Logger.log('getIncoming: ' + e.message); }
+    var monitoredMaterials = null;
+    try { monitoredMaterials = getMonitoredMaterials(); } catch(e) {}
+
     return {
-      movements:    movements,
-      stock:        stock,
-      config:       config,
-      reservations: reservations,
-      userRole:     auth.role,
-      userEmail:    auth.email,
-      activeUsers:  activeUsers
+      movements:         movements,
+      stock:             stock,
+      config:            config,
+      reservations:      reservations,
+      userRole:          auth.role,
+      userEmail:         auth.email,
+      activeUsers:       activeUsers,
+      incoming:          incoming,
+      monitoredMaterials: monitoredMaterials
     };
   } catch (err) {
     throw new Error('getInitialData: ' + err.message);
@@ -418,9 +426,13 @@ function processMovement(action, data) {
 
     return _addMovement(ss, archive, data, auth);
   }
-  if (action === 'updateDocument')    return _updateDocument(ss, archive, data, auth);
-  if (action === 'addReservation')    return _addReservation(ss, data, auth);
-  if (action === 'cancelReservation') return _cancelReservation(ss, data, auth);
+  if (action === 'updateDocument')        return _updateDocument(ss, archive, data, auth);
+  if (action === 'addReservation')        return _addReservation(ss, data, auth);
+  if (action === 'cancelReservation')     return _cancelReservation(ss, data, auth);
+  if (action === 'addIncoming')           return addIncoming(data);
+  if (action === 'updateIncoming')        return updateIncoming(data);
+  if (action === 'deleteIncoming')        return deleteIncoming(data.id);
+  if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
   if (action === 'adminAction') {
     if (auth.role !== 'ADMIN') throw new Error('Admin only.');
     return _adminAction(ss, data);
@@ -1005,3 +1017,155 @@ function heartbeat() {
 // Using GAS built-in LockService.getScriptLock() directly in _addMovement.
 // The old custom spin-lock (PropertiesService busy-wait) was removed because
 // it could consume the full 30-second GAS execution budget and silently timeout.
+
+// ─── INCOMING MATERIALS ───────────────────────────────────────────────────────
+// Sheet: INCOMING_V3  Columns (1-indexed, 0-based in array):
+//  A=0:ID  B=1:EstDate  C=2:Category  D=3:Name  E=4:Qty  F=5:Unit
+//  G=6:Supplier  H=7:PO  I=8:Notes  J=9:Status  K=10:AddedBy  L=11:AddedAt
+
+function _ensureIncomingSheet(ss) {
+  var sheet = ss.getSheetByName('INCOMING_V3');
+  if (!sheet) {
+    sheet = ss.insertSheet('INCOMING_V3');
+    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 12).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getIncoming() {
+  var auth = getUserRole();
+  if (auth.role === 'DENIED') throw new Error('Access denied.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('INCOMING_V3');
+  if (!sheet) return [];
+
+  var data    = sheet.getDataRange().getValues();
+  var results = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[0]) continue;
+    var estDate = '';
+    if (row[1] instanceof Date) {
+      estDate = Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    } else if (row[1]) {
+      estDate = String(row[1]).substring(0, 10);
+    }
+    results.push({
+      id:       String(row[0]),
+      estDate:  estDate,
+      category: String(row[2]  || '').toUpperCase().trim(),
+      name:     String(row[3]  || '').trim(),
+      qty:      Number(row[4]  || 0),
+      unit:     String(row[5]  || 'UNIT'),
+      supplier: String(row[6]  || ''),
+      po:       String(row[7]  || ''),
+      notes:    String(row[8]  || ''),
+      status:   String(row[9]  || 'Pending'),
+      addedBy:  String(row[10] || ''),
+      addedAt:  String(row[11] || '')
+    });
+  }
+  // Return sorted nearest-first
+  return results.sort(function(a, b) {
+    return (a.estDate || '') < (b.estDate || '') ? -1 : 1;
+  });
+}
+
+function addIncoming(data) {
+  var auth = getUserRole();
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensureIncomingSheet(ss);
+  var id    = 'INC-' + new Date().getTime();
+  // Add noon UTC to avoid timezone shift when GAS converts string→Date
+  var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : '';
+  sheet.appendRow([
+    id,
+    estDate,
+    String(data.category || '').toUpperCase().trim(),
+    String(data.name     || '').trim(),
+    Number(data.qty      || 0),
+    String(data.unit     || 'UNIT'),
+    String(data.supplier || ''),
+    String(data.po       || ''),
+    String(data.notes    || ''),
+    'Pending',
+    auth.email,
+    new Date()
+  ]);
+  return { status: 'success', id: id };
+}
+
+function updateIncoming(data) {
+  var auth = getUserRole();
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet  = ss.getSheetByName('INCOMING_V3');
+  if (!sheet) throw new Error('INCOMING_V3 sheet not found.');
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(data.id)) {
+      var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : values[i][1];
+      sheet.getRange(i + 1, 1, 1, 12).setValues([[
+        data.id,
+        estDate,
+        String(data.category || '').toUpperCase().trim(),
+        String(data.name     || '').trim(),
+        Number(data.qty      || 0),
+        String(data.unit     || 'UNIT'),
+        String(data.supplier || ''),
+        String(data.po       || ''),
+        String(data.notes    || ''),
+        String(data.status   || 'Pending'),
+        values[i][10],  // preserve addedBy
+        values[i][11]   // preserve addedAt
+      ]]);
+      return { status: 'success' };
+    }
+  }
+  throw new Error('Incoming item not found: ' + data.id);
+}
+
+function deleteIncoming(id) {
+  var auth = getUserRole();
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet  = ss.getSheetByName('INCOMING_V3');
+  if (!sheet) throw new Error('INCOMING_V3 sheet not found.');
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      return { status: 'success' };
+    }
+  }
+  throw new Error('Incoming item not found: ' + id);
+}
+
+// ─── MONITORED MATERIALS ──────────────────────────────────────────────────────
+// null  = monitor ALL materials (default — no filter)
+// array = monitor only these material names in the low-stock alert banner
+
+function getMonitoredMaterials() {
+  var auth = getUserRole();
+  if (auth.role === 'DENIED') throw new Error('Access denied.');
+  var props = PropertiesService.getScriptProperties();
+  var raw   = props.getProperty('WMS_MONITORED_MATERIALS');
+  if (!raw) return null;
+  try   { return JSON.parse(raw); }
+  catch (e) { return null; }
+}
+
+function setMonitoredMaterials(names) {
+  var auth = getUserRole();
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var props = PropertiesService.getScriptProperties();
+  if (!names || names.length === 0) {
+    props.deleteProperty('WMS_MONITORED_MATERIALS');
+    return { status: 'success', message: 'Monitoring all materials (no filter applied).' };
+  }
+  props.setProperty('WMS_MONITORED_MATERIALS', JSON.stringify(names));
+  return { status: 'success' };
+}

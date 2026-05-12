@@ -194,6 +194,61 @@
     .col-toggle-bar label{cursor:pointer;font-size:.8rem;display:flex;align-items:center;gap:4px}
     /* ── FOOTER ── */
     .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
+    /* ── STOCK DETAIL PANEL (alert bar expand) ── */
+    .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.1);margin-bottom:1rem;overflow:hidden}
+    .stock-detail-panel.open{display:block}
+    .stock-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--navy);color:#fff;font-size:.8rem;font-weight:700}
+    .stock-detail-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:1rem;cursor:pointer}
+    .stock-detail-hdr button:hover{color:#fff}
+    .stock-detail-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+    .sdp-section{padding:.75rem 1rem}
+    .sdp-section h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem;color:var(--muted)}
+    .sdp-row{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);gap:.5rem;font-size:.8rem}
+    .sdp-row:last-child{border-bottom:none}
+    .sdp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+    .sdp-qty{display:flex;gap:.5rem;align-items:center;white-space:nowrap}
+    .sdp-empty{color:var(--muted);font-size:.8rem;padding:.5rem 0}
+    .alert-banner{cursor:pointer;transition:opacity .15s}
+    .alert-banner:hover{opacity:.88}
+    .alert-banner-actions{display:flex;gap:.5rem;align-items:center;margin-left:auto;flex-shrink:0}
+    .alert-banner-actions button{background:rgba(0,0,0,.15);border:none;color:inherit;border-radius:6px;padding:2px 8px;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap}
+    .alert-banner-actions button:hover{background:rgba(0,0,0,.28)}
+    /* ── INCOMING SECTION ── */
+    .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem}
+    .incoming-week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem;padding:1rem 1.25rem}
+    .day-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .9rem}
+    .day-card.today{border-color:var(--accent);background:#EFF6FF}
+    .day-card .day-label{font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+    .day-card.today .day-label{color:var(--accent2)}
+    .day-item{font-size:.78rem;padding:.15rem 0;border-bottom:1px solid var(--border)}
+    .day-item:last-child{border-bottom:none}
+    .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
+    .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700;text-decoration:line-through}
+    /* ── MORNING POPUP ── */
+    .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+    .morning-overlay.show{opacity:1;pointer-events:all}
+    .morning-popup{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:520px;width:95%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(24px);transition:transform .25s}
+    .morning-overlay.show .morning-popup{transform:translateY(0)}
+    .morning-popup-hdr{background:var(--navy);color:#fff;padding:1.1rem 1.4rem;display:flex;align-items:center;justify-content:space-between;border-radius:14px 14px 0 0}
+    .morning-popup-hdr h3{font-size:1rem;font-weight:700;margin:0}
+    .morning-popup-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:1.2rem;cursor:pointer;line-height:1;padding:0}
+    .morning-popup-body{overflow-y:auto;padding:1rem 1.4rem;flex:1}
+    .morning-today{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
+    .morning-today-label{font-size:.7rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:.4rem}
+    .morning-week-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .35rem}
+    .morning-item{display:flex;justify-content:space-between;align-items:flex-start;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.82rem}
+    .morning-item:last-child{border-bottom:none}
+    .morning-item-name{font-weight:600}
+    .morning-item-meta{color:var(--muted);font-size:.75rem}
+    .morning-popup-footer{padding:.75rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
+    /* ── MONITOR MODAL ── */
+    .monitor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.4rem;max-height:50vh;overflow-y:auto;padding:.25rem}
+    .monitor-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem;border:1px solid transparent;transition:.15s}
+    .monitor-item:hover{background:var(--bg);border-color:var(--border)}
+    .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
+    .monitor-item label{cursor:pointer;flex:1}
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
       .topbar{flex-direction:column;align-items:flex-start}
@@ -226,6 +281,7 @@
       <button id="btn-movements">Movements &amp; History</button>
       <button id="btn-projects">Project View</button>
       <button id="btn-warehouse">Warehouse Map</button>
+      <button id="btn-incoming">📦 Incoming</button>
     </div>
 
     <!-- Connection indicator -->
@@ -252,7 +308,22 @@
 
   <!-- ── DASHBOARD ── -->
   <div id="dashboard" class="section active">
-    <div id="alertBanner" class="alert-banner">⚠️ <span id="alertText"></span></div>
+    <div id="alertBanner" class="alert-banner" onclick="toggleStockPanel()" style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:.4rem">
+    <span>⚠️</span>
+    <span id="alertText" style="flex:1"></span>
+    <div class="alert-banner-actions" onclick="event.stopPropagation()">
+      <button onclick="toggleStockPanel()" title="Show detail list">📋 Details</button>
+      <button id="btnMonitorSettings" onclick="openMonitorModal()" title="Choose which materials to monitor" style="display:none">⚙ Monitor</button>
+    </div>
+  </div>
+  <!-- Stock detail panel — expands below the alert banner -->
+  <div class="stock-detail-panel" id="stockDetailPanel">
+    <div class="stock-detail-hdr">
+      <span>📉 Low Stock Detail</span>
+      <button onclick="toggleStockPanel()" title="Close">✕</button>
+    </div>
+    <div class="stock-detail-body" id="stockDetailBody"></div>
+  </div>
     <div class="charts-grid">
       <div class="card" style="padding:10px;height:300px"><div id="piechart_div" style="width:100%;height:100%"></div></div>
       <div class="card" style="padding:10px;height:300px"><div id="barchart_div" style="width:100%;height:100%"></div></div>
@@ -378,7 +449,140 @@
     </div>
   </div>
 
+  <!-- ── INCOMING MATERIALS ── -->
+  <div id="incoming" class="section">
+    <!-- Weekly overview grid -->
+    <div class="incoming-card">
+      <div class="card-header">
+        <h2>📅 This Week's Expected Arrivals</h2>
+        <div class="toolbar">
+          <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
+        </div>
+      </div>
+      <div class="incoming-week-grid" id="incomingWeekGrid">
+        <p style="color:var(--muted);padding:.5rem">Loading…</p>
+      </div>
+    </div>
+    <!-- Full list table -->
+    <div class="incoming-card">
+      <div class="card-header">
+        <h2>📦 All Incoming — Sorted by Date</h2>
+        <div class="toolbar">
+          <select id="incStatusFilter" style="border:1px solid var(--border);border-radius:6px;padding:.35rem .6rem;font-size:.8rem">
+            <option value="">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrapper" id="incomingTableContainer">
+        <p style="padding:1rem;color:var(--muted)">No incoming materials recorded.</p>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /container -->
+
+<!-- ══ MORNING POPUP ════════════════════════════════════════════════════════ -->
+<div class="morning-overlay" id="morningOverlay">
+  <div class="morning-popup">
+    <div class="morning-popup-hdr">
+      <h3>☀️ Good Morning — This Week's Schedule</h3>
+      <button onclick="closeMorningPopup()">✕</button>
+    </div>
+    <div class="morning-popup-body" id="morningPopupBody"></div>
+    <div class="morning-popup-footer">
+      <label style="font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.4rem">
+        <input type="checkbox" id="chkNoShowToday"> Don't show again today
+      </label>
+      <button class="btn btn-primary btn-sm" onclick="closeMorningPopup()">Got it ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="incomingOverlay">
+  <div class="modal" style="max-width:500px">
+    <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
+    <input type="hidden" id="incId">
+    <div class="form-grid">
+      <div class="field">
+        <label>Estimated Arrival Date *</label>
+        <input type="date" id="incDate">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="incStatus">
+          <option value="Pending">Pending</option>
+          <option value="Arrived">Arrived</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Category *</label>
+        <select id="incCategory">
+          <option value="">Select…</option>
+          <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
+          <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
+          <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
+          <option>SCREWS</option><option>IGU</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Material Name *</label>
+        <input type="text" id="incName" list="matNameList" placeholder="Material description">
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="incQty" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="incUnit">
+          <option>UNIT</option><option>SQ FT</option><option>LN FT</option>
+          <option>PIECE</option><option>BOX</option><option>PALLET</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Supplier</label>
+        <input type="text" id="incSupplier" list="supplierList" placeholder="Supplier name">
+      </div>
+      <div class="field">
+        <label>PO #</label>
+        <input type="text" id="incPO" placeholder="Purchase Order number">
+      </div>
+    </div>
+    <div class="field" style="margin-top:.5rem">
+      <label>Notes / Comments</label>
+      <textarea id="incNotes" rows="2" placeholder="Truck, time window, special instructions…"></textarea>
+    </div>
+    <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end">
+      <button id="btnDeleteIncoming" class="btn btn-danger btn-sm" style="margin-right:auto;display:none" onclick="deleteIncomingItem()">🗑 Delete</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('incomingOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIncomingItem()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MONITOR SETTINGS MODAL ════════════════════════════════════════════════ -->
+<div class="overlay" id="monitorOverlay">
+  <div class="modal" style="max-width:560px">
+    <h3>⚙ Low-Stock Monitor Settings</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">
+      Select which materials appear in the alert banner. Leave all unchecked to monitor <em>all</em> materials.
+    </p>
+    <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
+      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(true)">✓ Select All</button>
+      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(false)">✕ Clear All</button>
+    </div>
+    <div class="monitor-grid" id="monitorGrid"></div>
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('monitorOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMonitorSettings()">💾 Save</button>
+    </div>
+  </div>
+</div>
 
 <div class="system-footer">
   &copy; 2026 OX Glass Co. Proprietary Warehouse Management System.<br>
@@ -605,6 +809,8 @@ var colVis = { sysDate:false, gc:false, project:true, supplier:false, resp:true,
 var chartsReady = false;
 var userRole = 'WAREHOUSE';
 var userEmail = '';
+var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
+var monitoredMaterials = null; // null = all; array of names = filtered
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 function nz(v){ return v || ''; }
@@ -692,6 +898,7 @@ function showTab(tab, btnId){
   document.getElementById(btnId).classList.add('active');
   if (tab === 'projects')  refreshProjectDropdown();
   if (tab === 'warehouse') renderWarehouseMap();
+  if (tab === 'incoming')  renderIncoming();
   renderAll();
 }
 
@@ -703,16 +910,26 @@ function renderStats(){
   var totalSite= items.reduce(function(a,s){ return a + Math.max(0, s.siteQty); }, 0);
   var activeProjects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
 
-  // ── Low-stock alert: zero stock + below minimum ───────────────────────────
-  var zeroItems = items.filter(function(s){ return s.warehouseQty <= 0 && s.siteQty <= 0; });
+  // ── Low-stock alert: apply monitored filter, then find zero + below-min ────
+  // monitoredMaterials = null  → watch everything
+  // monitoredMaterials = []    → watching nothing (no alerts)
+  // monitoredMaterials = [..] → watch only these names
+  var watchedItems = items;
+  if (monitoredMaterials && monitoredMaterials.length) {
+    var monSet = {};
+    monitoredMaterials.forEach(function(n){ monSet[(n||'').toUpperCase()] = true; });
+    watchedItems = items.filter(function(s){ return monSet[(s.name||'').toUpperCase()]; });
+  }
+
+  var zeroItems = watchedItems.filter(function(s){ return s.warehouseQty <= 0 && s.siteQty <= 0; });
 
   // Below-minimum: matches config.minStock keys against item names
   var belowMin = [];
   if (config.minStock) {
-    items.forEach(function(s){
+    watchedItems.forEach(function(s){
       var min = config.minStock[s.name] || config.minStock[(s.name||'').toUpperCase()];
       if (min > 0 && s.availableQty < min && s.availableQty > 0){
-        belowMin.push({ name: s.name, current: s.availableQty, min: min });
+        belowMin.push({ name: s.name, current: s.availableQty, min: min, category: s.category });
       }
     });
   }
@@ -735,15 +952,18 @@ function renderStats(){
       parts.push('<span style="color:var(--yellow);font-weight:700">⚠ Below minimum (' + belowMin.length + '):</span> ' + lowNames);
     }
     alertText.innerHTML = parts.join('<br style="margin:.15rem 0">');
-    banner.style.flexDirection = 'column';
-    banner.style.alignItems    = 'flex-start';
-    banner.style.gap           = '.3rem';
     // Red border when there are zero-stock items, yellow when only low
     banner.style.borderColor  = zeroItems.length ? 'var(--red)'    : 'var(--yellow)';
     banner.style.background   = zeroItems.length ? 'var(--red-bg)' : 'var(--yellow-bg)';
+    // Admin-only gear button
+    var gear = document.getElementById('btnMonitorSettings');
+    if (gear) gear.style.display = (userRole === 'ADMIN') ? '' : 'none';
     banner.classList.add('show');
+    // Build stock detail panel content
+    _buildStockDetailPanel(zeroItems, belowMin);
   } else {
     banner.classList.remove('show');
+    document.getElementById('stockDetailPanel').classList.remove('open');
   }
 
   document.getElementById('statsRow').innerHTML =
@@ -1676,6 +1896,328 @@ function renderAll(){
   }
 }
 
+// ── Stock Detail Panel ────────────────────────────────────────────────────────
+function _buildStockDetailPanel(zeroItems, belowMin) {
+  var body = document.getElementById('stockDetailBody');
+  if (!body) return;
+  var zeroHtml = zeroItems.length
+    ? zeroItems.map(function(s){
+        return '<div class="sdp-row">' +
+          '<span class="sdp-name" title="' + s.name + '">' + s.name + '</span>' +
+          '<span class="sdp-qty">' +
+            '<span class="badge badge-red">0</span>' +
+          '</span></div>';
+      }).join('')
+    : '<div class="sdp-empty">None ✓</div>';
+  var lowHtml = belowMin.length
+    ? belowMin.map(function(b){
+        return '<div class="sdp-row">' +
+          '<span class="sdp-name" title="' + b.name + '">' + b.name + '</span>' +
+          '<span class="sdp-qty">' +
+            '<span class="badge badge-yellow" title="Current">' + b.current + '</span>' +
+            '<span style="color:var(--muted);font-size:.7rem">min ' + b.min + '</span>' +
+          '</span></div>';
+      }).join('')
+    : '<div class="sdp-empty">None ✓</div>';
+
+  body.innerHTML =
+    '<div class="sdp-section" style="border-right:1px solid var(--border)">' +
+      '<h4 style="color:var(--red)">🚫 Zero Stock (' + zeroItems.length + ')</h4>' +
+      zeroHtml +
+    '</div>' +
+    '<div class="sdp-section">' +
+      '<h4 style="color:var(--yellow)">⚠ Below Minimum (' + belowMin.length + ')</h4>' +
+      lowHtml +
+    '</div>';
+}
+
+function toggleStockPanel() {
+  var panel = document.getElementById('stockDetailPanel');
+  if (panel) panel.classList.toggle('open');
+}
+
+// ── Monitor Settings (which materials to watch) ───────────────────────────────
+function openMonitorModal() {
+  var items = Object.values(stockData).sort(function(a,b){ return a.name < b.name ? -1 : 1; });
+  var monSet = {};
+  if (monitoredMaterials && monitoredMaterials.length) {
+    monitoredMaterials.forEach(function(n){ monSet[(n||'').toUpperCase()] = true; });
+  }
+  var allMonitored = !monitoredMaterials || monitoredMaterials.length === 0;
+  document.getElementById('monitorGrid').innerHTML = items.map(function(s, i) {
+    var checked = allMonitored || monSet[(s.name||'').toUpperCase()];
+    return '<label class="monitor-item">' +
+      '<input type="checkbox" class="mon-chk" value="' + s.name.replace(/"/g,'&quot;') + '"' +
+        (checked ? ' checked' : '') + '>' +
+      '<span>' + catBadge(s.category) + ' </span>' +
+      '<span style="flex:1">' + s.name + '</span>' +
+      '<span style="color:var(--muted);font-size:.75rem">' + s.warehouseQty + '</span>' +
+    '</label>';
+  }).join('');
+  document.getElementById('monitorOverlay').classList.add('show');
+}
+
+function monitorSelectAll(val) {
+  document.querySelectorAll('.mon-chk').forEach(function(c){ c.checked = val; });
+}
+
+function saveMonitorSettings() {
+  var selected = [];
+  document.querySelectorAll('.mon-chk:checked').forEach(function(c){ selected.push(c.value); });
+  // If everything checked, treat as "no filter"
+  var total = document.querySelectorAll('.mon-chk').length;
+  var names = (selected.length === total) ? [] : selected;
+
+  google.script.run
+    .withSuccessHandler(function(){
+      monitoredMaterials = names.length ? names : null;
+      closeModal('monitorOverlay');
+      renderStats();
+      alert('✓ Monitor settings saved.');
+    })
+    .withFailureHandler(function(err){ alert('Error: ' + err.message); })
+    .processMovement('setMonitoredMaterials', { names: names });
+}
+
+// ── Incoming Materials ────────────────────────────────────────────────────────
+function renderIncoming() {
+  renderIncomingWeekGrid();
+  renderIncomingTable();
+}
+
+function renderIncomingWeekGrid() {
+  var grid = document.getElementById('incomingWeekGrid');
+  if (!grid) return;
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var todayStr = _isoDate(today);
+
+  // Build 7 days starting from today
+  var days = [];
+  for (var d = 0; d < 7; d++) {
+    var dt = new Date(today);
+    dt.setDate(today.getDate() + d);
+    days.push({ date: _isoDate(dt), label: _dayLabel(dt, d), items: [] });
+  }
+
+  var sf = (document.getElementById('incStatusFilter') || {}).value || '';
+  incoming.forEach(function(item) {
+    if (sf && item.status !== sf) return;
+    for (var d = 0; d < days.length; d++) {
+      if (days[d].date === item.estDate) { days[d].items.push(item); break; }
+    }
+  });
+
+  grid.innerHTML = days.map(function(day) {
+    var isToday = day.date === todayStr;
+    var content = day.items.length
+      ? day.items.map(function(item) {
+          return '<div class="day-item">' +
+            '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' + item.name +
+            (item.supplier ? ' <span style="color:var(--muted);font-size:.72rem">— ' + item.supplier + '</span>' : '') +
+            ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
+          '</div>';
+        }).join('')
+      : '<div class="day-empty">Nothing scheduled</div>';
+    return '<div class="day-card' + (isToday ? ' today' : '') + '">' +
+      '<div class="day-label">' + day.label + ' <small style="font-weight:400;opacity:.7">' + day.date.substring(5) + '</small></div>' +
+      content +
+    '</div>';
+  }).join('');
+}
+
+function renderIncomingTable() {
+  var container = document.getElementById('incomingTableContainer');
+  if (!container) return;
+  var sf = (document.getElementById('incStatusFilter') || {}).value || '';
+  var filtered = incoming.filter(function(i){ return !sf || i.status === sf; });
+  if (!filtered.length) {
+    container.innerHTML = '<p style="padding:1rem;color:var(--muted)">No incoming materials' + (sf ? ' with status "' + sf + '"' : '') + '.</p>';
+    return;
+  }
+  var isAdmin = userRole === 'ADMIN';
+  var html = '<table><thead><tr>' +
+    '<th>Est. Date</th><th>Status</th><th>Category</th><th>Name</th>' +
+    '<th>Qty</th><th>Unit</th><th>Supplier</th><th>PO #</th><th>Notes</th>' +
+    (isAdmin ? '<th>Actions</th>' : '') +
+    '</tr></thead><tbody>';
+  html += filtered.map(function(item){
+    var today = _isoDate(new Date());
+    var isOverdue = item.status === 'Pending' && item.estDate < today;
+    var statusBadge = '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>';
+    if (isOverdue) statusBadge += ' <span class="badge badge-red" style="font-size:.65rem">overdue</span>';
+    return '<tr>' +
+      '<td style="white-space:nowrap;font-weight:600' + (isOverdue?';color:var(--red)':'') + '">' + (item.estDate||'—') + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + catBadge(item.category) + '</td>' +
+      '<td><strong>' + item.name + '</strong></td>' +
+      '<td>' + item.qty + '</td>' +
+      '<td style="color:var(--muted);font-size:.78rem">' + item.unit + '</td>' +
+      '<td style="font-size:.78rem">' + (item.supplier||'—') + '</td>' +
+      '<td style="font-size:.78rem">' + (item.po||'—') + '</td>' +
+      '<td style="font-size:.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
+      (isAdmin ? '<td><button class="btn-icon" onclick="openIncomingModal(\'' + item.id + '\')">✏️</button></td>' : '') +
+    '</tr>';
+  }).join('');
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function openIncomingModal(id) {
+  var isEdit = !!id;
+  document.getElementById('incomingModalTitle').textContent = isEdit ? '✏️ Edit Expected Material' : '📦 Add Expected Material';
+  document.getElementById('btnDeleteIncoming').style.display = isEdit ? '' : 'none';
+  document.getElementById('incId').value = id || '';
+  if (isEdit) {
+    var item = incoming.find(function(i){ return i.id === id; });
+    if (!item) { alert('Item not found'); return; }
+    document.getElementById('incDate').value     = item.estDate || '';
+    document.getElementById('incStatus').value   = item.status  || 'Pending';
+    document.getElementById('incCategory').value = item.category|| '';
+    document.getElementById('incName').value     = item.name    || '';
+    document.getElementById('incQty').value      = item.qty     || 1;
+    document.getElementById('incUnit').value     = item.unit    || 'UNIT';
+    document.getElementById('incSupplier').value = item.supplier|| '';
+    document.getElementById('incPO').value       = item.po      || '';
+    document.getElementById('incNotes').value    = item.notes   || '';
+  } else {
+    // Defaults for new
+    document.getElementById('incDate').value     = _isoDate(new Date());
+    document.getElementById('incStatus').value   = 'Pending';
+    document.getElementById('incCategory').value = '';
+    document.getElementById('incName').value     = '';
+    document.getElementById('incQty').value      = 1;
+    document.getElementById('incUnit').value     = 'UNIT';
+    document.getElementById('incSupplier').value = '';
+    document.getElementById('incPO').value       = '';
+    document.getElementById('incNotes').value    = '';
+  }
+  document.getElementById('incomingOverlay').classList.add('show');
+}
+
+function saveIncomingItem() {
+  var id       = document.getElementById('incId').value;
+  var estDate  = document.getElementById('incDate').value;
+  var category = document.getElementById('incCategory').value;
+  var name     = (document.getElementById('incName').value || '').trim();
+  if (!estDate){ alert('Please select an estimated date'); return; }
+  if (!name)   { alert('Please enter a material name');   return; }
+
+  var payload = {
+    id:       id || undefined,
+    estDate:  estDate,
+    status:   document.getElementById('incStatus').value,
+    category: category,
+    name:     name,
+    qty:      Number(document.getElementById('incQty').value) || 1,
+    unit:     document.getElementById('incUnit').value,
+    supplier: document.getElementById('incSupplier').value,
+    po:       document.getElementById('incPO').value,
+    notes:    document.getElementById('incNotes').value
+  };
+
+  var action = id ? 'updateIncoming' : 'addIncoming';
+  var btn = document.getElementById('incomingOverlay').querySelector('.btn-primary');
+  btn.textContent = 'Saving… ⏳'; btn.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.textContent = '💾 Save'; btn.disabled = false;
+      closeModal('incomingOverlay');
+      loadDataFromGoogle(); // refresh to get updated list
+    })
+    .withFailureHandler(function(err){
+      btn.textContent = '💾 Save'; btn.disabled = false;
+      alert('Error: ' + err.message);
+    })
+    .processMovement(action, payload);
+}
+
+function deleteIncomingItem() {
+  var id = document.getElementById('incId').value;
+  if (!id) return;
+  if (!confirm('Delete this incoming item? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(){
+      closeModal('incomingOverlay');
+      loadDataFromGoogle();
+    })
+    .withFailureHandler(function(err){ alert('Error: ' + err.message); })
+    .processMovement('deleteIncoming', { id: id });
+}
+
+// ── Morning Popup ─────────────────────────────────────────────────────────────
+function _isoDate(dt) {
+  return dt.toISOString().substring(0, 10);
+}
+
+function _dayLabel(dt, offset) {
+  if (offset === 0) return '🌟 Today';
+  if (offset === 1) return 'Tomorrow';
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+}
+
+function checkMorningPopup() {
+  var today    = new Date();
+  var todayStr = _isoDate(today);
+  var storageKey = 'oxwms_popup_' + todayStr;
+  if (localStorage.getItem(storageKey)) return; // already shown today
+
+  // End of current week (Sunday + 6 = Saturday)
+  var dayOfWeek  = today.getDay();
+  var endOfWeek  = new Date(today);
+  endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+  var endStr = _isoDate(endOfWeek);
+
+  var thisWeek = incoming.filter(function(item) {
+    return item.status === 'Pending' &&
+           item.estDate >= todayStr &&
+           item.estDate <= endStr;
+  });
+
+  if (!thisWeek.length) return; // nothing this week — don't annoy the user
+
+  localStorage.setItem(storageKey, '1');
+  showMorningPopup(thisWeek, todayStr);
+}
+
+function showMorningPopup(items, todayStr) {
+  var todayItems = items.filter(function(i){ return i.estDate === todayStr; });
+  var restItems  = items.filter(function(i){ return i.estDate !== todayStr; });
+
+  function itemRow(item) {
+    return '<div class="morning-item">' +
+      '<div><div class="morning-item-name">' + item.qty + ' ' + item.unit + ' — ' + item.name + '</div>' +
+        '<div class="morning-item-meta">' +
+          (item.estDate !== todayStr ? item.estDate + ' · ' : '') +
+          (item.supplier ? item.supplier : '') +
+          (item.po ? ' · PO: ' + item.po : '') +
+          (item.notes ? '<br><span style="opacity:.8">' + item.notes + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>' +
+    '</div>';
+  }
+
+  var body = document.getElementById('morningPopupBody');
+  var html = '';
+  if (todayItems.length) {
+    html += '<div class="morning-today"><div class="morning-today-label">☀️ Arriving Today</div>' +
+      todayItems.map(itemRow).join('') + '</div>';
+  } else {
+    html += '<div class="morning-today" style="border-color:#E5E7EB;background:var(--bg)"><div class="morning-today-label" style="color:var(--muted)">Nothing arriving today</div></div>';
+  }
+  if (restItems.length) {
+    html += '<div class="morning-week-label">🗓 Rest of This Week</div>' + restItems.map(itemRow).join('');
+  }
+  body.innerHTML = html;
+  document.getElementById('morningOverlay').classList.add('show');
+}
+
+function closeMorningPopup() {
+  document.getElementById('morningOverlay').classList.remove('show');
+}
+
 // ── Load Data from Backend ────────────────────────────────────────────────────
 function loadDataFromGoogle(){
   lastLoadTime = null;
@@ -1684,12 +2226,14 @@ function loadDataFromGoogle(){
     '<p style="padding:1rem;color:var(--muted)"><span class="spin-hg">⏳</span> Loading data…</p>';
   google.script.run
     .withSuccessHandler(function(data){
-      movements    = data.movements    || [];
-      stockData    = data.stock        || {};
-      config       = data.config       || config;
-      reservations = data.reservations || [];
-      userRole     = data.userRole     || 'WAREHOUSE';
-      userEmail    = data.userEmail    || '';
+      movements          = data.movements         || [];
+      stockData          = data.stock             || {};
+      config             = data.config            || config;
+      reservations       = data.reservations      || [];
+      userRole           = data.userRole          || 'WAREHOUSE';
+      userEmail          = data.userEmail         || '';
+      incoming           = data.incoming          || [];
+      monitoredMaterials = data.monitoredMaterials || null;
       lastLoadTime = Date.now();
       setConnStatus('online');
       document.getElementById('userChip').textContent = userEmail + ' · ' + userRole;
@@ -1698,6 +2242,7 @@ function loadDataFromGoogle(){
       refreshDropdowns();
       refreshProjectDropdown();
       renderAll();
+      checkMorningPopup();
     })
     .withFailureHandler(function(err){
       setConnStatus('offline');
@@ -1719,6 +2264,7 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btn-movements').addEventListener('click', function(){ showTab('movements','btn-movements'); });
   document.getElementById('btn-projects').addEventListener('click',  function(){ showTab('projects','btn-projects'); });
   document.getElementById('btn-warehouse').addEventListener('click', function(){ showTab('warehouse','btn-warehouse'); });
+  document.getElementById('btn-incoming').addEventListener('click',  function(){ showTab('incoming','btn-incoming'); });
 
   // Warehouse Map filters
   document.getElementById('mapSearch').addEventListener('input',    renderWarehouseMap);
@@ -1746,6 +2292,16 @@ document.addEventListener('DOMContentLoaded', function(){
   // Export
   document.getElementById('btnExportCSV').addEventListener('click', exportMovementsCSV);
   document.getElementById('btnExportProject').addEventListener('click', exportProjectCSV);
+
+  // Incoming filter
+  document.getElementById('incStatusFilter').addEventListener('change', renderIncoming);
+
+  // Incoming + Monitor modals — close on outside click
+  document.getElementById('incomingOverlay').addEventListener('click', function(e){ closeIfOutside(e,'incomingOverlay'); });
+  document.getElementById('monitorOverlay').addEventListener('click',  function(e){ closeIfOutside(e,'monitorOverlay'); });
+  document.getElementById('morningOverlay').addEventListener('click',  function(e){
+    if (e.target === document.getElementById('morningOverlay')) closeMorningPopup();
+  });
 
   // Open modal buttons
   document.getElementById('btnEntry').addEventListener('click', function(){ openMoveModal('ENTRY'); });
@@ -1794,11 +2350,17 @@ document.addEventListener('DOMContentLoaded', function(){
 // ── Role-based UI ─────────────────────────────────────────────────────────────
 function applyRoleUI(){
   var isViewer = (userRole === 'VIEWER');
+  var isAdmin  = (userRole === 'ADMIN');
   // Hide write buttons for viewers
   ['btnEntry','btnExit'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.style.display = isViewer ? 'none' : '';
   });
+  // Admin-only buttons
+  var addInc = document.getElementById('btnAddIncoming');
+  if (addInc) addInc.style.display = isAdmin ? '' : 'none';
+  var gear = document.getElementById('btnMonitorSettings');
+  if (gear) gear.style.display = isAdmin ? '' : 'none';
   // Show a "View Only" tag next to the user chip when in VIEWER mode
   var tag = document.getElementById('viewerTag');
   if (!tag && isViewer){
