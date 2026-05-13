@@ -255,6 +255,11 @@
     .monitor-item:hover{background:var(--bg);border-color:var(--border)}
     .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
     .monitor-item label{cursor:pointer;flex:1}
+    /* ── SIMILAR-MATERIAL HINT ── */
+    .similar-hint{display:none;margin-top:.3rem;padding:.3rem .6rem;background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px;font-size:.76rem;color:#92400E;align-items:center;gap:.4rem;flex-wrap:wrap}
+    .similar-hint.show{display:flex}
+    .similar-hint-use{background:#F59E0B;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap}
+    .similar-hint-use:hover{filter:brightness(.9)}
     /* ── DOCUMENT BUILDER ── */
     .doc-builder-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
     .doc-group{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.65rem .75rem;margin-bottom:.5rem;position:relative}
@@ -662,6 +667,14 @@
         <label>Name / Description</label>
         <input type="text" id="mName" list="matList" placeholder="Type or select...">
         <datalist id="matList"></datalist>
+        <!-- Similar-name hint (shown when a close match exists but name differs) -->
+        <div class="similar-hint" id="similarHint">
+          <span>💡 Similar material exists:</span>
+          <strong id="similarHintName"></strong>
+          <button class="similar-hint-use" onclick="applySimilarHint()">Use this name</button>
+          <button onclick="document.getElementById('similarHint').classList.remove('show')"
+                  style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0 2px">✕</button>
+        </div>
       </div>
       <div class="field">
         <label id="dateLabel">Date Received</label>
@@ -753,9 +766,9 @@
         <input type="text" id="mSup" list="supplierList">
         <datalist id="supplierList"></datalist>
       </div>
-      <div class="field"><label>GC</label><input type="text" id="mGC"></div>
-      <div class="field"><label>PO#</label><input type="text" id="mPO"></div>
-      <div class="field">
+      <div class="field" id="mGCField"><label>GC</label><input type="text" id="mGC"></div>
+      <div class="field" id="mPOField"><label>PO#</label><input type="text" id="mPO"></div>
+      <div class="field" id="mProjField">
         <label>Project / Client</label>
         <input type="text" id="mProj" list="projList">
         <datalist id="projList"></datalist>
@@ -1431,6 +1444,9 @@ function openMoveModal(type){
   document.getElementById('mUnit').value    = 'UNIT';
   // Reset document builder (creates one default "Invoice" group)
   resetDocBuilder();
+  // Hide similar-material hint
+  document.getElementById('similarHint').classList.remove('show');
+  _similarHintSuggested = '';
   var notifyChk = document.getElementById('mNotify');
   if (notifyChk) notifyChk.checked = false;
   document.getElementById('notifyFields').style.display = 'none';
@@ -1473,11 +1489,17 @@ function setModalType(type){
   var exitLocsSection  = document.getElementById('exitLocsSection');
   var exitDestField    = document.getElementById('exitDestField');
   var mQtyField        = document.getElementById('mQtyField');
+  var gcField          = document.getElementById('mGCField');
+  var poField          = document.getElementById('mPOField');
+  var projField        = document.getElementById('mProjField');
 
   // Default: hide all dynamic sections
   srcField.style.display = 'none';
   destField.style.display = 'none';
   supField.style.display = 'flex';
+  gcField.style.display  = 'flex';
+  poField.style.display  = 'flex';
+  projField.style.display = 'flex';
   fileSection.style.display = 'none';
   notifySection.style.display = 'none';
   entryLocsSection.style.display = 'none';
@@ -1504,10 +1526,15 @@ function setModalType(type){
     mStatus.value = 'In Stock';
 
   } else if (type === 'EXIT'){
-    // EXIT uses multi-source widget; qty is driven by source rows
+    // EXIT: only needs what, how much, from where, going where, who took it
+    // Supplier / GC / PO / Project belong to the ENTRY — don't re-ask on EXIT
     exitLocsSection.style.display = 'block';
     exitDestField.style.display   = 'flex';
     mQtyField.style.display       = 'none';
+    supField.style.display  = 'none';
+    gcField.style.display   = 'none';
+    poField.style.display   = 'none';
+    projField.style.display = 'none';
     dateLabel.textContent = 'Date Dispatched';
     respLabel.textContent = 'Taken By / Given To';
     mStatus.value = 'Out';
@@ -1519,14 +1546,20 @@ function setModalType(type){
     srcLabel.textContent = 'From Rack';
     destField.style.display = 'flex';
     destLabel.textContent = 'To Rack';
-    supField.style.display = 'none';
+    supField.style.display  = 'none';
+    gcField.style.display   = 'none';
+    poField.style.display   = 'none';
+    projField.style.display = 'none';
     dateLabel.textContent = 'Date Transferred';
     respLabel.textContent = 'Moved By';
 
   } else if (type === 'RETURN'){
     destField.style.display = 'flex';
     destLabel.textContent = 'Return to Rack';
-    supField.style.display = 'none';
+    supField.style.display  = 'none';
+    gcField.style.display   = 'none';
+    poField.style.display   = 'none';
+    projField.style.display = 'none';
     dateLabel.textContent = 'Date Returned';
     respLabel.textContent = 'Returned By';
     mStatus.value = 'In Stock';
@@ -1534,7 +1567,10 @@ function setModalType(type){
   } else if (type === 'WASTE'){
     srcField.style.display = 'flex';
     srcLabel.textContent = 'Source Rack (pull from)';
-    supField.style.display = 'none';
+    supField.style.display  = 'none';
+    gcField.style.display   = 'none';
+    poField.style.display   = 'none';
+    projField.style.display = 'none';
     commLabel.textContent = 'Reason for Waste (required)';
     dateLabel.textContent = 'Date';
     respLabel.textContent = 'Recorded By';
@@ -1727,55 +1763,79 @@ async function submitMovement(){
     }
   }
 
-  // File uploads
   var btn = document.getElementById('moveSubmit');
-  btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
 
   // Collect document groups from the builder (already compressed + previewed)
   var docGroups = (currentMoveType === 'ENTRY') ? _collectDocGroups() : [];
 
   var proj = (document.getElementById('mProj').value || '').trim();
 
-  google.script.run
-    .withSuccessHandler(function(res){
-      closeModal('moveOverlay');
-      loadDataFromGoogle();
-      // Show non-blocking warnings for email/file issues
-      if (res && (res.emailError || res.fileError)){
-        var msgs = [];
-        if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
-        if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
-        setTimeout(function(){ alert('Movement saved ✓\n\nNote:\n' + msgs.join('\n')); }, 400);
-      }
-    })
-    .withFailureHandler(function(err){
-      alert('Error: ' + (err.message || err));
-      btn.textContent = 'Save to System'; btn.disabled = false;
-    })
-    .processMovement('addMovement', {
-      moveType:         currentMoveType,
-      category:         cat,
-      name:             name,
-      project:          proj,
-      isGeneric:        !proj,
-      gc:               document.getElementById('mGC').value,
-      po:               document.getElementById('mPO').value,
-      qty:              qty,
-      unit:             document.getElementById('mUnit').value,
-      dateRec:          document.getElementById('mDateRec').value,
-      sourceLoc:        sourceLoc,
-      destLoc:          destLoc,
-      locations:        currentMoveType === 'ENTRY' ? entryLocations : null,
-      exitLocations:    currentMoveType === 'EXIT'  ? exitLocations  : null,
-      supplier:         document.getElementById('mSup').value,
-      comments:         comments,
-      status:           document.getElementById('mStatus').value,
-      responsible:      document.getElementById('mResp').value,
-      truck:            document.getElementById('mTruck').value,
-      docGroups:        docGroups,        // new: named multi-photo document groups
-      files:            [],               // legacy field kept for compat (not used now)
-      notifyRecipients: notifyPayload
-    });
+  // Build the payload once; _doSubmit can be called with forceSubmit=true on retry
+  var payload = {
+    moveType:         currentMoveType,
+    category:         cat,
+    name:             name,
+    project:          proj,
+    isGeneric:        !proj,
+    gc:               document.getElementById('mGC').value,
+    po:               document.getElementById('mPO').value,
+    qty:              qty,
+    unit:             document.getElementById('mUnit').value,
+    dateRec:          document.getElementById('mDateRec').value,
+    sourceLoc:        sourceLoc,
+    destLoc:          destLoc,
+    locations:        currentMoveType === 'ENTRY' ? entryLocations : null,
+    exitLocations:    currentMoveType === 'EXIT'  ? exitLocations  : null,
+    supplier:         document.getElementById('mSup').value,
+    comments:         comments,
+    status:           document.getElementById('mStatus').value,
+    responsible:      document.getElementById('mResp').value,
+    truck:            document.getElementById('mTruck').value,
+    docGroups:        docGroups,
+    files:            [],
+    notifyRecipients: notifyPayload,
+    forceSubmit:      false
+  };
+
+  function _doSubmit(force) {
+    payload.forceSubmit = !!force;
+    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(res){
+        closeModal('moveOverlay');
+        loadDataFromGoogle();
+        if (res && (res.emailError || res.fileError)){
+          var msgs = [];
+          if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
+          if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
+          setTimeout(function(){ alert('Movement saved ✓\n\nNote:\n' + msgs.join('\n')); }, 400);
+        }
+      })
+      .withFailureHandler(function(err){
+        var msg = err.message || String(err);
+        // ── Duplicate detected by backend ──────────────────────────────────
+        if (msg.indexOf('DUPLICATE_MOVEMENT|') === 0) {
+          btn.textContent = 'Save to System'; btn.disabled = false;
+          var parts      = msg.split('|');
+          var minsAgo    = parts[2] || '< 1';
+          var confirmed  = confirm(
+            '⚠️ Possible duplicate movement\n\n' +
+            'An identical ' + currentMoveType + ' for ' + qty + ' × ' + name +
+            ' was already saved ' + minsAgo + ' minute(s) ago.\n\n' +
+            'This might be a double-click or double-tab.\n\n' +
+            'Save anyway?'
+          );
+          if (confirmed) _doSubmit(true); // retry with forceSubmit=true
+          return;
+        }
+        // ── Any other error ────────────────────────────────────────────────
+        alert('Error: ' + msg);
+        btn.textContent = 'Save to System'; btn.disabled = false;
+      })
+      .processMovement('addMovement', payload);
+  }
+
+  _doSubmit(false);
 }
 
 // ── Attachment Upload ─────────────────────────────────────────────────────────
@@ -1975,6 +2035,71 @@ function resetDocBuilder() {
   if (c) c.innerHTML = '';
   _docGroupCounter = 0;
   addDocGroup('Invoice'); // start with one "Invoice" group
+}
+
+// ── Similar-material detection ────────────────────────────────────────────────
+// Returns the most similar existing material name (or null) using word-overlap.
+// Threshold: 70% of words must match (both directions checked to handle subsets).
+var _similarHintSuggested = '';
+
+function _findSimilarMaterial(typedName, typedCat) {
+  var normalTyped = nt(typedName);
+  if (!normalTyped || normalTyped.length < 3) return null;
+  var typedWords = normalTyped.split(' ').filter(Boolean);
+  var best = null, bestScore = 0;
+
+  Object.keys(stockData).forEach(function(key) {
+    var parts = key.split('|||');
+    var existCat  = (parts[0] || '').toUpperCase().trim();
+    var existName = (parts[1] || '').toUpperCase().trim();
+
+    // Only compare within the same category (if category is known)
+    if (typedCat && existCat !== nt(typedCat)) return;
+    // Skip exact matches — nothing to warn about
+    if (existName === normalTyped) return;
+
+    var existWords = existName.split(' ').filter(Boolean);
+    // Word overlap: shared words / max(both lengths)
+    var shared = typedWords.filter(function(w){ return existWords.indexOf(w) !== -1; }).length;
+    var maxLen = Math.max(typedWords.length, existWords.length);
+    var score  = maxLen > 0 ? shared / maxLen : 0;
+
+    if (score > bestScore && score >= 0.70) {
+      bestScore = score;
+      best = existName;
+    }
+  });
+  return best;
+}
+
+// Called ~600ms after the user stops typing in mName
+var _similarDebounce = null;
+function triggerSimilarCheck() {
+  clearTimeout(_similarDebounce);
+  _similarDebounce = setTimeout(function() {
+    var hint   = document.getElementById('similarHint');
+    var label  = document.getElementById('similarHintName');
+    var typed  = (document.getElementById('mName').value || '').trim();
+    var cat    = document.getElementById('mType').value;
+    var similar = _findSimilarMaterial(typed, cat);
+    if (similar && similar !== nt(typed)) {
+      _similarHintSuggested = similar;
+      label.textContent = similar;
+      hint.classList.add('show');
+    } else {
+      hint.classList.remove('show');
+      _similarHintSuggested = '';
+    }
+  }, 600);
+}
+
+function applySimilarHint() {
+  if (_similarHintSuggested) {
+    document.getElementById('mName').value = _similarHintSuggested;
+    document.getElementById('similarHint').classList.remove('show');
+    _similarHintSuggested = '';
+    checkStock(); updateNotifyPreview();
+  }
 }
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
@@ -2240,8 +2365,10 @@ function renderIncomingWeekGrid() {
     var content = day.items.length
       ? day.items.map(function(item) {
           return '<div class="day-item">' +
-            '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' + item.name +
-            (item.supplier ? ' <span style="color:var(--muted);font-size:.72rem">— ' + item.supplier + '</span>' : '') +
+            catBadge(item.category) + ' ' +
+            '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' +
+            '<span>' + item.name + '</span>' +
+            (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + item.notes + '</div>' : '') +
             ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
           '</div>';
         }).join('')
@@ -2265,8 +2392,8 @@ function renderIncomingTable() {
   var isAdmin = userRole === 'ADMIN';
   var html = '<table><thead><tr>' +
     '<th>Est. Date</th><th>Status</th><th>Category</th><th>Name</th>' +
-    '<th>Qty</th><th>Unit</th><th>Supplier</th><th>PO #</th><th>Notes</th>' +
-    (isAdmin ? '<th>Actions</th>' : '') +
+    '<th>Qty</th><th>Unit</th><th>Notes / Comments</th>' +
+    (isAdmin ? '<th></th>' : '') +
     '</tr></thead><tbody>';
   html += filtered.map(function(item){
     var today = _isoDate(new Date());
@@ -2278,11 +2405,9 @@ function renderIncomingTable() {
       '<td>' + statusBadge + '</td>' +
       '<td>' + catBadge(item.category) + '</td>' +
       '<td><strong>' + item.name + '</strong></td>' +
-      '<td>' + item.qty + '</td>' +
+      '<td style="font-weight:700">' + item.qty + '</td>' +
       '<td style="color:var(--muted);font-size:.78rem">' + item.unit + '</td>' +
-      '<td style="font-size:.78rem">' + (item.supplier||'—') + '</td>' +
-      '<td style="font-size:.78rem">' + (item.po||'—') + '</td>' +
-      '<td style="font-size:.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
+      '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
       (isAdmin ? '<td><button class="btn-icon" onclick="openIncomingModal(\'' + item.id + '\')">✏️</button></td>' : '') +
     '</tr>';
   }).join('');
@@ -2683,6 +2808,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // Modal: name input → stock check + notify preview
   document.getElementById('mName').addEventListener('input', function(){
     checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows();
+    triggerSimilarCheck(); // debounced similar-name detection
   });
   document.getElementById('mType').addEventListener('change', function(){
     validateExitRows(); autoFillExitRows();

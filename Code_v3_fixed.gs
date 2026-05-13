@@ -91,8 +91,26 @@ function normalizeString(str) {
   return String(str || '')
     .toUpperCase()
     .trim()
+    // Collapse any whitespace sequence (tabs, multiple spaces) to one space
     .replace(/\s+/g, ' ')
+    // Remove or neutralize characters that create false variants:
+    //   commas/periods/apostrophes that people sometimes add/omit
+    .replace(/[,.'`]/g, '')
+    // Collapse again after removals (e.g. "4-IN" → "4 IN" not "4  IN")
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    // Finally sanitize filesystem-unsafe chars
     .replace(/[\/\\?%*:|"<>]/g, '_');
+}
+
+// Convert a spreadsheet cell value to a plain string.
+// Sheets sometimes auto-converts PO# fields like "01-04-25" to a Date object.
+// This function returns empty string for Date values (better than a timestamp dump).
+function _safeStr(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (val instanceof Date) return '';  // don't show garbled dates where text is expected
+  return String(val).trim();
 }
 
 function getMaterialId(cat, name) {
@@ -471,6 +489,17 @@ function _addMovement(ss, archive, data, auth) {
   }
 
   try {
+    // ── Duplicate-movement guard ──────────────────────────────────────────────
+    // Check if an identical movement (same type+category+name+qty+user) was already
+    // saved within the last 3 minutes. This catches double-clicks and double-tabs.
+    // Pass forceSubmit:true from the frontend to bypass if the user confirms.
+    if (!data.forceSubmit) {
+      var dupResult = _checkDuplicateMovement(archive, mt, cat, name, qty, auth.email);
+      if (dupResult) {
+        throw new Error('DUPLICATE_MOVEMENT|' + dupResult.rowIdx + '|' + dupResult.minutesAgo);
+      }
+    }
+
     var freshStock = getCurrentStockForItem(ss, matId);
     var src  = normalizeString(data.sourceLoc || '');
     var dest = normalizeString(data.destLoc   || '');
@@ -839,6 +868,61 @@ function _uploadFiles(files, materialName, po) {
   return links.join('\n');
 }
 
+// ─── DUPLICATE MOVEMENT DETECTION ────────────────────────────────────────────
+// Scans the last MAX_ROWS rows of the archive for an identical movement saved
+// within WINDOW_MS milliseconds by the same user.
+// Returns { rowIdx, minutesAgo } if a duplicate is found, or null if clean.
+function _checkDuplicateMovement(archive, mt, cat, name, qty, userEmail) {
+  var WINDOW_MS = 3 * 60 * 1000; // 3-minute window
+  var MAX_ROWS  = 40;             // only look at the last 40 rows (fast)
+
+  var lastRow = archive.getLastRow();
+  if (lastRow < 2) return null;   // empty archive
+
+  var startRow = Math.max(2, lastRow - MAX_ROWS + 1);
+  var numRows  = lastRow - startRow + 1;
+
+  // Read only the columns we need: TIMESTAMP(A), CATEGORY(B), NAME(C), QTY(F), USER_EMAIL(Q), MOVETYPE(S)
+  // Column indices (1-based): 1,2,3,6,17,19
+  var tsCol    = AC.TIMESTAMP   + 1;  // 1
+  var catCol   = AC.CATEGORY    + 1;  // 2
+  var nameCol  = AC.NAME        + 1;  // 3
+  var qtyCol   = AC.QTY         + 1;  // 6
+  var emailCol = AC.USER_EMAIL  + 1;  // 17
+  var mtCol    = AC.MOVETYPE    + 1;  // 19
+
+  // Fetch only needed columns to minimize quota usage
+  var allCols = archive.getRange(startRow, 1, numRows, 19).getValues();
+  var now = new Date().getTime();
+
+  for (var i = allCols.length - 1; i >= 0; i--) {
+    var row = allCols[i];
+    var rowTs = row[AC.TIMESTAMP];
+    if (!(rowTs instanceof Date)) continue;
+
+    var ageMs = now - rowTs.getTime();
+    if (ageMs > WINDOW_MS) break; // rows are chronological; once outside window, stop
+
+    var rowMt    = String(row[AC.MOVETYPE]   || '').toUpperCase().trim();
+    var rowCat   = String(row[AC.CATEGORY]   || '').toUpperCase().trim();
+    var rowName  = String(row[AC.NAME]       || '').toUpperCase().trim();
+    var rowQty   = Number(row[AC.QTY]        || 0);
+    var rowEmail = String(row[AC.USER_EMAIL] || '').toLowerCase().trim();
+
+    if (rowMt    === mt.toUpperCase()        &&
+        rowCat   === cat.toUpperCase()       &&
+        rowName  === name.toUpperCase()      &&
+        rowQty   === qty                     &&
+        rowEmail === (userEmail || '').toLowerCase()) {
+      return {
+        rowIdx:     startRow + i,
+        minutesAgo: Math.round(ageMs / 60000 * 10) / 10  // one decimal
+      };
+    }
+  }
+  return null;
+}
+
 // ─── MULTI-PHOTO NAMED DOCUMENT GROUPS ───────────────────────────────────────
 // docGroups = [ { name: "Invoice", photos: [ {fileData, fileMimeType} ] }, … ]
 // Returns newline-separated "DocName||DriveURL" strings for storage in DOC_LINKS.
@@ -1147,9 +1231,9 @@ function getIncoming() {
       name:     String(row[3]  || '').trim(),
       qty:      Number(row[4]  || 0),
       unit:     String(row[5]  || 'UNIT'),
-      supplier: String(row[6]  || ''),
-      po:       String(row[7]  || ''),
-      notes:    String(row[8]  || ''),
+      supplier: _safeStr(row[6]),
+      po:       _safeStr(row[7]),   // Sheets may return a Date if cell was auto-formatted
+      notes:    _safeStr(row[8]),
       status:   String(row[9]  || 'Pending'),
       addedBy:  String(row[10] || ''),
       addedAt:  String(row[11] || '')
