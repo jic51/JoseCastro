@@ -2710,6 +2710,33 @@ function _applyAiResultToIncomingModal(d) {
   if (d.dateReceived) document.getElementById('incDate').value     = d.dateReceived;
 }
 
+// ── Access Denied Screen ──────────────────────────────────────────────────────
+function _showAccessDeniedScreen(status, email) {
+  // Hide the entire app chrome and show a centered card instead
+  document.querySelector('.topbar').style.display = 'none';
+  document.querySelector('.container').innerHTML  =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem">' +
+    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:460px;width:100%;text-align:center">' +
+      '<div style="font-size:3rem;margin-bottom:.75rem">' + (status === 'NO_SESSION' ? '🔒' : '⛔') + '</div>' +
+      '<h2 style="font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-bottom:.5rem">' +
+        (status === 'NO_SESSION' ? 'Please sign in with Google' : 'Access not granted') +
+      '</h2>' +
+      (status === 'NO_SESSION'
+        ? '<p style="color:#6B7280;font-size:.9rem;line-height:1.5">Open this app while signed in to your Google account. If the problem persists, the administrator needs to change the deployment settings.</p>'
+        : '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:1rem">Your account is not registered in this system.</p>' +
+          (email
+            ? '<div style="background:#F0F2F5;border-radius:8px;padding:.6rem 1rem;font-size:.82rem;font-family:monospace;color:#1B2A4A;margin-bottom:1rem;word-break:break-all">' + email + '</div>' +
+              '<p style="color:#6B7280;font-size:.82rem">Send this email to your administrator and ask them to add you to the system with the appropriate role.</p>'
+            : ''
+          )
+      ) +
+      '<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #E5E7EB">' +
+        '<p style="font-size:.75rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
+      '</div>' +
+    '</div>' +
+    '</div>';
+}
+
 // ── Load Data from Backend ────────────────────────────────────────────────────
 function loadDataFromGoogle(){
   lastLoadTime = null;
@@ -2718,6 +2745,12 @@ function loadDataFromGoogle(){
     '<p style="padding:1rem;color:var(--muted)"><span class="spin-hg">⏳</span> Loading data…</p>';
   google.script.run
     .withSuccessHandler(function(data){
+      // ── Access denied / not authenticated ────────────────────────────────
+      if (data.accessStatus === 'NO_SESSION' || data.accessStatus === 'DENIED') {
+        _showAccessDeniedScreen(data.accessStatus, data.userEmail || '');
+        return;
+      }
+      // ── Normal load ───────────────────────────────────────────────────────
       movements          = data.movements         || [];
       stockData          = data.stock             || {};
       config             = data.config            || config;

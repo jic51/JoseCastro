@@ -34,21 +34,42 @@ function doGet(e) {
 }
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
+// Works with deployment: "Execute as: User accessing the web app" +
+//                        "Anyone with a Google account"
+// This is the only GAS deployment mode where getActiveUser().getEmail()
+// reliably returns the real email for BOTH @oxglass.com AND personal Gmail users.
+//
+// Roles are assigned per-email in the CONFIG sheet (column F = email, G = role).
+// Unknown (unregistered) emails get DENIED — admin must add them to CONFIG first.
 function getUserRole() {
   var email = '';
-  try { email = Session.getActiveUser().getEmail(); } catch(e) { email = 'unknown'; }
-  if (!email) return { role: 'DENIED', email: email };
+  try {
+    email = Session.getActiveUser().getEmail();
+  } catch(e) { email = ''; }
+
+  // Fallback: should not normally be needed, but protects against edge cases
+  if (!email) {
+    try { email = Session.getEffectiveUser().getEmail(); } catch(e2) { email = ''; }
+  }
+
+  // Empty email means the user is not authenticated with Google
+  // (only happens if deployment mode is wrong — see comment above)
+  if (!email) return { role: 'NO_SESSION', email: '' };
 
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) return { role: 'DENIED', email: email };
 
+  var userEmail = email.toLowerCase().trim();
   var data = cfg.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][5] || '').toLowerCase().trim() === email.toLowerCase().trim()) {
+    var cfgEmail = String(data[i][5] || '').toLowerCase().trim();
+    if (cfgEmail && cfgEmail === userEmail) {
       return { role: String(data[i][6] || 'WAREHOUSE').toUpperCase().trim(), email: email };
     }
   }
+
+  // Authenticated with Google but not registered in the system
   return { role: 'DENIED', email: email };
 }
 
@@ -124,10 +145,20 @@ function getLegacyMaterialId(cat, name, proj) {
 // ─── INITIAL DATA ────────────────────────────────────────────────────────────
 function getInitialData() {
   try {
+    var auth = getUserRole();
+
+    // Not authenticated with Google at all (wrong deployment mode)
+    if (auth.role === 'NO_SESSION') {
+      return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION' };
+    }
+    // Authenticated but not registered in CONFIG
+    if (auth.role === 'DENIED') {
+      return { accessStatus: 'DENIED', userEmail: auth.email, userRole: 'DENIED' };
+    }
+
     var ss       = SpreadsheetApp.getActiveSpreadsheet();
     var archive  = ss.getSheetByName(SHEETS.ARCHIVE);
     var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
-    var auth     = getUserRole();
     var config   = loadConfig();
 
     var movements = [];
@@ -374,8 +405,9 @@ function findFirstWarehouseLoc(locs, needed) {
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
 function processMovement(action, data) {
   var auth = getUserRole();
-  if (auth.role === 'DENIED')  throw new Error('Access denied.');
-  if (auth.role === 'VIEWER')  throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
+  if (auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
+  if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
+  if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
 
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
