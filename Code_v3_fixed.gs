@@ -34,42 +34,54 @@ function doGet(e) {
 }
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
-// Works with deployment: "Execute as: User accessing the web app" +
-//                        "Anyone with a Google account"
-// This is the only GAS deployment mode where getActiveUser().getEmail()
-// reliably returns the real email for BOTH @oxglass.com AND personal Gmail users.
+// Deployment required: "Execute as: User accessing the web app" +
+//                      "Anyone with a Google account"
 //
-// Roles are assigned per-email in the CONFIG sheet (column F = email, G = role).
-// Unknown (unregistered) emails get DENIED — admin must add them to CONFIG first.
+// Lookup order:
+//   1. USERS_V3 sheet  (managed via in-app admin panel)
+//   2. CONFIG sheet    (legacy — existing rows still work)
+// Unknown emails → DENIED (admin must register the user first).
 function getUserRole() {
   var email = '';
-  try {
-    email = Session.getActiveUser().getEmail();
-  } catch(e) { email = ''; }
-
-  // Fallback: should not normally be needed, but protects against edge cases
+  try { email = Session.getActiveUser().getEmail(); } catch(e) { email = ''; }
   if (!email) {
     try { email = Session.getEffectiveUser().getEmail(); } catch(e2) { email = ''; }
   }
-
-  // Empty email means the user is not authenticated with Google
-  // (only happens if deployment mode is wrong — see comment above)
   if (!email) return { role: 'NO_SESSION', email: '' };
 
-  var ss  = SpreadsheetApp.getActiveSpreadsheet();
-  var cfg = ss.getSheetByName(SHEETS.CONFIG);
-  if (!cfg) return { role: 'DENIED', email: email };
-
+  var ss        = SpreadsheetApp.getActiveSpreadsheet();
   var userEmail = email.toLowerCase().trim();
-  var data = cfg.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    var cfgEmail = String(data[i][5] || '').toLowerCase().trim();
-    if (cfgEmail && cfgEmail === userEmail) {
-      return { role: String(data[i][6] || 'WAREHOUSE').toUpperCase().trim(), email: email };
+
+  // ── 1. Check USERS_V3 (new in-app user management) ─────────────────────
+  var usersSheet = ss.getSheetByName('USERS_V3');
+  if (usersSheet && usersSheet.getLastRow() > 1) {
+    var uRows = usersSheet.getDataRange().getValues();
+    for (var u = 1; u < uRows.length; u++) {
+      var uEmail  = String(uRows[u][1] || '').toLowerCase().trim(); // col B
+      var uActive = uRows[u][6];                                    // col G
+      var isActive = (uActive === true || String(uActive).toUpperCase() === 'TRUE' || uActive === '');
+      if (uEmail && uEmail === userEmail && isActive) {
+        return {
+          role:     String(uRows[u][3] || 'WAREHOUSE').toUpperCase().trim(), // col D
+          email:    email,
+          name:     String(uRows[u][2] || '').trim()                         // col C
+        };
+      }
     }
   }
 
-  // Authenticated with Google but not registered in the system
+  // ── 2. Fallback: CONFIG sheet (legacy rows) ──────────────────────────────
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (cfg) {
+    var cRows = cfg.getDataRange().getValues();
+    for (var c = 1; c < cRows.length; c++) {
+      var cEmail = String(cRows[c][5] || '').toLowerCase().trim();
+      if (cEmail && cEmail === userEmail) {
+        return { role: String(cRows[c][6] || 'WAREHOUSE').toUpperCase().trim(), email: email, name: '' };
+      }
+    }
+  }
+
   return { role: 'DENIED', email: email };
 }
 
@@ -197,16 +209,24 @@ function getInitialData() {
     var monitoredMaterials = null;
     try { monitoredMaterials = getMonitoredMaterials(); } catch(e) {}
 
+    // User list — only sent to ADMINs
+    var users = [];
+    if (auth.role === 'ADMIN') {
+      try { users = getUsers(auth); } catch(e) {}
+    }
+
     return {
-      movements:         movements,
-      stock:             stock,
-      config:            config,
-      reservations:      reservations,
-      userRole:          auth.role,
-      userEmail:         auth.email,
-      activeUsers:       activeUsers,
-      incoming:          incoming,
-      monitoredMaterials: monitoredMaterials
+      movements:          movements,
+      stock:              stock,
+      config:             config,
+      reservations:       reservations,
+      userRole:           auth.role,
+      userName:           auth.name || '',
+      userEmail:          auth.email,
+      activeUsers:        activeUsers,
+      incoming:           incoming,
+      monitoredMaterials: monitoredMaterials,
+      users:              users
     };
   } catch (err) {
     throw new Error('getInitialData: ' + err.message);
@@ -484,6 +504,11 @@ function processMovement(action, data) {
   if (action === 'updateIncoming')        return updateIncoming(data);
   if (action === 'deleteIncoming')        return deleteIncoming(data.id);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
+  // ── User management (ADMIN only) ─────────────────────────────────────────
+  if (action === 'getUsers')    return getUsers(auth);
+  if (action === 'addUser')     return addUser(data, auth);
+  if (action === 'updateUser')  return updateUser(data, auth);
+  if (action === 'removeUser')  return removeUser(data.email, auth);
   if (action === 'adminAction') {
     if (auth.role !== 'ADMIN') throw new Error('Admin only.');
     return _adminAction(ss, data);
@@ -1221,6 +1246,124 @@ function heartbeat() {
 // Using GAS built-in LockService.getScriptLock() directly in _addMovement.
 // The old custom spin-lock (PropertiesService busy-wait) was removed because
 // it could consume the full 30-second GAS execution budget and silently timeout.
+
+// ─── USER MANAGEMENT ─────────────────────────────────────────────────────────
+// Sheet: USERS_V3  Columns (0-based):
+//   A=0:ID  B=1:Email  C=2:Name  D=3:Role  E=4:AddedBy  F=5:AddedAt  G=6:Active
+//
+// Role values: ADMIN | WAREHOUSE | VIEWER
+// Active: TRUE (can log in) | FALSE (deactivated, cannot log in)
+
+function _ensureUsersSheet(ss) {
+  var sheet = ss.getSheetByName('USERS_V3');
+  if (!sheet) {
+    sheet = ss.insertSheet('USERS_V3');
+    sheet.appendRow(['ID','Email','Name','Role','Added By','Added At','Active']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 7).setFontWeight('bold');
+    sheet.setColumnWidth(2, 220); // Email column wider
+  }
+  return sheet;
+}
+
+function getUsers(auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('USERS_V3');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var rows = sheet.getDataRange().getValues();
+  var out  = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0]) continue;
+    out.push({
+      id:      String(r[0]),
+      email:   String(r[1] || '').trim(),
+      name:    String(r[2] || '').trim(),
+      role:    String(r[3] || 'WAREHOUSE').toUpperCase().trim(),
+      addedBy: String(r[4] || ''),
+      addedAt: r[5] instanceof Date
+               ? Utilities.formatDate(r[5], Session.getScriptTimeZone(), 'yyyy-MM-dd')
+               : String(r[5] || ''),
+      active:  (r[6] === true || String(r[6]).toUpperCase() === 'TRUE' || r[6] === '')
+    });
+  }
+  return out;
+}
+
+function addUser(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var email = String(data.email || '').toLowerCase().trim();
+  var name  = String(data.name  || '').trim();
+  var role  = String(data.role  || 'WAREHOUSE').toUpperCase().trim();
+  if (!email || email.indexOf('@') === -1) throw new Error('Valid email required.');
+  if (['ADMIN','WAREHOUSE','VIEWER'].indexOf(role) === -1) throw new Error('Invalid role.');
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensureUsersSheet(ss);
+
+  // Check for duplicates
+  if (sheet.getLastRow() > 1) {
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][1] || '').toLowerCase().trim() === email) {
+        throw new Error('Email already registered: ' + email);
+      }
+    }
+  }
+
+  var now = new Date();
+  var id  = 'USR-' + now.getTime();
+  sheet.appendRow([id, email, name, role, auth.email, now, true]);
+  _auditLog(ss, 'ADD_USER', auth.email, email + ' as ' + role, '', '');
+  return { status: 'success', id: id };
+}
+
+function updateUser(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var email = String(data.email || '').toLowerCase().trim();
+  if (!email) throw new Error('Email required.');
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('USERS_V3');
+  if (!sheet) throw new Error('Users sheet not found.');
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '').toLowerCase().trim() === email) {
+      var rowNum = i + 1;
+      if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(String(data.name).trim());
+      if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(String(data.role).toUpperCase().trim());
+      if (data.active !== undefined) sheet.getRange(rowNum, 7).setValue(!!data.active);
+      _auditLog(ss, 'UPDATE_USER', auth.email, email + ' → ' + (data.role || 'no role change'), '', '');
+      return { status: 'success' };
+    }
+  }
+  throw new Error('User not found: ' + email);
+}
+
+function removeUser(email, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  email = String(email || '').toLowerCase().trim();
+  if (!email) throw new Error('Email required.');
+  // Prevent self-removal
+  if (email === auth.email.toLowerCase()) throw new Error('You cannot remove your own account.');
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('USERS_V3');
+  if (!sheet) throw new Error('Users sheet not found.');
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '').toLowerCase().trim() === email) {
+      // Deactivate instead of delete (preserves audit trail)
+      sheet.getRange(i + 1, 7).setValue(false);
+      _auditLog(ss, 'REMOVE_USER', auth.email, email, '', '');
+      return { status: 'success' };
+    }
+  }
+  throw new Error('User not found: ' + email);
+}
 
 // ─── INCOMING MATERIALS ───────────────────────────────────────────────────────
 // Sheet: INCOMING_V3  Columns (1-indexed, 0-based in array):

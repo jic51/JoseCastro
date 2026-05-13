@@ -255,6 +255,14 @@
     .monitor-item:hover{background:var(--bg);border-color:var(--border)}
     .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
     .monitor-item label{cursor:pointer;flex:1}
+    /* ── USER MANAGEMENT ── */
+    .users-table td{vertical-align:middle}
+    .role-badge-admin{background:#EDE9FE;color:#6D28D9;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+    .role-badge-warehouse{background:#DBEAFE;color:#1D4ED8;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+    .role-badge-viewer{background:#F3F4F6;color:#6B7280;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+    .user-inactive{opacity:.45}
+    .user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem}
+    @media(max-width:520px){.user-form-grid{grid-template-columns:1fr}}
     /* ── SIMILAR-MATERIAL HINT ── */
     .similar-hint{display:none;margin-top:.3rem;padding:.3rem .6rem;background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px;font-size:.76rem;color:#92400E;align-items:center;gap:.4rem;flex-wrap:wrap}
     .similar-hint.show{display:flex}
@@ -339,6 +347,67 @@
         <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
       </div>
     </div>
+    <!-- Admin: User management button (hidden for non-admins) -->
+    <button id="btnUsersMgmt" onclick="openUsersModal()"
+      style="display:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+             color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
+             font-weight:600;cursor:pointer;white-space:nowrap"
+      title="Manage system users">👥 Users</button>
+  </div>
+</div>
+
+<!-- ══ USERS MANAGEMENT MODAL ════════════════════════════════════════════════ -->
+<div class="overlay" id="usersOverlay">
+  <div class="modal" style="max-width:700px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h3 style="margin:0">👥 User Management</h3>
+      <button class="btn-icon" onclick="closeModal('usersOverlay')" style="font-size:1.2rem">✕</button>
+    </div>
+
+    <!-- Add / Edit form -->
+    <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
+      <p style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.65rem" id="userFormTitle">➕ Add New User</p>
+      <div class="user-form-grid">
+        <div class="field" style="margin:0">
+          <label>Email *</label>
+          <input type="email" id="uEmail" placeholder="user@example.com">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Full Name</label>
+          <input type="text" id="uName" placeholder="John Doe">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Role *</label>
+          <select id="uRole">
+            <option value="VIEWER">VIEWER — Read-only access</option>
+            <option value="WAREHOUSE">WAREHOUSE — Record movements</option>
+            <option value="ADMIN">ADMIN — Full access</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0;display:flex;align-items:flex-end;gap:.5rem">
+          <button class="btn btn-primary" onclick="saveUser()" id="btnSaveUser" style="flex:1">Save User</button>
+          <button class="btn btn-ghost" onclick="resetUserForm()" id="btnCancelUserEdit" style="display:none">Cancel</button>
+        </div>
+      </div>
+      <div id="userFormMsg" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.35rem .6rem;border-radius:6px"></div>
+    </div>
+
+    <!-- Users table -->
+    <div class="table-wrapper" style="max-height:45vh">
+      <table class="users-table">
+        <thead><tr>
+          <th>Email</th><th>Name</th><th>Role</th>
+          <th>Added By</th><th>Added</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="usersTableBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">
+      Removing a user deactivates them (they can no longer log in) but keeps the audit trail.
+      To re-activate, edit the row directly in the USERS_V3 sheet.
+    </p>
   </div>
 </div>
 
@@ -2710,28 +2779,161 @@ function _applyAiResultToIncomingModal(d) {
   if (d.dateReceived) document.getElementById('incDate').value     = d.dateReceived;
 }
 
+// ── User Management ───────────────────────────────────────────────────────────
+var _usersData   = [];      // cached list from server
+var _editingUser = null;    // email of user being edited, or null
+
+function openUsersModal() {
+  document.getElementById('usersOverlay').classList.add('show');
+  resetUserForm();
+  _loadUsersTable();
+}
+
+function _loadUsersTable() {
+  var tbody = document.getElementById('usersTableBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem"><span class="spin-hg">⏳</span> Loading…</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _usersData = res || [];
+      _renderUsersTable();
+    })
+    .withFailureHandler(function(err) {
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);padding:.75rem">' + (err.message || err) + '</td></tr>';
+    })
+    .processMovement('getUsers', {});
+}
+
+function _roleBadge(role) {
+  var cls = { ADMIN: 'admin', WAREHOUSE: 'warehouse', VIEWER: 'viewer' }[role] || 'viewer';
+  return '<span class="role-badge-' + cls + '">' + role + '</span>';
+}
+
+function _renderUsersTable() {
+  var tbody = document.getElementById('usersTableBody');
+  if (!_usersData.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem">No users registered yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _usersData.map(function(u) {
+    var isSelf = u.email === userEmail;
+    return '<tr class="' + (u.active ? '' : 'user-inactive') + '">' +
+      '<td style="font-size:.8rem;word-break:break-all">' + u.email + (isSelf ? ' <span class="badge badge-blue" style="font-size:.6rem">you</span>' : '') + '</td>' +
+      '<td style="font-size:.82rem">' + (u.name || '—') + '</td>' +
+      '<td>' + _roleBadge(u.role) + '</td>' +
+      '<td style="font-size:.75rem;color:var(--muted)">' + (u.addedBy || '—') + '</td>' +
+      '<td style="font-size:.75rem;color:var(--muted);white-space:nowrap">' + (u.addedAt || '—') + '</td>' +
+      '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
+      '<td style="white-space:nowrap">' +
+        (!isSelf
+          ? '<button class="btn-icon" onclick="editUser(\'' + u.email + '\')" title="Edit">✏️</button> ' +
+            (u.active
+              ? '<button class="btn-icon" onclick="deactivateUser(\'' + u.email + '\')" title="Deactivate">🚫</button>'
+              : '<span style="color:var(--muted);font-size:.72rem">inactive</span>')
+          : '<span style="color:var(--muted);font-size:.72rem">—</span>') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function editUser(email) {
+  var u = _usersData.find(function(x){ return x.email === email; });
+  if (!u) return;
+  _editingUser = email;
+  document.getElementById('uEmail').value = u.email;
+  document.getElementById('uEmail').disabled = true; // can't change email
+  document.getElementById('uName').value  = u.name  || '';
+  document.getElementById('uRole').value  = u.role  || 'WAREHOUSE';
+  document.getElementById('userFormTitle').textContent = '✏️ Editing: ' + u.email;
+  document.getElementById('btnCancelUserEdit').style.display = '';
+  document.getElementById('uEmail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetUserForm() {
+  _editingUser = null;
+  document.getElementById('uEmail').value    = '';
+  document.getElementById('uEmail').disabled = false;
+  document.getElementById('uName').value     = '';
+  document.getElementById('uRole').value     = 'WAREHOUSE';
+  document.getElementById('userFormTitle').textContent  = '➕ Add New User';
+  document.getElementById('btnCancelUserEdit').style.display = 'none';
+  _userFormMsg('', '');
+}
+
+function _userFormMsg(msg, type) {
+  var el = document.getElementById('userFormMsg');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.style.display   = 'block';
+  el.style.background = type === 'error' ? 'var(--red-bg)' : 'var(--green-bg)';
+  el.style.color      = type === 'error' ? 'var(--red)'    : 'var(--green)';
+  el.textContent      = msg;
+}
+
+function saveUser() {
+  var email = (document.getElementById('uEmail').value || '').trim().toLowerCase();
+  var name  = (document.getElementById('uName').value  || '').trim();
+  var role  = document.getElementById('uRole').value;
+  if (!email) { _userFormMsg('Email is required.', 'error'); return; }
+
+  var btn = document.getElementById('btnSaveUser');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+
+  var action  = _editingUser ? 'updateUser' : 'addUser';
+  var payload = { email: email, name: name, role: role, active: true };
+
+  google.script.run
+    .withSuccessHandler(function() {
+      btn.textContent = 'Save User'; btn.disabled = false;
+      _userFormMsg(_editingUser ? 'User updated.' : 'User added successfully.', 'ok');
+      resetUserForm();
+      _loadUsersTable();
+    })
+    .withFailureHandler(function(err) {
+      btn.textContent = 'Save User'; btn.disabled = false;
+      _userFormMsg(err.message || String(err), 'error');
+    })
+    .processMovement(action, payload);
+}
+
+function deactivateUser(email) {
+  if (!confirm('Deactivate ' + email + '?\n\nThey will no longer be able to log in. You can re-activate them from the USERS_V3 sheet.')) return;
+  google.script.run
+    .withSuccessHandler(function() { _loadUsersTable(); })
+    .withFailureHandler(function(err) { alert(err.message || err); })
+    .processMovement('removeUser', { email: email });
+}
+
 // ── Access Denied Screen ──────────────────────────────────────────────────────
 function _showAccessDeniedScreen(status, email) {
-  // Hide the entire app chrome and show a centered card instead
+  // Build the "switch account" URL — sends the user back here after choosing a different Google account
+  var switchUrl = 'https://accounts.google.com/AccountChooser?continue=' +
+                  encodeURIComponent(window.location.href);
+
   document.querySelector('.topbar').style.display = 'none';
   document.querySelector('.container').innerHTML  =
-    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem">' +
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
     '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:460px;width:100%;text-align:center">' +
       '<div style="font-size:3rem;margin-bottom:.75rem">' + (status === 'NO_SESSION' ? '🔒' : '⛔') + '</div>' +
       '<h2 style="font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-bottom:.5rem">' +
         (status === 'NO_SESSION' ? 'Please sign in with Google' : 'Access not granted') +
       '</h2>' +
       (status === 'NO_SESSION'
-        ? '<p style="color:#6B7280;font-size:.9rem;line-height:1.5">Open this app while signed in to your Google account. If the problem persists, the administrator needs to change the deployment settings.</p>'
-        : '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:1rem">Your account is not registered in this system.</p>' +
+        ? '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:1.25rem">Sign in to your Google account to access the system.</p>'
+        : '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:.75rem">Your account is not registered in this system.</p>' +
           (email
-            ? '<div style="background:#F0F2F5;border-radius:8px;padding:.6rem 1rem;font-size:.82rem;font-family:monospace;color:#1B2A4A;margin-bottom:1rem;word-break:break-all">' + email + '</div>' +
-              '<p style="color:#6B7280;font-size:.82rem">Send this email to your administrator and ask them to add you to the system with the appropriate role.</p>'
+            ? '<div style="background:#F0F2F5;border-radius:8px;padding:.6rem 1rem;font-size:.82rem;font-family:monospace;color:#1B2A4A;margin-bottom:.75rem;word-break:break-all">' + email + '</div>' +
+              '<p style="color:#6B7280;font-size:.82rem;margin-bottom:1.25rem">Send this email to your administrator and ask them to add you to the system.</p>'
             : ''
           )
       ) +
-      '<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid #E5E7EB">' +
-        '<p style="font-size:.75rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
+      // Switch account button — always visible
+      '<a href="' + switchUrl + '" ' +
+         'style="display:inline-flex;align-items:center;gap:.4rem;background:#1B2A4A;color:#fff;' +
+                'border-radius:8px;padding:.6rem 1.25rem;font-size:.85rem;font-weight:600;' +
+                'text-decoration:none;margin-bottom:.65rem;width:100%;justify-content:center">' +
+        '🔄 Use a different Google account' +
+      '</a>' +
+      '<div style="margin-top:.75rem;padding-top:1rem;border-top:1px solid #E5E7EB">' +
+        '<p style="font-size:.72rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
       '</div>' +
     '</div>' +
     '</div>';
@@ -2751,17 +2953,19 @@ function loadDataFromGoogle(){
         return;
       }
       // ── Normal load ───────────────────────────────────────────────────────
-      movements          = data.movements         || [];
-      stockData          = data.stock             || {};
-      config             = data.config            || config;
-      reservations       = data.reservations      || [];
-      userRole           = data.userRole          || 'WAREHOUSE';
-      userEmail          = data.userEmail         || '';
-      incoming           = data.incoming          || [];
+      movements          = data.movements          || [];
+      stockData          = data.stock              || {};
+      config             = data.config             || config;
+      reservations       = data.reservations       || [];
+      userRole           = data.userRole           || 'WAREHOUSE';
+      userEmail          = data.userEmail          || '';
+      incoming           = data.incoming           || [];
       monitoredMaterials = data.monitoredMaterials || null;
+      if (data.users && data.users.length) _usersData = data.users; // pre-load for admin
       lastLoadTime = Date.now();
       setConnStatus('online');
-      document.getElementById('userChip').textContent = userEmail + ' · ' + userRole;
+      var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
+      document.getElementById('userChip').textContent = displayName;
       if (data.activeUsers) renderActiveUsers(data.activeUsers);
       applyRoleUI();
       refreshDropdowns();
@@ -2884,6 +3088,8 @@ function applyRoleUI(){
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
+  var usersMgmt = document.getElementById('btnUsersMgmt');
+  if (usersMgmt) usersMgmt.style.display = isAdmin ? '' : 'none';
   // Show a "View Only" tag next to the user chip when in VIEWER mode
   var tag = document.getElementById('viewerTag');
   if (!tag && isViewer){
