@@ -2904,36 +2904,50 @@ function deactivateUser(email) {
 
 // ── Access Denied Screen ──────────────────────────────────────────────────────
 function _showAccessDeniedScreen(status, email) {
-  // Build the "switch account" URL — sends the user back here after choosing a different Google account
-  var switchUrl = 'https://accounts.google.com/AccountChooser?continue=' +
-                  encodeURIComponent(window.location.href);
+  // GAS web apps respect the ?authuser=N parameter to pick which signed-in
+  // Google account runs the app (0 = first, 1 = second, 2 = third…).
+  // We generate links for accounts 0–3 so the user can switch without logging out.
+  var baseUrl = window.location.href.replace(/[?&]authuser=\d/g, '');
+  var sep     = baseUrl.indexOf('?') !== -1 ? '&' : '?';
+
+  var accountBtns = [0, 1, 2, 3].map(function(n) {
+    var url = baseUrl + sep + 'authuser=' + n;
+    return '<a href="' + url + '" ' +
+      'style="display:inline-flex;align-items:center;justify-content:center;gap:.35rem;' +
+             'background:' + (n === 0 ? '#F3F4F6' : n === 1 ? '#EFF6FF' : n === 2 ? '#F0FDF4' : '#FFF7ED') + ';' +
+             'color:#1a1a2e;border:1px solid #E5E7EB;border-radius:8px;' +
+             'padding:.5rem .9rem;font-size:.82rem;font-weight:600;text-decoration:none;flex:1;min-width:90px">' +
+      'Account ' + (n + 1) +
+      '</a>';
+  }).join('');
 
   document.querySelector('.topbar').style.display = 'none';
   document.querySelector('.container').innerHTML  =
     '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
-    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:460px;width:100%;text-align:center">' +
+    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:480px;width:100%;text-align:center">' +
       '<div style="font-size:3rem;margin-bottom:.75rem">' + (status === 'NO_SESSION' ? '🔒' : '⛔') + '</div>' +
       '<h2 style="font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-bottom:.5rem">' +
         (status === 'NO_SESSION' ? 'Please sign in with Google' : 'Access not granted') +
       '</h2>' +
-      (status === 'NO_SESSION'
-        ? '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:1.25rem">Sign in to your Google account to access the system.</p>'
-        : '<p style="color:#6B7280;font-size:.9rem;line-height:1.5;margin-bottom:.75rem">Your account is not registered in this system.</p>' +
-          (email
-            ? '<div style="background:#F0F2F5;border-radius:8px;padding:.6rem 1rem;font-size:.82rem;font-family:monospace;color:#1B2A4A;margin-bottom:.75rem;word-break:break-all">' + email + '</div>' +
-              '<p style="color:#6B7280;font-size:.82rem;margin-bottom:1.25rem">Send this email to your administrator and ask them to add you to the system.</p>'
-            : ''
-          )
+
+      (status !== 'NO_SESSION' && email
+        ? '<p style="color:#6B7280;font-size:.88rem;line-height:1.5;margin-bottom:.6rem">This account is not registered in the system:</p>' +
+          '<div style="background:#F0F2F5;border-radius:8px;padding:.55rem 1rem;font-size:.82rem;font-family:monospace;color:#1B2A4A;margin-bottom:.6rem;word-break:break-all">' + email + '</div>' +
+          '<p style="color:#6B7280;font-size:.78rem;margin-bottom:1.2rem">Share this email with your administrator to get access.</p>'
+        : '<p style="color:#6B7280;font-size:.88rem;line-height:1.5;margin-bottom:1.2rem">Make sure you are signed in with an authorized Google account.</p>'
       ) +
-      // Switch account button — always visible
-      '<a href="' + switchUrl + '" ' +
-         'style="display:inline-flex;align-items:center;gap:.4rem;background:#1B2A4A;color:#fff;' +
-                'border-radius:8px;padding:.6rem 1.25rem;font-size:.85rem;font-weight:600;' +
-                'text-decoration:none;margin-bottom:.65rem;width:100%;justify-content:center">' +
-        '🔄 Use a different Google account' +
-      '</a>' +
-      '<div style="margin-top:.75rem;padding-top:1rem;border-top:1px solid #E5E7EB">' +
-        '<p style="font-size:.72rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
+
+      // Account switcher — try accounts 1–4 via authuser parameter
+      '<p style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Try a different signed-in account</p>' +
+      '<div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;margin-bottom:1.2rem">' +
+        accountBtns +
+      '</div>' +
+      '<p style="font-size:.72rem;color:#9CA3AF;margin-bottom:.5rem">' +
+        'If your account is not listed, sign in to Google first, then try again.' +
+      '</p>' +
+
+      '<div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #E5E7EB">' +
+        '<p style="font-size:.7rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
       '</div>' +
     '</div>' +
     '</div>';
