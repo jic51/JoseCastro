@@ -192,6 +192,17 @@
     .expandable-row:hover{background:#f1f5f9 !important}
     .details-row{display:none;background:#fafafa;border-left:4px solid var(--accent)}
     .details-container{padding:15px;font-size:.75rem;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    /* ── STOCK DOC PANEL ── */
+    .stock-doc-row{display:none;background:#f8faff;border-left:4px solid var(--accent)}
+    .stock-doc-row.open{display:table-row}
+    .doc-panel{padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+    .doc-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;text-decoration:none;color:inherit;transition:.15s}
+    .doc-card:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .doc-card img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6}
+    .doc-card .doc-label{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
+    .doc-card .doc-date{font-size:.58rem;color:var(--muted);text-align:center}
+    .stock-doc-btn{background:none;border:1px solid #c7d8f0;border-radius:5px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:3px;white-space:nowrap;transition:.15s}
+    .stock-doc-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
     /* ── CHARTS ── */
     .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
     /* ── COL TOGGLE ── */
@@ -463,7 +474,7 @@
             <th title="Units in warehouse">In Warehouse</th>
             <th title="Units dispatched to site">At Site</th>
             <th title="Warehouse minus reservations">Available</th>
-            <th>Reserved</th><th>Rack(s)</th><th>Status</th>
+            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -1111,6 +1122,47 @@ function renderStats(){
     '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>';
 }
 
+// ── Dashboard: Document Map (for stock doc panel) ────────────────────────────
+function buildDocMap() {
+  var map = {};
+  movements.forEach(function(m) {
+    if (!m.docLinks || m.docLinks.indexOf('http') === -1) return;
+    // Show docs from ENTRY movements only (that's where files are uploaded)
+    if (m.moveType !== 'ENTRY') return;
+    var key = nt(m.category) + '|||' + nt(m.name);
+    if (!map[key]) map[key] = [];
+    m.docLinks.split('\n').forEach(function(line) {
+      line = line.trim();
+      if (!line || line.indexOf('http') === -1) return;
+      var docName = 'Document';
+      var url     = line;
+      if (line.indexOf('||') !== -1) {
+        var parts = line.split('||');
+        docName   = (parts[0] || '').trim() || docName;
+        url       = (parts[1] || '').trim();
+      }
+      if (url) {
+        map[key].push({
+          name:     docName,
+          url:      url,
+          dateRec:  m.dateRec || (m.timestamp ? m.timestamp.substring(0, 10) : '') || '',
+          location: m.destLoc || m.sourceLoc || ''
+        });
+      }
+    });
+  });
+  return map;
+}
+
+function toggleStockDocs(rowId, btn) {
+  var el = document.getElementById(rowId);
+  if (!el) return;
+  var opening = !el.classList.contains('open');
+  el.classList.toggle('open', opening);
+  var n = btn.dataset.count || '?';
+  btn.textContent = opening ? ('✕ ' + n + ' doc' + (n !== '1' ? 's' : '')) : ('📎 ' + n);
+}
+
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
 function renderStock(){
   var q  = (document.getElementById('stockSearch').value || '').toLowerCase();
@@ -1128,8 +1180,38 @@ function renderStock(){
     return true;
   }).sort(function(a,b){ return b.warehouseQty - a.warehouseQty; });
 
-  document.getElementById('stockBody').innerHTML = items.map(function(s){
-    var zero = s.warehouseQty <= 0 && s.siteQty <= 0;
+  var docMap = buildDocMap();
+
+  document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
+    var zero   = s.warehouseQty <= 0 && s.siteQty <= 0;
+    var docKey = nt(s.category) + '|||' + nt(s.name);
+    var docs   = docMap[docKey] || [];
+    var docCount = docs.length;
+    var docRowId = 'sdr-' + idx;
+
+    // Docs cell: toggle button or dash
+    var docCell = docCount > 0
+      ? '<button class="stock-doc-btn" data-count="' + docCount + '" onclick="toggleStockDocs(\'' + docRowId + '\', this)">📎 ' + docCount + '</button>'
+      : '<span style="color:var(--muted);font-size:.75rem">—</span>';
+
+    // Doc sub-row: list of document cards
+    var docCards = docs.map(function(d) {
+      var fileId  = extractDriveId(d.url);
+      var thumb   = fileId
+        ? '<img src="https://drive.google.com/thumbnail?id=' + fileId + '&sz=w120" loading="lazy" alt="' + d.name + '">'
+        : '<div style="width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">📄</div>';
+      var shortName = d.name.length > 14 ? d.name.substring(0, 13) + '…' : d.name;
+      return '<a class="doc-card" href="' + d.url + '" target="_blank" title="' + d.name + (d.dateRec ? ' · ' + d.dateRec : '') + '">' +
+        thumb +
+        '<span class="doc-label">' + shortName + '</span>' +
+        (d.dateRec ? '<span class="doc-date">' + d.dateRec + '</span>' : '') +
+        '</a>';
+    }).join('');
+
+    var docPanel = docCount > 0
+      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="9"><div class="doc-panel">' + docCards + '</div></td></tr>'
+      : '';
+
     return '<tr class="'+(zero?'row-zero':'')+'">'+
       '<td>'+catBadge(s.category)+'</td>'+
       '<td><strong>'+s.name+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+s.project+'</span>':'')+'</td>'+
@@ -1138,7 +1220,9 @@ function renderStock(){
       '<td><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
       '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
       '<td style="color:var(--muted);font-size:.78rem;max-width:180px">'+locSummary(s.warehouseLocs)+'</td>'+
-      '<td>'+stockBadge(s)+'</td></tr>';
+      '<td>'+stockBadge(s)+'</td>'+
+      '<td style="text-align:center">'+docCell+'</td></tr>'+
+      docPanel;
   }).join('');
 }
 
@@ -2608,15 +2692,17 @@ function showMorningPopup(items, todayStr) {
 
   function itemRow(item) {
     return '<div class="morning-item">' +
-      '<div><div class="morning-item-name">' + item.qty + ' ' + item.unit + ' — ' + item.name + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.15rem">' +
+          catBadge(item.category) +
+          '<span class="morning-item-name">' + item.qty + ' ' + item.unit + ' — ' + item.name + '</span>' +
+        '</div>' +
         '<div class="morning-item-meta">' +
-          (item.estDate !== todayStr ? item.estDate + ' · ' : '') +
-          (item.supplier ? item.supplier : '') +
-          (item.po ? ' · PO: ' + item.po : '') +
-          (item.notes ? '<br><span style="opacity:.8">' + item.notes + '</span>' : '') +
+          (item.estDate !== todayStr ? item.estDate + (item.notes ? ' · ' : '') : '') +
+          (item.notes ? item.notes : '') +
         '</div>' +
       '</div>' +
-      '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>' +
+      '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '" style="flex-shrink:0;margin-left:.5rem">' + (item.status||'Pending') + '</span>' +
     '</div>';
   }
 
