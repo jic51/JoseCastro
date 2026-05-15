@@ -895,8 +895,23 @@ function _cancelReservation(ss, data, auth) {
 
 // ─── DOCUMENT UPLOAD ─────────────────────────────────────────────────────────
 function _updateDocument(ss, archive, data, auth) {
-  if (!data.files || !data.files.length) throw new Error('No file provided.');
-  var links = _uploadFiles(data.files, 'attachment', 'row-' + data.rowIdx);
+  var hasDocGroups = data.docGroups && data.docGroups.length > 0;
+  var hasFiles     = data.files     && data.files.length     > 0;
+  if (!hasDocGroups && !hasFiles) throw new Error('No documents provided.');
+
+  // Get material name from the row for folder naming
+  var matName = 'attachment';
+  if (data.rowIdx) {
+    try {
+      var rv = archive.getRange(data.rowIdx, AC.NAME + 1, 1, 1).getValues();
+      matName = String((rv[0] || [])[0] || 'attachment').trim() || 'attachment';
+    } catch(e) {}
+  }
+
+  var links = hasDocGroups
+    ? _uploadDocGroups(data.docGroups, matName)          // named, multi-photo groups → PDF
+    : _uploadFiles(data.files, matName, 'row-' + data.rowIdx); // legacy single-file
+
   if (links && data.rowIdx) {
     var existing = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).getValue();
     archive.getRange(data.rowIdx, AC.DOC_LINKS + 1)

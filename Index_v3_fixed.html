@@ -203,6 +203,7 @@
     .doc-card .doc-date{font-size:.58rem;color:var(--muted);text-align:center}
     .stock-doc-btn{background:none;border:1px solid #c7d8f0;border-radius:5px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:3px;white-space:nowrap;transition:.15s}
     .stock-doc-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .doc-more-hint{font-size:.67rem;color:var(--accent);opacity:.8;margin-left:.3rem;white-space:nowrap}
     /* ── CHARTS ── */
     .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
     /* ── COL TOGGLE ── */
@@ -925,15 +926,15 @@
 
 <!-- ══ ATTACH MODAL ══════════════════════════════════════════════════════════ -->
 <div class="overlay" id="attachOverlay">
-  <div class="modal" style="max-width:420px">
-    <h3>Attach Extra Document</h3>
-    <p style="font-size:.8rem;color:var(--muted);margin:.5rem 0 1rem">Will be linked to the selected record.</p>
+  <div class="modal" style="max-width:500px">
+    <h3>📎 Attach Document</h3>
+    <p style="font-size:.8rem;color:var(--muted);margin:.25rem 0 1rem">Name your document, then take photos or pick files. Multiple photos become one PDF. Will be linked to the selected record.</p>
     <input type="hidden" id="aRowIdx">
     <input type="hidden" id="aFolderName">
-    <div class="field" style="margin-bottom:1.5rem">
-      <input type="file" id="aFile" accept="image/*,.pdf" style="border:1px dashed var(--accent);padding:10px;border-radius:6px">
-    </div>
-    <div class="modal-actions">
+    <!-- Doc groups rendered here by JS -->
+    <div id="aDocGroupsContainer"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addDocGroup(null,'aDocGroupsContainer','a')" style="margin-top:.4rem;font-size:.8rem">+ Add Document</button>
+    <div class="modal-actions" style="margin-top:1.25rem">
       <button id="btnCancelAttach" class="btn btn-ghost">Cancel</button>
       <button class="btn btn-primary" id="attachSubmit">Upload &amp; Attach</button>
     </div>
@@ -1918,8 +1919,8 @@ async function submitMovement(){
 
   var btn = document.getElementById('moveSubmit');
 
-  // Collect document groups from the builder (already compressed + previewed)
-  var docGroups = (currentMoveType === 'ENTRY') ? _collectDocGroups() : [];
+  // Collect document groups from the ENTRY modal builder only (scoped to its container)
+  var docGroups = (currentMoveType === 'ENTRY') ? _collectDocGroups('docGroupsContainer') : [];
 
   var proj = (document.getElementById('mProj').value || '').trim();
 
@@ -1992,21 +1993,28 @@ async function submitMovement(){
 }
 
 // ── Attachment Upload ─────────────────────────────────────────────────────────
-async function submitAttachment(){
-  var fileInput = document.getElementById('aFile');
-  var btn = document.getElementById('attachSubmit');
-  if (!fileInput.files.length){ alert('Please select a file'); return; }
+function submitAttachment() {
+  var btn  = document.getElementById('attachSubmit');
+  var docs = _collectDocGroups('aDocGroupsContainer');
+  if (!docs.length) {
+    alert('Add at least one photo or file before uploading.');
+    return;
+  }
   btn.innerHTML = 'Uploading… <span class="spin-hg">⏳</span>'; btn.disabled = true;
-  try {
-    var f = fileInput.files[0];
-    google.script.run
-      .withSuccessHandler(function(){ alert('File uploaded!'); closeModal('attachOverlay'); loadDataFromGoogle(); })
-      .withFailureHandler(function(err){ alert('Error: '+err.message); btn.textContent='Upload & Attach'; btn.disabled=false; })
-      .processMovement('updateDocument',{
-        rowIdx: parseInt(document.getElementById('aRowIdx').value),
-        files: [{fileData: await getBase64(f), fileName: f.name, fileMimeType: f.type}]
-      });
-  } catch(e){ alert('Error: '+e.message); btn.textContent='Upload & Attach'; btn.disabled=false; }
+  google.script.run
+    .withSuccessHandler(function() {
+      closeModal('attachOverlay');
+      loadDataFromGoogle();
+    })
+    .withFailureHandler(function(err) {
+      alert('Error: ' + (err.message || err));
+      btn.textContent = 'Upload & Attach'; btn.disabled = false;
+    })
+    .processMovement('updateDocument', {
+      rowIdx:    parseInt(document.getElementById('aRowIdx').value),
+      docGroups: docs,
+      files:     []
+    });
 }
 
 // ── Close / Open helpers ──────────────────────────────────────────────────────
@@ -2016,105 +2024,102 @@ function closeModal(id){
   var ba = document.getElementById('attachSubmit');
   if (bm){ bm.textContent = 'Save to System'; bm.disabled = false; }
   if (ba){ ba.textContent = 'Upload & Attach'; ba.disabled = false; }
-  var af = document.getElementById('aFile'); if (af) af.value = '';
+  // Reset attach builder when the attach modal closes
+  if (id === 'attachOverlay') resetAttachDocBuilder();
 }
 
 function closeIfOutside(e, id){ if (e.target.id === id) closeModal(id); }
 
 function openAttachModal(rowIdx, folderName){
-  document.getElementById('aRowIdx').value    = rowIdx;
+  document.getElementById('aRowIdx').value     = rowIdx;
   document.getElementById('aFolderName').value = folderName;
+  resetAttachDocBuilder();  // fresh doc builder each time
   document.getElementById('attachOverlay').classList.add('show');
 }
 
-function addFileInput(){
-  // kept for backward compat (attach modal uses it)
-  var div = document.createElement('div');
-  div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:6px';
-  div.innerHTML = '<input type="file" class="mFile" accept="image/*,.pdf" style="flex:1;font-size:.8rem"><button class="btn btn-danger btn-sm" type="button">✕</button>';
-  div.querySelector('button').addEventListener('click', function(){ div.remove(); });
-  var container = document.getElementById('fileInputsContainer');
-  if (container) container.appendChild(div);
-}
-
 // ── Document Builder ──────────────────────────────────────────────────────────
-var _docGroupCounter = 0;
+// Per-container counters so entry modal and attach modal never clash.
+var _docGroupCounters = {};
 
-function _suggestedDocName() {
-  // Return contextual default names in order
-  var defaults = ['Invoice', 'Delivery Receipt', 'Packing List', 'Bill of Lading', 'Other'];
+function _suggestedDocName(containerId) {
   var used = [];
-  document.querySelectorAll('.doc-group-name').forEach(function(inp){ used.push(inp.value.trim()); });
+  var c = document.getElementById(containerId || 'docGroupsContainer');
+  if (c) c.querySelectorAll('.doc-group-name').forEach(function(inp){ used.push(inp.value.trim()); });
+  var defaults = ['Invoice', 'Delivery Receipt', 'Packing List', 'Bill of Lading', 'Other'];
   for (var i = 0; i < defaults.length; i++) {
     if (used.indexOf(defaults[i]) === -1) return defaults[i];
   }
   return 'Document ' + (used.length + 1);
 }
 
-function addDocGroup(suggestedName) {
-  var container = document.getElementById('docGroupsContainer');
-  var gid       = ++_docGroupCounter;
-  var name      = suggestedName || _suggestedDocName();
-  var group     = document.createElement('div');
-  group.className = 'doc-group';
-  group.dataset.gid = gid;
+// containerId : which container element holds this group (default: 'docGroupsContainer')
+// idPrefix    : string prefix for all generated IDs to prevent collisions (e.g. 'a' for attach modal)
+function addDocGroup(suggestedName, containerId, idPrefix) {
+  containerId = containerId || 'docGroupsContainer';
+  idPrefix    = (idPrefix != null) ? idPrefix : '';
+  if (!_docGroupCounters[containerId]) _docGroupCounters[containerId] = 0;
+  var gid  = ++_docGroupCounters[containerId];
+  var uid  = idPrefix + gid;   // unique ID segment, e.g. '1', 'a2'
+  var name = suggestedName || _suggestedDocName(containerId);
+  var container = document.getElementById(containerId);
+  if (!container) return;
+
+  var group = document.createElement('div');
+  group.className   = 'doc-group';
+  group.dataset.gid = uid;
   group.innerHTML =
     '<div class="doc-group-hdr">' +
-      '<input class="doc-group-name" type="text" value="' + name.replace(/"/g,'&quot;') + '" placeholder="Document name (e.g. Invoice)">' +
-      '<button class="doc-group-remove" title="Remove this document" onclick="this.closest(\'.doc-group\').remove();_updateDocPhotoCount()">×</button>' +
+      '<input class="doc-group-name" type="text" value="' + name.replace(/"/g,'&quot;') + '" placeholder="Document name">' +
+      '<button class="doc-group-remove" title="Remove" onclick="this.closest(\'.doc-group\').remove();_updateDocPhotoCount()">×</button>' +
     '</div>' +
-    '<div class="doc-photos-strip" id="strip-' + gid + '"></div>' +
+    '<div class="doc-photos-strip" id="strip-' + uid + '"></div>' +
     '<div class="doc-group-actions">' +
-      '<button class="btn-camera" onclick="triggerCameraCapture(' + gid + ')">📸 Camera</button>' +
-      '<button class="btn-gallery" onclick="triggerGalleryPick(' + gid + ')">📁 Files</button>' +
-      '<span class="doc-photo-count" id="pcount-' + gid + '">No photos yet</span>' +
+      '<button class="btn-camera" onclick="triggerCameraCapture(\'' + uid + '\')">📸 Camera</button>' +
+      '<button class="btn-gallery" onclick="triggerGalleryPick(\'' + uid + '\')">📁 Files</button>' +
+      '<span class="doc-photo-count" id="pcount-' + uid + '">No photos yet</span>' +
+      '<span class="doc-more-hint" id="hint-' + uid + '" style="display:none">— 📸 tap again to add a page</span>' +
     '</div>' +
-    /* Camera capture (one photo at a time, opens native camera) */
-    '<input type="file" class="doc-cam-input" id="docCamInput-' + gid + '" accept="image/*" capture="environment" style="display:none">' +
-    /* Gallery / filesystem picker (multiple files, no camera force) */
-    '<input type="file" class="doc-file-input" id="docFileInput-' + gid + '" accept="image/*,.pdf" style="display:none" multiple>';
+    /* Camera: one shot at a time, opens native camera on mobile */
+    '<input type="file" class="doc-cam-input"  id="docCamInput-'  + uid + '" accept="image/*" capture="environment" style="display:none">' +
+    /* Gallery: multiple files, no forced camera */
+    '<input type="file" class="doc-file-input" id="docFileInput-' + uid + '" accept="image/*,.pdf" style="display:none" multiple>';
 
-  // Wire both hidden inputs
   container.appendChild(group);
-  document.getElementById('docCamInput-' + gid).addEventListener('change', function(e) {
-    _handlePhotoFiles(gid, Array.from(e.target.files));
-    this.value = '';
+  document.getElementById('docCamInput-'  + uid).addEventListener('change', function(e) {
+    _handlePhotoFiles(uid, Array.from(e.target.files)); this.value = '';
   });
-  document.getElementById('docFileInput-' + gid).addEventListener('change', function(e) {
-    _handlePhotoFiles(gid, Array.from(e.target.files));
-    this.value = ''; // reset so same file can be picked again
+  document.getElementById('docFileInput-' + uid).addEventListener('change', function(e) {
+    _handlePhotoFiles(uid, Array.from(e.target.files)); this.value = '';
   });
 }
 
-function triggerCameraCapture(gid) {
-  var inp = document.getElementById('docCamInput-' + gid);
+function triggerCameraCapture(uid) {
+  var inp = document.getElementById('docCamInput-' + uid);
   if (inp) inp.click();
 }
 
-function triggerGalleryPick(gid) {
-  var inp = document.getElementById('docFileInput-' + gid);
+function triggerGalleryPick(uid) {
+  var inp = document.getElementById('docFileInput-' + uid);
   if (inp) inp.click();
 }
 
 // Compress + add photos to a group's strip
-function _handlePhotoFiles(gid, files) {
-  var strip  = document.getElementById('strip-' + gid);
-  var pcount = document.getElementById('pcount-' + gid);
+function _handlePhotoFiles(uid, files) {
+  var strip = document.getElementById('strip-' + uid);
   if (!strip) return;
-
   files.forEach(function(file) {
     if (!file) return;
-    // Client-side compression to keep payload under limits
     _compressImage(file, 1200, 0.82, function(b64, mime) {
       var thumb = document.createElement('div');
-      thumb.className = 'doc-photo-thumb';
+      thumb.className   = 'doc-photo-thumb';
       thumb.dataset.b64  = b64;
       thumb.dataset.mime = mime;
       var isImage = mime.indexOf('image') === 0;
       thumb.innerHTML = isImage
         ? '<img src="data:' + mime + ';base64,' + b64 + '" alt="photo">' +
           '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>'
-        : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.4rem;flex-direction:column;gap:2px">📄<span style="font-size:.5rem;color:#555;padding:0 3px;text-align:center;overflow:hidden;max-width:50px;word-break:break-all">' + file.name.substring(0,10) + '</span></div>' +
+        : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.4rem;flex-direction:column;gap:2px">📄' +
+          '<span style="font-size:.5rem;color:#555;padding:0 3px;text-align:center;overflow:hidden;max-width:50px;word-break:break-all">' + file.name.substring(0,10) + '</span></div>' +
           '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>';
       strip.appendChild(thumb);
       _updateDocPhotoCount();
@@ -2124,10 +2129,14 @@ function _handlePhotoFiles(gid, files) {
 
 function _updateDocPhotoCount() {
   document.querySelectorAll('.doc-group').forEach(function(group) {
-    var gid   = group.dataset.gid;
+    var uid   = group.dataset.gid;
     var count = group.querySelectorAll('.doc-photo-thumb').length;
-    var el    = document.getElementById('pcount-' + gid);
-    if (el) el.textContent = count === 0 ? 'No photos yet' : count + ' photo' + (count !== 1 ? 's' : '');
+    var pcEl  = document.getElementById('pcount-' + uid);
+    var htEl  = document.getElementById('hint-'   + uid);
+    // Update count label
+    if (pcEl) pcEl.textContent = count === 0 ? 'No photos yet' : count + ' photo' + (count !== 1 ? 's' : '');
+    // Show "tap Camera again" hint only after exactly 1 photo so user knows multi-page is possible
+    if (htEl) htEl.style.display = count === 1 ? 'inline' : 'none';
   });
 }
 
@@ -2166,10 +2175,12 @@ function _compressImage(file, maxWidth, quality, callback) {
   img.src = objectUrl;
 }
 
-// Collect docGroups from the builder for submission
-function _collectDocGroups() {
+// Collect docGroups from a specific container (scoped to avoid cross-modal leakage)
+function _collectDocGroups(containerId) {
+  var container = document.getElementById(containerId || 'docGroupsContainer');
   var groups = [];
-  document.querySelectorAll('.doc-group').forEach(function(groupEl) {
+  if (!container) return groups;
+  container.querySelectorAll('.doc-group').forEach(function(groupEl) {
     var name   = (groupEl.querySelector('.doc-group-name').value || '').trim() || 'Document';
     var photos = [];
     groupEl.querySelectorAll('.doc-photo-thumb').forEach(function(thumb) {
@@ -2182,12 +2193,20 @@ function _collectDocGroups() {
   return groups;
 }
 
-// Reset document builder (called by openMoveModal)
+// Reset the ENTRY modal document builder
 function resetDocBuilder() {
   var c = document.getElementById('docGroupsContainer');
   if (c) c.innerHTML = '';
-  _docGroupCounter = 0;
-  addDocGroup('Invoice'); // start with one "Invoice" group
+  _docGroupCounters['docGroupsContainer'] = 0;
+  addDocGroup('Invoice', 'docGroupsContainer', '');
+}
+
+// Reset the Attach modal document builder
+function resetAttachDocBuilder() {
+  var c = document.getElementById('aDocGroupsContainer');
+  if (c) c.innerHTML = '';
+  _docGroupCounters['aDocGroupsContainer'] = 0;
+  addDocGroup('Document', 'aDocGroupsContainer', 'a');
 }
 
 // ── Similar-material detection ────────────────────────────────────────────────
