@@ -1968,10 +1968,13 @@ async function submitMovement(){
       .withFailureHandler(function(err){
         var msg = err.message || String(err);
         // ── Duplicate detected by backend ──────────────────────────────────
-        if (msg.indexOf('DUPLICATE_MOVEMENT|') === 0) {
+        // GAS wraps errors with "Error: " prefix, so we search anywhere in msg
+        var dupIdx = msg.indexOf('DUPLICATE_MOVEMENT|');
+        if (dupIdx !== -1) {
           btn.textContent = 'Save to System'; btn.disabled = false;
-          var parts      = msg.split('|');
-          var minsAgo    = parts[2] || '< 1';
+          var dupStr  = msg.substring(dupIdx);   // "DUPLICATE_MOVEMENT|367|1.9"
+          var parts   = dupStr.split('|');
+          var minsAgo = parts[2] || '< 1';
           var confirmed  = confirm(
             '⚠️ Possible duplicate movement\n\n' +
             'An identical ' + currentMoveType + ' for ' + qty + ' × ' + name +
