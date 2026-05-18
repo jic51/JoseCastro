@@ -603,13 +603,13 @@ function _addMovement(ss, archive, data, auth) {
     row[AC.TIMESTAMP]  = now;
     row[AC.CATEGORY]   = cat;                                        // B: material type
     row[AC.NAME]       = name;
-    row[AC.GC]         = normalizeString(data.gc       || '');
-    row[AC.PO]         = normalizeString(data.po       || '');
+    row[AC.GC]         = String(data.gc  || '').trim();   // keep as-is (contract numbers have special chars)
+    row[AC.PO]         = String(data.po  || '').trim();   // keep as-is (PO# uses hyphens, asterisks, etc.)
     row[AC.QTY]        = qty;
     row[AC.UNIT]       = String(data.unit || 'UNIT').toUpperCase();
     row[AC.DATE_REC]   = tDate;
     row[AC.SRC_LOC]    = src;
-    row[AC.SUPPLIER]   = normalizeString(data.supplier || '');
+    row[AC.SUPPLIER]   = String(data.supplier || '').trim(); // keep as-is
     row[AC.COMMENTS]   = String(data.comments  || '').trim();
     row[AC.STATUS]     = statusVal;                                   // L: In Stock / Dispatched / Damaged
     row[AC.RESPONSIBLE]= String(data.responsible || auth.email).trim();
