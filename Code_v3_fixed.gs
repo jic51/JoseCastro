@@ -458,7 +458,11 @@ function processMovement(action, data) {
           responsible:      data.responsible,
           files:            li === 0 ? (data.files     || []) : [],
           docGroups:        li === 0 ? (data.docGroups || []) : [],
-          notifyRecipients: li === 0 ? data.notifyRecipients : null
+          notifyRecipients: li === 0 ? data.notifyRecipients : null,
+          // Only check for duplicates on the FIRST location row.
+          // Subsequent rows in the same multi-loc submission are intentionally
+          // similar (same material, close timestamps) — not real duplicates.
+          forceSubmit:      li === 0 ? !!data.forceSubmit : true
         };
         lastResult = _addMovement(ss, archive, singleData, auth);
       }
@@ -488,7 +492,9 @@ function processMovement(action, data) {
           comments:         data.comments,
           responsible:      data.responsible,
           files:            xi === 0 ? (data.files || []) : [],
-          notifyRecipients: null                   // no email for EXIT
+          notifyRecipients: null,                  // no email for EXIT
+          // Same reasoning: only check first EXIT location for duplicates
+          forceSubmit:      xi === 0 ? !!data.forceSubmit : true
         };
         exitResult = _addMovement(ss, archive, exitData, auth);
       }
