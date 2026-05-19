@@ -204,6 +204,28 @@
     .stock-doc-btn{background:none;border:1px solid #c7d8f0;border-radius:5px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:3px;white-space:nowrap;transition:.15s}
     .stock-doc-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
     .doc-more-hint{font-size:.67rem;color:var(--accent);opacity:.8;margin-left:.3rem;white-space:nowrap}
+    /* ── SETTINGS MODAL ── */
+    .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+    .settings-tab.active{background:var(--accent);color:#fff}
+    .settings-tab:hover:not(.active){background:rgba(0,0,0,.06)}
+    .cfg-list{list-style:none;margin:0;padding:0}
+    .cfg-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-radius:6px;font-size:.85rem;border-bottom:1px solid var(--border)}
+    .cfg-item:last-child{border-bottom:none}
+    .cfg-item-name{flex:1;font-weight:500}
+    .cfg-item-input{flex:1;padding:.3rem .5rem;border:1px solid var(--accent);border-radius:5px;font-size:.85rem;font-family:inherit}
+    .cfg-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:.75rem;cursor:pointer;transition:.15s;white-space:nowrap}
+    .cfg-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .cfg-btn-danger{border-color:var(--red);color:var(--red)}
+    .cfg-btn-danger:hover{background:var(--red);color:#fff;border-color:var(--red)}
+    .cfg-add-row{display:flex;gap:.5rem;margin-top:.75rem}
+    .cfg-add-row input{flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    /* Materials tab */
+    .mat-search-row{display:flex;gap:.5rem;margin-bottom:.75rem}
+    .mat-search-row input{flex:1;padding:.4rem .7rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .mat-list{max-height:320px;overflow-y:auto}
+    .mat-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem;flex-wrap:wrap}
+    .mat-item-name{flex:1;min-width:120px;font-weight:500}
+    .mat-item-cat{font-size:.72rem;color:var(--muted)}
     /* ── CHARTS ── */
     .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
     /* ── COL TOGGLE ── */
@@ -365,6 +387,12 @@
              color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
              font-weight:600;cursor:pointer;white-space:nowrap"
       title="Manage system users">👥 Users</button>
+    <!-- Admin: Settings button (hidden for non-admins) -->
+    <button id="btnSettings" onclick="openSettingsModal()"
+      style="display:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+             color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
+             font-weight:600;cursor:pointer;white-space:nowrap"
+      title="App settings — categories, projects, suppliers, locations, materials">⚙️ Settings</button>
   </div>
 </div>
 
@@ -454,13 +482,7 @@
         <h2>Live Inventory Stock</h2>
         <div class="toolbar">
           <input type="text" id="stockSearch" placeholder="Search name or comment...">
-          <select id="stockFilter">
-            <option value="">All Categories</option>
-            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
-            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
-            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
-            <option>SCREWS</option><option>IGU</option>
-          </select>
+          <select id="stockFilter"><option value="">All Categories</option></select>
           <select id="stockStatusFilter">
             <option value="">All Status</option>
             <option value="in">In Stock only</option>
@@ -475,7 +497,7 @@
             <th title="Units in warehouse">In Warehouse</th>
             <th title="Units dispatched to site">At Site</th>
             <th title="Warehouse minus reservations">Available</th>
-            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th>Docs</th>
+            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th>Last Note</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -498,13 +520,7 @@
             <option value="RETURN">Return</option>
             <option value="WASTE">Waste</option>
           </select>
-          <select id="movCatFilter">
-            <option value="">All Categories</option>
-            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
-            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
-            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
-            <option>SCREWS</option><option>IGU</option>
-          </select>
+          <select id="movCatFilter"><option value="">All Categories</option></select>
           <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
           <button id="btnEntry" class="btn btn-primary">+ Entry (IN)</button>
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
@@ -558,10 +574,6 @@
           <input type="text" id="mapSearch" placeholder="Search rack or material...">
           <select id="mapCatFilter">
             <option value="">All Categories</option>
-            <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
-            <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
-            <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
-            <option>SCREWS</option><option>IGU</option>
           </select>
         </div>
       </div>
@@ -648,13 +660,7 @@
       </div>
       <div class="field">
         <label>Category *</label>
-        <select id="incCategory">
-          <option value="">Select…</option>
-          <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
-          <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
-          <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
-          <option>SCREWS</option><option>IGU</option>
-        </select>
+        <select id="incCategory"><option value="">Select…</option></select>
       </div>
       <div class="field">
         <label>Material Name *</label>
@@ -737,12 +743,7 @@
     <div class="form-grid" style="margin-top:.75rem">
       <div class="field">
         <label>Category</label>
-        <select id="mType">
-          <option>WINDOW</option><option>SCREEN</option><option>WINDOW_PARTS</option>
-          <option>SHOWER</option><option>MIRROR</option><option>STOREFRONT</option>
-          <option>TOOLS</option><option>BONEYARD</option><option>FLASHING</option>
-          <option>SCREWS</option><option>IGU</option>
-        </select>
+        <select id="mType"></select>
       </div>
       <div class="field">
         <label>Name / Description</label>
@@ -924,6 +925,27 @@
   </div>
 </div>
 
+<!-- ══ SETTINGS MODAL ════════════════════════════════════════════════════════ -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:680px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h3 style="margin:0">⚙️ App Settings</h3>
+      <button class="btn-icon" onclick="closeModal('settingsOverlay')" style="font-size:1.2rem">✕</button>
+    </div>
+    <!-- Tab bar -->
+    <div style="display:flex;gap:4px;background:var(--bg);border-radius:8px;padding:4px;margin-bottom:1.25rem;flex-wrap:wrap">
+      <button class="settings-tab active" data-tab="categories"  onclick="switchSettingsTab('categories')">📦 Categories</button>
+      <button class="settings-tab"        data-tab="projects"    onclick="switchSettingsTab('projects')">📁 Projects</button>
+      <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 Suppliers</button>
+      <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 Locations</button>
+      <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 Materials</button>
+    </div>
+    <!-- Tab content -->
+    <div id="settingsTabContent" style="min-height:240px"></div>
+    <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
+  </div>
+</div>
+
 <!-- ══ ATTACH MODAL ══════════════════════════════════════════════════════════ -->
 <div class="overlay" id="attachOverlay">
   <div class="modal" style="max-width:500px">
@@ -959,6 +981,26 @@ var monitoredMaterials = null; // null = all; array of names = filtered
 // ── Utility ───────────────────────────────────────────────────────────────────
 function nz(v){ return v || ''; }
 function nt(v){ return (v || '').toUpperCase().trim(); }
+
+// ── Populate all category <select> elements from config (called after data load / settings save)
+var _DEFAULT_CATS = ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT',
+                     'TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+function refreshCategoryDropdowns() {
+  var cats = (config.categories && config.categories.length) ? config.categories : _DEFAULT_CATS;
+  var opts      = cats.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+  var optsBlank = '<option value="">All Categories</option>' + opts;
+  ['stockFilter','movCatFilter','mapCatFilter'].forEach(function(id){
+    var s = document.getElementById(id);
+    if (!s) return;
+    var cur = s.value;
+    s.innerHTML = optsBlank;
+    if (cur) s.value = cur;
+  });
+  var inc = document.getElementById('incCategory');
+  if (inc){ var cv=inc.value; inc.innerHTML='<option value="">Select…</option>'+opts; if(cv) inc.value=cv; }
+  var mt = document.getElementById('mType');
+  if (mt){ var mv=mt.value; mt.innerHTML=opts; if(mv) mt.value=mv; }
+}
 
 function displayName(m){
   return (m.name||'').trim() || (m.comments||'').substring(0,60) || 'Unnamed';
@@ -1181,12 +1223,26 @@ function renderStock(){
     return true;
   }).sort(function(a,b){ return b.warehouseQty - a.warehouseQty; });
 
-  var docMap = buildDocMap();
+  var docMap  = buildDocMap();
+
+  // Build last-comment map: key → latest comment text from any movement for that material
+  var noteMap = {};
+  movements.forEach(function(m) {
+    if (!m.comments) return;
+    var k = nt(m.category) + '|||' + nt(m.name);
+    // Movements are in chronological order; later entries overwrite earlier ones
+    noteMap[k] = m.comments;
+  });
 
   document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
     var zero   = s.warehouseQty <= 0 && s.siteQty <= 0;
-    var docKey = nt(s.category) + '|||' + nt(s.name);
-    var docs   = docMap[docKey] || [];
+    var docKey  = nt(s.category) + '|||' + nt(s.name);
+    var docs    = docMap[docKey] || [];
+    var lastNote = noteMap[docKey] || '';
+    var noteCell = lastNote
+      ? '<span style="font-size:.75rem;color:var(--muted);word-break:break-word;display:block;max-width:180px" title="'+lastNote.replace(/"/g,'&quot;')+'">'
+          + (lastNote.length > 60 ? lastNote.substring(0,58)+'…' : lastNote) + '</span>'
+      : '<span style="color:var(--muted);font-size:.72rem">—</span>';
     var docCount = docs.length;
     var docRowId = 'sdr-' + idx;
 
@@ -1222,6 +1278,7 @@ function renderStock(){
       '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
       '<td style="color:var(--muted);font-size:.78rem;max-width:180px">'+locSummary(s.warehouseLocs)+'</td>'+
       '<td>'+stockBadge(s)+'</td>'+
+      '<td>'+noteCell+'</td>'+
       '<td style="text-align:center">'+docCell+'</td></tr>'+
       docPanel;
   }).join('');
@@ -1310,7 +1367,9 @@ function renderMovements(){
     (v.resp    ? '<th>Responsible</th>':'')+
     (v.comment ? '<th>Comments</th>' : '')+
     (v.sysDate ? '<th>Sys Date</th>' : '')+
-    '<th>User</th><th>Doc</th></tr></thead><tbody>';
+    '<th>User</th><th>Doc</th>'+
+    (userRole==='ADMIN'?'<th></th>':'')+
+    '</tr></thead><tbody>';
 
   html += filtered.map(function(m){
     var norm = normMT(m.moveType);
@@ -1334,10 +1393,12 @@ function renderMovements(){
       (v.project?'<td style="font-size:.78rem">'+(m.project||'—')+'</td>':'')+
       (v.supplier?'<td style="font-size:.78rem">'+(m.supplier||'—')+'</td>':'')+
       (v.resp   ?'<td style="font-size:.78rem">'+(m.responsible||'—')+'</td>':'')+
-      (v.comment?'<td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(m.comments||'').replace(/"/g,'&quot;')+'">'+(m.comments||'—')+'</td>':'')+
+      (v.comment?'<td style="font-size:.78rem;max-width:300px;word-break:break-word;white-space:normal">'+(m.comments||'—')+'</td>':'')+
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
-      '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td></tr>';
+      '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
+      (userRole==='ADMIN'?'<td><button class="btn-icon" title="Delete row" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button></td>':'')+
+      '</tr>';
   }).join('');
 
   html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
@@ -1346,6 +1407,21 @@ function renderMovements(){
   document.getElementById('tableContainer').querySelectorAll('[data-row]').forEach(function(btn){
     btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
   });
+}
+
+function deleteMovementRow(rowIdx){
+  if (!confirm('⚠️ Permanently delete this movement record?\n\nThis cannot be undone.')) return;
+  setLoading(true);
+  google.script.run
+    .withSuccessHandler(function(){
+      setLoading(false);
+      loadDataFromGoogle();
+    })
+    .withFailureHandler(function(err){
+      setLoading(false);
+      alert('Delete failed: ' + (err.message || err));
+    })
+    .processMovement('manageMaterial', { op: 'deleteRow', rowIdx: rowIdx });
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
@@ -1397,7 +1473,7 @@ function renderProjectView(){
       '<tr id="pd-'+i+'" class="details-row"><td colspan="6"><div class="details-container">'+
         '<div><strong>Movement history:</strong><br>'+
         s.history.map(function(h){ return '• '+h.date+': <span style="color:'+(h.isOut?'var(--red)':'var(--green)')+'">'+
-          (h.isOut?'−':'+')+h.qty+'</span> @ '+h.loc+(h.comment?' — '+h.comment.substring(0,60):''); }).join('<br>')+
+          (h.isOut?'−':'+')+h.qty+'</span> @ '+h.loc+(h.comment?' — '+h.comment:''); }).join('<br>')+
         '</div><div><strong>Last location:</strong> '+s.history[s.history.length-1].loc+'<br>'+
         '<strong>Last user:</strong> '+s.history[s.history.length-1].user+'</div>'+
       '</div></td></tr>';
@@ -1993,6 +2069,207 @@ async function submitMovement(){
   }
 
   _doSubmit(false);
+}
+
+// ── Settings Modal ────────────────────────────────────────────────────────────
+var _settingsData = {};   // cached from getSettings()
+var _settingsTab  = 'categories';
+var _matListAll   = [];   // full material list for Materials tab
+
+function openSettingsModal() {
+  document.getElementById('settingsMsgBar').style.display = 'none';
+  document.getElementById('settingsOverlay').classList.add('show');
+  _loadSettings();
+}
+
+function _loadSettings() {
+  document.getElementById('settingsTabContent').innerHTML =
+    '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  google.script.run
+    .withSuccessHandler(function(d) { _settingsData = d; _renderSettingsTab(_settingsTab); })
+    .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
+    .processMovement('getSettings', {});
+}
+
+function switchSettingsTab(tab) {
+  _settingsTab = tab;
+  document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
+  _renderSettingsTab(tab);
+}
+
+function _renderSettingsTab(tab) {
+  var content = document.getElementById('settingsTabContent');
+  if (tab === 'materials') { _renderMaterialsTab(); return; }
+
+  var items = _settingsData[tab] || [];
+  var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
+
+  var rows = items.map(function(v, i) {
+    return '<li class="cfg-item" data-idx="'+i+'" data-val="'+_he(v)+'">' +
+      '<span class="cfg-item-name" id="cfgName-'+tab+'-'+i+'">'+v+'</span>' +
+      '<div id="cfgEdit-'+tab+'-'+i+'" style="display:none;flex:1;display:none;gap:.35rem;align-items:center">' +
+        '<input class="cfg-item-input" id="cfgInp-'+tab+'-'+i+'" value="'+_he(v)+'">' +
+        '<button class="cfg-btn" onclick="_cfgSaveRename(\''+tab+'\','+i+')">✓</button>' +
+        '<button class="cfg-btn" onclick="_cfgCancelEdit(\''+tab+'\','+i+')">✗</button>' +
+      '</div>' +
+      '<button class="cfg-btn" onclick="_cfgStartEdit(\''+tab+'\','+i+')">✏️</button>' +
+      '<button class="cfg-btn cfg-btn-danger" onclick="_cfgDelete(\''+tab+'\',\''+_he(v)+'\')">🗑</button>' +
+    '</li>';
+  }).join('');
+
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. Renaming a category updates all existing movements automatically.</p>' +
+    '<ul class="cfg-list">'+rows+'</ul>' +
+    '<div class="cfg-add-row">' +
+      '<input type="text" id="cfgNewVal" placeholder="New '+label+' name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\''+tab+'\')">' +
+      '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\''+tab+'\')">+ Add</button>' +
+    '</div>';
+}
+
+function _cfgStartEdit(tab, i) {
+  var nm  = document.getElementById('cfgName-'+tab+'-'+i);
+  var ed  = document.getElementById('cfgEdit-'+tab+'-'+i);
+  if (nm) nm.style.display = 'none';
+  if (ed) { ed.style.display = 'flex'; var inp = document.getElementById('cfgInp-'+tab+'-'+i); if(inp) inp.focus(); }
+}
+
+function _cfgCancelEdit(tab, i) {
+  var nm = document.getElementById('cfgName-'+tab+'-'+i);
+  var ed = document.getElementById('cfgEdit-'+tab+'-'+i);
+  if (nm) nm.style.display = '';
+  if (ed) ed.style.display = 'none';
+}
+
+function _cfgSaveRename(tab, i) {
+  var li   = document.querySelector('.cfg-item[data-idx="'+i+'"]');
+  var oldV = li ? li.dataset.val : '';
+  var inp  = document.getElementById('cfgInp-'+tab+'-'+i);
+  var newV = inp ? inp.value.trim() : '';
+  if (!newV || newV === oldV) { _cfgCancelEdit(tab, i); return; }
+  _cfgCall({ type: tab, op: 'rename', value: oldV, newValue: newV });
+}
+
+function _cfgDelete(tab, val) {
+  if (!confirm('Delete "'+val+'" from '+tab+'?\n\nNote: existing data using this value is not affected.')) return;
+  _cfgCall({ type: tab, op: 'delete', value: val });
+}
+
+function _cfgAdd(tab) {
+  var inp = document.getElementById('cfgNewVal');
+  var val = inp ? inp.value.trim() : '';
+  if (!val) { inp.focus(); return; }
+  _cfgCall({ type: tab, op: 'add', newValue: val }, function(){ if(inp) inp.value = ''; });
+}
+
+function _cfgCall(payload, onDone) {
+  _settingMsg('Saving…', 'info');
+  google.script.run
+    .withSuccessHandler(function() {
+      if (onDone) onDone();
+      _loadSettings();
+      // Reload main data so dropdowns refresh
+      google.script.run
+        .withSuccessHandler(function(d){ config = d.config || config; refreshCategoryDropdowns(); })
+        .withFailureHandler(function(){})
+        .getInitialData();
+      _settingMsg('Saved ✓', 'ok');
+    })
+    .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
+    .processMovement('updateConfig', payload);
+}
+
+// ── Materials tab ─────────────────────────────────────────────────────────────
+function _renderMaterialsTab() {
+  var content = document.getElementById('settingsTabContent');
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Search, rename, merge, or move materials between categories. All changes update every row in the archive.</p>' +
+    '<div class="mat-search-row">' +
+      '<input type="text" id="matSearchInp" placeholder="Search material name…" oninput="_filterMatList()">' +
+      '<button class="btn btn-ghost btn-sm" onclick="_loadMatList()">↺ Refresh</button>' +
+    '</div>' +
+    '<div class="mat-list" id="matListContainer"><p style="color:var(--muted);font-size:.82rem">Loading…</p></div>';
+  _loadMatList();
+}
+
+function _loadMatList() {
+  var cont = document.getElementById('matListContainer');
+  if (cont) cont.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:.5rem">Loading…</p>';
+  google.script.run
+    .withSuccessHandler(function(list) {
+      _matListAll = list;
+      _filterMatList();
+    })
+    .withFailureHandler(function(e){ if(cont) cont.innerHTML = '<p style="color:var(--red);font-size:.82rem">Error: '+(e.message||e)+'</p>'; })
+    .processMovement('listMaterials', {});
+}
+
+function _filterMatList() {
+  var q    = (document.getElementById('matSearchInp') || {}).value || '';
+  var ql   = q.toLowerCase();
+  var cont = document.getElementById('matListContainer');
+  if (!cont) return;
+  var filtered = ql ? _matListAll.filter(function(m){ return m.name.toLowerCase().indexOf(ql) !== -1 || m.category.toLowerCase().indexOf(ql) !== -1; }) : _matListAll;
+  if (!filtered.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:.5rem">No materials found.</p>'; return; }
+
+  cont.innerHTML = filtered.slice(0, 80).map(function(m, i) {
+    var mid = 'mat-'+i;
+    return '<div class="mat-item" id="'+mid+'" data-name="'+_he(m.name)+'" data-cat="'+_he(m.category)+'">' +
+      '<span class="mat-item-cat">'+catBadge(m.category)+'</span>' +
+      '<span class="mat-item-name">'+m.name+'</span>' +
+      '<span style="color:var(--muted);font-size:.7rem">'+m.count+' rows</span>' +
+      '<button class="cfg-btn" onclick="_matAction(\'rename\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">✏️ Rename</button>' +
+      '<button class="cfg-btn" onclick="_matAction(\'changeCategory\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">↕ Category</button>' +
+      '<button class="cfg-btn" onclick="_matAction(\'merge\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">🔗 Merge</button>' +
+    '</div>';
+  }).join('') + (filtered.length > 80 ? '<p style="font-size:.75rem;color:var(--muted);padding:.5rem">Showing first 80. Type to filter.</p>' : '');
+}
+
+function _matAction(op, name, cat) {
+  if (op === 'rename') {
+    var nv = prompt('Rename "' + name + '" to:', name);
+    if (!nv || nv.trim() === name) return;
+    _matCall({ op: 'rename', name: name, category: cat, newName: nv.trim() });
+
+  } else if (op === 'changeCategory') {
+    var cats = (config.categories && config.categories.length) ? config.categories : _DEFAULT_CATS;
+    var cur  = cats.indexOf(cat);
+    var nv   = prompt('Move "' + name + '" to category:\n\n' + cats.join('\n') + '\n\nType the category name exactly:', cat);
+    if (!nv || nv.trim().toUpperCase() === cat) return;
+    _matCall({ op: 'changeCategory', name: name, category: cat, newCategory: nv.trim().toUpperCase() });
+
+  } else if (op === 'merge') {
+    var nv = prompt('Merge "' + name + '" INTO which existing material?\n(Type the exact target name — all rows of "' + name + '" will be renamed to the target)', '');
+    if (!nv || !nv.trim()) return;
+    if (!confirm('Merge ALL rows of\n"' + name + '" → "' + nv.trim() + '"?\n\nThis cannot be undone.')) return;
+    _matCall({ op: 'merge', name: name, category: cat, targetName: nv.trim() });
+  }
+}
+
+function _matCall(payload) {
+  _settingMsg('Working…', 'info');
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _settingMsg('Done ✓ (' + (res.updated || res.merged || 1) + ' rows updated)', 'ok');
+      _loadMatList();
+      loadDataFromGoogle();  // refresh movements + stock
+    })
+    .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
+    .processMovement('manageMaterial', payload);
+}
+
+// ── Shared settings helpers ───────────────────────────────────────────────────
+function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function _settingMsg(txt, type) {
+  var bar = document.getElementById('settingsMsgBar');
+  if (!bar) return;
+  var colors = { ok:'var(--green-bg)', error:'var(--red-bg)', info:'var(--yellow-bg)' };
+  var text   = { ok:'var(--green)',    error:'var(--red)',    info:'var(--yellow)' };
+  bar.style.display    = '';
+  bar.style.background = colors[type] || colors.info;
+  bar.style.color      = text[type]   || text.info;
+  bar.textContent      = txt;
+  if (type === 'ok') setTimeout(function(){ bar.style.display='none'; }, 3000);
 }
 
 // ── Attachment Upload ─────────────────────────────────────────────────────────
@@ -3090,6 +3367,7 @@ function loadDataFromGoogle(){
       document.getElementById('userChip').textContent = displayName;
       if (data.activeUsers) renderActiveUsers(data.activeUsers);
       applyRoleUI();
+      refreshCategoryDropdowns();   // populate all 5 category selects from config
       refreshDropdowns();
       refreshProjectDropdown();
       renderAll();
@@ -3107,6 +3385,12 @@ function loadDataFromGoogle(){
 google.charts.load('current', {packages:['corechart']});
 google.charts.setOnLoadCallback(function(){ chartsReady = true; drawInventoryCharts(); });
 
+// ── Debounce helper (reduces re-renders while user is typing) ─────────────────
+function _debounce(fn, ms) {
+  var t;
+  return function(){ clearTimeout(t); t = setTimeout(fn, ms || 200); };
+}
+
 // ── Event Listeners ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function(){
 
@@ -3118,16 +3402,16 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btn-incoming').addEventListener('click',  function(){ showTab('incoming','btn-incoming'); });
 
   // Warehouse Map filters
-  document.getElementById('mapSearch').addEventListener('input',    renderWarehouseMap);
+  document.getElementById('mapSearch').addEventListener('input',    _debounce(renderWarehouseMap, 220));
   document.getElementById('mapCatFilter').addEventListener('change', renderWarehouseMap);
 
   // Dashboard filters
-  document.getElementById('stockSearch').addEventListener('input', renderStock);
+  document.getElementById('stockSearch').addEventListener('input', _debounce(renderStock, 220));
   document.getElementById('stockFilter').addEventListener('change', renderStock);
   document.getElementById('stockStatusFilter').addEventListener('change', renderStock);
 
   // Movement filters
-  document.getElementById('movSearch').addEventListener('input', renderMovements);
+  document.getElementById('movSearch').addEventListener('input', _debounce(renderMovements, 220));
   document.getElementById('movTypeFilter').addEventListener('change', renderMovements);
   document.getElementById('movCatFilter').addEventListener('change', renderMovements);
 
@@ -3194,6 +3478,7 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('attachSubmit').addEventListener('click', submitAttachment);
   document.getElementById('btnCancelAttach').addEventListener('click', function(){ closeModal('attachOverlay'); });
   document.getElementById('attachOverlay').addEventListener('click', function(e){ closeIfOutside(e,'attachOverlay'); });
+  document.getElementById('settingsOverlay').addEventListener('click', function(e){ closeIfOutside(e,'settingsOverlay'); });
 });
 
 // ── Role-based UI ─────────────────────────────────────────────────────────────
@@ -3212,6 +3497,8 @@ function applyRoleUI(){
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var usersMgmt = document.getElementById('btnUsersMgmt');
   if (usersMgmt) usersMgmt.style.display = isAdmin ? '' : 'none';
+  var settingsBtn = document.getElementById('btnSettings');
+  if (settingsBtn) settingsBtn.style.display = isAdmin ? '' : 'none';
   // Show a "View Only" tag next to the user chip when in VIEWER mode
   var tag = document.getElementById('viewerTag');
   if (!tag && isViewer){

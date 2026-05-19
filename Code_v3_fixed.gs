@@ -511,10 +511,16 @@ function processMovement(action, data) {
   if (action === 'deleteIncoming')        return deleteIncoming(data.id);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
   // ── User management (ADMIN only) ─────────────────────────────────────────
-  if (action === 'getUsers')    return getUsers(auth);
-  if (action === 'addUser')     return addUser(data, auth);
-  if (action === 'updateUser')  return updateUser(data, auth);
-  if (action === 'removeUser')  return removeUser(data.email, auth);
+  if (action === 'getUsers')       return getUsers(auth);
+  if (action === 'addUser')        return addUser(data, auth);
+  if (action === 'updateUser')     return updateUser(data, auth);
+  if (action === 'removeUser')     return removeUser(data.email, auth);
+  // ── Settings / Config management (ADMIN only) ─────────────────────────────
+  if (action === 'getSettings')    return getSettings(auth);
+  if (action === 'updateConfig')   return updateConfig(data, auth);
+  // ── Material management (ADMIN only) ──────────────────────────────────────
+  if (action === 'listMaterials')  return listMaterials(auth);
+  if (action === 'manageMaterial') return manageMaterial(data, auth);
   if (action === 'adminAction') {
     if (auth.role !== 'ADMIN') throw new Error('Admin only.');
     return _adminAction(ss, data);
@@ -1384,6 +1390,188 @@ function removeUser(email, auth) {
     }
   }
   throw new Error('User not found: ' + email);
+}
+
+// ─── SETTINGS / CONFIG MANAGEMENT ────────────────────────────────────────────
+// Admin-only. Reads/writes CONFIG sheet columns for categories, projects,
+// suppliers, and locations. Renaming a category also updates MASTER_ARCHIVE_V3.
+
+function getSettings(auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var c = loadConfig();
+  return {
+    categories: c.categories,
+    projects:   c.projects,
+    suppliers:  c.suppliers,
+    locations:  c.locations.map(function(l){ return l.name; })
+  };
+}
+
+// data.type  : 'categories' | 'projects' | 'suppliers' | 'locations'
+// data.op    : 'add' | 'rename' | 'delete'
+// data.value : current value (required for rename/delete)
+// data.newValue : replacement value (required for rename)
+function updateConfig(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg) throw new Error('CONFIG sheet not found.');
+
+  // Column index in CONFIG sheet (0-based array index = col number - 1)
+  var colMap = { categories: 1, projects: 0, suppliers: 2, locations: 3 };
+  var col    = colMap[data.type];
+  if (col === undefined) throw new Error('Unknown config type: ' + data.type);
+
+  var rows = cfg.getDataRange().getValues();
+  var val  = String(data.value    || '').trim();
+  var nv   = String(data.newValue || '').trim();
+
+  if (data.op === 'add') {
+    if (!nv) throw new Error('Value required for add.');
+    // Check for duplicate (case-insensitive)
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][col] || '').trim().toUpperCase() === nv.toUpperCase())
+        throw new Error(data.type + ' "' + nv + '" already exists.');
+    }
+    // Find next available row for this column (or append)
+    var targetRow = rows.length + 1; // default: new row
+    for (var i = 1; i < rows.length; i++) {
+      if (!rows[i][col]) { targetRow = i + 1; break; }
+    }
+    cfg.getRange(targetRow, col + 1).setValue(nv);
+
+  } else if (data.op === 'rename') {
+    if (!val) throw new Error('Current value required for rename.');
+    if (!nv)  throw new Error('New value required for rename.');
+    var renamed = 0;
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][col] || '').trim().toUpperCase() === val.toUpperCase()) {
+        cfg.getRange(i + 1, col + 1).setValue(nv);
+        renamed++;
+      }
+    }
+    if (!renamed) throw new Error('"' + val + '" not found in ' + data.type + '.');
+    // Also rename in MASTER_ARCHIVE_V3 when renaming a category
+    if (data.type === 'categories') {
+      var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+      if (archive) {
+        var aData = archive.getDataRange().getValues();
+        for (var j = 1; j < aData.length; j++) {
+          if (String(aData[j][AC.CATEGORY] || '').trim().toUpperCase() === val.toUpperCase()) {
+            archive.getRange(j + 1, AC.CATEGORY + 1).setValue(nv.toUpperCase());
+          }
+        }
+      }
+    }
+
+  } else if (data.op === 'delete') {
+    if (!val) throw new Error('Value required for delete.');
+    var deleted = 0;
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][col] || '').trim().toUpperCase() === val.toUpperCase()) {
+        cfg.getRange(i + 1, col + 1).setValue('');
+        deleted++;
+      }
+    }
+    if (!deleted) throw new Error('"' + val + '" not found in ' + data.type + '.');
+  }
+
+  _auditLog(ss, 'UPDATE_CONFIG', auth.email, data.type, data.op, val + (nv ? ' → ' + nv : ''));
+  return { status: 'success' };
+}
+
+// ─── MATERIAL MANAGEMENT ──────────────────────────────────────────────────────
+// Admin-only. Rename, merge, change category, or delete individual rows.
+
+function listMaterials(auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var archive = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.ARCHIVE);
+  if (!archive) return [];
+  var rows = archive.getDataRange().getValues();
+  var seen = {};
+  for (var i = 1; i < rows.length; i++) {
+    var n = String(rows[i][AC.NAME]     || '').trim();
+    var c = String(rows[i][AC.CATEGORY] || '').trim().toUpperCase();
+    if (!n) continue;
+    var k = c + '|||' + n.toUpperCase();
+    if (!seen[k]) seen[k] = { name: n, category: c, count: 0 };
+    seen[k].count++;
+  }
+  return Object.values(seen).sort(function(a, b){ return a.name.localeCompare(b.name); });
+}
+
+// data.op values: 'rename' | 'changeCategory' | 'merge' | 'deleteRow'
+function manageMaterial(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (!archive) throw new Error('Archive sheet not found.');
+
+  var op  = data.op;
+  var cat = String(data.category || '').trim().toUpperCase();
+  var nm  = String(data.name     || '').trim().toUpperCase();
+
+  if (op === 'rename') {
+    // Change NAME across all rows matching category + oldName
+    var oldNm = nm;
+    var newNm = String(data.newName || '').trim();
+    if (!newNm) throw new Error('New name required.');
+    var rows = archive.getDataRange().getValues();
+    var count = 0;
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
+          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === oldNm) {
+        archive.getRange(i + 1, AC.NAME + 1).setValue(newNm);
+        count++;
+      }
+    }
+    _auditLog(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm, newNm + ' (' + count + ' rows)');
+    return { status: 'success', updated: count };
+
+  } else if (op === 'changeCategory') {
+    var newCat = String(data.newCategory || '').trim().toUpperCase();
+    if (!newCat) throw new Error('New category required.');
+    var rows = archive.getDataRange().getValues();
+    var count = 0;
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
+          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === nm) {
+        archive.getRange(i + 1, AC.CATEGORY + 1).setValue(newCat);
+        count++;
+      }
+    }
+    _auditLog(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + count + ' rows)');
+    return { status: 'success', updated: count };
+
+  } else if (op === 'merge') {
+    // Rename all rows of sourceName → targetName (same category)
+    var srcNm  = nm;
+    var tgtNm  = String(data.targetName || '').trim();
+    if (!tgtNm) throw new Error('Target name required.');
+    var rows = archive.getDataRange().getValues();
+    var count = 0;
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
+          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === srcNm) {
+        archive.getRange(i + 1, AC.NAME + 1).setValue(tgtNm);
+        count++;
+      }
+    }
+    _auditLog(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + count + ' rows)');
+    return { status: 'success', merged: count };
+
+  } else if (op === 'deleteRow') {
+    var rowIdx = parseInt(data.rowIdx || 0);
+    if (rowIdx < 2) throw new Error('Invalid row index.');
+    // Log the row content before deleting
+    var rowData = archive.getRange(rowIdx, 1, 1, 19).getValues()[0];
+    _auditLog(ss, 'DELETE_ROW', auth.email, String(rowData[AC.CATEGORY]), String(rowData[AC.NAME]),
+              'row ' + rowIdx + ' — ' + JSON.stringify(rowData.slice(0, 8)));
+    archive.deleteRow(rowIdx);
+    return { status: 'success' };
+  }
+
+  throw new Error('Unknown manageMaterial op: ' + op);
 }
 
 // ─── INCOMING MATERIALS ───────────────────────────────────────────────────────
