@@ -7,7 +7,7 @@
   <title>OX Glass Co. — WMS v3.0</title>
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
     :root{
       --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
@@ -17,7 +17,7 @@
       --purple:#7C3AED;--purple-bg:#EDE9FE;
       --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
     }
-    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    body{font-family:'Inter','DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;transition:background .25s,color .25s}
     button{font-family:inherit;cursor:pointer}
     input,select,textarea{font-family:inherit;font-size:.9rem}
     /* ── TOPBAR ── */
@@ -330,18 +330,105 @@
     .ai-field-row input,.ai-field-row select{flex:1;padding:.25rem .5rem;border:1px solid #C4B5FD;border-radius:4px;font-size:.8rem;background:#fff}
     .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:6px;padding:.35rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:.5rem}
     .ai-accept-btn:hover{filter:brightness(.9)}
+    /* ── DARK MODE ── */
+    [data-theme="dark"]{
+      --bg:#0F172A;--card:#1E293B;--text:#E2E8F0;--muted:#94A3B8;
+      --border:#334155;--shadow:0 1px 4px rgba(0,0,0,.4);
+      --navy:#0F172A;--steel:#1E293B;--accent:#3B82F6;--accent2:#60A5FA;
+      --green:#22C55E;--green-bg:rgba(34,197,94,.12);
+      --red:#EF4444;--red-bg:rgba(239,68,68,.12);
+      --yellow:#F59E0B;--yellow-bg:rgba(245,158,11,.12);
+      --orange:#FB923C;--orange-bg:rgba(251,146,60,.12);
+      --purple:#A78BFA;--purple-bg:rgba(167,139,250,.12);
+    }
+    [data-theme="dark"] .topbar{background:#020617;border-bottom-color:var(--accent)}
+    [data-theme="dark"] thead th{background:#020617}
+    [data-theme="dark"] tbody tr:hover{background:#243044}
+    [data-theme="dark"] .card,[data-theme="dark"] .rack-card,[data-theme="dark"] .modal{background:var(--card)}
+    [data-theme="dark"] .toolbar input,[data-theme="dark"] .toolbar select,
+    [data-theme="dark"] .field input,[data-theme="dark"] .field select,[data-theme="dark"] .field textarea{background:#0F172A;color:var(--text);border-color:var(--border)}
+    [data-theme="dark"] .modal-type-bar{background:#0F172A}
+    [data-theme="dark"] .doc-group{background:#243044;border-color:var(--border)}
+    [data-theme="dark"] .doc-group-name{background:#0F172A;color:var(--text)}
+    [data-theme="dark"] .badge-gray{background:#334155;color:#CBD5E1}
+    [data-theme="dark"] .badge-green{background:var(--green-bg);color:var(--green)}
+    [data-theme="dark"] .badge-red{background:var(--red-bg);color:var(--red)}
+    [data-theme="dark"] .badge-blue{background:rgba(59,130,246,.15);color:var(--accent2)}
+    [data-theme="dark"] .badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+    [data-theme="dark"] .badge-orange{background:var(--orange-bg);color:var(--orange)}
+    [data-theme="dark"] .badge-purple{background:var(--purple-bg);color:var(--purple)}
+    [data-theme="dark"] .system-footer{background:#020617;border-color:var(--border)}
+    [data-theme="dark"] .col-toggle-bar{background:#0F172A}
+    [data-theme="dark"] .expandable-row:hover{background:#243044 !important}
+    [data-theme="dark"] .details-row{background:#1a2640}
+    [data-theme="dark"] .stock-doc-row{background:#1a2640}
+    [data-theme="dark"] .doc-card{background:#0F172A;border-color:var(--border)}
+    [data-theme="dark"] .alert-banner{background:rgba(245,158,11,.15);border-color:var(--yellow)}
+    [data-theme="dark"] .notify-section{background:#243044;border-color:var(--border)}
+    [data-theme="dark"] .file-section{background:#243044;border-color:var(--border)}
+    [data-theme="dark"] .multi-loc-section{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.25)}
+    [data-theme="dark"] .multi-exit-section{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2)}
+    [data-theme="dark"] .loc-row input,[data-theme="dark"] .exit-row input{background:#0F172A;color:var(--text);border-color:var(--border)}
+    [data-theme="dark"] .morning-popup,[data-theme="dark"] .presence-dropdown{background:var(--card)}
+    [data-theme="dark"] .day-card{background:#243044;border-color:var(--border)}
+    [data-theme="dark"] .day-card.today{background:rgba(59,130,246,.12);border-color:var(--accent)}
+    [data-theme="dark"] .similar-hint{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3)}
+    [data-theme="dark"] .cfg-add-row input,[data-theme="dark"] .cfg-item-input,[data-theme="dark"] .mat-search-row input{background:#0F172A;color:var(--text);border-color:var(--border)}
+    [data-theme="dark"] .ai-review-panel{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3)}
+    [data-theme="dark"] .ai-field-row input,[data-theme="dark"] .ai-field-row select{background:#0F172A;color:var(--text)}
+    /* Dark mode toggle button */
+    .dark-toggle{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s;line-height:1.5}
+    .dark-toggle:hover{background:rgba(255,255,255,.2)}
+    /* ── TOAST NOTIFICATIONS ── */
+    #toastContainer{position:fixed;bottom:1.25rem;right:1.25rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
+    .toast{background:var(--card);border-radius:10px;padding:.7rem 1rem;font-size:.82rem;font-weight:500;display:flex;align-items:center;gap:.5rem;box-shadow:0 4px 20px rgba(0,0,0,.2);border-left:4px solid #94A3B8;min-width:240px;max-width:340px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
+    .toast.ok  {border-left-color:var(--green)}
+    .toast.err {border-left-color:var(--red)}
+    .toast.warn{border-left-color:var(--yellow)}
+    .toast.info{border-left-color:var(--accent)}
+    .toast-icon{font-size:1rem;flex-shrink:0}
+    .toast-msg{flex:1}
+    .toast-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.9rem;padding:0 0 0 .25rem;line-height:1;flex-shrink:0}
+    .toast-close:hover{color:var(--text)}
+    .toast.fade-out{animation:toastOut .3s ease forwards}
+    @keyframes toastIn {from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)}}
+    @keyframes toastOut{from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(40px)}}
+    /* ── SKELETON LOADING ── */
+    .skeleton{background:linear-gradient(90deg,var(--border) 25%,rgba(255,255,255,.3) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;height:14px}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .skeleton-card{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+    /* ── BUTTON PRESS STATES ── */
+    .btn:active{transform:scale(.97)}
+    .btn-primary:active{filter:brightness(.88)}
+    .btn-danger:active{filter:brightness(.88)}
+    .nav button:active{transform:scale(.96)}
+    /* ── TOUCH TARGET FIX ── */
+    .btn-icon{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}
+    /* ── TAB FADE TRANSITION ── */
+    .section.active{animation:tabFadeIn .18s ease}
+    @keyframes tabFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    /* ── EMPTY STATE ── */
+    .empty-state{text-align:center;padding:3rem 1rem;color:var(--muted)}
+    .empty-state .empty-icon{font-size:2.5rem;margin-bottom:.5rem;opacity:.4}
+    .empty-state p{font-size:.88rem}
+    /* ── REDUCED MOTION ── */
+    @media(prefers-reduced-motion:reduce){
+      *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+    }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
       .topbar{flex-direction:column;align-items:flex-start}
       .nav{width:100%;flex-wrap:wrap}
-      .nav button{flex-grow:1;text-align:center;padding:.6rem}
+      .nav button{flex-grow:1;text-align:center;padding:.6rem;min-height:40px}
       .toolbar{flex-direction:column;align-items:stretch;width:100%}
       .toolbar input,.toolbar select,.toolbar button{width:100%}
       .form-grid{grid-template-columns:1fr}
       .modal{padding:1.25rem}
       th,td{padding:.45rem .5rem}
       .charts-grid{grid-template-columns:1fr}
-      .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem}
+      .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem;min-height:40px}
+      #toastContainer{bottom:.75rem;right:.75rem;left:.75rem}
+      .toast{max-width:100%}
     }
   </style>
 </head>
@@ -393,8 +480,13 @@
              color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
              font-weight:600;cursor:pointer;white-space:nowrap"
       title="App settings — categories, projects, suppliers, locations, materials">⚙️ Settings</button>
+    <!-- Dark mode toggle -->
+    <button class="dark-toggle" id="btnDarkMode" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   </div>
 </div>
+
+<!-- ══ TOAST CONTAINER ═══════════════════════════════════════════════════════ -->
+<div id="toastContainer"></div>
 
 <!-- ══ USERS MANAGEMENT MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="usersOverlay">
@@ -1234,6 +1326,11 @@ function renderStock(){
     noteMap[k] = m.comments;
   });
 
+  if (!items.length) {
+    document.getElementById('stockBody').innerHTML =
+      '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
+    return;
+  }
   document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
     var zero   = s.warehouseQty <= 0 && s.siteQty <= 0;
     var docKey  = nt(s.category) + '|||' + nt(s.name);
@@ -1401,6 +1498,11 @@ function renderMovements(){
       '</tr>';
   }).join('');
 
+  if (!filtered.length) {
+    document.getElementById('tableContainer').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">📋</div><p>No movements match your filters.</p></div>';
+    return;
+  }
   html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
   document.getElementById('tableContainer').innerHTML = html;
 
@@ -1414,12 +1516,11 @@ function deleteMovementRow(rowIdx){
   setLoading(true);
   google.script.run
     .withSuccessHandler(function(){
-      setLoading(false);
+      showToast('Movement deleted.', 'ok');
       loadDataFromGoogle();
     })
     .withFailureHandler(function(err){
-      setLoading(false);
-      alert('Delete failed: ' + (err.message || err));
+      showToast('Delete failed: ' + (err.message || err), 'err', 6000);
     })
     .processMovement('manageMaterial', { op: 'deleteRow', rowIdx: rowIdx });
 }
@@ -2038,7 +2139,9 @@ async function submitMovement(){
           var msgs = [];
           if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
           if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
-          setTimeout(function(){ alert('Movement saved ✓\n\nNote:\n' + msgs.join('\n')); }, 400);
+          setTimeout(function(){
+            showToast('Saved ✓ — but note: ' + msgs.join(' | '), 'warn', 6000);
+          }, 400);
         }
       })
       .withFailureHandler(function(err){
@@ -2062,7 +2165,7 @@ async function submitMovement(){
           return;
         }
         // ── Any other error ────────────────────────────────────────────────
-        alert('Error: ' + msg);
+        showToast('Error: ' + msg, 'err', 6000);
         btn.textContent = 'Save to System'; btn.disabled = false;
       })
       .processMovement('addMovement', payload);
@@ -2277,17 +2380,18 @@ function submitAttachment() {
   var btn  = document.getElementById('attachSubmit');
   var docs = _collectDocGroups('aDocGroupsContainer');
   if (!docs.length) {
-    alert('Add at least one photo or file before uploading.');
+    showToast('Add at least one photo or file before uploading.', 'warn');
     return;
   }
   btn.innerHTML = 'Uploading… <span class="spin-hg">⏳</span>'; btn.disabled = true;
   google.script.run
     .withSuccessHandler(function() {
       closeModal('attachOverlay');
+      showToast('Document attached ✓', 'ok');
       loadDataFromGoogle();
     })
     .withFailureHandler(function(err) {
-      alert('Error: ' + (err.message || err));
+      showToast('Upload failed: ' + (err.message || err), 'err', 6000);
       btn.textContent = 'Upload & Attach'; btn.disabled = false;
     })
     .processMovement('updateDocument', {
@@ -2932,7 +3036,7 @@ function saveIncomingItem() {
     })
     .withFailureHandler(function(err){
       btn.textContent = '💾 Save'; btn.disabled = false;
-      alert('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'err', 5000);
     })
     .processMovement(action, payload);
 }
@@ -2946,7 +3050,7 @@ function deleteIncomingItem() {
       closeModal('incomingOverlay');
       loadDataFromGoogle();
     })
-    .withFailureHandler(function(err){ alert('Error: ' + err.message); })
+    .withFailureHandler(function(err){ showToast('Error: ' + err.message, 'err', 5000); })
     .processMovement('deleteIncoming', { id: id });
 }
 
@@ -3283,7 +3387,7 @@ function deactivateUser(email) {
   if (!confirm('Deactivate ' + email + '?\n\nThey will no longer be able to log in. You can re-activate them from the USERS_V3 sheet.')) return;
   google.script.run
     .withSuccessHandler(function() { _loadUsersTable(); })
-    .withFailureHandler(function(err) { alert(err.message || err); })
+    .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
     .processMovement('removeUser', { email: email });
 }
 
@@ -3342,8 +3446,7 @@ function _showAccessDeniedScreen(status, email) {
 function loadDataFromGoogle(){
   lastLoadTime = null;
   setConnStatus('loading');
-  document.getElementById('statsRow').innerHTML =
-    '<p style="padding:1rem;color:var(--muted)"><span class="spin-hg">⏳</span> Loading data…</p>';
+  setLoading(true);
   google.script.run
     .withSuccessHandler(function(data){
       // ── Access denied / not authenticated ────────────────────────────────
@@ -3384,6 +3487,63 @@ function loadDataFromGoogle(){
 // ── Charts Load ───────────────────────────────────────────────────────────────
 google.charts.load('current', {packages:['corechart']});
 google.charts.setOnLoadCallback(function(){ chartsReady = true; drawInventoryCharts(); });
+
+// ── Toast Notifications ───────────────────────────────────────────────────────
+var _toastIdSeq = 0;
+function showToast(msg, type, duration) {
+  type     = type     || 'ok';
+  duration = duration || 3500;
+  var icons = { ok:'✅', err:'❌', warn:'⚠️', info:'ℹ️' };
+  var id    = 'toast-' + (++_toastIdSeq);
+  var el    = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.id        = id;
+  el.innerHTML =
+    '<span class="toast-icon">' + (icons[type] || 'ℹ️') + '</span>' +
+    '<span class="toast-msg">'  + msg + '</span>' +
+    '<button class="toast-close" onclick="dismissToast(\'' + id + '\')">✕</button>';
+  var container = document.getElementById('toastContainer');
+  if (container) container.appendChild(el);
+  setTimeout(function(){ dismissToast(id); }, duration);
+}
+function dismissToast(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('fade-out');
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+}
+
+// ── Dark Mode ─────────────────────────────────────────────────────────────────
+function toggleDarkMode() {
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  var next   = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('btnDarkMode').textContent = isDark ? '🌙' : '☀️';
+  try { localStorage.setItem('oxwms_theme', next); } catch(e) {}
+}
+(function initTheme() {
+  var saved;
+  try { saved = localStorage.getItem('oxwms_theme'); } catch(e) {}
+  if (!saved) {
+    saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  if (saved === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    var btn = document.getElementById('btnDarkMode');
+    if (btn) btn.textContent = '☀️';
+  }
+})();
+
+// ── setLoading (skeleton stats cards while loading) ───────────────────────────
+function setLoading(on) {
+  var statsRow = document.getElementById('statsRow');
+  if (!statsRow) return;
+  if (on) {
+    var skels = '';
+    for (var i=0;i<4;i++) skels += '<div class="skeleton-card"><div class="skeleton" style="width:60%;margin-bottom:.5rem"></div><div class="skeleton" style="width:40%;height:24px"></div></div>';
+    statsRow.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem;margin-bottom:1.5rem">' + skels + '</div>';
+  }
+}
 
 // ── Debounce helper (reduces re-renders while user is typing) ─────────────────
 function _debounce(fn, ms) {
