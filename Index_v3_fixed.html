@@ -594,6 +594,7 @@
             <th title="Units in warehouse">In Warehouse</th>
             <th title="Units dispatched to site">At Site</th>
             <th title="Warehouse minus reservations">Available</th>
+            <th title="Units recorded as waste/damaged">Wasted</th>
             <th>Reserved</th><th>Rack(s)</th><th>Status</th><th>Last Note</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
@@ -1256,7 +1257,8 @@ function renderStats(){
   var items = Object.values(stockData);
   var inStock  = items.filter(function(s){ return s.availableQty > 0; }).length;
   var totalWh  = items.reduce(function(a,s){ return a + Math.max(0, s.warehouseQty); }, 0);
-  var totalSite= items.reduce(function(a,s){ return a + Math.max(0, s.siteQty); }, 0);
+  var totalSite   = items.reduce(function(a,s){ return a + Math.max(0, s.siteQty); }, 0);
+  var totalWasted = items.reduce(function(a,s){ return a + Math.max(0, s.wastedQty||0); }, 0);
   var activeProjects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
 
   // ── Low-stock alert: apply monitored filter, then find zero + below-min ────
@@ -1325,7 +1327,8 @@ function renderStats(){
     '<div class="stat" style="border-left-color:var(--green)"><label>In Warehouse</label><div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
     '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
     '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
-    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>';
+    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>'+
+    (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280"><label>Total Wasted</label><div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'');
 }
 
 // ── Dashboard: Document Map (for stock doc panel) ────────────────────────────
@@ -1434,7 +1437,7 @@ function renderStock(){
     }).join('');
 
     var docPanel = docCount > 0
-      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="9"><div class="doc-panel">' + docCards + '</div></td></tr>'
+      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="10"><div class="doc-panel">' + docCards + '</div></td></tr>'
       : '';
 
     return '<tr class="'+(zero?'row-zero':'')+'">'+
@@ -1443,6 +1446,8 @@ function renderStock(){
       '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
       '<td style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
       '<td><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
+      '<td style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+
+        (s.wastedQty>0?'✕ '+s.wastedQty:'—')+'</td>'+
       '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
       '<td style="color:var(--muted);font-size:.78rem;max-width:180px">'+locSummary(s.warehouseLocs)+'</td>'+
       '<td>'+stockBadge(s)+'</td>'+
@@ -1584,7 +1589,21 @@ function renderMovements(){
   html += paged.map(function(m){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
-    var locDisplay = m.sourceLoc || m.destLoc || '—';
+    // Consistent location display:
+    //   ENTRY, RETURN → destination rack (where material IS now)
+    //   EXIT, WASTE   → source rack (where it was pulled from)
+    //   TRANSFER      → "SRC → DEST" (shows the full path)
+    var locDisplay;
+    if (norm === 'TRANSFER') {
+      locDisplay = (m.sourceLoc && m.destLoc)
+        ? m.sourceLoc + ' → ' + m.destLoc
+        : (m.sourceLoc || m.destLoc || '—');
+    } else if (norm === 'ENTRY' || norm === 'RETURN') {
+      locDisplay = m.destLoc || m.sourceLoc || '—';
+    } else {
+      // EXIT, WASTE
+      locDisplay = m.sourceLoc || m.destLoc || '—';
+    }
     var docBtn = renderDocLinks(m.docLinks);
     var attachBtn = '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
@@ -2013,8 +2032,10 @@ function setModalType(type){
     respLabel.textContent = 'Moved By';
 
   } else if (type === 'RETURN'){
+    srcField.style.display  = 'flex';
+    srcLabel.textContent    = 'From (Site / Project / Address)';
     destField.style.display = 'flex';
-    destLabel.textContent = 'Return to Rack';
+    destLabel.textContent   = 'Return to Rack';
     supField.style.display  = 'none';
     gcField.style.display   = 'none';
     poField.style.display   = 'none';
@@ -2049,7 +2070,15 @@ function checkStock(){
   }
   var name = (document.getElementById('mName').value || '').trim().toUpperCase();
   var cat  = nt(document.getElementById('mType').value);
-  if (!name){ warn.innerHTML = ''; warn.style.background = ''; return; }
+  if (!name){
+    if (currentMoveType === 'WASTE') {
+      warn.innerHTML = 'ℹ️ WASTE saves with Status = "Damaged" in master. Wasted units appear in Dashboard → Wasted column and in Movements & History.';
+      warn.style.cssText = 'background:rgba(107,114,128,.1);color:var(--muted);padding:.5rem .75rem;border-radius:6px;font-size:.78rem';
+    } else {
+      warn.innerHTML = ''; warn.style.background = '';
+    }
+    return;
+  }
 
   var key = cat + '|||' + name;
   var s = stockData[key];
@@ -2179,7 +2208,7 @@ async function submitMovement(){
     if (!sourceLoc || !destLoc){ alert('Both source and destination racks are required for TRANSFER'); return; }
   } else if (currentMoveType === 'RETURN'){
     destLoc   = destVal;
-    sourceLoc = '';
+    sourceLoc = srcVal;  // "from" site/project/address captured in source field
   } else if (currentMoveType === 'WASTE'){
     sourceLoc = srcVal;
     destLoc   = '';
@@ -2261,16 +2290,26 @@ async function submitMovement(){
     btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
     google.script.run
       .withSuccessHandler(function(res){
+        var savedType = currentMoveType; // capture before modal closes
+        var savedName = name;
+        var savedQty  = qty;
         closeModal('moveOverlay');
         loadDataFromGoogle(true); // skipCache — always show the newly saved movement
-        if (res && (res.emailError || res.fileError)){
-          var msgs = [];
-          if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
-          if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
-          setTimeout(function(){
+        setTimeout(function(){
+          if (res && (res.emailError || res.fileError)){
+            var msgs = [];
+            if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
+            if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
             showToast('Saved ✓ — but note: ' + msgs.join(' | '), 'warn', 6000);
-          }, 400);
-        }
+          } else if (savedType === 'WASTE') {
+            var remaining = (res && res.availableAfter != null) ? res.availableAfter : '—';
+            showToast('✕ WASTE recorded: ' + savedQty + ' unit(s) of ' + savedName +
+              ' removed. Remaining warehouse stock: ' + remaining +
+              '.\n⚠️ Row saved with Status = "Damaged" in master sheet.', 'warn', 8000);
+          } else {
+            showToast('Saved ✓', 'ok');
+          }
+        }, 400);
       })
       .withFailureHandler(function(err){
         var msg = err.message || String(err);
