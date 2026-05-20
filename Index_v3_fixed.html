@@ -1568,8 +1568,8 @@ function renderMovements(){
   });
 
   var html = '<table><thead><tr>'+
-    '<th>Type</th><th>Date</th><th>Category</th><th>Name</th><th>Qty</th><th>Unit</th><th>PO#</th><th>Location</th>'+
-    (v.srcDest ? '<th>Src→Dest</th>' : '')+
+    '<th>Type</th><th>Date</th><th>Category</th><th>Name</th><th>Qty</th><th>Unit</th><th>PO#</th><th>Src→Dest</th>'+
+    (v.srcDest ? '<th>Raw Loc</th>' : '')+
     (v.gc      ? '<th>GC</th>'       : '')+
     (v.project ? '<th>Project</th>'  : '')+
     (v.supplier? '<th>Supplier</th>' : '')+
@@ -1589,19 +1589,26 @@ function renderMovements(){
   html += paged.map(function(m){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
-    // Consistent location display:
-    //   ENTRY, RETURN → destination rack (where material IS now)
-    //   EXIT, WASTE   → source rack (where it was pulled from)
-    //   TRANSFER      → "SRC → DEST" (shows the full path)
+    // Src→Dest display rules:
+    //   ENTRY    → just the destination rack (no source — came from outside)
+    //   EXIT     → "Rack → Site/Project"
+    //   TRANSFER → "Rack A → Rack B"
+    //   RETURN   → "Site → Rack"
+    //   WASTE    → "Rack → WASTE"
     var locDisplay;
-    if (norm === 'TRANSFER') {
-      locDisplay = (m.sourceLoc && m.destLoc)
-        ? m.sourceLoc + ' → ' + m.destLoc
-        : (m.sourceLoc || m.destLoc || '—');
-    } else if (norm === 'ENTRY' || norm === 'RETURN') {
-      locDisplay = m.destLoc || m.sourceLoc || '—';
+    if (norm === 'ENTRY') {
+      locDisplay = m.destLoc || '—';
+    } else if (norm === 'EXIT') {
+      var exSrc  = m.sourceLoc || '—';
+      var exDest = m.destLoc   || '—';
+      locDisplay = exSrc + ' → ' + exDest;
+    } else if (norm === 'TRANSFER') {
+      locDisplay = (m.sourceLoc || '—') + ' → ' + (m.destLoc || '—');
+    } else if (norm === 'RETURN') {
+      locDisplay = (m.sourceLoc || '—') + ' → ' + (m.destLoc || '—');
+    } else if (norm === 'WASTE') {
+      locDisplay = (m.sourceLoc || '—') + ' → WASTE';
     } else {
-      // EXIT, WASTE
       locDisplay = m.sourceLoc || m.destLoc || '—';
     }
     var docBtn = renderDocLinks(m.docLinks);
