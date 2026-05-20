@@ -676,7 +676,12 @@ function _addMovement(ss, archive, data, auth) {
         for (var em = 0; em < emailList.length; em++) {
           var addr = emailList[em].trim();
           if (addr && addr.indexOf('@') !== -1) {
-            MailApp.sendEmail(addr, subject, msgBody);
+            // GmailApp.sendEmail runs with the script owner's credentials — no
+            // per-user OAuth needed, so it works regardless of who triggers it.
+            GmailApp.sendEmail(addr, subject, msgBody, {
+              name: 'OX Glass Co. — Warehouse',
+              replyTo: auth.email   // reply goes back to the user who saved the entry
+            });
             sent++;
           }
         }
@@ -1178,14 +1183,15 @@ function _checkNotifications(ss, data, moveType, qty, userEmail) {
     var name      = String(data.name || '');
 
     if (moveType === 'WASTE') {
-      MailApp.sendEmail(
+      GmailApp.sendEmail(
         recipient,
         '🗑️ Waste Recorded: ' + name,
         'Item: '     + name +
         '\nQty: '    + qty +
         '\nReason: ' + (data.comments  || 'No reason provided') +
         '\nFrom: '   + (data.sourceLoc || 'N/A') +
-        '\nBy: '     + userEmail
+        '\nBy: '     + userEmail,
+        { name: 'OX Glass Co. — WMS', replyTo: userEmail }
       );
     }
   } catch (e) {
