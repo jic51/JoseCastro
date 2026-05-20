@@ -229,9 +229,9 @@
     /* ── CHARTS ── */
     .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
     /* ── COL TOGGLE ── */
-    .col-toggle-bar{background:var(--bg);padding:8px 15px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .col-toggle-bar strong{font-size:.72rem;color:var(--navy);text-transform:uppercase}
-    .col-toggle-bar label{cursor:pointer;font-size:.8rem;display:flex;align-items:center;gap:4px}
+    .col-pick-item{display:flex;align-items:center;gap:.55rem;padding:.35rem .45rem;border-radius:6px;font-size:.82rem;cursor:pointer;transition:.12s;color:var(--text)}
+    .col-pick-item:hover{background:var(--bg)}
+    .col-pick-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2);flex-shrink:0}
     /* ── FOOTER ── */
     .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
     /* ── STOCK DETAIL PANEL (alert bar expand) ── */
@@ -466,20 +466,25 @@
           <button onclick="togglePresence(event)">✕</button>
         </div>
         <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
+        <!-- Admin actions inside the dropdown -->
+        <div id="presenceAdminActions" style="display:none;border-top:1px solid var(--border);padding:.5rem">
+          <button id="btnUsersMgmt" onclick="togglePresence(event);openUsersModal()"
+            style="width:100%;background:none;border:1px solid var(--border);border-radius:7px;
+                   padding:.4rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;
+                   color:var(--text);text-align:left;margin-bottom:.35rem;transition:.15s"
+            onmouseover="this.style.background='var(--accent)';this.style.color='#fff'"
+            onmouseout="this.style.background='none';this.style.color='var(--text)'"
+            title="Manage system users">👥 Manage Users</button>
+          <button id="btnSettings" onclick="togglePresence(event);openSettingsModal()"
+            style="width:100%;background:none;border:1px solid var(--border);border-radius:7px;
+                   padding:.4rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;
+                   color:var(--text);text-align:left;transition:.15s"
+            onmouseover="this.style.background='var(--accent)';this.style.color='#fff'"
+            onmouseout="this.style.background='none';this.style.color='var(--text)'"
+            title="App settings">⚙️ App Settings</button>
+        </div>
       </div>
     </div>
-    <!-- Admin: User management button (hidden for non-admins) -->
-    <button id="btnUsersMgmt" onclick="openUsersModal()"
-      style="display:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
-             color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
-             font-weight:600;cursor:pointer;white-space:nowrap"
-      title="Manage system users">👥 Users</button>
-    <!-- Admin: Settings button (hidden for non-admins) -->
-    <button id="btnSettings" onclick="openSettingsModal()"
-      style="display:none;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
-             color:rgba(255,255,255,.85);border-radius:7px;padding:4px 11px;font-size:.75rem;
-             font-weight:600;cursor:pointer;white-space:nowrap"
-      title="App settings — categories, projects, suppliers, locations, materials">⚙️ Settings</button>
     <!-- Dark mode toggle -->
     <button class="dark-toggle" id="btnDarkMode" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   </div>
@@ -618,15 +623,34 @@
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
         </div>
       </div>
-      <div class="col-toggle-bar">
-        <strong>Columns:</strong>
-        <label><input type="checkbox" id="chkSysDate"> Sys Date</label>
-        <label><input type="checkbox" id="chkGc"> GC</label>
-        <label><input type="checkbox" id="chkProj" checked> Project</label>
-        <label><input type="checkbox" id="chkSup"> Supplier</label>
-        <label><input type="checkbox" id="chkResp" checked> Responsible</label>
-        <label><input type="checkbox" id="chkComm" checked> Comments</label>
-        <label><input type="checkbox" id="chkSrcDest"> Src / Dest</label>
+      <!-- Column selector dropdown -->
+      <div style="position:relative;display:inline-block" id="colPickerWrap">
+        <button onclick="toggleColPicker()" id="btnColPicker"
+          style="margin:6px 0 0 1rem;background:none;border:1px solid var(--border);border-radius:7px;
+                 padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;color:var(--text);
+                 display:flex;align-items:center;gap:.4rem;transition:.15s"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='var(--border)'">
+          ⚙ Columns <span id="colPickerChevron">▾</span>
+        </button>
+        <div id="colPickerMenu" style="display:none;position:absolute;left:0;top:calc(100% + 4px);
+             background:var(--card);border:1px solid var(--border);border-radius:10px;
+             box-shadow:0 6px 20px rgba(0,0,0,.15);min-width:200px;z-index:300;padding:.5rem;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:.25rem .4rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.35rem">
+            <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase">Show Columns</span>
+            <div style="display:flex;gap:.4rem">
+              <button onclick="setAllCols(true)"  style="font-size:.7rem;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:700">All</button>
+              <button onclick="setAllCols(false)" style="font-size:.7rem;color:var(--muted);background:none;border:none;cursor:pointer;font-weight:700">None</button>
+            </div>
+          </div>
+          <label class="col-pick-item"><input type="checkbox" id="chkSysDate"> System Date</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkGc"> GC / Contract</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkProj" checked> Project</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkSup"> Supplier</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkResp" checked> Responsible</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkComm" checked> Comments</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkSrcDest"> Source → Dest</label>
+        </div>
       </div>
       <div class="table-wrapper" id="tableContainer"></div>
     </div>
@@ -1063,7 +1087,21 @@ var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, sit
 var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
 var reservations = [];
 var currentMoveType = 'ENTRY';
-var colVis = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false };
+var _COL_VIS_KEY = 'oxwms_colvis_v3';
+var _COL_DEFAULTS = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false };
+var colVis = (function(){
+  try {
+    var saved = localStorage.getItem(_COL_VIS_KEY);
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      // Merge with defaults so new columns get their default state
+      return Object.assign({}, _COL_DEFAULTS, parsed);
+    }
+  } catch(e) {}
+  return Object.assign({}, _COL_DEFAULTS);
+})();
+var _movPage     = 1;
+var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 var userRole = 'WAREHOUSE';
 var userEmail = '';
@@ -1169,15 +1207,48 @@ function rowClass(mt){
 }
 
 // ── Tab Navigation ────────────────────────────────────────────────────────────
+// ── Tab Lazy-Render system ────────────────────────────────────────────────────
+var _TAB_RENDERS = {
+  dashboard: function(){ renderStats(); renderStock(); drawInventoryCharts(); },
+  movements: function(){ _movPage = 1; renderMovements(); },
+  projects:  function(){ refreshProjectDropdown(); renderProjectView(); },
+  warehouse: function(){ renderWarehouseMap(); },
+  incoming:  function(){ renderIncoming(); }
+};
+var _dirtyTabs = { dashboard:true, movements:true, projects:true, warehouse:true, incoming:true };
+
+function _activeTab() {
+  var tabs = ['dashboard','movements','projects','warehouse','incoming'];
+  for (var i=0;i<tabs.length;i++){
+    if (document.getElementById(tabs[i]).classList.contains('active')) return tabs[i];
+  }
+  return 'dashboard';
+}
+
 function showTab(tab, btnId){
   document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(tab).classList.add('active');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
   document.getElementById(btnId).classList.add('active');
-  if (tab === 'projects')  refreshProjectDropdown();
-  if (tab === 'warehouse') renderWarehouseMap();
-  if (tab === 'incoming')  renderIncoming();
-  renderAll();
+  if (_dirtyTabs[tab] && _TAB_RENDERS[tab]) {
+    _TAB_RENDERS[tab]();
+    _dirtyTabs[tab] = false;
+  }
+  // Persist active tab so refresh returns to same page
+  try { sessionStorage.setItem('oxwms_tab', tab + '|' + btnId); } catch(e) {}
+}
+
+// Restore last tab on page load
+function _restoreTab() {
+  try {
+    var saved = sessionStorage.getItem('oxwms_tab');
+    if (!saved) return;
+    var parts = saved.split('|');
+    var tab = parts[0]; var btnId = parts[1];
+    if (tab && btnId && document.getElementById(tab) && document.getElementById(btnId)) {
+      showTab(tab, btnId);
+    }
+  } catch(e) {}
 }
 
 // ── Dashboard: Stats ──────────────────────────────────────────────────────────
@@ -1382,7 +1453,43 @@ function renderStock(){
 }
 
 // ── Movements: Column Toggle ──────────────────────────────────────────────────
-function toggleCol(col){ colVis[col] = !colVis[col]; renderMovements(); }
+function toggleCol(col){
+  colVis[col] = !colVis[col];
+  try { localStorage.setItem(_COL_VIS_KEY, JSON.stringify(colVis)); } catch(e) {}
+  renderMovements();
+}
+
+function toggleColPicker() {
+  var menu = document.getElementById('colPickerMenu');
+  var chev = document.getElementById('colPickerChevron');
+  var open = menu.style.display === 'none';
+  menu.style.display = open ? 'block' : 'none';
+  if (chev) chev.textContent = open ? '▴' : '▾';
+}
+
+function setAllCols(val) {
+  Object.keys(colVis).forEach(function(k){ colVis[k] = val; });
+  // Sync checkboxes
+  var map = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
+              supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest' };
+  Object.keys(map).forEach(function(k){
+    var el = document.getElementById(map[k]);
+    if (el) el.checked = val;
+  });
+  try { localStorage.setItem(_COL_VIS_KEY, JSON.stringify(colVis)); } catch(e) {}
+  renderMovements();
+}
+
+// Close col picker when clicking outside
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('colPickerWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    var menu = document.getElementById('colPickerMenu');
+    var chev = document.getElementById('colPickerChevron');
+    if (menu) menu.style.display = 'none';
+    if (chev) chev.textContent = '▾';
+  }
+});
 
 // ── Feature C: Doc / Photo thumbnail helpers ──────────────────────────────────
 function extractDriveId(url){
@@ -1468,7 +1575,13 @@ function renderMovements(){
     (userRole==='ADMIN'?'<th></th>':'')+
     '</tr></thead><tbody>';
 
-  html += filtered.map(function(m){
+  // ── Pagination ────────────────────────────────────────────────────────────
+  var total    = filtered.length;
+  var pageEnd  = Math.min(_movPage * _MOV_PAGE_SZ, total);
+  var paged    = filtered.slice(0, pageEnd);
+  var remaining = total - pageEnd;
+
+  html += paged.map(function(m){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
     var locDisplay = m.sourceLoc || m.destLoc || '—';
@@ -1498,12 +1611,20 @@ function renderMovements(){
       '</tr>';
   }).join('');
 
-  if (!filtered.length) {
+  if (!total) {
     document.getElementById('tableContainer').innerHTML =
       '<div class="empty-state"><div class="empty-icon">📋</div><p>No movements match your filters.</p></div>';
     return;
   }
-  html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+filtered.length+' records shown</td></tr></tfoot></table>';
+
+  // Load-more button
+  var loadMoreBtn = remaining > 0
+    ? '<button onclick="_loadMoreMovements()" style="width:100%;padding:.6rem;margin-top:.5rem;background:none;border:1px dashed var(--border);border-radius:8px;color:var(--muted);font-size:.82rem;cursor:pointer;font-family:inherit" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">⬇ Load ' + Math.min(remaining, _MOV_PAGE_SZ) + ' more &nbsp;<span style="opacity:.55">(' + remaining + ' remaining)</span></button>'
+    : '';
+
+  html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'
+        + pageEnd + ' of ' + total + ' records</td></tr></tfoot></table>'
+        + loadMoreBtn;
   document.getElementById('tableContainer').innerHTML = html;
 
   document.getElementById('tableContainer').querySelectorAll('[data-row]').forEach(function(btn){
@@ -1511,13 +1632,20 @@ function renderMovements(){
   });
 }
 
+function _loadMoreMovements(){
+  _movPage++;
+  renderMovements();
+  // Scroll to keep position near the new rows
+  var tc = document.getElementById('tableContainer');
+  if (tc) tc.scrollTop = tc.scrollHeight;
+}
+
 function deleteMovementRow(rowIdx){
   if (!confirm('⚠️ Permanently delete this movement record?\n\nThis cannot be undone.')) return;
-  setLoading(true);
   google.script.run
     .withSuccessHandler(function(){
       showToast('Movement deleted.', 'ok');
-      loadDataFromGoogle();
+      loadDataFromGoogle(true); // skipCache — show fresh data
     })
     .withFailureHandler(function(err){
       showToast('Delete failed: ' + (err.message || err), 'err', 6000);
@@ -2134,7 +2262,7 @@ async function submitMovement(){
     google.script.run
       .withSuccessHandler(function(res){
         closeModal('moveOverlay');
-        loadDataFromGoogle();
+        loadDataFromGoogle(true); // skipCache — always show the newly saved movement
         if (res && (res.emailError || res.fileError)){
           var msgs = [];
           if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
@@ -2354,7 +2482,7 @@ function _matCall(payload) {
     .withSuccessHandler(function(res) {
       _settingMsg('Done ✓ (' + (res.updated || res.merged || 1) + ' rows updated)', 'ok');
       _loadMatList();
-      loadDataFromGoogle();  // refresh movements + stock
+      loadDataFromGoogle(true);  // skipCache — refresh movements + stock
     })
     .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
     .processMovement('manageMaterial', payload);
@@ -2388,7 +2516,7 @@ function submitAttachment() {
     .withSuccessHandler(function() {
       closeModal('attachOverlay');
       showToast('Document attached ✓', 'ok');
-      loadDataFromGoogle();
+      loadDataFromGoogle(true); // skipCache
     })
     .withFailureHandler(function(err) {
       showToast('Upload failed: ' + (err.message || err), 'err', 6000);
@@ -2788,13 +2916,12 @@ function renderWarehouseMap(){
 
 // ── Render All ────────────────────────────────────────────────────────────────
 function renderAll(){
-  renderStats();
-  renderStock();
-  renderMovements();
-  drawInventoryCharts();
-  // Only render map if tab is visible (performance)
-  if (document.getElementById('warehouse').classList.contains('active')){
-    renderWarehouseMap();
+  // Mark all tabs dirty, then render only the active one
+  Object.keys(_TAB_RENDERS).forEach(function(t){ _dirtyTabs[t] = true; });
+  var tab = _activeTab();
+  if (_TAB_RENDERS[tab]) {
+    _TAB_RENDERS[tab]();
+    _dirtyTabs[tab] = false;
   }
 }
 
@@ -3032,7 +3159,7 @@ function saveIncomingItem() {
     .withSuccessHandler(function(res){
       btn.textContent = '💾 Save'; btn.disabled = false;
       closeModal('incomingOverlay');
-      loadDataFromGoogle(); // refresh to get updated list
+      loadDataFromGoogle(true); // skipCache
     })
     .withFailureHandler(function(err){
       btn.textContent = '💾 Save'; btn.disabled = false;
@@ -3048,7 +3175,7 @@ function deleteIncomingItem() {
   google.script.run
     .withSuccessHandler(function(){
       closeModal('incomingOverlay');
-      loadDataFromGoogle();
+      loadDataFromGoogle(true); // skipCache
     })
     .withFailureHandler(function(err){ showToast('Error: ' + err.message, 'err', 5000); })
     .processMovement('deleteIncoming', { id: id });
@@ -3443,10 +3570,29 @@ function _showAccessDeniedScreen(status, email) {
 }
 
 // ── Load Data from Backend ────────────────────────────────────────────────────
-function loadDataFromGoogle(){
+function loadDataFromGoogle(skipCache){
   lastLoadTime = null;
   setConnStatus('loading');
-  setLoading(true);
+
+  // ── Show cached data instantly while fresh data loads in background ──────
+  // skipCache=true is passed after a save/delete so user sees loading state
+  // rather than stale data that doesn't include their new movement yet.
+  var cached = skipCache ? null : _loadCache();
+  if (cached && cached.userRole) {
+    _applyData(cached);
+    userRole  = cached.userRole  || userRole;
+    userEmail = cached.userEmail || userEmail;
+    var cachedDisplay = cached.userName ? cached.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
+    document.getElementById('userChip').textContent = cachedDisplay + ' ⟳';
+    applyRoleUI();
+    refreshCategoryDropdowns();
+    refreshDropdowns();
+    refreshProjectDropdown();
+    renderAll();
+  } else {
+    setLoading(true);
+  }
+
   google.script.run
     .withSuccessHandler(function(data){
       // ── Access denied / not authenticated ────────────────────────────────
@@ -3455,15 +3601,8 @@ function loadDataFromGoogle(){
         return;
       }
       // ── Normal load ───────────────────────────────────────────────────────
-      movements          = data.movements          || [];
-      stockData          = data.stock              || {};
-      config             = data.config             || config;
-      reservations       = data.reservations       || [];
-      userRole           = data.userRole           || 'WAREHOUSE';
-      userEmail          = data.userEmail          || '';
-      incoming           = data.incoming           || [];
-      monitoredMaterials = data.monitoredMaterials || null;
-      if (data.users && data.users.length) _usersData = data.users; // pre-load for admin
+      _applyData(data);
+      _saveCache(data);           // persist for next page-load
       lastLoadTime = Date.now();
       setConnStatus('online');
       var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
@@ -3474,6 +3613,7 @@ function loadDataFromGoogle(){
       refreshDropdowns();
       refreshProjectDropdown();
       renderAll();
+      _restoreTab();
       checkMorningPopup();
     })
     .withFailureHandler(function(err){
@@ -3487,6 +3627,38 @@ function loadDataFromGoogle(){
 // ── Charts Load ───────────────────────────────────────────────────────────────
 google.charts.load('current', {packages:['corechart']});
 google.charts.setOnLoadCallback(function(){ chartsReady = true; drawInventoryCharts(); });
+
+// ── SessionStorage Cache ──────────────────────────────────────────────────────
+var _CACHE_KEY   = 'oxwms_data_v3';
+var _CACHE_MAX_MS = 45 * 60 * 1000; // 45 minutes
+
+function _saveCache(data) {
+  try {
+    sessionStorage.setItem(_CACHE_KEY, JSON.stringify({ ts: Date.now(), d: data }));
+  } catch(e) {}
+}
+
+function _loadCache() {
+  try {
+    var raw = sessionStorage.getItem(_CACHE_KEY);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (!obj || !obj.d || (Date.now() - obj.ts) > _CACHE_MAX_MS) return null;
+    return obj.d;
+  } catch(e) { return null; }
+}
+
+function _applyData(data) {
+  movements          = data.movements          || [];
+  stockData          = data.stock              || {};
+  config             = data.config             || config;
+  reservations       = data.reservations       || [];
+  userRole           = data.userRole           || 'WAREHOUSE';
+  userEmail          = data.userEmail          || '';
+  incoming           = data.incoming           || [];
+  monitoredMaterials = data.monitoredMaterials || null;
+  if (data.users && data.users.length) _usersData = data.users;
+}
 
 // ── Toast Notifications ───────────────────────────────────────────────────────
 var _toastIdSeq = 0;
@@ -3571,18 +3743,21 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('stockStatusFilter').addEventListener('change', renderStock);
 
   // Movement filters
-  document.getElementById('movSearch').addEventListener('input', _debounce(renderMovements, 220));
-  document.getElementById('movTypeFilter').addEventListener('change', renderMovements);
-  document.getElementById('movCatFilter').addEventListener('change', renderMovements);
+  document.getElementById('movSearch').addEventListener('input', _debounce(function(){ _movPage=1; renderMovements(); }, 220));
+  document.getElementById('movTypeFilter').addEventListener('change', function(){ _movPage=1; renderMovements(); });
+  document.getElementById('movCatFilter').addEventListener('change', function(){ _movPage=1; renderMovements(); });
 
   // Column toggles
-  document.getElementById('chkSysDate').addEventListener('change', function(){ toggleCol('sysDate'); });
-  document.getElementById('chkGc').addEventListener('change',      function(){ toggleCol('gc'); });
-  document.getElementById('chkProj').addEventListener('change',    function(){ toggleCol('project'); });
-  document.getElementById('chkSup').addEventListener('change',     function(){ toggleCol('supplier'); });
-  document.getElementById('chkResp').addEventListener('change',    function(){ toggleCol('resp'); });
-  document.getElementById('chkComm').addEventListener('change',    function(){ toggleCol('comment'); });
-  document.getElementById('chkSrcDest').addEventListener('change', function(){ toggleCol('srcDest'); });
+  // Sync checkboxes from persisted colVis
+  var _chkMap = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
+                  supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest' };
+  Object.keys(_chkMap).forEach(function(k){
+    var el = document.getElementById(_chkMap[k]);
+    if (el) {
+      el.checked = !!colVis[k];
+      el.addEventListener('change', function(){ toggleCol(k); });
+    }
+  });
 
   // Export
   document.getElementById('btnExportCSV').addEventListener('click', exportMovementsCSV);
@@ -3650,15 +3825,14 @@ function applyRoleUI(){
     var el = document.getElementById(id);
     if (el) el.style.display = isViewer ? 'none' : '';
   });
-  // Admin-only buttons
+  // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
-  var usersMgmt = document.getElementById('btnUsersMgmt');
-  if (usersMgmt) usersMgmt.style.display = isAdmin ? '' : 'none';
-  var settingsBtn = document.getElementById('btnSettings');
-  if (settingsBtn) settingsBtn.style.display = isAdmin ? '' : 'none';
+  // Admin actions panel inside presence dropdown (Users + Settings)
+  var adminPanel = document.getElementById('presenceAdminActions');
+  if (adminPanel) adminPanel.style.display = isAdmin ? '' : 'none';
   // Show a "View Only" tag next to the user chip when in VIEWER mode
   var tag = document.getElementById('viewerTag');
   if (!tag && isViewer){

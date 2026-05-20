@@ -1096,12 +1096,25 @@ function _photosToDocPdf(photos, docName, targetFolder) {
 }
 
 function _getOrCreateFolder(path) {
+  // Cache folder IDs in Script Properties to avoid repeated root traversal
+  // (also avoids DriveApp.getRootFolder permission issues on drive.file scope)
+  var props    = PropertiesService.getScriptProperties();
+  var cacheKey = 'FOLDER_' + path.replace(/\W/g, '_');
+  var folderId = props.getProperty(cacheKey);
+
+  if (folderId) {
+    try { return DriveApp.getFolderById(folderId); } catch(e) { /* stale id, recreate */ }
+  }
+
+  // First time: walk from root and create any missing folders
   var parts   = path.split('/');
   var current = DriveApp.getRootFolder();
   for (var i = 0; i < parts.length; i++) {
-    var folders = current.getFoldersByName(parts[i]);
-    current = folders.hasNext() ? folders.next() : current.createFolder(parts[i]);
+    var sub = current.getFoldersByName(parts[i]);
+    current = sub.hasNext() ? sub.next() : current.createFolder(parts[i]);
   }
+  // Cache the final folder ID so future calls use getFolderById (works with drive.file)
+  try { props.setProperty(cacheKey, current.getId()); } catch(e) {}
   return current;
 }
 
