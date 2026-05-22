@@ -4516,83 +4516,111 @@ function runGmailScan() {
     .processMovement('scanGmail', { query: query, daysBack: daysBack, maxResults: maxResults });
 }
 
+function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
 function renderGmailScanResults(emails) {
   var container = document.getElementById('gmailScanResults');
   if (!emails || !emails.length) {
-    container.innerHTML = '<div class="gmail-no-results">📭 No delivery emails found for the selected criteria.<br>Try increasing "Days Back" or broadening the search query.</div>';
+    container.innerHTML = '<div class="gmail-no-results">📭 No delivery emails found.<br>Try increasing "Days Back" or broadening the query.</div>';
     return;
   }
 
   var CATS = (config && config.categories && config.categories.length)
     ? config.categories
     : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
-  var catOpts = CATS.map(function(c){ return '<option value="'+c+'">' + c + '</option>'; }).join('');
+  var UNITS = ['UNIT','SQ FT','LN FT','PIECE','BOX','PALLET'];
 
-  var html = emails.map(function(em, idx) {
-    var p = em.parsed || {};
-    var isDelivery  = (p.isDelivery !== false);
-    var notDelivTag = isDelivery ? '' : '<span class="gc-not-delivery">⚠ Not a delivery</span>';
-    var safeSubject = (em.subject || '(no subject)').replace(/</g,'&lt;');
-    var safeFrom    = (em.from    || '').replace(/</g,'&lt;');
+  container.innerHTML = '';
 
-    var catSel = CATS.map(function(c){
-      return '<option value="'+c+'"'+(nt(p.category)===nt(c)?' selected':'')+'>'+c+'</option>';
-    }).join('');
+  emails.forEach(function(em, idx) {
+    try {
+      var p = (em.parsed && typeof em.parsed === 'object') ? em.parsed : {};
+      var aiOk = (em.parsed !== null && em.parsed !== undefined);
 
-    return [
-      '<div class="gmail-card" id="gc-'+idx+'">',
-        '<div class="gmail-card-hdr">',
-          '<span class="gc-subject" title="'+safeSubject+'">'+safeSubject+'</span>',
-          '<span class="gc-from">'+safeFrom+'</span>',
-          '<span class="gc-date">'+em.date+'</span>',
-          notDelivTag,
-        '</div>',
-        '<div class="gmail-card-body">',
-          '<div class="field"><label>Material Name</label>',
-            '<input type="text" id="gf-name-'+idx+'" value="'+(p.name||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-          '<div class="field"><label>Category</label>',
-            '<select id="gf-cat-'+idx+'"><option value="">Select…</option>'+catSel+'</select>',
-          '</div>',
-          '<div class="field"><label>Qty</label>',
-            '<input type="number" id="gf-qty-'+idx+'" value="'+(p.qty||1)+'" min="1">',
-          '</div>',
-          '<div class="field"><label>Unit</label>',
-            '<select id="gf-unit-'+idx+'">',
-              ['UNIT','SQ FT','LN FT','PIECE','BOX','PALLET'].map(function(u){
-                return '<option'+(nt(u)===nt(p.unit)?' selected':'')+'>'+ u +'</option>';
-              }).join(''),
-            '</select>',
-          '</div>',
-          '<div class="field"><label>Supplier</label>',
-            '<input type="text" id="gf-sup-'+idx+'" value="'+(p.supplier||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-          '<div class="field"><label>PO #</label>',
-            '<input type="text" id="gf-po-'+idx+'" value="'+(p.po||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-          '<div class="field"><label>Est. Arrival Date</label>',
-            '<input type="date" id="gf-date-'+idx+'" value="'+(p.estDate||'')+'">',
-          '</div>',
-          '<div class="field"><label>Project</label>',
-            '<input type="text" id="gf-proj-'+idx+'" value="'+(p.project||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-          '<div class="field"><label>PM (Project Manager)</label>',
-            '<input type="text" id="gf-pm-'+idx+'" value="'+(p.pm||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-          '<div class="field full"><label>Notes</label>',
-            '<input type="text" id="gf-notes-'+idx+'" value="'+(p.notes||'').replace(/"/g,'&quot;')+'">',
-          '</div>',
-        '</div>',
-        '<div class="gmail-card-footer">',
-          '<span class="gc-saved-badge" id="gc-badge-'+idx+'"></span>',
-          '<button class="btn btn-ghost btn-sm" onclick="skipGmailDraft('+idx+')">✗ Skip</button>',
-          '<button class="btn btn-primary btn-sm" onclick="saveGmailDraft('+idx+')">✓ Save as Incoming</button>',
-        '</div>',
-      '</div>'
-    ].join('');
-  }).join('');
+      // ── Build card element ──
+      var card = document.createElement('div');
+      card.className = 'gmail-card';
+      card.id = 'gc-' + idx;
 
-  container.innerHTML = html;
+      // Header
+      var hdr = document.createElement('div');
+      hdr.className = 'gmail-card-hdr';
+      hdr.innerHTML =
+        '<span class="gc-subject" title="' + _escAttr(em.subject) + '">' + _escAttr(em.subject || '(no subject)') + '</span>' +
+        '<span class="gc-from">' + _escAttr(em.from) + '</span>' +
+        '<span class="gc-date">' + _escAttr(em.date) + '</span>' +
+        (p.isDelivery === false ? '<span class="gc-not-delivery">⚠ Possibly not a delivery</span>' : '') +
+        (!aiOk ? '<span class="gc-not-delivery" style="color:var(--orange)">⚠ AI parsing failed — fill manually</span>' : '');
+
+      // Body — build category select
+      var catSelHtml = '<option value="">Select category…</option>';
+      CATS.forEach(function(c){
+        catSelHtml += '<option value="' + _escAttr(c) + '"' + (nt(String(p.category||''))===nt(c)?' selected':'') + '>' + _escAttr(c) + '</option>';
+      });
+
+      // Unit select
+      var unitSelHtml = '';
+      UNITS.forEach(function(u){
+        unitSelHtml += '<option' + (nt(u)===nt(String(p.unit||''))?' selected':'') + '>' + u + '</option>';
+      });
+
+      var body = document.createElement('div');
+      body.className = 'gmail-card-body';
+      body.innerHTML =
+        '<div class="field"><label>Material Name *</label>' +
+          '<input type="text" id="gf-name-' + idx + '" placeholder="Required" value="' + _escAttr(p.name) + '"></div>' +
+        '<div class="field"><label>Category</label>' +
+          '<select id="gf-cat-' + idx + '">' + catSelHtml + '</select></div>' +
+        '<div class="field"><label>Qty</label>' +
+          '<input type="number" id="gf-qty-' + idx + '" value="' + (Number(p.qty)||1) + '" min="1"></div>' +
+        '<div class="field"><label>Unit</label>' +
+          '<select id="gf-unit-' + idx + '">' + unitSelHtml + '</select></div>' +
+        '<div class="field"><label>Supplier</label>' +
+          '<input type="text" id="gf-sup-' + idx + '" value="' + _escAttr(p.supplier) + '"></div>' +
+        '<div class="field"><label>PO #</label>' +
+          '<input type="text" id="gf-po-' + idx + '" value="' + _escAttr(p.po) + '"></div>' +
+        '<div class="field"><label>Est. Arrival Date</label>' +
+          '<input type="date" id="gf-date-' + idx + '" value="' + _escAttr(p.estDate) + '"></div>' +
+        '<div class="field"><label>Project</label>' +
+          '<input type="text" id="gf-proj-' + idx + '" value="' + _escAttr(p.project) + '"></div>' +
+        '<div class="field"><label>PM (Project Manager)</label>' +
+          '<input type="text" id="gf-pm-' + idx + '" value="' + _escAttr(p.pm) + '"></div>' +
+        '<div class="field full"><label>Notes</label>' +
+          '<input type="text" id="gf-notes-' + idx + '" value="' + _escAttr(p.notes) + '"></div>';
+
+      // Footer
+      var footer = document.createElement('div');
+      footer.className = 'gmail-card-footer';
+      var badge  = document.createElement('span');
+      badge.className = 'gc-saved-badge';
+      badge.id = 'gc-badge-' + idx;
+      var btnSkip = document.createElement('button');
+      btnSkip.className = 'btn btn-ghost btn-sm';
+      btnSkip.textContent = '✗ Skip';
+      btnSkip.onclick = (function(i){ return function(){ skipGmailDraft(i); }; })(idx);
+      var btnSave = document.createElement('button');
+      btnSave.className = 'btn btn-primary btn-sm';
+      btnSave.textContent = '✓ Save as Incoming';
+      btnSave.id = 'gc-savebtn-' + idx;
+      btnSave.onclick = (function(i){ return function(){ saveGmailDraft(i); }; })(idx);
+
+      footer.appendChild(badge);
+      footer.appendChild(btnSkip);
+      footer.appendChild(btnSave);
+
+      card.appendChild(hdr);
+      card.appendChild(body);
+      card.appendChild(footer);
+      container.appendChild(card);
+
+    } catch(eCard) {
+      var errDiv = document.createElement('div');
+      errDiv.className = 'gmail-card';
+      errDiv.style.cssText = 'padding:.75rem;color:var(--red);font-size:.82rem';
+      errDiv.textContent = '⚠ Error rendering email ' + idx + ': ' + eCard.message;
+      container.appendChild(errDiv);
+    }
+  });
 }
 
 function skipGmailDraft(idx) {
@@ -4610,7 +4638,7 @@ function skipGmailDraft(idx) {
 }
 
 function saveGmailDraft(idx) {
-  var btn = document.querySelector('#gc-'+idx+' .btn-primary');
+  var btn = document.getElementById('gc-savebtn-' + idx);
   if (btn) { btn.disabled = true; btn.textContent = '💾 Saving…'; }
 
   var val = function(id){ return (document.getElementById(id) || {}).value || ''; };
