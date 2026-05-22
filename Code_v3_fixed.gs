@@ -511,6 +511,7 @@ function processMovement(action, data) {
   if (action === 'addIncoming')           return addIncoming(data);
   if (action === 'updateIncoming')        return updateIncoming(data);
   if (action === 'deleteIncoming')        return deleteIncoming(data.id);
+  if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
   // ── User management (ADMIN only) ─────────────────────────────────────────
   if (action === 'getUsers')       return getUsers(auth);
@@ -1829,6 +1830,140 @@ function deleteIncoming(id) {
     }
   }
   throw new Error('Incoming item not found: ' + id);
+}
+
+// ─── GMAIL SCANNER ───────────────────────────────────────────────────────────
+// Searches Gmail for delivery/shipment emails, parses each with Gemini,
+// and returns draft Incoming items for the user to review before saving.
+//
+// Requires: GEMINI_API_KEY in Script Properties
+//           Gmail OAuth scope (auto-granted when GmailApp is used)
+//
+function scanGmailForDeliveries(data, auth) {
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+
+  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error(
+    'GEMINI_API_KEY not configured.\n' +
+    'GAS Editor → ⚙ Project Settings → Script Properties\n' +
+    'Add: GEMINI_API_KEY = your key from aistudio.google.com'
+  );
+
+  // Build Gmail search query
+  var daysBack   = Math.min(Math.max(Number(data.daysBack || 14), 1), 60);
+  var customQuery = String(data.query || '').trim();
+  var query = customQuery ||
+    ('newer_than:' + daysBack + 'd ' +
+     '(delivery OR shipment OR "purchase order" OR "order confirmation" ' +
+     'OR "tracking" OR "will ship" OR "arriving" OR "scheduled delivery") ' +
+     '-in:sent -in:drafts');
+  var maxEmails = Math.min(Number(data.maxResults || 10), 20);
+
+  var threads;
+  try {
+    threads = GmailApp.search(query, 0, maxEmails);
+  } catch (e) {
+    throw new Error('Gmail search failed: ' + e.message +
+      '\nMake sure you authorized the Gmail permission when prompted.');
+  }
+
+  var results = [];
+
+  for (var i = 0; i < threads.length; i++) {
+    try {
+      var thread   = threads[i];
+      var messages = thread.getMessages();
+      // Use the most recent message in the thread
+      var msg = messages[messages.length - 1];
+
+      var subject  = String(msg.getSubject()  || '(no subject)');
+      var from     = String(msg.getFrom()     || '');
+      var msgDate  = Utilities.formatDate(msg.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      // Strip HTML tags and collapse whitespace; cap at 3 000 chars to keep Gemini prompt small
+      var bodyRaw  = msg.getPlainBody() || msg.getBody().replace(/<[^>]+>/g, ' ');
+      var bodyText = bodyRaw.replace(/\s+/g, ' ').trim().substring(0, 3000);
+
+      // Parse with Gemini
+      var parsed = _parseEmailTextAsIncoming(bodyText, subject, from, apiKey);
+
+      results.push({
+        emailId: thread.getId(),
+        subject: subject,
+        from:    from,
+        date:    msgDate,
+        parsed:  parsed   // null if Gemini call failed
+      });
+    } catch (eInner) {
+      Logger.log('scanGmail thread ' + i + ' error: ' + eInner.message);
+      // Continue — don't let one bad email abort the whole scan
+    }
+  }
+
+  return { status: 'success', emails: results, query: query };
+}
+
+// Calls Gemini 1.5 Flash with plain-text email content.
+// Returns a parsed object {name, category, qty, unit, supplier, po, estDate, project, pm, notes, isDelivery}
+// or null on failure.
+function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
+  var prompt =
+    'You are analyzing an email received by a glass and window installation warehouse.\n\n' +
+    'Email subject: ' + subject + '\n' +
+    'From: ' + from + '\n\n' +
+    'Email body:\n' + bodyText + '\n\n' +
+    'Extract incoming delivery information and return ONLY a valid JSON object — no markdown, no extra text:\n' +
+    '{\n' +
+    '  "isDelivery": true or false (is this email about an incoming delivery or shipment?),\n' +
+    '  "name":       "material or product name / description",\n' +
+    '  "category":   "WINDOW | SCREEN | WINDOW_PARTS | SHOWER | MIRROR | STOREFRONT | TOOLS | BONEYARD | FLASHING | SCREWS | IGU | (empty string if unclear)",\n' +
+    '  "qty":        number or null,\n' +
+    '  "unit":       "UNIT | SQ FT | LN FT | PIECE | BOX | PALLET",\n' +
+    '  "supplier":   "sender company or vendor name",\n' +
+    '  "po":         "PO number or order number if present, else null",\n' +
+    '  "estDate":    "estimated arrival date YYYY-MM-DD or null",\n' +
+    '  "project":    "project name or delivery address if mentioned, else null",\n' +
+    '  "pm":         "project manager name if mentioned, else null",\n' +
+    '  "notes":      "tracking number, delivery time window, or any useful note"\n' +
+    '}\n\n' +
+    'Rules:\n' +
+    '- isDelivery = true only if this is clearly about physical materials being shipped/delivered.\n' +
+    '- For qty, extract the TOTAL quantity being delivered (not per-item).\n' +
+    '- For estDate, prefer explicit dates; if "today" or no date, use null.\n' +
+    '- For supplier, use the company name from the "From" field if not mentioned in body.\n' +
+    '- Use null for any field that is not clearly present.\n' +
+    '- Return ONLY the JSON, no other text.';
+
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+  var requestBody = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.05, maxOutputTokens: 512 }
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method:          'POST',
+      contentType:     'application/json',
+      payload:         JSON.stringify(requestBody),
+      muteHttpExceptions: true
+    });
+    if (response.getResponseCode() !== 200) return null;
+
+    var result = JSON.parse(response.getContentText());
+    if (!result.candidates || !result.candidates.length) return null;
+
+    var text = (result.candidates[0].content.parts[0].text || '').trim();
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+    try   { return JSON.parse(text); }
+    catch (e) {
+      var m = text.match(/\{[\s\S]*\}/);
+      if (m) { try { return JSON.parse(m[0]); } catch(e2) {} }
+      return null;
+    }
+  } catch (e) {
+    Logger.log('_parseEmailTextAsIncoming error: ' + e.message);
+    return null;
+  }
 }
 
 // ─── MONITORED MATERIALS ──────────────────────────────────────────────────────

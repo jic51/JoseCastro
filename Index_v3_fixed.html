@@ -170,6 +170,42 @@
     .inc-suggest-item:hover{background:#EFF6FF}
     .inc-suggest-item .inc-tag{font-size:.68rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
     .inc-suggest-item .inc-meta{font-size:.72rem;color:var(--muted);margin-left:auto}
+    /* ── GMAIL SCANNER ── */
+    .gmail-scan-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:2rem 1rem}
+    .gmail-scan-overlay.show{display:flex}
+    .gmail-scan-modal{background:var(--card);border-radius:var(--radius);box-shadow:0 12px 48px rgba(0,0,0,.25);width:100%;max-width:780px;display:flex;flex-direction:column;margin:auto}
+    .gmail-scan-hdr{background:var(--navy);color:#fff;padding:.85rem 1.25rem;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;justify-content:space-between}
+    .gmail-scan-hdr h3{font-size:1rem;font-weight:700;margin:0}
+    .gmail-scan-hdr button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.85rem}
+    .gmail-scan-hdr button:hover{background:rgba(255,255,255,.22)}
+    .gmail-scan-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.85rem}
+    .gmail-scan-config{display:grid;grid-template-columns:1fr auto auto;gap:.6rem;align-items:end}
+    .gmail-scan-config .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.3rem}
+    .gmail-scan-config .field input{width:100%;padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit}
+    .gmail-scan-config .field input:focus{outline:none;border-color:var(--accent)}
+    .gmail-scan-config .field-sm{width:90px}
+    .gmail-scan-config .field-sm input{width:90px}
+    .gmail-scan-actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+    #gmailScanStatus{font-size:.82rem;color:var(--muted);flex:1;min-width:0}
+    .gmail-scan-loading{display:none;align-items:center;gap:.75rem;padding:.6rem .9rem;background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px;font-size:.82rem;color:var(--yellow)}
+    .gmail-scan-loading.show{display:flex}
+    .gmail-scan-results{display:flex;flex-direction:column;gap:.75rem;max-height:60vh;overflow-y:auto;padding-right:2px}
+    .gmail-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:.15s}
+    .gmail-card.skipped{opacity:.4;pointer-events:none}
+    .gmail-card.saved{border-color:var(--green);background:#F0FDF4}
+    .gmail-card-hdr{background:#F8FAFC;border-bottom:1px solid var(--border);padding:.5rem .8rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .gmail-card-hdr .gc-subject{font-size:.84rem;font-weight:700;color:var(--navy);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .gmail-card-hdr .gc-from{font-size:.72rem;color:var(--muted);flex-shrink:0}
+    .gmail-card-hdr .gc-date{font-size:.72rem;color:var(--muted);flex-shrink:0}
+    .gmail-card-hdr .gc-not-delivery{font-size:.72rem;color:var(--red);font-weight:600;flex-shrink:0}
+    .gmail-card-body{padding:.65rem .8rem;display:grid;grid-template-columns:1fr 1fr;gap:.5rem .8rem}
+    @media(max-width:540px){.gmail-card-body{grid-template-columns:1fr}}
+    .gmail-card-body .field label{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.25rem}
+    .gmail-card-body .field input,.gmail-card-body .field select{width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
+    .gmail-card-body .field.full{grid-column:1/-1}
+    .gmail-card-footer{padding:.5rem .8rem;border-top:1px solid var(--border);display:flex;gap:.5rem;justify-content:flex-end;align-items:center;background:#FAFAFA}
+    .gmail-card-footer .gc-saved-badge{font-size:.78rem;font-weight:700;color:var(--green);flex:1}
+    .gmail-no-results{text-align:center;padding:2rem;color:var(--muted);font-size:.88rem}
     /* ── HOURGLASS: flip 180°, pause 1s, flip 180°, pause 1s ── */
     @keyframes hg-flip{
       0%        {transform:rotate(0deg)}
@@ -730,6 +766,7 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
+          <button id="btnScanGmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openGmailScanModal()">📧 Scan Gmail</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
       </div>
@@ -841,6 +878,50 @@
       <button class="btn btn-ghost btn-sm" onclick="closeModal('incomingOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveIncomingItem()">💾 Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ GMAIL SCANNER MODAL ════════════════════════════════════════════════════ -->
+<div class="gmail-scan-overlay" id="gmailScanOverlay" onclick="if(event.target===this)closeGmailScanModal()">
+  <div class="gmail-scan-modal">
+    <div class="gmail-scan-hdr">
+      <h3>📧 Scan Gmail for Deliveries</h3>
+      <button onclick="closeGmailScanModal()">✕ Close</button>
+    </div>
+    <div class="gmail-scan-body">
+
+      <!-- Config row -->
+      <div class="gmail-scan-config">
+        <div class="field">
+          <label>Search Query</label>
+          <input type="text" id="gmailQuery" placeholder="e.g. delivery OR shipment OR 'purchase order'">
+        </div>
+        <div class="field field-sm">
+          <label>Days Back</label>
+          <input type="number" id="gmailDaysBack" value="14" min="1" max="60">
+        </div>
+        <div class="field field-sm">
+          <label>Max Emails</label>
+          <input type="number" id="gmailMaxResults" value="10" min="1" max="20">
+        </div>
+      </div>
+
+      <!-- Actions + status -->
+      <div class="gmail-scan-actions">
+        <button class="btn btn-primary btn-sm" id="btnRunScan" onclick="runGmailScan()">🔍 Scan</button>
+        <span id="gmailScanStatus">Enter a query or use the default, then press Scan.</span>
+      </div>
+
+      <!-- Loading indicator -->
+      <div class="gmail-scan-loading" id="gmailScanLoading">
+        <span class="spin-hg">⏳</span>
+        <span>Scanning Gmail and parsing with AI — this may take 15-30 seconds…</span>
+      </div>
+
+      <!-- Results -->
+      <div class="gmail-scan-results" id="gmailScanResults"></div>
+
+    </div><!-- /body -->
   </div>
 </div>
 
@@ -4293,6 +4374,8 @@ function applyRoleUI(){
   // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
+  var scanGmailBtn = document.getElementById('btnScanGmail');
+  if (scanGmailBtn) scanGmailBtn.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   // Admin actions panel inside presence dropdown (Users + Settings)
@@ -4380,6 +4463,203 @@ function renderActiveUsers(users){
       '<span class="presence-time">' + ageStr + '</span>' +
       '</div>';
   }).join('');
+}
+
+// ── Gmail Scanner ─────────────────────────────────────────────────────────────
+var _gmailScanResults = [];
+
+function openGmailScanModal() {
+  // Reset state
+  document.getElementById('gmailScanResults').innerHTML = '';
+  document.getElementById('gmailScanStatus').textContent = 'Enter a query or use the default, then press Scan.';
+  document.getElementById('gmailScanLoading').classList.remove('show');
+  document.getElementById('btnRunScan').disabled = false;
+  _gmailScanResults = [];
+  document.getElementById('gmailScanOverlay').classList.add('show');
+}
+
+function closeGmailScanModal() {
+  document.getElementById('gmailScanOverlay').classList.remove('show');
+}
+
+function runGmailScan() {
+  var query       = (document.getElementById('gmailQuery').value || '').trim();
+  var daysBack    = parseInt(document.getElementById('gmailDaysBack').value, 10)    || 14;
+  var maxResults  = parseInt(document.getElementById('gmailMaxResults').value, 10)  || 10;
+
+  document.getElementById('gmailScanResults').innerHTML = '';
+  document.getElementById('gmailScanStatus').textContent = 'Scanning…';
+  document.getElementById('gmailScanLoading').classList.add('show');
+  document.getElementById('btnRunScan').disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      document.getElementById('gmailScanLoading').classList.remove('show');
+      document.getElementById('btnRunScan').disabled = false;
+      if (!res || res.status !== 'success') {
+        document.getElementById('gmailScanStatus').textContent = 'Error: ' + (res && res.message ? res.message : 'Unknown error.');
+        return;
+      }
+      _gmailScanResults = res.emails || [];
+      var n = _gmailScanResults.length;
+      document.getElementById('gmailScanStatus').textContent =
+        n === 0 ? 'No emails found. Try adjusting the query or days.' :
+        n + ' email' + (n > 1 ? 's' : '') + ' found. Review and save the ones you want.';
+      renderGmailScanResults(_gmailScanResults);
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('gmailScanLoading').classList.remove('show');
+      document.getElementById('btnRunScan').disabled = false;
+      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
+      document.getElementById('gmailScanStatus').textContent = '⚠ ' + msg;
+    })
+    .processMovement('scanGmail', { query: query, daysBack: daysBack, maxResults: maxResults });
+}
+
+function renderGmailScanResults(emails) {
+  var container = document.getElementById('gmailScanResults');
+  if (!emails || !emails.length) {
+    container.innerHTML = '<div class="gmail-no-results">📭 No delivery emails found for the selected criteria.<br>Try increasing "Days Back" or broadening the search query.</div>';
+    return;
+  }
+
+  var CATS = (config && config.categories && config.categories.length)
+    ? config.categories
+    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+  var catOpts = CATS.map(function(c){ return '<option value="'+c+'">' + c + '</option>'; }).join('');
+
+  var html = emails.map(function(em, idx) {
+    var p = em.parsed || {};
+    var isDelivery  = (p.isDelivery !== false);
+    var notDelivTag = isDelivery ? '' : '<span class="gc-not-delivery">⚠ Not a delivery</span>';
+    var safeSubject = (em.subject || '(no subject)').replace(/</g,'&lt;');
+    var safeFrom    = (em.from    || '').replace(/</g,'&lt;');
+
+    var catSel = CATS.map(function(c){
+      return '<option value="'+c+'"'+(nt(p.category)===nt(c)?' selected':'')+'>'+c+'</option>';
+    }).join('');
+
+    return [
+      '<div class="gmail-card" id="gc-'+idx+'">',
+        '<div class="gmail-card-hdr">',
+          '<span class="gc-subject" title="'+safeSubject+'">'+safeSubject+'</span>',
+          '<span class="gc-from">'+safeFrom+'</span>',
+          '<span class="gc-date">'+em.date+'</span>',
+          notDelivTag,
+        '</div>',
+        '<div class="gmail-card-body">',
+          '<div class="field"><label>Material Name</label>',
+            '<input type="text" id="gf-name-'+idx+'" value="'+(p.name||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+          '<div class="field"><label>Category</label>',
+            '<select id="gf-cat-'+idx+'"><option value="">Select…</option>'+catSel+'</select>',
+          '</div>',
+          '<div class="field"><label>Qty</label>',
+            '<input type="number" id="gf-qty-'+idx+'" value="'+(p.qty||1)+'" min="1">',
+          '</div>',
+          '<div class="field"><label>Unit</label>',
+            '<select id="gf-unit-'+idx+'">',
+              ['UNIT','SQ FT','LN FT','PIECE','BOX','PALLET'].map(function(u){
+                return '<option'+(nt(u)===nt(p.unit)?' selected':'')+'>'+ u +'</option>';
+              }).join(''),
+            '</select>',
+          '</div>',
+          '<div class="field"><label>Supplier</label>',
+            '<input type="text" id="gf-sup-'+idx+'" value="'+(p.supplier||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+          '<div class="field"><label>PO #</label>',
+            '<input type="text" id="gf-po-'+idx+'" value="'+(p.po||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+          '<div class="field"><label>Est. Arrival Date</label>',
+            '<input type="date" id="gf-date-'+idx+'" value="'+(p.estDate||'')+'">',
+          '</div>',
+          '<div class="field"><label>Project</label>',
+            '<input type="text" id="gf-proj-'+idx+'" value="'+(p.project||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+          '<div class="field"><label>PM (Project Manager)</label>',
+            '<input type="text" id="gf-pm-'+idx+'" value="'+(p.pm||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+          '<div class="field full"><label>Notes</label>',
+            '<input type="text" id="gf-notes-'+idx+'" value="'+(p.notes||'').replace(/"/g,'&quot;')+'">',
+          '</div>',
+        '</div>',
+        '<div class="gmail-card-footer">',
+          '<span class="gc-saved-badge" id="gc-badge-'+idx+'"></span>',
+          '<button class="btn btn-ghost btn-sm" onclick="skipGmailDraft('+idx+')">✗ Skip</button>',
+          '<button class="btn btn-primary btn-sm" onclick="saveGmailDraft('+idx+')">✓ Save as Incoming</button>',
+        '</div>',
+      '</div>'
+    ].join('');
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+function skipGmailDraft(idx) {
+  var card = document.getElementById('gc-' + idx);
+  if (card) card.classList.add('skipped');
+  var saved = 0, skipped = 0, total = _gmailScanResults.length;
+  for (var i = 0; i < total; i++) {
+    var c = document.getElementById('gc-' + i);
+    if (!c) continue;
+    if (c.classList.contains('saved'))   saved++;
+    if (c.classList.contains('skipped')) skipped++;
+  }
+  document.getElementById('gmailScanStatus').textContent =
+    total + ' emails · ' + saved + ' saved · ' + skipped + ' skipped';
+}
+
+function saveGmailDraft(idx) {
+  var btn = document.querySelector('#gc-'+idx+' .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '💾 Saving…'; }
+
+  var val = function(id){ return (document.getElementById(id) || {}).value || ''; };
+  var item = {
+    name:     val('gf-name-'+idx),
+    category: val('gf-cat-'+idx),
+    qty:      parseFloat(val('gf-qty-'+idx)) || 1,
+    unit:     val('gf-unit-'+idx),
+    supplier: val('gf-sup-'+idx),
+    po:       val('gf-po-'+idx),
+    date:     val('gf-date-'+idx),
+    project:  val('gf-proj-'+idx),
+    pm:       val('gf-pm-'+idx),
+    notes:    val('gf-notes-'+idx),
+    status:   'Pending'
+  };
+
+  if (!item.name.trim()) {
+    showToast('Material name is required.', 'warn');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Save as Incoming'; }
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function() {
+      var card  = document.getElementById('gc-' + idx);
+      var badge = document.getElementById('gc-badge-' + idx);
+      if (card)  card.classList.add('saved');
+      if (badge) badge.textContent = '✓ Saved!';
+      if (btn)   { btn.disabled = true; btn.textContent = 'Saved'; }
+      // Refresh the incoming list in background
+      loadDataFromGoogle(true);
+      // Update status bar
+      var saved = 0, skipped = 0, total = _gmailScanResults.length;
+      for (var i = 0; i < total; i++) {
+        var c = document.getElementById('gc-' + i);
+        if (!c) continue;
+        if (c.classList.contains('saved'))   saved++;
+        if (c.classList.contains('skipped')) skipped++;
+      }
+      document.getElementById('gmailScanStatus').textContent =
+        total + ' emails · ' + saved + ' saved · ' + skipped + ' skipped';
+    })
+    .withFailureHandler(function(err) {
+      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
+      showToast('Save failed: ' + msg, 'err');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Save as Incoming'; }
+    })
+    .processMovement('addIncoming', item);
 }
 
 // Heartbeat every 90 s — keeps this user visible, refreshes list
