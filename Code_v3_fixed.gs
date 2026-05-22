@@ -503,6 +503,7 @@ function processMovement(action, data) {
 
     return _addMovement(ss, archive, data, auth);
   }
+  if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
   if (action === 'updateDocument')        return _updateDocument(ss, archive, data, auth);
   if (action === 'addReservation')        return _addReservation(ss, data, auth);
   if (action === 'cancelReservation')     return _cancelReservation(ss, data, auth);
@@ -708,6 +709,81 @@ function _addMovement(ss, archive, data, auth) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ─── ADD MULTI-ENTRY ──────────────────────────────────────────────────────────
+// Receives multiple materials in one submission. Each material may have multiple
+// destination locations. Saves one archive row per (material × location) pair.
+// Shared fields: dateRec, supplier, gc, po, project, responsible, comments, truck.
+// docs/notify: shared docs go on first row of first material; per-material docs
+//              not yet supported (all get shared docGroups for now).
+function addMultiEntry(ss, archive, data, auth) {
+  if (!Array.isArray(data.materials) || data.materials.length === 0) {
+    throw new Error('No materials provided.');
+  }
+
+  var totalRows    = 0;
+  var totalMats    = 0;
+  var fileError    = null;
+  var emailError   = null;
+  var isFirstRow   = true;   // only first row gets docs + notify
+
+  for (var mi = 0; mi < data.materials.length; mi++) {
+    var mat = data.materials[mi];
+    if (!mat.name || !Array.isArray(mat.locations) || mat.locations.length === 0) continue;
+
+    totalMats++;
+    for (var li = 0; li < mat.locations.length; li++) {
+      var locEntry = mat.locations[li];
+      if (!locEntry.qty || locEntry.qty <= 0) continue;
+
+      var rowData = {
+        moveType:         'ENTRY',
+        category:         mat.category || data.category || '',
+        name:             mat.name,
+        project:          data.project  || '',
+        isGeneric:        data.isGeneric,
+        gc:               data.gc       || '',
+        po:               data.po       || '',
+        qty:              locEntry.qty,
+        unit:             mat.unit      || 'UNIT',
+        dateRec:          data.dateRec  || '',
+        sourceLoc:        '',
+        destLoc:          locEntry.loc  || '',
+        supplier:         data.supplier || '',
+        comments:         data.comments || '',
+        responsible:      data.responsible || '',
+        truck:            data.truck    || '',
+        status:           'In Stock',
+        files:            [],
+        // Shared docs go only on the very first archive row
+        docGroups:        isFirstRow ? (data.docGroups        || []) : [],
+        notifyRecipients: isFirstRow ? data.notifyRecipients  : null,
+        // Skip duplicate check for all rows after the first
+        forceSubmit:      !isFirstRow || !!data.forceSubmit
+      };
+
+      try {
+        var res = _addMovement(ss, archive, rowData, auth);
+        if (res && res.fileError  && !fileError)  fileError  = res.fileError;
+        if (res && res.emailError && !emailError) emailError = res.emailError;
+      } catch (e) {
+        throw e; // let the caller surface the error
+      }
+
+      isFirstRow = false;
+      totalRows++;
+    }
+  }
+
+  return {
+    status:     'success',
+    count:      totalMats,
+    rowCount:   totalRows,
+    fileError:  fileError  || null,
+    emailError: emailError || null,
+    message:    totalMats + ' material(s), ' + totalRows + ' row(s) recorded.'
+  };
 }
 
 // ─── FRESH STOCK QUERY (reads Archive directly, no cache) ─────────────────────

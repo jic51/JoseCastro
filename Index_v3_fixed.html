@@ -149,6 +149,19 @@
     .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    /* ── MULTI-MATERIAL ENTRY ── */
+    .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
+    .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .mat-line-hdr .mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
+    .mat-line-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
+    .mat-line-remove:hover{background:var(--red);color:#fff}
+    .mat-line-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem}
+    .mat-line-lbl-sm{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
+    .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
+    .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .mat-loc-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:.55rem .7rem;margin-top:.35rem}
+    .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
+    .multi-mat-add:hover{background:#DBEAFE}
     /* ── HOURGLASS: flip 180°, pause 1s, flip 180°, pause 1s ── */
     @keyframes hg-flip{
       0%        {transform:rotate(0deg)}
@@ -858,11 +871,11 @@
 
     <!-- ── Core Fields ── -->
     <div class="form-grid" style="margin-top:.75rem">
-      <div class="field">
+      <div class="field" id="mCatField">
         <label>Category</label>
         <select id="mType"></select>
       </div>
-      <div class="field">
+      <div class="field" id="mNameField">
         <label>Name / Description</label>
         <input type="text" id="mName" list="matList" placeholder="Type or select...">
         <datalist id="matList"></datalist>
@@ -883,7 +896,7 @@
         <label>Quantity</label>
         <input type="number" id="mQty" min="1" value="1">
       </div>
-      <div class="field">
+      <div class="field" id="mUnitField">
         <label>Unit</label>
         <select id="mUnit">
           <option value="UNIT">Unit</option>
@@ -915,6 +928,16 @@
       </div>
       <div id="locRowsContainer"></div>
       <button type="button" class="btn-add-loc" onclick="addLocRow()">+ Add Location</button>
+    </div>
+
+    <!-- ── Multi-Material ENTRY ── -->
+    <div id="multiMatSection" style="display:none;margin-top:.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <label style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em">Materials to Receive</label>
+        <span id="multiMatTotal" style="font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px">Total: 0</span>
+      </div>
+      <div id="multiMatContainer"></div>
+      <button type="button" class="multi-mat-add" onclick="addMatLine()">+ Add Another Material</button>
     </div>
 
     <!-- ── EXIT Multi-Source Locations ── -->
@@ -1991,6 +2014,15 @@ function setModalType(type){
   exitLocsSection.style.display  = 'none';
   exitDestField.style.display    = 'none';
   mQtyField.style.display = 'flex';  // show normal qty by default
+  // Single-material fields visible by default (hidden only for ENTRY multi-mat)
+  var mCatField  = document.getElementById('mCatField');
+  var mNameField = document.getElementById('mNameField');
+  var mUnitField = document.getElementById('mUnitField');
+  var multiMatSection = document.getElementById('multiMatSection');
+  if (mCatField)  mCatField.style.display  = 'flex';
+  if (mNameField) mNameField.style.display = 'flex';
+  if (mUnitField) mUnitField.style.display = 'flex';
+  if (multiMatSection) multiMatSection.style.display = 'none';
 
   // Point rackListDest at racks by default
   mDestDl.id = 'rackListDest';
@@ -2001,9 +2033,14 @@ function setModalType(type){
       WASTE:'Record Waste / Loss' }[type] || 'New Movement';
 
   if (type === 'ENTRY'){
-    // ENTRY uses multi-location widget; qty is driven by loc rows
-    entryLocsSection.style.display = 'block';
+    // ENTRY: hide single-material fields — multi-mat section handles everything
+    if (mCatField)  mCatField.style.display  = 'none';
+    if (mNameField) mNameField.style.display = 'none';
+    if (mUnitField) mUnitField.style.display = 'none';
     mQtyField.style.display = 'none';
+    entryLocsSection.style.display = 'none';
+    if (multiMatSection) multiMatSection.style.display = 'block';
+    _initMultiMatSection();
     fileSection.style.display = 'block';
     notifySection.style.display = 'block';
     dateLabel.textContent = 'Date Received';
@@ -2118,42 +2155,52 @@ function autoExtractName(emailsStr){
 }
 
 function updateNotifyPreview(){
-  var name     = document.getElementById('mNotifyName').value || 'Team';
-  var qty      = document.getElementById('mQty').value || '';
-  var unit     = document.getElementById('mUnit').value || 'UNIT';
-  var category = (document.getElementById('mType').value || '').trim().toUpperCase();
-  var material = document.getElementById('mName').value || '[material]';
-  var project  = document.getElementById('mProj').value || '[project]';
+  var recipName = document.getElementById('mNotifyName').value || 'Team';
+  var project   = document.getElementById('mProj').value || '[project]';
 
-  // For ENTRY, location comes from the multi-loc rack rows (not mDest which is unused for ENTRY)
-  var location;
+  var matLines = '';
   if (currentMoveType === 'ENTRY') {
-    var racks = [];
-    document.querySelectorAll('#locRowsContainer .loc-rack').forEach(function(inp){
-      var v = (inp.value || '').trim();
-      if (v) racks.push(v);
+    // Build material list from multi-mat section
+    document.querySelectorAll('#multiMatContainer .mat-line').forEach(function(line){
+      var n    = line.id.replace('mat-line-', '');
+      var cat  = (document.getElementById('mat-cat-' + n) ? document.getElementById('mat-cat-' + n).value : '').toUpperCase();
+      var matName = (document.getElementById('mat-name-' + n) ? document.getElementById('mat-name-' + n).value : '').toUpperCase() || '[material]';
+      var unit = document.getElementById('mat-unit-' + n) ? document.getElementById('mat-unit-' + n).value : 'UNIT';
+      var total = 0;
+      var racks = [];
+      var lc = document.getElementById('mat-locs-' + n);
+      if (lc) {
+        lc.querySelectorAll('.loc-qty').forEach(function(i){ total += Math.max(0, parseInt(i.value)||0); });
+        lc.querySelectorAll('.loc-rack').forEach(function(i){ var v=(i.value||'').trim(); if(v) racks.push(v); });
+      }
+      matLines += '\n  • ' + total + ' ' + unit + '(s) of ' + (cat ? cat + ' — ' : '') + matName + (racks.length ? ' → ' + racks.join(', ') : '');
     });
-    location = racks.length ? racks.join(', ') : '[location]';
+    if (!matLines) matLines = '\n  • [materials not yet filled]';
   } else {
-    location = (document.getElementById('mDest').value || '').trim() || '[location]';
+    var qty      = document.getElementById('mQty').value || '';
+    var unit     = document.getElementById('mUnit').value || 'UNIT';
+    var category = (document.getElementById('mType').value || '').trim().toUpperCase();
+    var material = document.getElementById('mName').value || '[material]';
+    var location = (document.getElementById('mDest').value || '').trim() || '[location]';
+    matLines = '\n  • ' + qty + ' ' + unit + '(s) of ' + (category ? category + ' — ' : '') + material.toUpperCase() + ' → ' + location;
   }
 
-  // qty · [CATEGORY] · unit(s) · of · MATERIAL  e.g. "The 4 SCREEN UNIT(s) of LGI OQU185..."
-  var msg = 'Hi ' + name + ',\n\n' +
-    'The ' + qty + (category ? ' ' + category : '') + ' ' + unit + '(s) of ' +
-    material.toUpperCase() + ' for ' + project +
-    ' were received today and are now stored in ' + location + '.' +
-    '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+  var msg = 'Hi ' + recipName + ',\n\n' +
+    'The following materials for ' + project + ' were received today and are now stored in our warehouse:' +
+    matLines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
   document.getElementById('mNotifyMsg').value = msg;
 }
 
 // ── Modal: Submit ─────────────────────────────────────────────────────────────
 async function submitMovement(){
+  // ENTRY is now handled by the multi-material form
+  if (currentMoveType === 'ENTRY') { submitMultiEntry(); return; }
+
   var cat  = document.getElementById('mType').value;
   var name = (document.getElementById('mName').value || '').trim();
   if (!name){ alert('Please enter a material name'); return; }
 
-  // ── ENTRY: gather multi-location rows ──────────────────────────────────────
+  // ── ENTRY: gather multi-location rows (legacy path — no longer reached) ───
   var entryLocations = [];
   if (currentMoveType === 'ENTRY'){
     document.querySelectorAll('#locRowsContainer .loc-row').forEach(function(row){
@@ -2346,6 +2393,254 @@ async function submitMovement(){
   }
 
   _doSubmit(false);
+}
+
+// ── Multi-Material ENTRY ──────────────────────────────────────────────────────
+var _matLineIdx = 0;
+
+function _matLineUnitOpts(){
+  return '<option value="UNIT">Unit</option><option value="BOX">Box</option>' +
+         '<option value="SET">Set</option><option value="ROLL">Roll</option>' +
+         '<option value="SHEET">Sheet</option><option value="LF">LF</option>';
+}
+
+function _matLineTpl(n){
+  // Category options mirrored from the main #mType select
+  var catOpts = document.getElementById('mType').innerHTML;
+  return '<div class="mat-line" id="mat-line-' + n + '">' +
+    '<div class="mat-line-hdr">' +
+      '<span class="mat-line-lbl">Material ' + n + '</span>' +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+        '<span id="mat-total-' + n + '" style="font-size:.78rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:2px 10px;border-radius:10px">0 units</span>' +
+        '<button type="button" class="mat-line-remove" onclick="removeMatLine(' + n + ')" title="Remove this material">×</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="mat-line-grid">' +
+      '<div class="field">' +
+        '<label class="mat-line-lbl-sm">Category</label>' +
+        '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ')">' + catOpts + '</select>' +
+      '</div>' +
+      '<div class="field" style="grid-column:span 1">' +
+        '<label class="mat-line-lbl-sm">Name / Description</label>' +
+        '<input type="text" id="mat-name-' + n + '" list="matList-' + n + '" placeholder="Type or select..." autocomplete="off">' +
+        '<datalist id="matList-' + n + '"></datalist>' +
+      '</div>' +
+      '<div class="field">' +
+        '<label class="mat-line-lbl-sm">Unit</label>' +
+        '<select id="mat-unit-' + n + '">' + _matLineUnitOpts() + '</select>' +
+      '</div>' +
+    '</div>' +
+    '<div class="mat-loc-box">' +
+      '<div style="display:flex;gap:.4rem;margin-bottom:.25rem">' +
+        '<span style="flex:2;font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase">Rack / Location</span>' +
+        '<span style="flex:1;font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>' +
+        '<span style="width:28px"></span>' +
+      '</div>' +
+      '<div class="mat-locs-container" id="mat-locs-' + n + '"></div>' +
+      '<button type="button" class="btn-add-loc" style="font-size:.75rem;padding:.25rem .7rem;margin-top:.3rem" onclick="addLocRowMat(' + n + ')">+ Add Location</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function _attachMatLocQtyListener(row, n){
+  row.querySelector('.loc-qty').addEventListener('input', function(){ syncMatLineQty(n); });
+  row.querySelector('.loc-qty').addEventListener('change', function(){ syncMatLineQty(n); });
+}
+
+function addMatLine(){
+  _matLineIdx++;
+  var n = _matLineIdx;
+  var container = document.getElementById('multiMatContainer');
+  var wrap = document.createElement('div');
+  wrap.innerHTML = _matLineTpl(n);
+  container.appendChild(wrap.firstChild);
+  // Add first loc row
+  addLocRowMat(n, true /* silent — don't focus yet */);
+  updateMatLineNameList(n);
+  updateMultiMatTotal();
+  // Focus the name field
+  var nameEl = document.getElementById('mat-name-' + n);
+  if (nameEl) setTimeout(function(){ nameEl.focus(); }, 50);
+}
+
+function removeMatLine(n){
+  var container = document.getElementById('multiMatContainer');
+  if (container.querySelectorAll('.mat-line').length <= 1){ return; } // keep at least 1
+  var el = document.getElementById('mat-line-' + n);
+  if (el) el.remove();
+  updateMultiMatTotal();
+}
+
+function addLocRowMat(n, silent){
+  var lc = document.getElementById('mat-locs-' + n);
+  if (!lc) return;
+  var row = document.createElement('div');
+  row.className = 'loc-row';
+  row.innerHTML =
+    '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location" autocomplete="off">' +
+    '<input type="number" class="loc-qty" min="1" value="1" placeholder="Qty">' +
+    '<button type="button" class="btn-remove-loc" onclick="removeLocRowMat(' + n + ', this)" title="Remove">×</button>';
+  lc.appendChild(row);
+  _attachMatLocQtyListener(row, n);
+  syncMatLineQty(n);
+  if (!silent) row.querySelector('.loc-rack').focus();
+}
+
+function removeLocRowMat(n, btn){
+  var lc = document.getElementById('mat-locs-' + n);
+  if (!lc || lc.querySelectorAll('.loc-row').length <= 1) return;
+  btn.closest('.loc-row').remove();
+  syncMatLineQty(n);
+}
+
+function syncMatLineQty(n){
+  var lc = document.getElementById('mat-locs-' + n);
+  if (!lc) return;
+  var total = 0;
+  lc.querySelectorAll('.loc-qty').forEach(function(inp){
+    total += Math.max(0, parseInt(inp.value) || 0);
+  });
+  var el = document.getElementById('mat-total-' + n);
+  if (el) el.textContent = total + ' unit' + (total === 1 ? '' : 's');
+  updateMultiMatTotal();
+  if (typeof updateNotifyPreview === 'function') updateNotifyPreview();
+}
+
+function updateMultiMatTotal(){
+  var total = 0;
+  document.querySelectorAll('#multiMatContainer .mat-locs-container').forEach(function(lc){
+    lc.querySelectorAll('.loc-qty').forEach(function(inp){
+      total += Math.max(0, parseInt(inp.value) || 0);
+    });
+  });
+  var el = document.getElementById('multiMatTotal');
+  if (el) el.textContent = 'Total: ' + total;
+}
+
+function updateMatLineNameList(n){
+  var catEl = document.getElementById('mat-cat-' + n);
+  var dlEl  = document.getElementById('matList-' + n);
+  if (!catEl || !dlEl) return;
+  var cat = nt(catEl.value);
+  var seen = {}, opts = '';
+  (movements || []).forEach(function(m){
+    if (nt(m.category) === cat && m.name){
+      var k = m.name.toUpperCase();
+      if (!seen[k]){ seen[k]=1; opts += '<option value="' + k.replace(/"/g,'&quot;') + '">'; }
+    }
+  });
+  dlEl.innerHTML = opts;
+}
+
+function _initMultiMatSection(){
+  _matLineIdx = 0;
+  document.getElementById('multiMatContainer').innerHTML = '';
+  addMatLine();
+}
+
+function submitMultiEntry(){
+  var dateRec  = document.getElementById('mDateRec').value;
+  var supplier = (document.getElementById('mSup').value  || '').trim();
+  var gc       = (document.getElementById('mGC').value   || '').trim();
+  var po       = (document.getElementById('mPO').value   || '').trim();
+  var proj     = (document.getElementById('mProj').value || '').trim();
+  var resp     = (document.getElementById('mResp').value || '').trim();
+  var comments = (document.getElementById('mComm').value || '').trim();
+  var truck    = (document.getElementById('mTruck') ? document.getElementById('mTruck').value : '');
+  var docGroups = _collectDocGroups('docGroupsContainer');
+
+  // Collect material lines
+  var materials = [];
+  var valid = true;
+
+  document.querySelectorAll('#multiMatContainer .mat-line').forEach(function(line){
+    if (!valid) return;
+    var n    = line.id.replace('mat-line-', '');
+    var cat  = nt((document.getElementById('mat-cat-' + n)  || {}).value || '');
+    var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim().toUpperCase();
+    var unit = (document.getElementById('mat-unit-' + n)  || {value:'UNIT'}).value;
+
+    if (!name){
+      alert('Please fill in the Name for all materials (Material ' + n + ' is empty)');
+      valid = false; return;
+    }
+
+    var locs = [];
+    var totalQty = 0;
+    var lc = document.getElementById('mat-locs-' + n);
+    if (lc){
+      lc.querySelectorAll('.loc-row').forEach(function(row){
+        var loc = (row.querySelector('.loc-rack').value || '').trim();
+        var qty = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
+        if (qty > 0){ locs.push({ loc: loc, qty: qty }); totalQty += qty; }
+      });
+    }
+
+    if (!locs.length || totalQty === 0){
+      alert('Please enter at least one location with quantity for: ' + name);
+      valid = false; return;
+    }
+
+    materials.push({ category: cat, name: name, unit: unit, locations: locs, qty: totalQty });
+  });
+
+  if (!valid || !materials.length) return;
+
+  // Notification
+  var notifyPayload = null;
+  var chk = document.getElementById('mNotify');
+  if (chk && chk.checked){
+    var emails = (document.getElementById('mNotifyEmails').value || '').trim();
+    if (!emails){ alert('Please enter at least one recipient email'); return; }
+    notifyPayload = { emails: emails, message: document.getElementById('mNotifyMsg').value };
+  }
+
+  var payload = {
+    materials:        materials,
+    dateRec:          dateRec,
+    supplier:         supplier,
+    gc:               gc,
+    po:               po,
+    project:          proj,
+    isGeneric:        !proj,
+    responsible:      resp,
+    comments:         comments,
+    truck:            truck,
+    docGroups:        docGroups,
+    notifyRecipients: notifyPayload,
+    forceSubmit:      false
+  };
+
+  var btn = document.getElementById('moveSubmit');
+
+  function _doMultiSubmit(force){
+    payload.forceSubmit = !!force;
+    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(res){
+        closeModal('moveOverlay');
+        loadDataFromGoogle(true);
+        setTimeout(function(){
+          var count = (res && res.count) ? res.count : materials.length;
+          var rows  = (res && res.rowCount) ? res.rowCount : count;
+          if (res && (res.emailError || res.fileError)){
+            var msgs = [];
+            if (res.emailError) msgs.push('📧 Email: ' + res.emailError);
+            if (res.fileError)  msgs.push('📎 File: '  + res.fileError);
+            showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', 7000);
+          } else {
+            showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', 5000);
+          }
+        }, 400);
+      })
+      .withFailureHandler(function(err){
+        showToast('Error: ' + (err.message || String(err)), 'err', 6000);
+        btn.textContent = 'Save to System'; btn.disabled = false;
+      })
+      .processMovement('addMultiEntry', payload);
+  }
+
+  _doMultiSubmit(false);
 }
 
 // ── Settings Modal ────────────────────────────────────────────────────────────
@@ -3241,24 +3536,28 @@ function _dayLabel(dt, offset) {
 function checkMorningPopup() {
   var today    = new Date();
   var todayStr = _isoDate(today);
-  var storageKey = 'oxwms_popup_' + todayStr;
-  if (localStorage.getItem(storageKey)) return; // already shown today
 
-  // End of current week (Sunday + 6 = Saturday)
-  var dayOfWeek  = today.getDay();
-  var endOfWeek  = new Date(today);
+  // Show every page load — but ONLY if there are pending deliveries today
+  // (status anything except 'Received' / 'received')
+  var todayPending = incoming.filter(function(item) {
+    return item.estDate === todayStr &&
+           (item.status || '').toLowerCase() !== 'received';
+  });
+
+  if (!todayPending.length) return; // nothing pending today → skip
+
+  // Build weekly view for context (pending items up to end of week)
+  var dayOfWeek = today.getDay();
+  var endOfWeek = new Date(today);
   endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
   var endStr = _isoDate(endOfWeek);
 
   var thisWeek = incoming.filter(function(item) {
-    return item.status === 'Pending' &&
+    return (item.status || '').toLowerCase() !== 'received' &&
            item.estDate >= todayStr &&
            item.estDate <= endStr;
   });
 
-  if (!thisWeek.length) return; // nothing this week — don't annoy the user
-
-  localStorage.setItem(storageKey, '1');
   showMorningPopup(thisWeek, todayStr);
 }
 
