@@ -185,6 +185,9 @@
     .presence-chip:hover,.presence-chip.open{background:rgba(255,255,255,.2)!important}
     .presence-dropdown{display:none;position:absolute;right:0;top:calc(100% + 10px);background:var(--card);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);border:1px solid var(--border);min-width:250px;z-index:600;overflow:hidden}
     .presence-dropdown.open{display:block}
+    @media(max-width:640px){
+      .presence-dropdown{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:calc(100vw - 2rem);max-width:360px;max-height:80vh;overflow-y:auto;border-radius:14px}
+    }
     .presence-hdr{background:var(--navy);color:#fff;padding:.55rem 1rem;font-size:.75rem;font-weight:700;display:flex;justify-content:space-between;align-items:center}
     .presence-hdr button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 4px}
     .presence-hdr button:hover{color:#fff}
@@ -1131,6 +1134,7 @@ var userRole = 'WAREHOUSE';
 var userEmail = '';
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
+var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 function nz(v){ return v || ''; }
@@ -3534,11 +3538,16 @@ function _dayLabel(dt, offset) {
 }
 
 function checkMorningPopup() {
+  // Only fire once per actual page load — not on every data refresh after saves
+  if (_popupShownThisLoad) return;
+
   var today    = new Date();
   var todayStr = _isoDate(today);
 
-  // Show every page load — but ONLY if there are pending deliveries today
-  // (status anything except 'Received' / 'received')
+  // Respect "don't show again today" if user clicked it
+  if (localStorage.getItem('oxwms_popup_noshow_' + todayStr)) return;
+
+  // Only show if there are pending deliveries today (status ≠ 'Received')
   var todayPending = incoming.filter(function(item) {
     return item.estDate === todayStr &&
            (item.status || '').toLowerCase() !== 'received';
@@ -3558,6 +3567,7 @@ function checkMorningPopup() {
            item.estDate <= endStr;
   });
 
+  _popupShownThisLoad = true; // mark as shown — won't fire again until next F5 / new tab
   showMorningPopup(thisWeek, todayStr);
 }
 
@@ -3597,6 +3607,12 @@ function showMorningPopup(items, todayStr) {
 }
 
 function closeMorningPopup() {
+  var chk = document.getElementById('chkNoShowToday');
+  if (chk && chk.checked) {
+    // Persist "don't show again today" — cleared automatically tomorrow (new date key)
+    var todayStr = _isoDate(new Date());
+    localStorage.setItem('oxwms_popup_noshow_' + todayStr, '1');
+  }
   document.getElementById('morningOverlay').classList.remove('show');
 }
 

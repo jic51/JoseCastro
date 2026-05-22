@@ -571,8 +571,10 @@ function _addMovement(ss, archive, data, auth) {
     }
 
     var freshStock = getCurrentStockForItem(ss, matId);
-    var src  = normalizeString(data.sourceLoc || '');
-    var dest = normalizeString(data.destLoc   || '');
+    // Locations are user-configured values (datalist-selected) — only uppercase+trim,
+    // do NOT run normalizeString which would convert "/" and other chars to "_".
+    var src  = String(data.sourceLoc || '').toUpperCase().trim();
+    var dest = String(data.destLoc   || '').toUpperCase().trim();
 
     // Stock validation for outgoing moves
     if (['EXIT','TRANSFER','WASTE'].indexOf(mt) !== -1) {
@@ -630,6 +632,13 @@ function _addMovement(ss, archive, data, auth) {
     archive.appendRow(row);
     var newRowIdx = archive.getLastRow();
     archive.getRange(newRowIdx, AC.TIMESTAMP + 1).setNumberFormat('mm/dd/yyyy hh:mm');
+
+    // ── Write-verify: confirm the row was actually persisted ──────────────────
+    var verifyName = String(archive.getRange(newRowIdx, AC.NAME + 1).getValue() || '').trim().toUpperCase();
+    if (!verifyName || normalizeString(verifyName) !== normalizeString(name)) {
+      Logger.log('WRITE_VERIFY_FAIL row=' + newRowIdx + ' expected=' + name + ' got=' + verifyName);
+      throw new Error('WRITE_VERIFY_FAIL: row ' + newRowIdx + ' could not be confirmed in the archive. Please try again.');
+    }
 
     // ── File / Document uploads ───────────────────────────────────────────────
     var fileLinks = '';
@@ -1135,6 +1144,17 @@ function _photosToDocPdf(photos, docName, targetFolder) {
   var doc  = DocumentApp.create(tempTitle);
   var body = doc.getBody();
 
+  // Minimal margins so the image fills as much of the page as possible (9pt ≈ 1/8 inch)
+  var margin = 9;
+  body.setMarginTop(margin);
+  body.setMarginBottom(margin);
+  body.setMarginLeft(margin);
+  body.setMarginRight(margin);
+
+  // Standard US letter: 612 × 792 points. Usable area with minimal margins:
+  var usableW = 612 - (2 * margin);   // 594 pt
+  var usableH = 792 - (2 * margin);   // 774 pt
+
   // Remove default blank paragraph so images start cleanly
   body.clear();
 
@@ -1144,14 +1164,17 @@ function _photosToDocPdf(photos, docName, targetFolder) {
     var bytes = Utilities.base64Decode(p.fileData);
     var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg');
     var img   = body.appendImage(blob);
-    // Scale to fit within a standard letter-width (~6 inches at 72dpi ≈ 432 pts)
-    var originalWidth  = img.getWidth();
-    var originalHeight = img.getHeight();
-    var maxW = 432;
-    if (originalWidth > maxW) {
-      img.setWidth(maxW);
-      img.setHeight(Math.round(originalHeight * maxW / originalWidth));
-    }
+
+    var origW = img.getWidth();
+    var origH = img.getHeight();
+
+    // Scale to fill the page while preserving aspect ratio (fit inside usable box)
+    var scaleW = usableW / origW;
+    var scaleH = usableH / origH;
+    var scale  = Math.min(scaleW, scaleH);  // use the smaller scale so it fits both dims
+
+    img.setWidth(Math.round(origW * scale));
+    img.setHeight(Math.round(origH * scale));
   }
 
   doc.saveAndClose();
