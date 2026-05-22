@@ -22,7 +22,7 @@ var AC = {
   TIMESTAMP:0,  CATEGORY:1,  NAME:2,     GC:3,        PO:4,
   QTY:5,        UNIT:6,      DATE_REC:7, SRC_LOC:8,   SUPPLIER:9,
   COMMENTS:10,  STATUS:11,   RESPONSIBLE:12, PROJECT:13, MAT_ID:14,
-  DOC_LINKS:15, USER_EMAIL:16, DEST_LOC:17,  MOVETYPE:18
+  DOC_LINKS:15, USER_EMAIL:16, DEST_LOC:17,  MOVETYPE:18, PM:19
 };
 
 // ─── ROUTING ─────────────────────────────────────────────────────────────────
@@ -278,7 +278,8 @@ function parseArchiveRow(row, rowIdx) {
     responsible: String(row[AC.RESPONSIBLE]|| ''),
     matId:       String(row[AC.MAT_ID]     || ''),
     docLinks:    String(row[AC.DOC_LINKS]  || ''),
-    userEmail:   String(row[AC.USER_EMAIL] || '')
+    userEmail:   String(row[AC.USER_EMAIL] || ''),
+    pm:          String(row[AC.PM]         || '')
   };
 }
 
@@ -628,6 +629,7 @@ function _addMovement(ss, archive, data, auth) {
     row[AC.USER_EMAIL] = auth.email;
     row[AC.DEST_LOC]   = dest;
     row[AC.MOVETYPE]   = mt;                                          // S: transaction type
+    row[AC.PM]         = String(data.pm || '').trim();               // T: Project Manager (ENTRY only)
 
     archive.appendRow(row);
     var newRowIdx = archive.getLastRow();
@@ -763,6 +765,7 @@ function addMultiEntry(ss, archive, data, auth) {
         comments:         data.comments || '',
         responsible:      data.responsible || '',
         truck:            data.truck    || '',
+        pm:               data.pm       || '',
         status:           'In Stock',
         files:            [],
         // Shared docs go only on the very first archive row
@@ -1696,14 +1699,21 @@ function manageMaterial(data, auth) {
 // Sheet: INCOMING_V3  Columns (1-indexed, 0-based in array):
 //  A=0:ID  B=1:EstDate  C=2:Category  D=3:Name  E=4:Qty  F=5:Unit
 //  G=6:Supplier  H=7:PO  I=8:Notes  J=9:Status  K=10:AddedBy  L=11:AddedAt
+//  M=12:PM (Project Manager)
 
 function _ensureIncomingSheet(ss) {
   var sheet = ss.getSheetByName('INCOMING_V3');
   if (!sheet) {
     sheet = ss.insertSheet('INCOMING_V3');
-    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At']);
+    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At','PM']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 12).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 13).setFontWeight('bold');
+  } else {
+    // Add PM header if sheet exists but column M is missing
+    var lastCol = sheet.getLastColumn();
+    if (lastCol < 13) {
+      sheet.getRange(1, 13).setValue('PM').setFontWeight('bold');
+    }
   }
   return sheet;
 }
@@ -1738,7 +1748,8 @@ function getIncoming() {
       notes:    _safeStr(row[8]),
       status:   String(row[9]  || 'Pending'),
       addedBy:  String(row[10] || ''),
-      addedAt:  String(row[11] || '')
+      addedAt:  String(row[11] || ''),
+      pm:       String(row[12] || '')
     });
   }
   // Return sorted nearest-first
@@ -1767,7 +1778,8 @@ function addIncoming(data) {
     String(data.notes    || ''),
     'Pending',
     auth.email,
-    new Date()
+    new Date(),
+    String(data.pm       || '')
   ]);
   return { status: 'success', id: id };
 }
@@ -1782,7 +1794,7 @@ function updateIncoming(data) {
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(data.id)) {
       var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : values[i][1];
-      sheet.getRange(i + 1, 1, 1, 12).setValues([[
+      sheet.getRange(i + 1, 1, 1, 13).setValues([[
         data.id,
         estDate,
         String(data.category || '').toUpperCase().trim(),
@@ -1793,8 +1805,9 @@ function updateIncoming(data) {
         String(data.po       || ''),
         String(data.notes    || ''),
         String(data.status   || 'Pending'),
-        values[i][10],  // preserve addedBy
-        values[i][11]   // preserve addedAt
+        values[i][10],          // preserve addedBy
+        values[i][11],          // preserve addedAt
+        String(data.pm || '')   // PM — Project Manager
       ]]);
       return { status: 'success' };
     }

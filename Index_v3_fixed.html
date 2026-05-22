@@ -162,6 +162,14 @@
     .mat-loc-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:.55rem .7rem;margin-top:.35rem}
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
+    /* ── INCOMING SUGGESTION BOX ── */
+    .inc-suggest-box{position:absolute;left:0;right:0;top:100%;z-index:400;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);overflow:hidden;margin-top:2px}
+    .inc-suggest-hdr{padding:.3rem .7rem;font-size:.68rem;font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
+    .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;transition:background .12s}
+    .inc-suggest-item:last-child{border-bottom:none}
+    .inc-suggest-item:hover{background:#EFF6FF}
+    .inc-suggest-item .inc-tag{font-size:.68rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
+    .inc-suggest-item .inc-meta{font-size:.72rem;color:var(--muted);margin-left:auto}
     /* ── HOURGLASS: flip 180°, pause 1s, flip 180°, pause 1s ── */
     @keyframes hg-flip{
       0%        {transform:rotate(0deg)}
@@ -667,6 +675,7 @@
           <label class="col-pick-item"><input type="checkbox" id="chkResp" checked> Responsible</label>
           <label class="col-pick-item"><input type="checkbox" id="chkComm" checked> Comments</label>
           <label class="col-pick-item"><input type="checkbox" id="chkSrcDest"> Source → Dest</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkPm"> PM</label>
         </div>
       </div>
       <div class="table-wrapper" id="tableContainer"></div>
@@ -758,7 +767,7 @@
     </div>
     <div class="morning-popup-body" id="morningPopupBody"></div>
     <div class="morning-popup-footer">
-      <label style="font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.4rem">
+      <label id="noShowTodayLabel" style="font-size:.8rem;color:var(--muted);display:none;align-items:center;gap:.4rem">
         <input type="checkbox" id="chkNoShowToday"> Don't show again today
       </label>
       <button class="btn btn-primary btn-sm" onclick="closeMorningPopup()">Got it ✓</button>
@@ -817,6 +826,10 @@
       <div class="field">
         <label>PO #</label>
         <input type="text" id="incPO" placeholder="Purchase Order number">
+      </div>
+      <div class="field">
+        <label>PM (Project Manager)</label>
+        <input type="text" id="incPM" placeholder="Name of project manager">
       </div>
     </div>
     <div class="field" style="margin-top:.5rem">
@@ -1002,6 +1015,10 @@
         <label id="respLabel">Responsible</label>
         <input type="text" id="mResp">
       </div>
+      <div class="field" id="mPMField" style="display:none">
+        <label>PM (Project Manager)</label>
+        <input type="text" id="mPM" placeholder="Name of project manager">
+      </div>
       <div class="field" id="mStatusField" style="display:none">
         <label>Status</label>
         <select id="mStatus">
@@ -1115,7 +1132,7 @@ var config      = { projects:[], categories:[], suppliers:[], locations:[], truc
 var reservations = [];
 var currentMoveType = 'ENTRY';
 var _COL_VIS_KEY = 'oxwms_colvis_v3';
-var _COL_DEFAULTS = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false };
+var _COL_DEFAULTS = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false, pm:false };
 var colVis = (function(){
   try {
     var saved = localStorage.getItem(_COL_VIS_KEY);
@@ -1503,7 +1520,7 @@ function setAllCols(val) {
   Object.keys(colVis).forEach(function(k){ colVis[k] = val; });
   // Sync checkboxes
   var map = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
-              supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest' };
+              supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest', pm:'chkPm' };
   Object.keys(map).forEach(function(k){
     var el = document.getElementById(map[k]);
     if (el) el.checked = val;
@@ -1602,6 +1619,7 @@ function renderMovements(){
     (v.supplier? '<th>Supplier</th>' : '')+
     (v.resp    ? '<th>Responsible</th>':'')+
     (v.comment ? '<th>Comments</th>' : '')+
+    (v.pm      ? '<th>PM</th>'       : '')+
     (v.sysDate ? '<th>Sys Date</th>' : '')+
     '<th>User</th><th>Doc</th>'+
     (userRole==='ADMIN'?'<th></th>':'')+
@@ -1657,6 +1675,7 @@ function renderMovements(){
       (v.supplier?'<td style="font-size:.78rem">'+(m.supplier||'—')+'</td>':'')+
       (v.resp   ?'<td style="font-size:.78rem">'+(m.responsible||'—')+'</td>':'')+
       (v.comment?'<td style="font-size:.78rem;max-width:300px;word-break:break-word;white-space:normal">'+(m.comments||'—')+'</td>':'')+
+      (v.pm     ?'<td style="font-size:.78rem">'+(m.pm||'—')+'</td>':'')+
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
       '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
@@ -1939,7 +1958,7 @@ function openMoveModal(type){
   currentMoveType = (type || 'ENTRY').toUpperCase();
 
   // Reset form
-  ['mName','mQty','mSrc','mDest','mSup','mGC','mPO','mProj','mResp','mComm',
+  ['mName','mQty','mSrc','mDest','mSup','mGC','mPO','mProj','mResp','mPM','mComm',
    'mNotifyEmails','mNotifyName','mNotifyMsg'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.value = (id === 'mQty' ? '1' : '');
@@ -2023,10 +2042,12 @@ function setModalType(type){
   var mNameField = document.getElementById('mNameField');
   var mUnitField = document.getElementById('mUnitField');
   var multiMatSection = document.getElementById('multiMatSection');
+  var mPMField   = document.getElementById('mPMField');
   if (mCatField)  mCatField.style.display  = 'flex';
   if (mNameField) mNameField.style.display = 'flex';
   if (mUnitField) mUnitField.style.display = 'flex';
   if (multiMatSection) multiMatSection.style.display = 'none';
+  if (mPMField)   mPMField.style.display   = 'none';  // only for ENTRY
 
   // Point rackListDest at racks by default
   mDestDl.id = 'rackListDest';
@@ -2044,6 +2065,7 @@ function setModalType(type){
     mQtyField.style.display = 'none';
     entryLocsSection.style.display = 'none';
     if (multiMatSection) multiMatSection.style.display = 'block';
+    if (mPMField)   mPMField.style.display   = 'flex';
     _initMultiMatSection();
     fileSection.style.display = 'block';
     notifySection.style.display = 'block';
@@ -2424,10 +2446,12 @@ function _matLineTpl(n){
         '<label class="mat-line-lbl-sm">Category</label>' +
         '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ')">' + catOpts + '</select>' +
       '</div>' +
-      '<div class="field" style="grid-column:span 1">' +
+      '<div class="field" style="grid-column:span 1;position:relative">' +
         '<label class="mat-line-lbl-sm">Name / Description</label>' +
-        '<input type="text" id="mat-name-' + n + '" list="matList-' + n + '" placeholder="Type or select..." autocomplete="off">' +
+        '<input type="text" id="mat-name-' + n + '" list="matList-' + n + '" placeholder="Type or select..." autocomplete="off"' +
+        ' oninput="_checkIncomingSuggest(' + n + ', this)">' +
         '<datalist id="matList-' + n + '"></datalist>' +
+        '<div class="inc-suggest-box" id="inc-suggest-' + n + '" style="display:none"></div>' +
       '</div>' +
       '<div class="field">' +
         '<label class="mat-line-lbl-sm">Unit</label>' +
@@ -2542,6 +2566,78 @@ function _initMultiMatSection(){
   addMatLine();
 }
 
+// ── Incoming → ENTRY auto-suggest ────────────────────────────────────────────
+function _checkIncomingSuggest(n, inputEl){
+  var typed = (inputEl.value || '').trim().toLowerCase();
+  var box = document.getElementById('inc-suggest-' + n);
+  if (!box) return;
+  if (typed.length < 2) { box.style.display = 'none'; return; }
+
+  var today = _isoDate(new Date());
+  // Match incoming items arriving today/recently (within 3 days) that are not yet Received
+  var matches = (incoming || []).filter(function(item){
+    return (item.status || '').toLowerCase() !== 'received' &&
+           item.name && item.name.toLowerCase().indexOf(typed) !== -1 &&
+           item.estDate >= today;  // today or future
+  }).slice(0, 6);
+
+  if (!matches.length) { box.style.display = 'none'; return; }
+
+  box.innerHTML = '<div class="inc-suggest-hdr">📦 Matches in Incoming</div>' +
+    matches.map(function(item){
+      var safeId = JSON.stringify(item.id);
+      return '<div class="inc-suggest-item" onclick="_applyIncomingSuggest(' + n + ',' + safeId + ')">' +
+        '<span class="inc-tag">' + (item.category || '?') + '</span>' +
+        '<span>' + item.name + '</span>' +
+        '<span class="inc-meta">' + item.qty + ' ' + item.unit +
+          (item.supplier ? ' · ' + item.supplier : '') +
+          ' — ' + item.estDate + '</span>' +
+      '</div>';
+    }).join('');
+  box.style.display = 'block';
+}
+
+function _applyIncomingSuggest(n, incId){
+  var item = (incoming || []).find(function(i){ return i.id === incId; });
+  if (!item) return;
+
+  // Fill material-line fields
+  var catEl  = document.getElementById('mat-cat-'  + n);
+  var nameEl = document.getElementById('mat-name-' + n);
+  var unitEl = document.getElementById('mat-unit-' + n);
+  var lc     = document.getElementById('mat-locs-' + n);
+
+  if (catEl  && item.category) catEl.value  = item.category;
+  if (nameEl)                  nameEl.value = item.name;
+  if (unitEl && item.unit)     unitEl.value = item.unit;
+  // Set first loc-row qty to incoming qty
+  if (lc && item.qty > 0) {
+    var firstQty = lc.querySelector('.loc-qty');
+    if (firstQty) firstQty.value = item.qty;
+    syncMatLineQty(n);
+  }
+  updateMatLineNameList(n);
+
+  // Fill shared fields (only if currently empty)
+  var supEl  = document.getElementById('mSup');
+  var poEl   = document.getElementById('mPO');
+  var pmEl   = document.getElementById('mPM');
+  if (supEl && !supEl.value && item.supplier) supEl.value = item.supplier;
+  if (poEl  && !poEl.value  && item.po)       poEl.value  = item.po;
+  if (pmEl  && !pmEl.value  && item.pm)       pmEl.value  = item.pm;
+
+  // Hide suggestion box
+  var box = document.getElementById('inc-suggest-' + n);
+  if (box) box.style.display = 'none';
+}
+
+// Close suggestion boxes when clicking outside
+document.addEventListener('click', function(e){
+  document.querySelectorAll('.inc-suggest-box').forEach(function(box){
+    if (!box.parentElement.contains(e.target)) box.style.display = 'none';
+  });
+});
+
 function submitMultiEntry(){
   var dateRec  = document.getElementById('mDateRec').value;
   var supplier = (document.getElementById('mSup').value  || '').trim();
@@ -2549,6 +2645,7 @@ function submitMultiEntry(){
   var po       = (document.getElementById('mPO').value   || '').trim();
   var proj     = (document.getElementById('mProj').value || '').trim();
   var resp     = (document.getElementById('mResp').value || '').trim();
+  var pm       = (document.getElementById('mPM')   ? (document.getElementById('mPM').value   || '').trim() : '');
   var comments = (document.getElementById('mComm').value || '').trim();
   var truck    = (document.getElementById('mTruck') ? document.getElementById('mTruck').value : '');
   var docGroups = _collectDocGroups('docGroupsContainer');
@@ -2608,6 +2705,7 @@ function submitMultiEntry(){
     project:          proj,
     isGeneric:        !proj,
     responsible:      resp,
+    pm:               pm,
     comments:         comments,
     truck:            truck,
     docGroups:        docGroups,
@@ -3459,6 +3557,7 @@ function openIncomingModal(id) {
     document.getElementById('incUnit').value     = item.unit    || 'UNIT';
     document.getElementById('incSupplier').value = item.supplier|| '';
     document.getElementById('incPO').value       = item.po      || '';
+    document.getElementById('incPM').value       = item.pm      || '';
     document.getElementById('incNotes').value    = item.notes   || '';
   } else {
     // Defaults for new
@@ -3470,6 +3569,7 @@ function openIncomingModal(id) {
     document.getElementById('incUnit').value     = 'UNIT';
     document.getElementById('incSupplier').value = '';
     document.getElementById('incPO').value       = '';
+    document.getElementById('incPM').value       = '';
     document.getElementById('incNotes').value    = '';
   }
   document.getElementById('incomingOverlay').classList.add('show');
@@ -3493,6 +3593,7 @@ function saveIncomingItem() {
     unit:     document.getElementById('incUnit').value,
     supplier: document.getElementById('incSupplier').value,
     po:       document.getElementById('incPO').value,
+    pm:       document.getElementById('incPM').value,
     notes:    document.getElementById('incNotes').value
   };
 
@@ -3603,6 +3704,9 @@ function showMorningPopup(items, todayStr) {
     html += '<div class="morning-week-label">🗓 Rest of This Week</div>' + restItems.map(itemRow).join('');
   }
   body.innerHTML = html;
+  // Only ADMIN can permanently suppress the popup
+  var noShowLbl = document.getElementById('noShowTodayLabel');
+  if (noShowLbl) noShowLbl.style.display = (userRole === 'ADMIN') ? 'flex' : 'none';
   document.getElementById('morningOverlay').classList.add('show');
 }
 
@@ -4111,7 +4215,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // Column toggles
   // Sync checkboxes from persisted colVis
   var _chkMap = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
-                  supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest' };
+                  supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest', pm:'chkPm' };
   Object.keys(_chkMap).forEach(function(k){
     var el = document.getElementById(_chkMap[k]);
     if (el) {
