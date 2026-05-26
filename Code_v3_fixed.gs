@@ -1982,39 +1982,143 @@ function scanGmailForDeliveries(data, auth) {
       '\nMake sure you authorized the Gmail permission when prompted.');
   }
 
-  var results = [];
-
+  // ── Step 1: collect all email summaries (no Gemini calls yet) ──
+  var emailMetas = [];
   for (var i = 0; i < threads.length; i++) {
     try {
       var thread   = threads[i];
       var messages = thread.getMessages();
-      // Use the most recent message in the thread
-      var msg = messages[messages.length - 1];
-
-      var subject  = String(msg.getSubject()  || '(no subject)');
-      var from     = String(msg.getFrom()     || '');
-      var msgDate  = Utilities.formatDate(msg.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      // Strip HTML tags and collapse whitespace; cap at 3 000 chars to keep Gemini prompt small
+      var msg      = messages[messages.length - 1];
       var bodyRaw  = msg.getPlainBody() || msg.getBody().replace(/<[^>]+>/g, ' ');
-      var bodyText = bodyRaw.replace(/\s+/g, ' ').trim().substring(0, 3000);
-
-      // Parse with Gemini
-      var parsed = _parseEmailTextAsIncoming(bodyText, subject, from, apiKey);
-
-      results.push({
-        emailId: thread.getId(),
-        subject: subject,
-        from:    from,
-        date:    msgDate,
-        parsed:  parsed   // null if Gemini call failed
+      emailMetas.push({
+        emailId:  thread.getId(),
+        subject:  String(msg.getSubject() || '(no subject)'),
+        from:     String(msg.getFrom()    || ''),
+        date:     Utilities.formatDate(msg.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        bodyText: bodyRaw.replace(/\s+/g, ' ').trim().substring(0, 1500)
       });
-    } catch (eInner) {
-      Logger.log('scanGmail thread ' + i + ' error: ' + eInner.message);
-      // Continue — don't let one bad email abort the whole scan
+    } catch (eThread) {
+      Logger.log('scanGmail thread ' + i + ' read error: ' + eThread.message);
     }
   }
 
+  if (!emailMetas.length) return { status: 'success', emails: [], query: query };
+
+  // ── Step 2: ONE batch Gemini call for all emails ──
+  var parsedArray = _parseEmailsBatch(emailMetas, apiKey);
+
+  // ── Step 3: merge parsed results back with metadata ──
+  var results = emailMetas.map(function(em, idx) {
+    return {
+      emailId: em.emailId,
+      subject: em.subject,
+      from:    em.from,
+      date:    em.date,
+      parsed:  (parsedArray && parsedArray[idx]) ? parsedArray[idx] : null
+    };
+  });
+
   return { status: 'success', emails: results, query: query };
+}
+
+// ── Batch Gemini parser — ONE API call for all emails ────────────────────────
+// Returns an array of parsed objects, one per email, in the same order.
+function _parseEmailsBatch(emailMetas, apiKey) {
+  var n = emailMetas.length;
+
+  var prompt =
+    'You are a warehouse assistant for a glass and window installation company.\n' +
+    'Analyze the following ' + n + ' emails and extract delivery/shipment information from each.\n\n' +
+    'Return ONLY a valid JSON array with exactly ' + n + ' objects, one per email, in the same order.\n' +
+    'Each object must have these exact fields:\n' +
+    '{\n' +
+    '  "isDelivery": true/false,\n' +
+    '  "name":     "material or product name (empty string if unclear)",\n' +
+    '  "category": "one of: WINDOW|SCREEN|WINDOW_PARTS|SHOWER|MIRROR|STOREFRONT|TOOLS|BONEYARD|FLASHING|SCREWS|IGU — or empty string",\n' +
+    '  "qty":      number or null,\n' +
+    '  "unit":     "UNIT|SQ FT|LN FT|PIECE|BOX|PALLET",\n' +
+    '  "supplier": "vendor name (use sender company if not in body)",\n' +
+    '  "po":       "PO number or null",\n' +
+    '  "estDate":  "YYYY-MM-DD or null",\n' +
+    '  "project":  "project name or null",\n' +
+    '  "pm":       "project manager name or null",\n' +
+    '  "notes":    "tracking number, delivery window, or brief note"\n' +
+    '}\n\n' +
+    'Return ONLY the JSON array — no markdown, no explanation.\n\n';
+
+  emailMetas.forEach(function(em, idx) {
+    prompt +=
+      '=== EMAIL ' + (idx + 1) + ' ===\n' +
+      'Subject: ' + em.subject + '\n' +
+      'From: '    + em.from    + '\n' +
+      'Body: '    + em.bodyText + '\n\n';
+  });
+
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+  var requestBody = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(url, {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(requestBody),
+      muteHttpExceptions: true
+    });
+
+    var code = response.getResponseCode();
+    var body = response.getContentText();
+
+    if (code === 429) {
+      Logger.log('Gemini batch: 429 quota exceeded. Free tier limit reached.');
+      return null;
+    }
+    if (code !== 200) {
+      Logger.log('Gemini batch HTTP ' + code + ': ' + body.substring(0, 400));
+      return null;
+    }
+
+    var result = JSON.parse(body);
+    var cand   = result.candidates && result.candidates[0];
+    var parts  = cand && cand.content && cand.content.parts;
+    var text   = (parts && parts[0] && parts[0].text) ? String(parts[0].text).trim() : '';
+
+    if (!text) {
+      Logger.log('Gemini batch: empty response. finishReason=' + (cand && cand.finishReason));
+      return null;
+    }
+
+    // Strip markdown fences
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    // Parse the array
+    try {
+      var arr = JSON.parse(text);
+      if (!Array.isArray(arr)) throw new Error('Not an array');
+      // Pad with nulls if Gemini returned fewer items
+      while (arr.length < emailMetas.length) arr.push(null);
+      return arr;
+    } catch (eJson) {
+      // Try extracting a JSON array with regex
+      var match = text.match(/\[[\s\S]*\]/);
+      if (match) {
+        try {
+          var arr2 = JSON.parse(match[0]);
+          if (Array.isArray(arr2)) {
+            while (arr2.length < emailMetas.length) arr2.push(null);
+            return arr2;
+          }
+        } catch(e2) {}
+      }
+      Logger.log('Gemini batch JSON parse failed. Text: ' + text.substring(0, 500));
+      return null;
+    }
+  } catch (eFetch) {
+    Logger.log('Gemini batch fetch error: ' + eFetch.message);
+    return null;
+  }
 }
 
 // Calls Gemini 1.5 Flash with plain-text email content.
