@@ -4535,7 +4535,10 @@ function renderGmailScanResults(emails) {
   emails.forEach(function(em, idx) {
     try {
       var p = (em.parsed && typeof em.parsed === 'object') ? em.parsed : {};
+      // aiOk = false only when parsed is completely null (all Gemini models failed)
       var aiOk = (em.parsed !== null && em.parsed !== undefined);
+      // If the "name" is empty and notes has the AI-fail marker, flag it
+      var aiPartial = aiOk && !p.name && String(p.notes||'').indexOf('⚠ AI parsing') === 0;
 
       // ── Build card element ──
       var card = document.createElement('div');
@@ -4550,7 +4553,7 @@ function renderGmailScanResults(emails) {
         '<span class="gc-from">' + _escAttr(em.from) + '</span>' +
         '<span class="gc-date">' + _escAttr(em.date) + '</span>' +
         (p.isDelivery === false ? '<span class="gc-not-delivery">⚠ Possibly not a delivery</span>' : '') +
-        (!aiOk ? '<span class="gc-not-delivery" style="color:var(--orange)">⚠ AI parsing failed — fill manually</span>' : '');
+        (!aiOk || aiPartial ? '<span class="gc-not-delivery" style="color:var(--orange)">⚠ AI parsing failed — fill fields manually</span>' : '<span style="font-size:.7rem;color:var(--green);font-weight:600">✓ AI filled</span>');
 
       // Body — build category select
       var catSelHtml = '<option value="">Select category…</option>';

@@ -1913,57 +1913,92 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
     'Email body:\n' + bodyText + '\n\n' +
     'Extract incoming delivery information and return ONLY a valid JSON object — no markdown, no extra text:\n' +
     '{\n' +
-    '  "isDelivery": true or false (is this email about an incoming delivery or shipment?),\n' +
-    '  "name":       "material or product name / description",\n' +
-    '  "category":   "WINDOW | SCREEN | WINDOW_PARTS | SHOWER | MIRROR | STOREFRONT | TOOLS | BONEYARD | FLASHING | SCREWS | IGU | (empty string if unclear)",\n' +
-    '  "qty":        number or null,\n' +
-    '  "unit":       "UNIT | SQ FT | LN FT | PIECE | BOX | PALLET",\n' +
-    '  "supplier":   "sender company or vendor name",\n' +
-    '  "po":         "PO number or order number if present, else null",\n' +
-    '  "estDate":    "estimated arrival date YYYY-MM-DD or null",\n' +
-    '  "project":    "project name or delivery address if mentioned, else null",\n' +
-    '  "pm":         "project manager name if mentioned, else null",\n' +
-    '  "notes":      "tracking number, delivery time window, or any useful note"\n' +
-    '}\n\n' +
-    'Rules:\n' +
-    '- isDelivery = true only if this is clearly about physical materials being shipped/delivered.\n' +
-    '- For qty, extract the TOTAL quantity being delivered (not per-item).\n' +
-    '- For estDate, prefer explicit dates; if "today" or no date, use null.\n' +
-    '- For supplier, use the company name from the "From" field if not mentioned in body.\n' +
-    '- Use null for any field that is not clearly present.\n' +
-    '- Return ONLY the JSON, no other text.';
+    '  "isDelivery": true or false,\n' +
+    '  "name":     "material or product name",\n' +
+    '  "category": "WINDOW|SCREEN|WINDOW_PARTS|SHOWER|MIRROR|STOREFRONT|TOOLS|BONEYARD|FLASHING|SCREWS|IGU or empty string",\n' +
+    '  "qty":      number or null,\n' +
+    '  "unit":     "UNIT|SQ FT|LN FT|PIECE|BOX|PALLET",\n' +
+    '  "supplier": "vendor name",\n' +
+    '  "po":       "PO number or null",\n' +
+    '  "estDate":  "YYYY-MM-DD or null",\n' +
+    '  "project":  "project name or null",\n' +
+    '  "pm":       "project manager name or null",\n' +
+    '  "notes":    "tracking number or useful note"\n' +
+    '}\n' +
+    'Return ONLY the JSON object, no other text.';
 
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+  // Try gemini-2.0-flash first, fall back to gemini-1.5-flash
+  var models = [
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest'
+  ];
+  var baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var requestBody = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.05, maxOutputTokens: 512 }
   };
 
-  try {
-    var response = UrlFetchApp.fetch(url, {
-      method:          'POST',
-      contentType:     'application/json',
-      payload:         JSON.stringify(requestBody),
-      muteHttpExceptions: true
-    });
-    if (response.getResponseCode() !== 200) return null;
+  for (var m = 0; m < models.length; m++) {
+    try {
+      var url = baseUrl + models[m] + ':generateContent?key=' + apiKey;
+      var response = UrlFetchApp.fetch(url, {
+        method: 'POST',
+        contentType: 'application/json',
+        payload: JSON.stringify(requestBody),
+        muteHttpExceptions: true
+      });
 
-    var result = JSON.parse(response.getContentText());
-    if (!result.candidates || !result.candidates.length) return null;
+      var code = response.getResponseCode();
+      var body = response.getContentText();
 
-    var text = (result.candidates[0].content.parts[0].text || '').trim();
-    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      if (code !== 200) {
+        Logger.log('Gemini ' + models[m] + ' HTTP ' + code + ': ' + body.substring(0, 300));
+        // 404 = model not found → try next; other errors → log and try next
+        continue;
+      }
 
-    try   { return JSON.parse(text); }
-    catch (e) {
-      var m = text.match(/\{[\s\S]*\}/);
-      if (m) { try { return JSON.parse(m[0]); } catch(e2) {} }
-      return null;
+      var result = JSON.parse(body);
+      if (!result.candidates || !result.candidates.length) {
+        Logger.log('Gemini ' + models[m] + ': no candidates. FinishReason: ' +
+          JSON.stringify((result.candidates || [{}])[0]));
+        continue;
+      }
+
+      var text = (result.candidates[0].content.parts[0].text || '').trim();
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+      try {
+        return JSON.parse(text);
+      } catch (eJson) {
+        var match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { return JSON.parse(match[0]); } catch(e2) {}
+        }
+        Logger.log('Gemini JSON parse failed. Raw text: ' + text.substring(0, 200));
+        continue;
+      }
+
+    } catch (eFetch) {
+      Logger.log('Gemini ' + models[m] + ' fetch error: ' + eFetch.message);
+      continue;
     }
-  } catch (e) {
-    Logger.log('_parseEmailTextAsIncoming error: ' + e.message);
-    return null;
   }
+
+  // All models failed — return a minimal object so the card still renders
+  return {
+    isDelivery: true,
+    name: '',
+    category: '',
+    qty: 1,
+    unit: 'UNIT',
+    supplier: (from || '').replace(/<[^>]+>/g, '').trim(),
+    po: null,
+    estDate: null,
+    project: null,
+    pm: null,
+    notes: '⚠ AI parsing failed — check GAS Logs for details. Fill fields manually.'
+  };
 }
 
 // ─── MONITORED MATERIALS ──────────────────────────────────────────────────────
