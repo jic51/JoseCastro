@@ -1839,6 +1839,21 @@ function deleteIncoming(id) {
 // Requires: GEMINI_API_KEY in Script Properties
 //           Gmail OAuth scope (auto-granted when GmailApp is used)
 //
+// ── Quick test — run this directly in GAS Editor to debug Gemini ──────────────
+function _testGemini() {
+  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) { Logger.log('ERROR: GEMINI_API_KEY not set'); return; }
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+  var resp = UrlFetchApp.fetch(url, {
+    method: 'POST',
+    contentType: 'application/json',
+    payload: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with: {"ok":true}' }] }] }),
+    muteHttpExceptions: true
+  });
+  Logger.log('HTTP ' + resp.getResponseCode());
+  Logger.log(resp.getContentText().substring(0, 500));
+}
+
 function scanGmailForDeliveries(data, auth) {
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
 
@@ -1930,8 +1945,8 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
   // Try gemini-2.0-flash first, fall back to gemini-1.5-flash
   var models = [
     'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest'
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash-002'
   ];
   var baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var requestBody = {
@@ -1960,13 +1975,23 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
 
       var result = JSON.parse(body);
       if (!result.candidates || !result.candidates.length) {
-        Logger.log('Gemini ' + models[m] + ': no candidates. FinishReason: ' +
-          JSON.stringify((result.candidates || [{}])[0]));
+        Logger.log('Gemini ' + models[m] + ': no candidates. Body: ' + body.substring(0, 300));
         continue;
       }
 
-      var text = (result.candidates[0].content.parts[0].text || '').trim();
-      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      // Safe access — content may be missing if Gemini applied safety filters
+      var cand    = result.candidates[0];
+      var content = cand && cand.content;
+      var parts   = content && content.parts;
+      var text    = (parts && parts[0] && parts[0].text) ? String(parts[0].text) : '';
+
+      if (!text) {
+        Logger.log('Gemini ' + models[m] + ': empty text. finishReason=' + (cand && cand.finishReason || '?'));
+        continue;
+      }
+
+      // Strip markdown fences
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
       try {
         return JSON.parse(text);
@@ -1975,7 +2000,7 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
         if (match) {
           try { return JSON.parse(match[0]); } catch(e2) {}
         }
-        Logger.log('Gemini JSON parse failed. Raw text: ' + text.substring(0, 200));
+        Logger.log('Gemini ' + models[m] + ' JSON parse failed. Text: ' + text.substring(0, 300));
         continue;
       }
 
@@ -2054,7 +2079,7 @@ function extractDocumentInfo(fileData, mimeType) {
     'For category, infer from the product description. ' +
     'For qty, extract the total quantity being delivered.';
 
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
 
   var requestBody = {
     contents: [{
