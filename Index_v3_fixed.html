@@ -206,6 +206,29 @@
     .gmail-card-footer{padding:.55rem .9rem;border-top:1px solid var(--border);display:flex;gap:.5rem;justify-content:flex-end;align-items:center;background:#FAFAFA}
     .gmail-card-footer .gc-saved-badge{font-size:.78rem;font-weight:700;color:var(--green);flex:1}
     .gmail-no-results{text-align:center;padding:2.5rem;color:var(--muted);font-size:.88rem;line-height:1.6}
+    /* ── CONFIRM DIALOG ── */
+    .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:1rem}
+    .cconfirm-overlay.show{display:flex}
+    .cconfirm-dialog{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:420px;overflow:hidden;animation:cconfirm-in .18s ease}
+    @keyframes cconfirm-in{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+    .cconfirm-icon-row{padding:1.5rem 1.5rem .5rem;text-align:center;font-size:2.2rem;line-height:1}
+    .cconfirm-body{padding:.25rem 1.5rem 1rem;text-align:center}
+    .cconfirm-body h3{font-size:1.05rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
+    .cconfirm-body p{font-size:.88rem;color:var(--muted);line-height:1.5;white-space:pre-line}
+    .cconfirm-footer{padding:.85rem 1.25rem 1.25rem;display:flex;gap:.6rem;justify-content:center}
+    .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;transition:.15s}
+    .cconfirm-footer button:hover{filter:brightness(.9)}
+    .cconfirm-cancel{background:var(--border);color:var(--text)}
+    /* ── EDIT MOVEMENT MODAL ── */
+    .edit-mov-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;margin-top:.6rem}
+    .edit-mov-grid .field.full{grid-column:1/-1}
+    .edit-mov-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.25rem}
+    .edit-mov-grid .field input,.edit-mov-grid .field select,.edit-mov-grid .field textarea{width:100%;padding:.42rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit}
+    .edit-mov-grid .field input:focus,.edit-mov-grid .field select:focus,.edit-mov-grid .field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.12)}
+    .edit-reason-box{margin-top:.75rem;padding:.75rem;background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px}
+    .edit-reason-box label{font-size:.78rem;font-weight:700;color:var(--yellow);display:block;margin-bottom:.35rem}
+    .edit-reason-box textarea{width:100%;padding:.45rem .65rem;border:1px solid #FDE68A;border-radius:6px;font-size:.84rem;font-family:inherit;background:#FFFBEB;resize:vertical}
+    .edit-reason-box textarea:focus{outline:none;border-color:var(--yellow)}
     /* ── HOURGLASS: flip 180°, pause 1s, flip 180°, pause 1s ── */
     @keyframes hg-flip{
       0%        {transform:rotate(0deg)}
@@ -940,6 +963,106 @@
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('monitorOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveMonitorSettings()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CUSTOM CONFIRM DIALOG ══════════════════════════════════════════════════ -->
+<div class="cconfirm-overlay" id="confirmOverlay">
+  <div class="cconfirm-dialog">
+    <div class="cconfirm-icon-row" id="confirmIcon">⚠️</div>
+    <div class="cconfirm-body">
+      <h3 id="confirmTitle">Confirm</h3>
+      <p id="confirmMessage"></p>
+    </div>
+    <div class="cconfirm-footer">
+      <button class="cconfirm-cancel" id="confirmCancelBtn" onclick="_confirmCancel()">Cancel</button>
+      <button class="btn-primary btn" id="confirmOkBtn" onclick="_confirmOk()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT MOVEMENT MODAL ════════════════════════════════════════════════════ -->
+<div class="overlay" id="editMovOverlay">
+  <div class="modal" style="max-width:620px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
+      <h3 style="margin:0">✏️ Edit Movement</h3>
+      <span id="editMovRowTag" style="font-size:.72rem;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--muted)"></span>
+    </div>
+    <div id="editMovTypeTag" style="margin-bottom:.6rem"></div>
+
+    <div class="edit-mov-grid">
+      <div class="field">
+        <label>Category</label>
+        <select id="em_category"></select>
+      </div>
+      <div class="field">
+        <label>Material Name</label>
+        <input type="text" id="em_name" list="matNameList">
+      </div>
+      <div class="field">
+        <label>Qty</label>
+        <input type="number" id="em_qty" min="0" step="any">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="em_unit">
+          <option>UNIT</option><option>SQ FT</option><option>LN FT</option>
+          <option>PIECE</option><option>BOX</option><option>PALLET</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="em_dateRec">
+      </div>
+      <div class="field">
+        <label>Responsible</label>
+        <input type="text" id="em_responsible">
+      </div>
+      <div class="field">
+        <label>Source / From Location</label>
+        <input type="text" id="em_sourceLoc" list="locationList">
+      </div>
+      <div class="field">
+        <label>Dest / To Location</label>
+        <input type="text" id="em_destLoc" list="locationList">
+      </div>
+      <div class="field">
+        <label>Project</label>
+        <input type="text" id="em_project" list="projList">
+      </div>
+      <div class="field">
+        <label>GC (General Contractor)</label>
+        <input type="text" id="em_gc">
+      </div>
+      <div class="field">
+        <label>Supplier</label>
+        <input type="text" id="em_supplier" list="supplierList">
+      </div>
+      <div class="field">
+        <label>PO #</label>
+        <input type="text" id="em_po">
+      </div>
+      <div class="field">
+        <label>PM (Project Manager)</label>
+        <input type="text" id="em_pm">
+      </div>
+      <div class="field full">
+        <label>Comments</label>
+        <textarea id="em_comments" rows="2"></textarea>
+      </div>
+    </div>
+
+    <!-- Reason — required -->
+    <div class="edit-reason-box">
+      <label>⚠️ Reason for modification (required)</label>
+      <textarea id="em_reason" rows="2" placeholder="Explain why this record is being changed…"></textarea>
+    </div>
+
+    <input type="hidden" id="em_rowIdx">
+    <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('editMovOverlay')">Cancel</button>
+      <button class="btn btn-primary" id="btnSaveEditMov" onclick="saveEditMov()">💾 Save Changes</button>
     </div>
   </div>
 </div>
@@ -1760,7 +1883,7 @@ function renderMovements(){
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
       '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
-      (userRole==='ADMIN'?'<td><button class="btn-icon" title="Delete row" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button></td>':'')+
+      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px"><button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button></div></td>':'')+
       '</tr>';
   }).join('');
 
@@ -1794,7 +1917,15 @@ function _loadMoreMovements(){
 }
 
 function deleteMovementRow(rowIdx){
-  if (!confirm('⚠️ Permanently delete this movement record?\n\nThis cannot be undone.')) return;
+  _showConfirm({
+    icon: '🗑️', danger: true,
+    title: 'Delete Movement Record?',
+    message: 'Row #' + rowIdx + ' will be permanently removed.\nThis cannot be undone.',
+    confirmText: 'Yes, Delete',
+    onConfirm: function(){ _doDeleteMovementRow(rowIdx); }
+  });
+}
+function _doDeleteMovementRow(rowIdx){
   google.script.run
     .withSuccessHandler(function(){
       showToast('Movement deleted.', 'ok');
@@ -2341,7 +2472,7 @@ async function submitMovement(){
       var msg = overages.map(function(el){
         return el.loc + ': trying ' + el.qty + ', only ' + (matLocs[el.loc.toUpperCase()] || 0) + ' available';
       }).join('\n');
-      if (!confirm('⚠️ Some locations exceed available stock:\n\n' + msg + '\n\nProceed anyway?')) return;
+      _showConfirm({ icon:'⚠️', title:'Stock Warning', message:'Some locations exceed available stock:\n\n' + msg + '\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
     }
   }
 
@@ -2382,7 +2513,7 @@ async function submitMovement(){
 
   // Destination required for RETURN
   if (currentMoveType === 'RETURN' && !destLoc){
-    if (!confirm('No rack/location specified. Continue anyway?')) return;
+    _showConfirm({ icon:'📦', title:'No Location', message:'No rack/location specified for this RETURN.\nContinue anyway?', confirmText:'Continue', onConfirm: function(){ _doSubmit(false); } }); return;
   }
 
   // WASTE requires comments
@@ -2394,7 +2525,7 @@ async function submitMovement(){
     var key2 = nt(cat) + '|||' + name.toUpperCase();
     var s2 = stockData[key2];
     if (s2 && s2.availableQty < qty){
-      if (!confirm('⚠️ Only '+s2.availableQty+' available, trying to remove '+qty+'.\n\nProceed anyway?')) return;
+      _showConfirm({ icon:'⚠️', title:'Insufficient Stock', message:'Only ' + s2.availableQty + ' units available,\ntrying to remove ' + qty + '.\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
     }
   }
 
@@ -2482,14 +2613,14 @@ async function submitMovement(){
           var dupStr  = msg.substring(dupIdx);   // "DUPLICATE_MOVEMENT|367|1.9"
           var parts   = dupStr.split('|');
           var minsAgo = parts[2] || '< 1';
-          var confirmed  = confirm(
-            '⚠️ Possible duplicate movement\n\n' +
-            'An identical ' + currentMoveType + ' for ' + qty + ' × ' + name +
-            ' was already saved ' + minsAgo + ' minute(s) ago.\n\n' +
-            'This might be a double-click or double-tab.\n\n' +
-            'Save anyway?'
-          );
-          if (confirmed) _doSubmit(true); // retry with forceSubmit=true
+          _showConfirm({
+            icon: '⚠️',
+            title: 'Possible Duplicate',
+            message: 'An identical ' + currentMoveType + ' for ' + qty + ' × ' + name +
+              ' was saved ' + minsAgo + ' minute(s) ago.\n\nThis might be a double-click.\nSave again anyway?',
+            confirmText: 'Save Anyway',
+            onConfirm: function(){ _doSubmit(true); }
+          });
           return;
         }
         // ── Any other error ────────────────────────────────────────────────
@@ -2905,8 +3036,13 @@ function _cfgSaveRename(tab, i) {
 }
 
 function _cfgDelete(tab, val) {
-  if (!confirm('Delete "'+val+'" from '+tab+'?\n\nNote: existing data using this value is not affected.')) return;
-  _cfgCall({ type: tab, op: 'delete', value: val });
+  _showConfirm({
+    icon:'🗑️', danger: true,
+    title: 'Delete "' + val + '"?',
+    message: 'This will remove "' + val + '" from ' + tab + '.\nExisting records using this value are not affected.',
+    confirmText: 'Delete',
+    onConfirm: function(){ _cfgCall({ type: tab, op: 'delete', value: val }); }
+  });
 }
 
 function _cfgAdd(tab) {
@@ -2995,8 +3131,14 @@ function _matAction(op, name, cat) {
   } else if (op === 'merge') {
     var nv = prompt('Merge "' + name + '" INTO which existing material?\n(Type the exact target name — all rows of "' + name + '" will be renamed to the target)', '');
     if (!nv || !nv.trim()) return;
-    if (!confirm('Merge ALL rows of\n"' + name + '" → "' + nv.trim() + '"?\n\nThis cannot be undone.')) return;
-    _matCall({ op: 'merge', name: name, category: cat, targetName: nv.trim() });
+    var nvTrimmed = nv.trim();
+    _showConfirm({
+      icon:'🔀', danger: true,
+      title: 'Merge Materials?',
+      message: '"' + name + '" → "' + nvTrimmed + '"\n\nAll rows will be renamed. This cannot be undone.',
+      confirmText: 'Merge',
+      onConfirm: function(){ _matCall({ op: 'merge', name: name, category: cat, targetName: nvTrimmed }); }
+    });
   }
 }
 
@@ -3698,7 +3840,15 @@ function saveIncomingItem() {
 function deleteIncomingItem() {
   var id = document.getElementById('incId').value;
   if (!id) return;
-  if (!confirm('Delete this incoming item? This cannot be undone.')) return;
+  _showConfirm({
+    icon: '🗑️', danger: true,
+    title: 'Delete Incoming Item?',
+    message: 'This expected delivery record will be permanently deleted.\nThis cannot be undone.',
+    confirmText: 'Yes, Delete',
+    onConfirm: function(){ _doDeleteIncomingItem(id); }
+  });
+}
+function _doDeleteIncomingItem(id){
   google.script.run
     .withSuccessHandler(function(){
       closeModal('incomingOverlay');
@@ -4057,11 +4207,18 @@ function saveUser() {
 }
 
 function deactivateUser(email) {
-  if (!confirm('Deactivate ' + email + '?\n\nThey will no longer be able to log in. You can re-activate them from the USERS_V3 sheet.')) return;
-  google.script.run
-    .withSuccessHandler(function() { _loadUsersTable(); })
-    .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
-    .processMovement('removeUser', { email: email });
+  _showConfirm({
+    icon: '🔒', danger: true,
+    title: 'Deactivate User?',
+    message: email + '\n\nThey will no longer be able to log in.\nYou can re-activate them from the USERS_V3 sheet.',
+    confirmText: 'Deactivate',
+    onConfirm: function(){
+      google.script.run
+        .withSuccessHandler(function() { _loadUsersTable(); })
+        .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
+        .processMovement('removeUser', { email: email });
+    }
+  });
 }
 
 // ── Access Denied Screen ──────────────────────────────────────────────────────
@@ -4465,6 +4622,132 @@ function renderActiveUsers(users){
   }).join('');
 }
 
+// ── Custom Confirm Dialog ─────────────────────────────────────────────────────
+var _confirmCb = null;
+function _showConfirm(opts) {
+  // opts: { icon, title, message, confirmText, danger, onConfirm }
+  _confirmCb = opts.onConfirm || null;
+  document.getElementById('confirmIcon').textContent    = opts.icon    || (opts.danger ? '🗑️' : '⚠️');
+  document.getElementById('confirmTitle').textContent   = opts.title   || 'Confirm';
+  document.getElementById('confirmMessage').textContent = opts.message || '';
+  var okBtn = document.getElementById('confirmOkBtn');
+  okBtn.textContent  = opts.confirmText || 'OK';
+  okBtn.className    = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+  document.getElementById('confirmOverlay').classList.add('show');
+}
+function _confirmOk() {
+  document.getElementById('confirmOverlay').classList.remove('show');
+  if (_confirmCb) { var cb = _confirmCb; _confirmCb = null; cb(); }
+}
+function _confirmCancel() {
+  _confirmCb = null;
+  document.getElementById('confirmOverlay').classList.remove('show');
+}
+
+// ── Edit Movement ─────────────────────────────────────────────────────────────
+var _editMovRowIdx = 0;
+
+function openEditMovModal(rowIdx) {
+  var mov = null;
+  for (var i = 0; i < movements.length; i++) {
+    if (movements[i].rowIdx === rowIdx) { mov = movements[i]; break; }
+  }
+  if (!mov) { showToast('Movement not found in current view.', 'warn'); return; }
+
+  _editMovRowIdx = rowIdx;
+
+  // Row tag
+  document.getElementById('editMovRowTag').textContent  = 'Row #' + rowIdx;
+  document.getElementById('em_rowIdx').value            = rowIdx;
+
+  // Move type tag
+  var typeColors = {ENTRY:'var(--green)',EXIT:'var(--red)',TRANSFER:'var(--accent)',RETURN:'#9CA3AF',WASTE:'#111827'};
+  var tc = typeColors[mov.moveType] || 'var(--muted)';
+  document.getElementById('editMovTypeTag').innerHTML =
+    '<span style="font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:10px;background:'+tc+'22;color:'+tc+'">' +
+    (mov.moveType || 'UNKNOWN') + '</span>';
+
+  // Populate category dropdown from config
+  var CATS = (config && config.categories && config.categories.length)
+    ? config.categories
+    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+  var catSel = document.getElementById('em_category');
+  catSel.innerHTML = CATS.map(function(c){
+    return '<option value="'+c+'"'+(nt(c)===nt(mov.category)?' selected':'')+'>'+c+'</option>';
+  }).join('');
+
+  // Fill unit
+  var unitSel = document.getElementById('em_unit');
+  Array.from(unitSel.options).forEach(function(o){ o.selected = nt(o.value)===nt(mov.unit); });
+
+  // Fill text/number fields
+  var fmap = {
+    em_name:        mov.name,
+    em_qty:         mov.qty,
+    em_dateRec:     mov.dateRec  || '',
+    em_responsible: mov.responsible || '',
+    em_sourceLoc:   mov.sourceLoc   || '',
+    em_destLoc:     mov.destLoc     || '',
+    em_project:     mov.project     || '',
+    em_gc:          mov.gc          || '',
+    em_supplier:    mov.supplier    || '',
+    em_po:          mov.po          || '',
+    em_pm:          mov.pm          || '',
+    em_comments:    mov.comments    || ''
+  };
+  Object.keys(fmap).forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = fmap[id] !== undefined ? fmap[id] : '';
+  });
+
+  document.getElementById('em_reason').value = '';
+  document.getElementById('btnSaveEditMov').disabled  = false;
+  document.getElementById('btnSaveEditMov').textContent = '💾 Save Changes';
+  document.getElementById('editMovOverlay').classList.add('show');
+}
+
+function saveEditMov() {
+  var reason = (document.getElementById('em_reason').value || '').trim();
+  if (!reason) { showToast('Please explain why you are making this change.', 'warn'); return; }
+
+  var payload = {
+    rowIdx:      _editMovRowIdx,
+    reason:      reason,
+    category:    document.getElementById('em_category').value,
+    name:        document.getElementById('em_name').value.trim(),
+    qty:         parseFloat(document.getElementById('em_qty').value) || 0,
+    unit:        document.getElementById('em_unit').value,
+    dateRec:     document.getElementById('em_dateRec').value,
+    responsible: document.getElementById('em_responsible').value.trim(),
+    sourceLoc:   document.getElementById('em_sourceLoc').value.trim().toUpperCase(),
+    destLoc:     document.getElementById('em_destLoc').value.trim().toUpperCase(),
+    project:     document.getElementById('em_project').value.trim(),
+    gc:          document.getElementById('em_gc').value.trim(),
+    supplier:    document.getElementById('em_supplier').value.trim(),
+    po:          document.getElementById('em_po').value.trim(),
+    pm:          document.getElementById('em_pm').value.trim(),
+    comments:    document.getElementById('em_comments').value.trim()
+  };
+
+  if (!payload.name) { showToast('Material name cannot be empty.', 'warn'); return; }
+
+  var btn = document.getElementById('btnSaveEditMov');
+  btn.disabled = true; btn.textContent = '💾 Saving…';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      closeModal('editMovOverlay');
+      showToast('Movement updated — ' + res.changes + ' field(s) changed. Email sent.', 'ok');
+      loadDataFromGoogle(true);
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = '💾 Save Changes';
+      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
+      showToast('Error: ' + msg, 'err', 6000);
+    })
+    .processMovement('modifyMovement', payload);
+}
+
 // ── Gmail Scanner ─────────────────────────────────────────────────────────────
 var _gmailScanResults = [];
 
@@ -4502,9 +4785,11 @@ function runGmailScan() {
       }
       _gmailScanResults = res.emails || [];
       var n = _gmailScanResults.length;
+      var allFailed = n > 0 && _gmailScanResults.every(function(e){ return !e.parsed || !e.parsed.name; });
       document.getElementById('gmailScanStatus').textContent =
-        n === 0 ? 'No emails found. Try adjusting the query or days.' :
-        n + ' email' + (n > 1 ? 's' : '') + ' found. Review and save the ones you want.';
+        n === 0  ? 'No emails found. Try adjusting the query or days back.' :
+        allFailed? n + ' emails found — ⚠ AI parsing failed (quota exceeded?). Fill fields manually or upgrade your Gemini API key at aistudio.google.com.' :
+        n + ' email' + (n > 1 ? 's' : '') + ' found. Review, edit if needed, and save.';
       renderGmailScanResults(_gmailScanResults);
     })
     .withFailureHandler(function(err) {

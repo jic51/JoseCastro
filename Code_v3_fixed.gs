@@ -512,6 +512,7 @@ function processMovement(action, data) {
   if (action === 'updateIncoming')        return updateIncoming(data);
   if (action === 'deleteIncoming')        return deleteIncoming(data.id);
   if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
+  if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
   // ── User management (ADMIN only) ─────────────────────────────────────────
   if (action === 'getUsers')       return getUsers(auth);
@@ -1839,6 +1840,105 @@ function deleteIncoming(id) {
 // Requires: GEMINI_API_KEY in Script Properties
 //           Gmail OAuth scope (auto-granted when GmailApp is used)
 //
+// ─── MODIFY MOVEMENT ────────────────────────────────────────────────────────
+// Admin only. Updates a row in MASTER_ARCHIVE_V3, logs to AUDIT_LOG, emails admin.
+function modifyMovement(data, auth) {
+  if (auth.role !== 'ADMIN') throw new Error('Only admins can modify movement records.');
+
+  var rowIdx = parseInt(data.rowIdx || 0);
+  if (rowIdx < 2) throw new Error('Invalid row index.');
+
+  var reason = String(data.reason || '').trim();
+  if (!reason) throw new Error('A reason for the modification is required.');
+
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (!archive) throw new Error('MASTER_ARCHIVE_V3 sheet not found.');
+
+  var lastRow = archive.getLastRow();
+  if (rowIdx > lastRow) throw new Error('Row #' + rowIdx + ' does not exist (last row: ' + lastRow + ').');
+
+  // Read current row (20 cols)
+  var range   = archive.getRange(rowIdx, 1, 1, 20);
+  var rowVals = range.getValues()[0];
+
+  // Map of field key → { col (0-indexed), label }
+  var FIELDS = {
+    category:    { col: AC.CATEGORY,    label: 'Category' },
+    name:        { col: AC.NAME,        label: 'Name' },
+    gc:          { col: AC.GC,          label: 'GC' },
+    po:          { col: AC.PO,          label: 'PO #' },
+    qty:         { col: AC.QTY,        label: 'Qty' },
+    unit:        { col: AC.UNIT,       label: 'Unit' },
+    dateRec:     { col: AC.DATE_REC,   label: 'Date' },
+    sourceLoc:   { col: AC.SRC_LOC,    label: 'Source Loc' },
+    supplier:    { col: AC.SUPPLIER,   label: 'Supplier' },
+    comments:    { col: AC.COMMENTS,   label: 'Comments' },
+    responsible: { col: AC.RESPONSIBLE,label: 'Responsible' },
+    project:     { col: AC.PROJECT,    label: 'Project' },
+    destLoc:     { col: AC.DEST_LOC,   label: 'Dest Loc' },
+    pm:          { col: AC.PM,         label: 'PM' }
+  };
+
+  var changes    = [];
+  var origVals   = {};
+
+  Object.keys(FIELDS).forEach(function(key) {
+    if (data[key] === undefined || data[key] === null) return;
+    var f      = FIELDS[key];
+    var oldStr = String(rowVals[f.col] || '').trim();
+    var newStr = key === 'qty'
+      ? String(parseFloat(data[key]) || 0)
+      : String(data[key] || '').trim();
+    if (oldStr !== newStr) {
+      origVals[f.label] = oldStr;
+      changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
+      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : newStr;
+    }
+  });
+
+  if (!changes.length) throw new Error('No changes detected — nothing to save.');
+
+  // Write updated row back
+  range.setValues([rowVals]);
+
+  // Audit log
+  _auditLog(ss, 'MODIFY_MOVEMENT', auth.email,
+    'Row ' + rowIdx + ' | Reason: ' + reason,
+    changes.join(' | '), '');
+
+  // Email admin
+  var cfg       = loadConfig();
+  var recipient = cfg.adminEmail || 'jose@ox-glass.com';
+  var matLabel  = String(rowVals[AC.CATEGORY] || '') + ' — ' + String(rowVals[AC.NAME] || '');
+  var moveType  = String(rowVals[AC.MOVETYPE] || '');
+  var now       = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+
+  var body =
+    'A movement record was modified in OX Glass WMS.\n\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+    'WHO:   ' + auth.email + '\n' +
+    'WHEN:  ' + now + '\n' +
+    'WHERE: Row #' + rowIdx + ' — MASTER_ARCHIVE_V3\n' +
+    'WHAT:  ' + matLabel + ' (' + moveType + ')\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+    'FIELDS CHANGED:\n' +
+    changes.map(function(c){ return '  • ' + c; }).join('\n') +
+    '\n\nWHY (reason given by user):\n  ' + reason + '\n\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+    'This change is logged in AUDIT_LOG and cannot be auto-reverted from the app.\n' +
+    'To revert, go to MASTER_ARCHIVE_V3 row ' + rowIdx + ' and restore the previous values.';
+
+  GmailApp.sendEmail(
+    recipient,
+    '✏️ WMS — Movement Modified: Row #' + rowIdx + ' by ' + auth.email,
+    body,
+    { name: 'OX Glass Co. — WMS' }
+  );
+
+  return { status: 'success', changes: changes.length };
+}
+
 // ── Quick test — run this directly in GAS Editor to debug Gemini ──────────────
 function _testGemini() {
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
@@ -1969,7 +2069,11 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
 
       if (code !== 200) {
         Logger.log('Gemini ' + models[m] + ' HTTP ' + code + ': ' + body.substring(0, 300));
-        // 404 = model not found → try next; other errors → log and try next
+        if (code === 429) {
+          // Quota exceeded — no point trying other models with same key
+          Logger.log('Gemini quota exceeded. Upgrade at aistudio.google.com or use a paid API key.');
+          break;
+        }
         continue;
       }
 
