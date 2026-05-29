@@ -81,14 +81,37 @@
     .badge-navy{background:#DBEAFE;color:#1E3A8A}
     /* ── WAREHOUSE MAP ── */
     .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;padding:1.25rem}
-    .rack-card{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
-    .rack-header{background:var(--navy);color:#fff;padding:.6rem 1rem;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:700}
-    .rack-header .rack-total{font-size:.72rem;opacity:.8;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:10px}
-    .rack-items{padding:.5rem}
-    .rack-item{display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:6px;font-size:.78rem;margin-bottom:2px}
-    .rack-item:hover{background:#F8FAFC}
-    .rack-qty{margin-left:auto;font-weight:700;color:var(--accent2);font-size:.8rem}
+    /* ── WAREHOUSE MAP — RACK GRID ── */
+    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:.65rem;padding:.5rem}
+    .rack-card{background:var(--card);border:2px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:border-color .15s,transform .12s,box-shadow .12s;position:relative}
+    .rack-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 18px rgba(59,125,216,.18)}
+    .rack-card.rack-empty-card{opacity:.55;cursor:default}
+    .rack-card.rack-empty-card:hover{transform:none;border-color:var(--border);box-shadow:var(--shadow)}
+    .rack-name{font-size:.82rem;font-weight:700;color:var(--navy);padding:.5rem .65rem .2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rack-fill-bar{height:5px;background:var(--border);margin:0 .65rem .35rem;border-radius:3px;overflow:hidden}
+    .rack-fill-inner{height:100%;border-radius:3px;transition:width .3s}
+    .rack-fill-low{background:#10B981}.rack-fill-med{background:#F59E0B}.rack-fill-high{background:var(--accent)}
+    .rack-cats{display:flex;flex-wrap:wrap;gap:3px;padding:0 .6rem .45rem;min-height:22px}
+    .rack-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .rack-count-row{display:flex;justify-content:space-between;align-items:center;padding:.3rem .65rem .55rem;border-top:1px solid var(--border)}
+    .rack-count-row .rc-items{font-size:.7rem;color:var(--muted)}
+    .rack-count-row .rc-total{font-size:.78rem;font-weight:700;color:var(--accent2)}
     .rack-empty{padding:2rem;text-align:center;color:var(--muted);font-size:.85rem}
+    /* Rack Detail Drawer */
+    .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,100vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:500;transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
+    .rack-drawer.open{transform:translateX(0)}
+    .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
+    .rack-drawer-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.85rem}
+    .rack-drawer-actions{display:flex;gap:.5rem;padding:.75rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0}
+    .rack-drawer-body{flex:1;overflow-y:auto;padding:.5rem}
+    .rdw-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;border-radius:7px;margin-bottom:3px;transition:background .12s}
+    .rdw-item:hover{background:#F8FAFC}
+    .rdw-name{flex:1;font-size:.83rem;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rdw-rack-qty{font-size:.82rem;font-weight:700;color:var(--red);flex-shrink:0}
+    .rdw-total-qty{font-size:.72rem;color:var(--muted);flex-shrink:0}
+    .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,.3)}
+    .rack-drawer-overlay.open{display:block}
     /* ── ALERTS ── */
     .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
     .alert-banner.show{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
@@ -219,6 +242,32 @@
     .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;transition:.15s}
     .cconfirm-footer button:hover{filter:brightness(.9)}
     .cconfirm-cancel{background:var(--border);color:var(--text)}
+    /* ── MULTI-EXIT MATERIAL LINES ── */
+    .exit-mat-line{background:#FFF5F5;border:1px solid #FECACA;border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
+    .exit-mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .exit-mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
+    .exit-mat-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
+    .exit-mat-remove:hover{background:var(--red);color:#fff}
+    .exit-mat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem}
+    .exit-mat-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
+    .exit-mat-grid .field input,.exit-mat-grid .field select{padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
+    .exit-mat-grid .field input:focus,.exit-mat-grid .field select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-loc-hdr{display:flex;gap:.4rem;margin:.4rem 0 .2rem;padding:0 .25rem}
+    .exit-loc-hdr span{font-size:.67rem;font-weight:600;color:var(--muted);text-transform:uppercase}
+    .exit-loc-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.3rem}
+    .exit-loc-row .el-rack{flex:2;padding:.38rem .55rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
+    .exit-loc-row .el-qty{flex:1;padding:.38rem .55rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
+    .exit-loc-row .el-avail{flex:1.4;font-size:.72rem;font-weight:600;min-width:0}
+    .el-avail.ok{color:var(--green)}.el-avail.warn{color:var(--red)}.el-avail.neutral{color:var(--muted)}
+    .exit-loc-row .el-rm{background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;flex-shrink:0;line-height:1;padding:0 2px}
+    .exit-mat-foot{display:flex;gap:.5rem;margin-top:.4rem}
+    .exit-mat-foot button{font-size:.75rem;padding:.25rem .65rem;border-radius:5px;cursor:pointer;font-family:inherit;border:1px solid;font-weight:600;transition:.15s}
+    .exit-mat-foot .btn-add-exit-loc{border-color:var(--red);color:var(--red);background:none}
+    .exit-mat-foot .btn-add-exit-loc:hover{background:var(--red-bg)}
+    .exit-mat-foot .btn-autofill-exit{border-color:var(--accent);color:var(--accent);background:none}
+    .exit-mat-foot .btn-autofill-exit:hover{background:#DBEAFE}
+    .multi-exit-add{background:none;border:1px dashed var(--red);color:var(--red);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
+    .multi-exit-add:hover{background:var(--red-bg)}
     /* ── EDIT MOVEMENT MODAL ── */
     .edit-mov-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;margin-top:.6rem}
     .edit-mov-grid .field.full{grid-column:1/-1}
@@ -1067,6 +1116,22 @@
   </div>
 </div>
 
+<!-- ══ RACK DETAIL DRAWER ═════════════════════════════════════════════════════ -->
+<div class="rack-drawer-overlay" id="rackDrawerOverlay" onclick="closeRackDrawer()"></div>
+<div class="rack-drawer" id="rackDrawer">
+  <div class="rack-drawer-hdr">
+    <h3 id="rackDrawerTitle">📦 Rack</h3>
+    <button onclick="closeRackDrawer()">✕</button>
+  </div>
+  <div class="rack-drawer-actions">
+    <button class="btn btn-danger btn-sm" id="rackDrawerExitBtn" onclick="openExitFromRack()" style="display:none">↑ Exit from here</button>
+    <button class="btn btn-ghost btn-sm" id="rackDrawerTransferBtn" onclick="openTransferFromRack()">⇄ Transfer from here</button>
+  </div>
+  <div class="rack-drawer-body" id="rackDrawerBody">
+    <p style="color:var(--muted);padding:1rem;font-size:.85rem">Select a rack to see its contents.</p>
+  </div>
+</div>
+
 <div class="system-footer">
   &copy; 2026 OX Glass Co. Proprietary Warehouse Management System.<br>
   Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
@@ -1160,7 +1225,17 @@
       <button type="button" class="multi-mat-add" onclick="addMatLine()">+ Add Another Material</button>
     </div>
 
-    <!-- ── EXIT Multi-Source Locations ── -->
+    <!-- ── MULTI-MATERIAL EXIT ── -->
+    <div id="multiExitSection" style="display:none;margin-top:.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <label style="font-size:.72rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.04em">Materials to Dispatch</label>
+        <span id="multiExitTotal" style="font-size:.9rem;font-weight:700;color:var(--red);background:var(--red-bg);padding:3px 12px;border-radius:20px">Total: 0</span>
+      </div>
+      <div id="multiExitContainer"></div>
+      <button type="button" class="multi-exit-add" onclick="addExitMatLine()">+ Add Another Material</button>
+    </div>
+
+    <!-- ── EXIT Multi-Source Locations (legacy single-material, kept for fallback) ── -->
     <div class="multi-exit-section" id="exitLocsSection" style="display:none">
       <div class="multi-loc-header">
         <label style="color:var(--red)">Pull From — Locations</label>
@@ -2259,6 +2334,8 @@ function setModalType(type){
   if (mNameField) mNameField.style.display = 'flex';
   if (mUnitField) mUnitField.style.display = 'flex';
   if (multiMatSection) multiMatSection.style.display = 'none';
+  var multiExitSectionEl = document.getElementById('multiExitSection');
+  if (multiExitSectionEl) multiExitSectionEl.style.display = 'none';
   if (mPMField)   mPMField.style.display   = 'none';  // only for ENTRY
 
   // Point rackListDest at racks by default
@@ -2286,11 +2363,14 @@ function setModalType(type){
     mStatus.value = 'In Stock';
 
   } else if (type === 'EXIT'){
-    // EXIT: only needs what, how much, from where, going where, who took it
-    // Supplier / GC / PO / Project belong to the ENTRY — don't re-ask on EXIT
-    exitLocsSection.style.display = 'block';
-    exitDestField.style.display   = 'flex';
+    var multiExitSection = document.getElementById('multiExitSection');
+    if (mCatField)  mCatField.style.display  = 'none';
+    if (mNameField) mNameField.style.display = 'none';
+    if (mUnitField) mUnitField.style.display = 'none';
     mQtyField.style.display       = 'none';
+    exitLocsSection.style.display = 'none'; // hide old single-material section
+    exitDestField.style.display   = 'flex';
+    if (multiExitSection) multiExitSection.style.display = 'block';
     supField.style.display  = 'none';
     gcField.style.display   = 'none';
     poField.style.display   = 'none';
@@ -2298,8 +2378,7 @@ function setModalType(type){
     dateLabel.textContent = 'Date Dispatched';
     respLabel.textContent = 'Taken By / Given To';
     mStatus.value = 'Out';
-    // Auto-fill racks if material is already typed (e.g. user switches type mid-form)
-    setTimeout(autoFillExitRows, 0);
+    _initMultiExitSection();
 
   } else if (type === 'TRANSFER'){
     srcField.style.display = 'flex';
@@ -2431,8 +2510,8 @@ function updateNotifyPreview(){
 
 // ── Modal: Submit ─────────────────────────────────────────────────────────────
 async function submitMovement(){
-  // ENTRY is now handled by the multi-material form
   if (currentMoveType === 'ENTRY') { submitMultiEntry(); return; }
+  if (currentMoveType === 'EXIT')  { submitMultiExit();  return; }
 
   var cat  = document.getElementById('mType').value;
   var name = (document.getElementById('mName').value || '').trim();
@@ -2798,7 +2877,7 @@ function _checkIncomingSuggest(n, inputEl){
   box.innerHTML = '<div class="inc-suggest-hdr">📦 Matches in Incoming</div>' +
     matches.map(function(item){
       var safeId = JSON.stringify(item.id);
-      return '<div class="inc-suggest-item" onclick="_applyIncomingSuggest(' + n + ',' + safeId + ')">' +
+      return '<div class="inc-suggest-item" onmousedown="_applyIncomingSuggest(' + n + ',' + safeId + ');return false;">' +
         '<span class="inc-tag">' + (item.category || '?') + '</span>' +
         '<span>' + item.name + '</span>' +
         '<span class="inc-meta">' + item.qty + ' ' + item.unit +
@@ -2849,6 +2928,235 @@ document.addEventListener('click', function(e){
     if (!box.parentElement.contains(e.target)) box.style.display = 'none';
   });
 });
+
+// ── Multi-Material EXIT ───────────────────────────────────────────────────────
+var _exitMatLineIdx = 0;
+
+function _initMultiExitSection(){
+  _exitMatLineIdx = 0;
+  var container = document.getElementById('multiExitContainer');
+  if (container) container.innerHTML = '';
+  addExitMatLine();
+}
+
+function addExitMatLine(){
+  _exitMatLineIdx++;
+  var n = _exitMatLineIdx;
+  var container = document.getElementById('multiExitContainer');
+  if (!container) return;
+
+  var CATS = (config && config.categories && config.categories.length)
+    ? config.categories
+    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+  var catOpts = CATS.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="exit-mat-line" id="exit-mat-'+n+'">'+
+      '<div class="exit-mat-line-hdr">'+
+        '<span class="exit-mat-line-lbl">Material '+n+'</span>'+
+        '<div style="display:flex;align-items:center;gap:.5rem">'+
+          '<span id="exit-mat-total-'+n+'" style="font-size:.78rem;font-weight:700;background:var(--red-bg);color:var(--red);padding:1px 9px;border-radius:10px">0</span>'+
+          '<button type="button" class="exit-mat-remove" onclick="removeExitMatLine('+n+')">×</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="exit-mat-grid">'+
+        '<div class="field"><label>Category</label>'+
+          '<select id="exit-cat-'+n+'" onchange="updateExitMatNameList('+n+')">'+catOpts+'</select>'+
+        '</div>'+
+        '<div class="field" style="position:relative"><label>Name / Description</label>'+
+          '<input type="text" id="exit-name-'+n+'" list="matNameList" placeholder="Material name…" autocomplete="off"'+
+          ' oninput="updateExitMatNameList('+n+');syncExitRackAvail('+n+')">'+
+        '</div>'+
+      '</div>'+
+      '<div class="exit-loc-hdr">'+
+        '<span style="flex:2">Rack / Location</span>'+
+        '<span style="flex:1">Qty to Take</span>'+
+        '<span style="flex:1.4">Available</span>'+
+        '<span style="width:24px"></span>'+
+      '</div>'+
+      '<div id="exit-locs-'+n+'"></div>'+
+      '<div class="exit-mat-foot">'+
+        '<button type="button" class="btn-add-exit-loc" onclick="addExitLocRowMat('+n+')">+ Add Location</button>'+
+        '<button type="button" class="btn-autofill-exit" onclick="autoFillExitMatRows('+n+')" title="Auto-fill racks from stock data">↗ Auto-fill Racks</button>'+
+      '</div>'+
+    '</div>';
+  container.appendChild(wrap.firstChild);
+  addExitLocRowMat(n, null, null, true); // add first loc row silently
+}
+
+function removeExitMatLine(n){
+  var container = document.getElementById('multiExitContainer');
+  if (!container) return;
+  if (container.querySelectorAll('.exit-mat-line').length <= 1) return;
+  var el = document.getElementById('exit-mat-' + n);
+  if (el) el.remove();
+  updateMultiExitTotal();
+}
+
+function addExitLocRowMat(n, rack, qty, silent){
+  var locsDiv = document.getElementById('exit-locs-' + n);
+  if (!locsDiv) return;
+  var row = document.createElement('div');
+  row.className = 'exit-loc-row';
+  row.innerHTML =
+    '<input type="text"   class="el-rack" list="rackList" placeholder="Rack / Location" value="'+(rack||'')+'">'+
+    '<input type="number" class="el-qty"  min="1" placeholder="Qty" value="'+(qty||'')+'">'+
+    '<span  class="el-avail neutral">—</span>'+
+    '<button type="button" class="el-rm" onclick="removeExitLocRowMat('+n+',this)" title="Remove">×</button>';
+  row.querySelector('.el-rack').addEventListener('input', function(){ syncExitRackAvail(n); syncExitMatTotal(n); });
+  row.querySelector('.el-qty').addEventListener('input',  function(){ syncExitRackAvail(n); syncExitMatTotal(n); });
+  locsDiv.appendChild(row);
+  if (!silent){ syncExitRackAvail(n); if (locsDiv.querySelectorAll('.exit-loc-row').length===1) row.querySelector('.el-rack').focus(); }
+}
+
+function removeExitLocRowMat(n, btn){
+  var locsDiv = document.getElementById('exit-locs-' + n);
+  if (!locsDiv || locsDiv.querySelectorAll('.exit-loc-row').length <= 1) return;
+  btn.closest('.exit-loc-row').remove();
+  syncExitRackAvail(n); syncExitMatTotal(n);
+}
+
+function syncExitMatTotal(n){
+  var locsDiv = document.getElementById('exit-locs-' + n);
+  if (!locsDiv) return;
+  var total = 0;
+  locsDiv.querySelectorAll('.el-qty').forEach(function(inp){ total += Math.max(0, parseInt(inp.value)||0); });
+  var badge = document.getElementById('exit-mat-total-' + n);
+  if (badge) badge.textContent = total;
+  updateMultiExitTotal();
+}
+
+function updateMultiExitTotal(){
+  var total = 0;
+  document.querySelectorAll('[id^="exit-mat-total-"]').forEach(function(badge){
+    total += parseInt(badge.textContent) || 0;
+  });
+  var el = document.getElementById('multiExitTotal');
+  if (el) el.textContent = 'Total: ' + total;
+}
+
+function syncExitRackAvail(n){
+  var cat  = nt((document.getElementById('exit-cat-'+n)  || {}).value || '');
+  var name = ((document.getElementById('exit-name-'+n) || {}).value || '').trim().toUpperCase();
+  var key  = cat + '|||' + name;
+  var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
+  var locsDiv = document.getElementById('exit-locs-' + n);
+  if (!locsDiv) return;
+  locsDiv.querySelectorAll('.exit-loc-row').forEach(function(row){
+    var rack  = (row.querySelector('.el-rack').value || '').trim().toUpperCase();
+    var qty   = Math.max(0, parseInt(row.querySelector('.el-qty').value) || 0);
+    var avail = locs[rack];
+    var chip  = row.querySelector('.el-avail');
+    if (!rack || avail === undefined){ chip.className='el-avail neutral'; chip.textContent='—'; return; }
+    if (qty > avail){ chip.className='el-avail warn'; chip.textContent='⚠ only '+avail; }
+    else { chip.className='el-avail ok'; chip.textContent='✓ '+avail+' avail'; }
+  });
+}
+
+function updateExitMatNameList(n){
+  var cat = nt((document.getElementById('exit-cat-'+n)||{}).value||'');
+  var dl  = document.getElementById('matNameList');
+  if (!dl || !cat) return;
+  var names = Object.values(stockData)
+    .filter(function(s){ return nt(s.category)===cat && s.availableQty > 0; })
+    .map(function(s){ return s.name.toUpperCase(); });
+  dl.innerHTML = names.map(function(nm){ return '<option value="'+nm+'">'; }).join('');
+}
+
+function autoFillExitMatRows(n){
+  var cat  = nt((document.getElementById('exit-cat-'+n)||{}).value||'');
+  var name = ((document.getElementById('exit-name-'+n)||{}).value||'').trim().toUpperCase();
+  if (!name){ showToast('Enter a material name first.','warn'); return; }
+  var key  = cat + '|||' + name;
+  var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
+  var racks = Object.keys(locs).filter(function(r){ return locs[r]>0; }).sort(function(a,b){ return locs[b]-locs[a]; });
+  if (!racks.length){ showToast('No stock found for that material.','warn'); return; }
+  var locsDiv = document.getElementById('exit-locs-' + n);
+  if (!locsDiv) return;
+  locsDiv.innerHTML = '';
+  racks.forEach(function(rack){ addExitLocRowMat(n, rack, '', true); });
+  syncExitRackAvail(n);
+  // Focus first qty field
+  var firstQty = locsDiv.querySelector('.el-qty');
+  if (firstQty) firstQty.focus();
+  showToast(racks.length + ' rack(s) auto-filled — enter quantities.','ok');
+}
+
+function submitMultiExit(){
+  var dest     = (document.getElementById('mExitDest').value || '').trim();
+  var dateRec  = document.getElementById('mDateRec').value;
+  var resp     = (document.getElementById('mResp').value   || '').trim();
+  var comments = (document.getElementById('mComm').value   || '').trim();
+
+  // Collect all material cards
+  var container = document.getElementById('multiExitContainer');
+  if (!container){ showToast('Exit form error.','err'); return; }
+
+  var materials = [];
+  var lines = container.querySelectorAll('.exit-mat-line');
+  for (var i=0; i<lines.length; i++){
+    var line = lines[i];
+    var idSfx = line.id.replace('exit-mat-','');
+    var cat  = (line.querySelector('select[id^="exit-cat-"]')  ||{}).value || '';
+    var name = ((line.querySelector('input[id^="exit-name-"]') ||{}).value||'').trim().toUpperCase();
+    if (!name){ showToast('Material '+(i+1)+': enter a name.','warn'); return; }
+    var locRows = [];
+    line.querySelectorAll('.exit-loc-row').forEach(function(row){
+      var rack = (row.querySelector('.el-rack').value||'').trim().toUpperCase();
+      var qty  = Math.max(0, parseInt(row.querySelector('.el-qty').value)||0);
+      if (qty > 0) locRows.push({ loc: rack, qty: qty });
+    });
+    if (!locRows.length){ showToast('Material '+(i+1)+' ('+name+'): add at least one location with qty > 0.','warn'); return; }
+    materials.push({ category: cat, name: name, locations: locRows });
+  }
+
+  if (!materials.length){ showToast('Add at least one material.','warn'); return; }
+
+  // Warn if any location exceeds stock
+  var overageWarnings = [];
+  materials.forEach(function(mat){
+    var key  = nt(mat.category) + '|||' + mat.name;
+    var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
+    mat.locations.forEach(function(lr){
+      var avail = locs[lr.loc.toUpperCase()];
+      if (lr.loc && avail !== undefined && lr.qty > avail)
+        overageWarnings.push(mat.name+' — '+lr.loc+': taking '+lr.qty+', only '+avail+' available');
+    });
+  });
+
+  var doSubmit = function(){
+    var btn = document.getElementById('moveSaveBtn');
+    if (btn){ btn.disabled=true; btn.textContent='💾 Saving…'; }
+    google.script.run
+      .withSuccessHandler(function(res){
+        closeModal('moveOverlay');
+        showToast('✓ '+res.rowCount+' movement record(s) saved.','ok');
+        loadDataFromGoogle(true);
+      })
+      .withFailureHandler(function(err){
+        if (btn){ btn.disabled=false; btn.textContent='Save to System'; }
+        var msg = (err.message||String(err)).replace(/^Error:\s*/i,'');
+        showToast('Error: '+msg,'err',6000);
+      })
+      .processMovement('addMultiExit',{
+        materials: materials,
+        destLoc:   dest,
+        dateRec:   dateRec,
+        responsible: resp,
+        comments:  comments,
+        status:    'Out'
+      });
+  };
+
+  if (overageWarnings.length){
+    _showConfirm({
+      icon:'⚠️', title:'Stock Warning',
+      message: 'Some quantities exceed available stock:\n\n'+overageWarnings.join('\n')+'\n\nProceed anyway?',
+      confirmText:'Proceed', onConfirm: doSubmit
+    });
+  } else { doSubmit(); }
+}
 
 function submitMultiEntry(){
   var dateRec  = document.getElementById('mDateRec').value;
@@ -3532,52 +3840,133 @@ function exportProjectCSV(){
 }
 
 // ── Warehouse Map ─────────────────────────────────────────────────────────────
-function renderWarehouseMap(){
-  var q   = (document.getElementById('mapSearch').value   || '').toLowerCase();
-  var cf  = document.getElementById('mapCatFilter').value;
+var CAT_DOT_COLORS = {
+  WINDOW:'#3B7DD8',SCREEN:'#10B981',WINDOW_PARTS:'#6366F1',SHOWER:'#06B6D4',
+  MIRROR:'#8B5CF6',STOREFRONT:'#F59E0B',TOOLS:'#EF4444',BONEYARD:'#6B7280',
+  FLASHING:'#D97706',SCREWS:'#9CA3AF',IGU:'#EC4899'
+};
 
-  // Build rack → items map from stockData
+function _buildRackMap(q, cf) {
   var rackMap = {};
   Object.values(stockData).forEach(function(s){
     if (!s.warehouseLocs) return;
     Object.keys(s.warehouseLocs).forEach(function(rack){
       var qty = s.warehouseLocs[rack];
       if (qty <= 0) return;
-      if (cf && nt(s.category) !== cf) return;
-      if (q && rack.toLowerCase().indexOf(q) === -1 && s.name.toLowerCase().indexOf(q) === -1) return;
+      if (cf && nt(s.category) !== nt(cf)) return;
+      if (q && rack.toLowerCase().indexOf(q)===-1 && s.name.toLowerCase().indexOf(q)===-1) return;
       if (!rackMap[rack]) rackMap[rack] = [];
-      rackMap[rack].push({ category: s.category, name: s.name, qty: qty, unit: s.unit || 'UNIT' });
+      rackMap[rack].push({ category:s.category, name:s.name, qty:qty, unit:s.unit||'UNIT',
+        warehouseTotal: s.warehouseQty||0 });
     });
   });
+  return rackMap;
+}
 
+function renderWarehouseMap(){
+  var q   = (document.getElementById('mapSearch').value   || '').toLowerCase().trim();
+  var cf  = document.getElementById('mapCatFilter').value;
+  var rackMap = _buildRackMap(q, cf);
   var racks = Object.keys(rackMap).sort();
   var container = document.getElementById('warehouseMapBody');
 
   if (!racks.length){
-    container.innerHTML = '<div class="rack-empty">No items currently in warehouse' +
-      (q || cf ? ' matching the current filter.' : '.') + '</div>';
+    container.innerHTML = '<div class="rack-empty">📭 No items in warehouse' +
+      (q||cf ? ' matching the current filter.' : '.') + '</div>';
     return;
   }
 
+  // Compute max total for fill-bar scaling
+  var maxTotal = Math.max.apply(null, racks.map(function(r){
+    return rackMap[r].reduce(function(acc,i){ return acc+i.qty; }, 0);
+  }));
+
   container.innerHTML = racks.map(function(rack){
     var items = rackMap[rack].sort(function(a,b){ return b.qty - a.qty; });
-    var total = items.reduce(function(acc, i){ return acc + i.qty; }, 0);
-    return '<div class="rack-card">'+
-      '<div class="rack-header">'+
-        '<span>📦 '+rack+'</span>'+
-        '<span class="rack-total">'+total+' units</span>'+
-      '</div>'+
-      '<div class="rack-items">'+
-        items.map(function(item){
-          return '<div class="rack-item">'+
-            catBadge(item.category)+
-            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+item.name+'">'+item.name+'</span>'+
-            '<span class="rack-qty">'+item.qty+' '+item.unit+'</span>'+
-          '</div>';
-        }).join('')+
+    var total = items.reduce(function(acc,i){ return acc+i.qty; }, 0);
+    var pct   = maxTotal > 0 ? Math.max(8, Math.round(total/maxTotal*100)) : 8;
+    var fillCls = pct < 35 ? 'rack-fill-low' : pct < 70 ? 'rack-fill-med' : 'rack-fill-high';
+
+    // Unique category dots (up to 5)
+    var catsSeen = {};
+    var dots = items.filter(function(i){ if(catsSeen[i.category]) return false; catsSeen[i.category]=1; return true; })
+      .slice(0,6).map(function(i){
+        var col = CAT_DOT_COLORS[nt(i.category)] || '#9CA3AF';
+        return '<span class="rack-cat-dot" style="background:'+col+'" title="'+nt(i.category)+'"></span>';
+      }).join('');
+
+    var safeName = rack.replace(/'/g, '&#39;');
+    return '<div class="rack-card" onclick="openRackDrawer(\''+safeName+'\')" title="Click to see contents">'+
+      '<div class="rack-name">📦 '+rack+'</div>'+
+      '<div class="rack-fill-bar"><div class="rack-fill-inner '+fillCls+'" style="width:'+pct+'%"></div></div>'+
+      '<div class="rack-cats">'+dots+'</div>'+
+      '<div class="rack-count-row">'+
+        '<span class="rc-items">'+items.length+' item'+(items.length!==1?'s':'')+'</span>'+
+        '<span class="rc-total">'+total+' units</span>'+
       '</div>'+
     '</div>';
   }).join('');
+}
+
+// ── Rack Detail Drawer ────────────────────────────────────────────────────────
+var _openRackName = '';
+
+function openRackDrawer(rackName) {
+  _openRackName = rackName;
+  var rackMap = _buildRackMap('', '');
+  var items   = (rackMap[rackName] || []).sort(function(a,b){ return b.qty-a.qty; });
+
+  document.getElementById('rackDrawerTitle').textContent = '📦 ' + rackName;
+
+  // Show Exit button only for admins/warehouse users
+  var exitBtn = document.getElementById('rackDrawerExitBtn');
+  if (exitBtn) exitBtn.style.display = (userRole !== 'VIEWER') ? '' : 'none';
+
+  if (!items.length) {
+    document.getElementById('rackDrawerBody').innerHTML =
+      '<p style="padding:1rem;color:var(--muted);font-size:.85rem">No items in this rack.</p>';
+  } else {
+    document.getElementById('rackDrawerBody').innerHTML =
+      '<div style="padding:.35rem .5rem .15rem;display:flex;justify-content:space-between;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">'+
+        '<span>Material</span><span>In Rack&nbsp;/&nbsp;Total WH</span>'+
+      '</div>'+
+      items.map(function(item){
+        var col = CAT_DOT_COLORS[nt(item.category)] || '#9CA3AF';
+        return '<div class="rdw-item">'+
+          '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
+          '<span class="rdw-name" title="'+item.name+'">'+item.name+'</span>'+
+          '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
+          '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
+        '</div>';
+      }).join('');
+  }
+
+  document.getElementById('rackDrawer').classList.add('open');
+  document.getElementById('rackDrawerOverlay').classList.add('open');
+}
+
+function closeRackDrawer() {
+  document.getElementById('rackDrawer').classList.remove('open');
+  document.getElementById('rackDrawerOverlay').classList.remove('open');
+}
+
+function openExitFromRack() {
+  closeRackDrawer();
+  // Open EXIT modal pre-set — user picks material and auto-fill will use this rack
+  openMoveModal('EXIT');
+  // Small delay so modal is rendered, then trigger autofill for this rack
+  setTimeout(function(){
+    showToast('Select the material, then click "↗ Auto-fill Racks" to pull from ' + _openRackName, 'ok', 4000);
+  }, 300);
+}
+
+function openTransferFromRack() {
+  closeRackDrawer();
+  openMoveModal('TRANSFER');
+  setTimeout(function(){
+    var src = document.getElementById('mSrc');
+    if (src) { src.value = _openRackName; src.dispatchEvent(new Event('input')); }
+  }, 300);
 }
 
 // ── Render All ────────────────────────────────────────────────────────────────

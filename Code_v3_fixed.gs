@@ -505,6 +505,7 @@ function processMovement(action, data) {
     return _addMovement(ss, archive, data, auth);
   }
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
+  if (action === 'addMultiExit')          return addMultiExit(ss, archive, data, auth);
   if (action === 'updateDocument')        return _updateDocument(ss, archive, data, auth);
   if (action === 'addReservation')        return _addReservation(ss, data, auth);
   if (action === 'cancelReservation')     return _cancelReservation(ss, data, auth);
@@ -797,6 +798,55 @@ function addMultiEntry(ss, archive, data, auth) {
     fileError:  fileError  || null,
     emailError: emailError || null,
     message:    totalMats + ' material(s), ' + totalRows + ' row(s) recorded.'
+  };
+}
+
+// ─── MULTI-MATERIAL EXIT ─────────────────────────────────────────────────────
+// data.materials: [{category, name, locations:[{loc, qty}]}]
+// data.destLoc, data.dateRec, data.responsible, data.comments, data.status
+function addMultiExit(ss, archive, data, auth) {
+  if (!Array.isArray(data.materials) || data.materials.length === 0) {
+    throw new Error('No materials provided.');
+  }
+
+  var totalRows = 0;
+  var totalMats = 0;
+
+  for (var mi = 0; mi < data.materials.length; mi++) {
+    var mat = data.materials[mi];
+    if (!mat.name || !Array.isArray(mat.locations) || mat.locations.length === 0) continue;
+
+    totalMats++;
+    for (var li = 0; li < mat.locations.length; li++) {
+      var loc = mat.locations[li];
+      if (!loc.qty || loc.qty <= 0) continue;
+
+      var rowData = {
+        moveType:    'EXIT',
+        category:    mat.category || '',
+        name:        mat.name,
+        qty:         loc.qty,
+        unit:        mat.unit || 'UNIT',
+        dateRec:     data.dateRec     || '',
+        sourceLoc:   loc.loc         || '',
+        destLoc:     data.destLoc    || '',
+        responsible: data.responsible || '',
+        comments:    data.comments   || '',
+        status:      data.status     || 'Out',
+        // Skip dup check for rows after the first of this batch
+        forceSubmit: (mi > 0 || li > 0)
+      };
+
+      _addMovement(ss, archive, rowData, auth);
+      totalRows++;
+    }
+  }
+
+  return {
+    status:   'success',
+    count:    totalMats,
+    rowCount: totalRows,
+    message:  totalMats + ' material(s), ' + totalRows + ' row(s) recorded.'
   };
 }
 
