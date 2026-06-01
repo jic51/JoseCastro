@@ -4683,6 +4683,11 @@ function loadDataFromGoogle(skipCache){
     renderAll();
   } else {
     setLoading(true);
+    // Show explicit loading message so user knows app is connecting (can take 10-20s)
+    var sr = document.getElementById('statsRow');
+    if (sr) sr.insertAdjacentHTML('afterbegin',
+      '<div style="padding:.5rem 0 1rem;color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:.5rem">'+
+      '<span class="spin-hg">⏳</span> Connecting to Google Sheets... this may take 10-20 seconds.</div>');
   }
 
   google.script.run
