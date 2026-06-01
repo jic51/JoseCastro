@@ -1160,10 +1160,13 @@
         <label>Category</label>
         <select id="mType"></select>
       </div>
-      <div class="field" id="mNameField">
+      <div class="field" id="mNameField" style="position:relative">
         <label>Name / Description</label>
-        <input type="text" id="mName" list="matList" placeholder="Type or select...">
+        <input type="text" id="mName" list="matList" placeholder="Type or select..."
+               oninput="_checkStockSuggest(this)">
         <datalist id="matList"></datalist>
+        <datalist id="matNameList"></datalist>
+        <div class="inc-suggest-box" id="stockSuggestBox" style="display:none"></div>
         <!-- Similar-name hint (shown when a close match exists but name differs) -->
         <div class="similar-hint" id="similarHint">
           <span>💡 Similar material exists:</span>
@@ -2927,6 +2930,9 @@ document.addEventListener('click', function(e){
   document.querySelectorAll('.inc-suggest-box').forEach(function(box){
     if (!box.parentElement.contains(e.target)) box.style.display = 'none';
   });
+  // Also close warehouse stock suggest
+  var sb = document.getElementById('stockSuggestBox');
+  if (sb && !sb.parentElement.contains(e.target)) sb.style.display = 'none';
 });
 
 // ── Multi-Material EXIT ───────────────────────────────────────────────────────
@@ -2965,8 +2971,9 @@ function addExitMatLine(){
           '<select id="exit-cat-'+n+'" onchange="updateExitMatNameList('+n+')">'+catOpts+'</select>'+
         '</div>'+
         '<div class="field" style="position:relative"><label>Name / Description</label>'+
-          '<input type="text" id="exit-name-'+n+'" list="matNameList" placeholder="Material name…" autocomplete="off"'+
-          ' oninput="updateExitMatNameList('+n+');syncExitRackAvail('+n+')">'+
+          '<input type="text" id="exit-name-'+n+'" list="matNameList" placeholder="Type material name…"'+
+          ' oninput="updateExitMatNameList('+n+');syncExitRackAvail('+n+');_checkExitMatSuggest('+n+',this)">'+
+          '<div class="inc-suggest-box" id="exit-suggest-'+n+'" style="display:none"></div>'+
         '</div>'+
       '</div>'+
       '<div class="exit-loc-hdr">'+
@@ -3057,11 +3064,96 @@ function syncExitRackAvail(n){
 function updateExitMatNameList(n){
   var cat = nt((document.getElementById('exit-cat-'+n)||{}).value||'');
   var dl  = document.getElementById('matNameList');
-  if (!dl || !cat) return;
+  if (!dl) return;
   var names = Object.values(stockData)
-    .filter(function(s){ return nt(s.category)===cat && s.availableQty > 0; })
+    .filter(function(s){ return (!cat || nt(s.category)===cat) && s.availableQty > 0; })
+    .sort(function(a,b){ return b.availableQty - a.availableQty; })
     .map(function(s){ return s.name.toUpperCase(); });
   dl.innerHTML = names.map(function(nm){ return '<option value="'+nm+'">'; }).join('');
+}
+
+// ── Warehouse stock suggestion box (for EXIT/TRANSFER/WASTE single-modal) ─────
+function _checkStockSuggest(inputEl){
+  var box = document.getElementById('stockSuggestBox');
+  if (!box) return;
+  if (currentMoveType !== 'EXIT' && currentMoveType !== 'TRANSFER' && currentMoveType !== 'WASTE') {
+    box.style.display = 'none'; return;
+  }
+  var typed = (inputEl.value || '').trim().toLowerCase();
+  if (typed.length < 2) { box.style.display = 'none'; return; }
+  var cat = nt((document.getElementById('mType') || {}).value || '');
+  var matches = Object.values(stockData)
+    .filter(function(s){
+      return (!cat || nt(s.category) === cat) &&
+             s.availableQty > 0 &&
+             s.name.toLowerCase().indexOf(typed) !== -1;
+    })
+    .sort(function(a,b){ return b.availableQty - a.availableQty; })
+    .slice(0, 7);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
+    matches.map(function(s){
+      var safeName = s.name.replace(/'/g,"&#39;").replace(/"/g,'&quot;');
+      return '<div class="inc-suggest-item" onmousedown="_applyStockSuggest(\'' + safeName + '\');return false;">' +
+        '<span class="inc-tag">' + nt(s.category) + '</span>' +
+        '<span>' + s.name + '</span>' +
+        '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
+        (s.warehouseLocs ? '<span class="inc-meta">' + Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ') + '</span>' : '') +
+      '</div>';
+    }).join('');
+  box.style.display = 'block';
+}
+
+function _applyStockSuggest(name){
+  var inp = document.getElementById('mName');
+  if (inp) {
+    inp.value = name;
+    inp.dispatchEvent(new Event('input')); // triggers checkStock + autoFillExitRows
+  }
+  var box = document.getElementById('stockSuggestBox');
+  if (box) box.style.display = 'none';
+}
+
+// ── Stock suggestion box for multi-EXIT exit-name inputs ─────────────────────
+function _checkExitMatSuggest(n, inputEl){
+  var box = document.getElementById('exit-suggest-' + n);
+  if (!box) return;
+  var typed = (inputEl.value || '').trim().toLowerCase();
+  if (typed.length < 2) { box.style.display = 'none'; return; }
+  var cat = nt((document.getElementById('exit-cat-'+n)||{}).value||'');
+  var matches = Object.values(stockData)
+    .filter(function(s){
+      return (!cat || nt(s.category) === cat) &&
+             s.availableQty > 0 &&
+             s.name.toLowerCase().indexOf(typed) !== -1;
+    })
+    .sort(function(a,b){ return b.availableQty - a.availableQty; })
+    .slice(0, 7);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
+    matches.map(function(s){
+      var safeName = s.name.replace(/'/g,"&#39;").replace(/"/g,'&quot;');
+      var safeCat  = nt(s.category);
+      return '<div class="inc-suggest-item" onmousedown="_applyExitMatSuggest('+n+',\'' + safeName + '\',\'' + safeCat + '\');return false;">' +
+        '<span class="inc-tag">' + safeCat + '</span>' +
+        '<span>' + s.name + '</span>' +
+        '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
+        (s.warehouseLocs ? '<span class="inc-meta">' + Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ') + '</span>' : '') +
+      '</div>';
+    }).join('');
+  box.style.display = 'block';
+}
+
+function _applyExitMatSuggest(n, name, cat){
+  var nameEl = document.getElementById('exit-name-' + n);
+  var catEl  = document.getElementById('exit-cat-'  + n);
+  if (nameEl) nameEl.value = name;
+  if (catEl && cat)  catEl.value  = cat;
+  var box = document.getElementById('exit-suggest-' + n);
+  if (box) box.style.display = 'none';
+  // Auto-fill racks from stock
+  autoFillExitMatRows(n);
+  syncExitRackAvail(n);
 }
 
 function autoFillExitMatRows(n){
@@ -3762,14 +3854,30 @@ function applySimilarHint() {
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
 function updateMatList(){
-  var type = nt(document.getElementById('mType').value);
-  var dl   = document.getElementById('matList'); dl.innerHTML = '';
-  var names = Array.from(new Set(
-    movements.filter(function(m){ return nt(m.category) === type; })
-             .map(function(m){ return displayName(m); })
-             .filter(Boolean)
-  )).sort();
-  names.forEach(function(n){ var o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+  var type = nt((document.getElementById('mType') || {}).value || '');
+  var dl   = document.getElementById('matList');
+  if (!dl) return;
+  dl.innerHTML = '';
+  var names;
+  var outgoing = currentMoveType === 'EXIT' || currentMoveType === 'TRANSFER' || currentMoveType === 'WASTE';
+  if (outgoing) {
+    // For outgoing moves: suggest ONLY materials currently in the warehouse
+    names = Object.values(stockData)
+      .filter(function(s){ return (!type || nt(s.category) === type) && s.availableQty > 0; })
+      .sort(function(a,b){ return b.availableQty - a.availableQty; }) // most stock first
+      .map(function(s){ return s.name.toUpperCase(); });
+  } else {
+    // For ENTRY/RETURN: use movement history
+    names = Array.from(new Set(
+      movements.filter(function(m){ return !type || nt(m.category) === type; })
+               .map(function(m){ return displayName(m); })
+               .filter(Boolean)
+    )).sort();
+  }
+  names.forEach(function(nm){ var o = document.createElement('option'); o.value = nm; dl.appendChild(o); });
+  // Also refresh matNameList (used by multi-EXIT exit-name inputs)
+  var dl2 = document.getElementById('matNameList');
+  if (dl2) dl2.innerHTML = dl.innerHTML;
 }
 
 function refreshDropdowns(){
