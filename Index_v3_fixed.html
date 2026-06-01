@@ -4687,31 +4687,44 @@ function loadDataFromGoogle(skipCache){
 
   google.script.run
     .withSuccessHandler(function(data){
-      // ── Access denied / not authenticated ────────────────────────────────
-      if (data.accessStatus === 'NO_SESSION' || data.accessStatus === 'DENIED') {
-        _showAccessDeniedScreen(data.accessStatus, data.userEmail || '');
-        return;
+      try {
+        // ── Access denied / not authenticated ──────────────────────────────
+        if (data.accessStatus === 'NO_SESSION' || data.accessStatus === 'DENIED') {
+          _showAccessDeniedScreen(data.accessStatus, data.userEmail || '');
+          return;
+        }
+        // ── Normal load ─────────────────────────────────────────────────────
+        _applyData(data);
+        _saveCache(data);
+        lastLoadTime = Date.now();
+        setConnStatus('online');
+        var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
+        document.getElementById('userChip').textContent = displayName;
+        if (data.activeUsers) renderActiveUsers(data.activeUsers);
+        applyRoleUI();
+        try { refreshCategoryDropdowns(); } catch(e){ console.error('refreshCategoryDropdowns:', e); }
+        try { refreshDropdowns();         } catch(e){ console.error('refreshDropdowns:', e); }
+        try { refreshProjectDropdown();   } catch(e){ console.error('refreshProjectDropdown:', e); }
+        try { renderAll();                } catch(e){ console.error('renderAll:', e);
+          // Show error so user knows what happened instead of blank page
+          var sr = document.getElementById('statsRow');
+          if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Render error: '+e.message+'</p>';
+        }
+        try { _restoreTab();              } catch(e){ console.error('_restoreTab:', e); }
+        try { checkMorningPopup();        } catch(e){ console.error('checkMorningPopup:', e); }
+      } catch(outerErr) {
+        setConnStatus('offline');
+        var sr2 = document.getElementById('statsRow');
+        if (sr2) sr2.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Load handler error: '+outerErr.message+'</p>';
+        console.error('loadDataFromGoogle success handler:', outerErr);
       }
-      // ── Normal load ───────────────────────────────────────────────────────
-      _applyData(data);
-      _saveCache(data);           // persist for next page-load
-      lastLoadTime = Date.now();
-      setConnStatus('online');
-      var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
-      document.getElementById('userChip').textContent = displayName;
-      if (data.activeUsers) renderActiveUsers(data.activeUsers);
-      applyRoleUI();
-      refreshCategoryDropdowns();   // populate all 5 category selects from config
-      refreshDropdowns();
-      refreshProjectDropdown();
-      renderAll();
-      _restoreTab();
-      checkMorningPopup();
     })
     .withFailureHandler(function(err){
       setConnStatus('offline');
-      document.getElementById('statsRow').innerHTML =
-        '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+(err.message||err)+'</p>';
+      var msg = (err && err.message) ? err.message : String(err);
+      var sr = document.getElementById('statsRow');
+      if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+msg+'<br><small style="opacity:.7">Check GAS Executions log for details.</small></p>';
+      console.error('getInitialData failed:', msg);
     })
     .getInitialData();
 }

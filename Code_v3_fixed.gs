@@ -1989,6 +1989,42 @@ function modifyMovement(data, auth) {
   return { status: 'success', changes: changes.length };
 }
 
+// ── Diagnostic — run this in GAS Editor to identify load issues ───────────────
+// Run this function directly from the GAS editor. Check Execution Log for results.
+function _diagnoseApp() {
+  Logger.log('=== OX Glass WMS Diagnostic ===');
+  try {
+    Logger.log('1. getUserRole...');
+    var auth = getUserRole();
+    Logger.log('   role=' + auth.role + ' email=' + auth.email);
+  } catch(e) { Logger.log('   FAIL: ' + e.message); }
+
+  try {
+    Logger.log('2. loadConfig...');
+    var cfg = loadConfig();
+    Logger.log('   categories=' + (cfg.categories||[]).length + ' adminEmail=' + cfg.adminEmail);
+  } catch(e) { Logger.log('   FAIL: ' + e.message); }
+
+  try {
+    Logger.log('3. SpreadsheetApp.getActiveSpreadsheet...');
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    Logger.log('   name=' + ss.getName());
+    var archive = ss.getSheetByName('MASTER_ARCHIVE_V3');
+    Logger.log('   MASTER_ARCHIVE_V3 rows=' + (archive ? archive.getLastRow() : 'NOT FOUND'));
+  } catch(e) { Logger.log('   FAIL: ' + e.message); }
+
+  try {
+    Logger.log('4. getInitialData (full)...');
+    var data = getInitialData();
+    Logger.log('   movements=' + data.movements.length +
+               ' stock keys=' + Object.keys(data.stock).length +
+               ' incoming=' + data.incoming.length);
+    Logger.log('   SUCCESS');
+  } catch(e) { Logger.log('   FAIL: ' + e.message); }
+
+  Logger.log('=== Diagnostic complete ===');
+}
+
 // ── Quick test — run this directly in GAS Editor to debug Gemini ──────────────
 function _testGemini() {
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
