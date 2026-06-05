@@ -5140,98 +5140,100 @@ function _debounce(fn, ms) {
 }
 
 // ── Event Listeners ───────────────────────────────────────────────────────────
+// Safe addEventListener — logs errors instead of crashing the whole init block
+function _safeOn(id, event, fn) {
+  try {
+    var el = document.getElementById(id);
+    if (!el) { console.warn('_safeOn: element not found: #' + id); return; }
+    el.addEventListener(event, fn);
+  } catch(e) {
+    console.error('_safeOn failed for #' + id + ':', e.message);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function(){
+  try {
 
   // Nav
-  document.getElementById('btn-dashboard').addEventListener('click', function(){ showTab('dashboard','btn-dashboard'); });
-  document.getElementById('btn-movements').addEventListener('click', function(){ showTab('movements','btn-movements'); });
-  document.getElementById('btn-projects').addEventListener('click',  function(){ showTab('projects','btn-projects'); });
-  document.getElementById('btn-warehouse').addEventListener('click', function(){ showTab('warehouse','btn-warehouse'); });
-  document.getElementById('btn-incoming').addEventListener('click',  function(){ showTab('incoming','btn-incoming'); });
+  _safeOn('btn-dashboard','click', function(){ showTab('dashboard','btn-dashboard'); });
+  _safeOn('btn-movements','click', function(){ showTab('movements','btn-movements'); });
+  _safeOn('btn-projects','click',  function(){ showTab('projects','btn-projects'); });
+  _safeOn('btn-warehouse','click', function(){ showTab('warehouse','btn-warehouse'); });
+  _safeOn('btn-incoming','click',  function(){ showTab('incoming','btn-incoming'); });
 
   // Warehouse Map filters
-  document.getElementById('mapSearch').addEventListener('input',    _debounce(renderWarehouseMap, 220));
-  document.getElementById('mapCatFilter').addEventListener('change', renderWarehouseMap);
+  _safeOn('mapSearch','input',    _debounce(renderWarehouseMap, 220));
+  _safeOn('mapCatFilter','change', renderWarehouseMap);
 
   // Dashboard filters
-  document.getElementById('stockSearch').addEventListener('input', _debounce(renderStock, 220));
-  document.getElementById('stockFilter').addEventListener('change', renderStock);
-  document.getElementById('stockStatusFilter').addEventListener('change', renderStock);
+  _safeOn('stockSearch','input', _debounce(renderStock, 220));
+  _safeOn('stockFilter','change', renderStock);
+  _safeOn('stockStatusFilter','change', renderStock);
 
   // Movement filters
-  document.getElementById('movSearch').addEventListener('input', _debounce(function(){ _movPage=1; renderMovements(); }, 220));
-  document.getElementById('movTypeFilter').addEventListener('change', function(){ _movPage=1; renderMovements(); });
-  document.getElementById('movCatFilter').addEventListener('change', function(){ _movPage=1; renderMovements(); });
+  _safeOn('movSearch','input', _debounce(function(){ _movPage=1; renderMovements(); }, 220));
+  _safeOn('movTypeFilter','change', function(){ _movPage=1; renderMovements(); });
+  _safeOn('movCatFilter','change', function(){ _movPage=1; renderMovements(); });
 
   // Column toggles
-  // Sync checkboxes from persisted colVis
   var _chkMap = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
                   supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest', pm:'chkPm' };
   Object.keys(_chkMap).forEach(function(k){
     var el = document.getElementById(_chkMap[k]);
-    if (el) {
-      el.checked = !!colVis[k];
-      el.addEventListener('change', function(){ toggleCol(k); });
-    }
+    if (el) { el.checked = !!colVis[k]; el.addEventListener('change', function(){ toggleCol(k); }); }
   });
 
   // Export
-  document.getElementById('btnExportCSV').addEventListener('click', exportMovementsCSV);
-  document.getElementById('btnExportProject').addEventListener('click', exportProjectCSV);
+  _safeOn('btnExportCSV','click', exportMovementsCSV);
+  _safeOn('btnExportProject','click', exportProjectCSV);
 
   // Incoming filter
-  document.getElementById('incStatusFilter').addEventListener('change', renderIncoming);
+  _safeOn('incStatusFilter','change', renderIncoming);
 
-  // Incoming + Monitor modals — close on outside click
-  document.getElementById('incomingOverlay').addEventListener('click', function(e){ closeIfOutside(e,'incomingOverlay'); });
-  document.getElementById('monitorOverlay').addEventListener('click',  function(e){ closeIfOutside(e,'monitorOverlay'); });
-  document.getElementById('morningOverlay').addEventListener('click',  function(e){
-    if (e.target === document.getElementById('morningOverlay')) closeMorningPopup();
-  });
+  // Modals — close on outside click
+  _safeOn('incomingOverlay','click', function(e){ closeIfOutside(e,'incomingOverlay'); });
+  _safeOn('monitorOverlay','click',  function(e){ closeIfOutside(e,'monitorOverlay'); });
+  _safeOn('morningOverlay','click',  function(e){ if (e.target===document.getElementById('morningOverlay')) closeMorningPopup(); });
 
   // Open modal buttons
-  document.getElementById('btnEntry').addEventListener('click', function(){ openMoveModal('ENTRY'); });
-  document.getElementById('btnExit').addEventListener('click',  function(){ openMoveModal('EXIT'); });
+  _safeOn('btnEntry','click', function(){ openMoveModal('ENTRY'); });
+  _safeOn('btnExit','click',  function(){ openMoveModal('EXIT'); });
 
   // Project selector
-  document.getElementById('projectSelector').addEventListener('change', renderProjectView);
+  _safeOn('projectSelector','change', renderProjectView);
 
-  // Modal: category change
-  document.getElementById('mType').addEventListener('change', function(){ updateMatList(); checkStock(); });
-
-  // Modal: name input → stock check + notify preview
-  document.getElementById('mName').addEventListener('input', function(){
-    checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows();
-    renderTransferLocPicker();
-    triggerSimilarCheck(); // debounced similar-name detection
-  });
-  document.getElementById('mType').addEventListener('change', function(){
-    validateExitRows(); autoFillExitRows();
-    renderTransferLocPicker();
-  });
-  document.getElementById('mQty').addEventListener('input',  updateNotifyPreview);
-  document.getElementById('mUnit').addEventListener('change',updateNotifyPreview);
-  document.getElementById('mProj').addEventListener('input', updateNotifyPreview);
-  document.getElementById('mDest').addEventListener('input', function(){ updateNotifyPreview(); });
+  // Modal fields
+  _safeOn('mType','change', function(){ updateMatList(); checkStock(); });
+  _safeOn('mName','input',  function(){ checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); triggerSimilarCheck(); });
+  _safeOn('mType','change', function(){ validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); });
+  _safeOn('mQty','input',   updateNotifyPreview);
+  _safeOn('mUnit','change', updateNotifyPreview);
+  _safeOn('mProj','input',  updateNotifyPreview);
+  _safeOn('mDest','input',  function(){ updateNotifyPreview(); });
 
   // Notification checkbox
-  document.getElementById('mNotify').addEventListener('change', function(){
+  _safeOn('mNotify','change', function(){
     document.getElementById('notifyFields').style.display = this.checked ? 'flex' : 'none';
     if (this.checked) updateNotifyPreview();
   });
-  document.getElementById('mNotifyEmails').addEventListener('blur', function(){ autoExtractName(this.value); });
-  document.getElementById('mNotifyName').addEventListener('input', updateNotifyPreview);
+  _safeOn('mNotifyEmails','blur', function(){ autoExtractName(this.value); });
+  _safeOn('mNotifyName','input', updateNotifyPreview);
 
   // Modal submit / cancel
-  document.getElementById('moveSubmit').addEventListener('click', submitMovement);
-  document.getElementById('btnCancelMove').addEventListener('click', function(){ closeModal('moveOverlay'); });
-  document.getElementById('moveOverlay').addEventListener('click', function(e){ closeIfOutside(e,'moveOverlay'); });
+  _safeOn('moveSubmit','click', submitMovement);
+  _safeOn('btnCancelMove','click', function(){ closeModal('moveOverlay'); });
+  _safeOn('moveOverlay','click', function(e){ closeIfOutside(e,'moveOverlay'); });
 
   // Attach modal
-  document.getElementById('attachSubmit').addEventListener('click', submitAttachment);
-  document.getElementById('btnCancelAttach').addEventListener('click', function(){ closeModal('attachOverlay'); });
-  document.getElementById('attachOverlay').addEventListener('click', function(e){ closeIfOutside(e,'attachOverlay'); });
-  document.getElementById('settingsOverlay').addEventListener('click', function(e){ closeIfOutside(e,'settingsOverlay'); });
+  _safeOn('attachSubmit','click', submitAttachment);
+  _safeOn('btnCancelAttach','click', function(){ closeModal('attachOverlay'); });
+  _safeOn('attachOverlay','click', function(e){ closeIfOutside(e,'attachOverlay'); });
+  _safeOn('settingsOverlay','click', function(e){ closeIfOutside(e,'settingsOverlay'); });
+
+  } catch(domErr) {
+    // Any error in the init block is caught here — app still works, just log it
+    console.error('DOMContentLoaded error:', domErr.message, domErr.stack);
+  }
 });
 
 // ── Role-based UI ─────────────────────────────────────────────────────────────
