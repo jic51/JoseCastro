@@ -581,6 +581,7 @@
       <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
       Architected &amp; Engineered by: Jose Castro
     </div>
+    <span id="jsVersionTag" style="font-size:.65rem;color:rgba(255,80,80,.9);font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,0,0,.15)">JS NOT LOADED</span>
   </div>
   <div class="topbar-right">
     <div class="nav">
@@ -5729,6 +5730,12 @@ setInterval(function(){
     .withFailureHandler(function(){})
     .heartbeat();
 }, 90000);
+
+// ── Version tag — set by JS so we can confirm script is running ───────────────
+(function(){
+  var t = document.getElementById('jsVersionTag');
+  if (t) t.textContent = 'JS v3.6 ✓';
+})();
 
 // Start
 loadDataFromGoogle();
