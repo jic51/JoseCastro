@@ -268,6 +268,13 @@
     .exit-mat-foot .btn-autofill-exit:hover{background:#DBEAFE}
     .multi-exit-add{background:none;border:1px dashed var(--red);color:var(--red);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-exit-add:hover{background:var(--red-bg)}
+    /* ── TRANSFER LOCATION PICKER ── */
+    .transfer-loc-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.35rem}
+    .transfer-loc-chips{display:flex;flex-wrap:wrap;gap:.4rem}
+    .transfer-loc-chip{display:inline-flex;align-items:center;gap:.35rem;background:var(--card);border:2px solid var(--border);border-radius:8px;padding:.35rem .75rem;cursor:pointer;font-size:.82rem;font-weight:600;transition:.15s;color:var(--text)}
+    .transfer-loc-chip:hover{border-color:var(--accent);background:#EFF6FF;color:var(--accent2)}
+    .transfer-loc-chip.selected{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+    .transfer-loc-chip .tlc-qty{font-size:.75rem;font-weight:700;background:rgba(0,0,0,.08);border-radius:6px;padding:1px 7px}
     /* ── EDIT MOVEMENT MODAL ── */
     .edit-mov-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;margin-top:.6rem}
     .edit-mov-grid .field.full{grid-column:1/-1}
@@ -1261,7 +1268,9 @@
     <div class="form-grid" style="margin-top:.75rem" id="singleLocGrid">
       <div class="field" id="mSrcField" style="display:none">
         <label id="mSrcLabel">Source Rack</label>
-        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
+        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A" readonly style="background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)">
+        <!-- Transfer location picker — shown when material has stock in multiple racks -->
+        <div id="transferLocPicker" style="display:none;margin-top:.4rem"></div>
         <datalist id="rackList"></datalist>
       </div>
       <div class="field" id="mDestField" style="display:none">
@@ -1431,6 +1440,11 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 var userRole = 'WAREHOUSE';
 var userEmail = '';
+// Email hint for non-org users (stored in localStorage after identity pick)
+var _EMAIL_HINT_KEY  = 'oxwms_user_email_v3';
+var _storedEmailHint = (function(){ try{ return localStorage.getItem(_EMAIL_HINT_KEY)||''; }catch(e){return '';} })();
+// Injects _userEmailHint into any data object — needed when GAS can't detect non-org emails
+function _h(data){ return _storedEmailHint ? Object.assign({}, data||{}, {_userEmailHint:_storedEmailHint}) : (data||{}); }
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
 var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
@@ -2188,6 +2202,84 @@ function updateExitTotal(){
 
 // Auto-fill EXIT rows with every rack that has stock (desc qty).
 // Called when material name changes while in EXIT mode.
+// ── Transfer Location Picker ──────────────────────────────────────────────────
+function renderTransferLocPicker(){
+  var picker = document.getElementById('transferLocPicker');
+  var mSrc   = document.getElementById('mSrc');
+  if (!picker) return;
+
+  if (currentMoveType !== 'TRANSFER') { picker.style.display = 'none'; return; }
+
+  var cat  = nt((document.getElementById('mType') || {}).value || '');
+  var name = ((document.getElementById('mName') || {}).value || '').trim().toUpperCase();
+  if (!name) { picker.style.display = 'none'; if (mSrc) { mSrc.value = ''; mSrc.readOnly = true; } return; }
+
+  var key  = cat + '|||' + name;
+  var locs = stockData[key] && stockData[key].warehouseLocs;
+  var racks = locs ? Object.keys(locs).filter(function(r){ return locs[r] > 0; })
+                                      .sort(function(a,b){ return locs[b] - locs[a]; }) : [];
+
+  if (!racks.length) {
+    picker.style.display = 'none';
+    if (mSrc) { mSrc.value = ''; mSrc.readOnly = false; mSrc.style.cssText = ''; }
+    return;
+  }
+
+  // Build chip UI
+  picker.innerHTML =
+    '<span class="transfer-loc-label">📦 Select source rack (click to choose):</span>' +
+    '<div class="transfer-loc-chips">' +
+    racks.map(function(rack){
+      var safeRack = _escAttr(rack);
+      var qty = locs[rack];
+      return '<div class="transfer-loc-chip" data-rack="' + safeRack + '" data-qty="' + qty +
+             '" onmousedown="selectTransferLoc(this);return false;">' +
+             rack + '<span class="tlc-qty">' + qty + '</span></div>';
+    }).join('') +
+    '</div>';
+  picker.style.display = 'block';
+
+  // Reset source field to read-only placeholder
+  if (mSrc) {
+    mSrc.value = '';
+    mSrc.readOnly = true;
+    mSrc.placeholder = '← click a rack above';
+    mSrc.style.cssText = 'background:var(--border);color:var(--muted);border-color:var(--border)';
+  }
+  // Reset qty too
+  var mQty = document.getElementById('mQty');
+  if (mQty) { mQty.value = ''; mQty.readOnly = false; mQty.style.cssText = ''; }
+}
+
+function selectTransferLoc(chip){
+  var rack = chip.getAttribute('data-rack');
+  var qty  = chip.getAttribute('data-qty');
+
+  // Highlight selected chip
+  document.querySelectorAll('.transfer-loc-chip').forEach(function(c){ c.classList.remove('selected'); });
+  chip.classList.add('selected');
+
+  // Fill + lock source rack and qty
+  var mSrc = document.getElementById('mSrc');
+  var mQty = document.getElementById('mQty');
+  if (mSrc) {
+    mSrc.value = rack;
+    mSrc.readOnly = true;
+    mSrc.style.cssText = 'background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)';
+    mSrc.placeholder = rack;
+  }
+  if (mQty) {
+    mQty.value = qty;
+    mQty.readOnly = true;
+    mQty.style.cssText = 'background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)';
+  }
+  // Focus destination
+  setTimeout(function(){
+    var mDest = document.getElementById('mDest');
+    if (mDest) mDest.focus();
+  }, 80);
+}
+
 function autoFillExitRows(){
   if (currentMoveType !== 'EXIT') return;
   var cat  = nt(document.getElementById('mType').value);
@@ -2256,6 +2348,13 @@ function openMoveModal(type){
   // Reset multi-location rows (always start with one empty row)
   document.getElementById('locRowsContainer').innerHTML  = '';
   document.getElementById('exitRowsContainer').innerHTML = '';
+  // Reset transfer location picker + unlock source/qty fields
+  var tlp = document.getElementById('transferLocPicker');
+  if (tlp) { tlp.style.display = 'none'; tlp.innerHTML = ''; }
+  var mSrcEl = document.getElementById('mSrc');
+  if (mSrcEl) { mSrcEl.readOnly = false; mSrcEl.style.cssText = ''; }
+  var mQtyEl = document.getElementById('mQty');
+  if (mQtyEl) { mQtyEl.readOnly = false; mQtyEl.style.cssText = ''; }
   var tag = document.getElementById('exitAutoTag');
   if (tag) tag.style.display = 'none';
   addLocRow();
@@ -2709,7 +2808,7 @@ async function submitMovement(){
         showToast('Error: ' + msg, 'err', 6000);
         btn.textContent = 'Save to System'; btn.disabled = false;
       })
-      .processMovement('addMovement', payload);
+      .processMovement('addMovement', _h(payload));
   }
 
   _doSubmit(false);
@@ -2742,9 +2841,8 @@ function _matLineTpl(n){
       '</div>' +
       '<div class="field" style="grid-column:span 1;position:relative">' +
         '<label class="mat-line-lbl-sm">Name / Description</label>' +
-        '<input type="text" id="mat-name-' + n + '" list="matList-' + n + '" placeholder="Type or select..." autocomplete="off"' +
+        '<input type="text" id="mat-name-' + n + '" placeholder="Type material name..." autocomplete="off"' +
         ' oninput="_checkIncomingSuggest(' + n + ', this)">' +
-        '<datalist id="matList-' + n + '"></datalist>' +
         '<div class="inc-suggest-box" id="inc-suggest-' + n + '" style="display:none"></div>' +
       '</div>' +
       '<div class="field">' +
@@ -2780,9 +2878,16 @@ function addMatLine(){
   addLocRowMat(n, true /* silent — don't focus yet */);
   updateMatLineNameList(n);
   updateMultiMatTotal();
-  // Focus the name field
+  // Focus the name field + wire blur to trigger history autofill
   var nameEl = document.getElementById('mat-name-' + n);
-  if (nameEl) setTimeout(function(){ nameEl.focus(); }, 50);
+  if (nameEl) {
+    setTimeout(function(){ nameEl.focus(); }, 50);
+    nameEl.addEventListener('blur', function(){
+      var name = (nameEl.value || '').trim();
+      var cat  = (document.getElementById('mat-cat-' + n) || {}).value || '';
+      if (name.length > 1) _fillSharedFromHistory(name, cat);
+    });
+  }
 }
 
 function removeMatLine(n){
@@ -2879,50 +2984,84 @@ function _checkIncomingSuggest(n, inputEl){
 
   box.innerHTML = '<div class="inc-suggest-hdr">📦 Matches in Incoming</div>' +
     matches.map(function(item){
-      var safeId = JSON.stringify(item.id);
-      return '<div class="inc-suggest-item" onmousedown="_applyIncomingSuggest(' + n + ',' + safeId + ');return false;">' +
-        '<span class="inc-tag">' + (item.category || '?') + '</span>' +
-        '<span>' + item.name + '</span>' +
-        '<span class="inc-meta">' + item.qty + ' ' + item.unit +
-          (item.supplier ? ' · ' + item.supplier : '') +
-          ' — ' + item.estDate + '</span>' +
+      var safeId   = _escAttr(item.id);
+      var safeName = _escAttr(item.name);
+      var safeCat  = _escAttr(item.category || '?');
+      var safeMeta = item.qty + ' ' + item.unit + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
+      return '<div class="inc-suggest-item" data-n="' + n + '" data-inc-id="' + safeId + '"' +
+        ' onmousedown="_clickIncomingSuggest(this);return false;">' +
+        '<span class="inc-tag">' + safeCat + '</span>' +
+        '<span>' + safeName + '</span>' +
+        '<span class="inc-meta">' + safeMeta + '</span>' +
       '</div>';
     }).join('');
   box.style.display = 'block';
+}
+
+// Safe bridge: reads data-n and data-inc-id from the clicked element
+function _clickIncomingSuggest(el) {
+  var n     = parseInt(el.getAttribute('data-n'), 10);
+  var incId = el.getAttribute('data-inc-id');
+  _applyIncomingSuggest(n, incId);
 }
 
 function _applyIncomingSuggest(n, incId){
   var item = (incoming || []).find(function(i){ return i.id === incId; });
   if (!item) return;
 
-  // Fill material-line fields
+  // ── Material-line fields ──
   var catEl  = document.getElementById('mat-cat-'  + n);
   var nameEl = document.getElementById('mat-name-' + n);
   var unitEl = document.getElementById('mat-unit-' + n);
   var lc     = document.getElementById('mat-locs-' + n);
 
-  if (catEl  && item.category) catEl.value  = item.category;
-  if (nameEl)                  nameEl.value = item.name;
-  if (unitEl && item.unit)     unitEl.value = item.unit;
-  // Set first loc-row qty to incoming qty
+  if (catEl  && item.category) { catEl.value  = item.category; catEl.dispatchEvent(new Event('change')); }
+  if (nameEl)                    nameEl.value = item.name;
+  if (unitEl && item.unit)       unitEl.value = item.unit;
+  // Set first location qty from incoming qty
   if (lc && item.qty > 0) {
     var firstQty = lc.querySelector('.loc-qty');
     if (firstQty) firstQty.value = item.qty;
     syncMatLineQty(n);
   }
-  updateMatLineNameList(n);
 
-  // Fill shared fields (only if currently empty)
-  var supEl  = document.getElementById('mSup');
-  var poEl   = document.getElementById('mPO');
-  var pmEl   = document.getElementById('mPM');
-  if (supEl && !supEl.value && item.supplier) supEl.value = item.supplier;
-  if (poEl  && !poEl.value  && item.po)       poEl.value  = item.po;
-  if (pmEl  && !pmEl.value  && item.pm)       pmEl.value  = item.pm;
+  // ── Shared form fields (fill if empty) ──
+  _fillSharedFromData({ supplier: item.supplier, project: item.project,
+                        gc: item.gc, po: item.po, pm: item.pm });
 
-  // Hide suggestion box
+  // Also try to fill from movement history for fields incoming doesn't have
+  _fillSharedFromHistory(item.name, item.category);
+
+  // Hide box
   var box = document.getElementById('inc-suggest-' + n);
   if (box) box.style.display = 'none';
+}
+
+// Fill shared ENTRY form fields from any data source (only overwrites empty fields)
+function _fillSharedFromData(d) {
+  var map = { mSup: d.supplier, mProj: d.project, mGC: d.gc, mPO: d.po, mPM: d.pm };
+  Object.keys(map).forEach(function(id) {
+    var val = map[id];
+    if (!val) return;
+    var el = document.getElementById(id);
+    if (el && !el.value) el.value = val;
+  });
+}
+
+// Look up the most recent movement for this material and auto-fill shared fields
+function _fillSharedFromHistory(name, category) {
+  if (!name) return;
+  var nameUp = name.trim().toUpperCase();
+  var catNt  = nt(category || '');
+  // Scan movements newest-first (movements array is oldest-first, so iterate backwards)
+  for (var i = movements.length - 1; i >= 0; i--) {
+    var m = movements[i];
+    if (m.name.toUpperCase() === nameUp && (!catNt || nt(m.category) === catNt)) {
+      _fillSharedFromData({ supplier: m.supplier, project: m.project !== 'GENERIC' ? m.project : '',
+                            gc: m.gc, po: m.po, pm: m.pm });
+      return; // only use the most recent
+    }
+  }
 }
 
 // Close suggestion boxes when clicking outside
@@ -3112,6 +3251,11 @@ function _applyStockSuggest(name){
   }
   var box = document.getElementById('stockSuggestBox');
   if (box) box.style.display = 'none';
+  // For ENTRY (if modal type is ENTRY) fill shared fields from history
+  if (currentMoveType === 'ENTRY') {
+    var cat = (document.getElementById('mType') || {}).value || '';
+    _fillSharedFromHistory(name, cat);
+  }
 }
 
 // ── Stock suggestion box for multi-EXIT exit-name inputs ─────────────────────
@@ -3231,14 +3375,14 @@ function submitMultiExit(){
         var msg = (err.message||String(err)).replace(/^Error:\s*/i,'');
         showToast('Error: '+msg,'err',6000);
       })
-      .processMovement('addMultiExit',{
+      .processMovement('addMultiExit', _h({
         materials: materials,
         destLoc:   dest,
         dateRec:   dateRec,
         responsible: resp,
         comments:  comments,
         status:    'Out'
-      });
+      }));
   };
 
   if (overageWarnings.length){
@@ -3351,7 +3495,7 @@ function submitMultiEntry(){
         showToast('Error: ' + (err.message || String(err)), 'err', 6000);
         btn.textContent = 'Save to System'; btn.disabled = false;
       })
-      .processMovement('addMultiEntry', payload);
+      .processMovement('addMultiEntry', _h(payload));
   }
 
   _doMultiSubmit(false);
@@ -4719,6 +4863,55 @@ function deactivateUser(email) {
 }
 
 // ── Access Denied Screen ──────────────────────────────────────────────────────
+// ── Identity Picker (for non-org users when GAS can't detect email) ──────────
+function _showIdentityPicker(users) {
+  var topbar    = document.querySelector('.topbar');
+  var container = document.querySelector('.container');
+  if (topbar)    topbar.style.display = 'none';
+  if (!container) return;
+
+  // Filter out admins from picker (admins must log in with org email)
+  var pickable = users.filter(function(u){ return u.role !== 'ADMIN'; });
+
+  var opts = pickable.map(function(u){
+    return '<option value="'+u.email.replace(/"/g,'&quot;')+'">'+(u.name||u.email)+' ('+u.role+')</option>';
+  }).join('');
+
+  container.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
+    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:440px;width:100%;text-align:center">' +
+      '<div style="font-size:3rem;margin-bottom:.75rem">👤</div>' +
+      '<h2 style="font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">Who are you?</h2>' +
+      '<p style="color:#6B7280;font-size:.85rem;margin-bottom:1.25rem;line-height:1.5">Select your account to continue.</p>' +
+      (pickable.length
+        ? '<select id="identityPickerSel" style="width:100%;padding:.65rem .85rem;border:1px solid #E5E7EB;border-radius:8px;font-size:.95rem;font-family:inherit;margin-bottom:1rem;color:#1a1a2e;background:#fff">' +
+            '<option value="">— Select your name —</option>' + opts +
+          '</select>' +
+          '<button onclick="_confirmIdentity()" style="width:100%;padding:.7rem 1rem;background:#3B7DD8;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.15s" onmouseover="this.style.background=\'#2563EB\'" onmouseout="this.style.background=\'#3B7DD8\'">Enter →</button>' +
+          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.85rem">Your selection is saved in this browser. Admins must use their @ox-glass.com account.</p>'
+        : '<p style="color:#EF4444;font-size:.85rem">No active user accounts found. Contact your admin.</p>'
+      ) +
+    '</div></div>';
+}
+
+function _confirmIdentity() {
+  var sel = document.getElementById('identityPickerSel');
+  if (!sel || !sel.value) { alert('Please select your name.'); return; }
+  var email = sel.value;
+  try { localStorage.setItem(_EMAIL_HINT_KEY, email); } catch(e) {}
+  _storedEmailHint = email;
+  // Reload with the stored hint
+  document.querySelector('.topbar').style.display = '';
+  document.querySelector('.container').innerHTML = '<p style="padding:2rem;color:var(--muted)">Loading…</p>';
+  loadDataFromGoogle(true);
+}
+
+function _signOut() {
+  try { localStorage.removeItem(_EMAIL_HINT_KEY); } catch(e) {}
+  _storedEmailHint = '';
+  loadDataFromGoogle(true);
+}
+
 function _showAccessDeniedScreen(status, email) {
   // GAS web apps respect the ?authuser=N parameter to pick which signed-in
   // Google account runs the app (0 = first, 1 = second, 2 = third…).
@@ -4802,8 +4995,13 @@ function loadDataFromGoogle(skipCache){
     .withSuccessHandler(function(data){
       try {
         // ── Access denied / not authenticated ──────────────────────────────
-        if (data.accessStatus === 'NO_SESSION' || data.accessStatus === 'DENIED') {
-          _showAccessDeniedScreen(data.accessStatus, data.userEmail || '');
+        if (data.accessStatus === 'DENIED') {
+          _showAccessDeniedScreen('DENIED', data.userEmail || '');
+          return;
+        }
+        if (data.accessStatus === 'NO_SESSION') {
+          // Non-org user: show identity picker instead of error screen
+          _showIdentityPicker(data.publicUsers || []);
           return;
         }
         // ── Normal load ─────────────────────────────────────────────────────
@@ -4839,7 +5037,7 @@ function loadDataFromGoogle(skipCache){
       if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+msg+'<br><small style="opacity:.7">Check GAS Executions log for details.</small></p>';
       console.error('getInitialData failed:', msg);
     })
-    .getInitialData();
+    .getInitialData(_storedEmailHint || null);
 }
 
 // ── Charts Load ───────────────────────────────────────────────────────────────
@@ -5004,10 +5202,12 @@ document.addEventListener('DOMContentLoaded', function(){
   // Modal: name input → stock check + notify preview
   document.getElementById('mName').addEventListener('input', function(){
     checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows();
+    renderTransferLocPicker();
     triggerSimilarCheck(); // debounced similar-name detection
   });
   document.getElementById('mType').addEventListener('change', function(){
     validateExitRows(); autoFillExitRows();
+    renderTransferLocPicker();
   });
   document.getElementById('mQty').addEventListener('input',  updateNotifyPreview);
   document.getElementById('mUnit').addEventListener('change',updateNotifyPreview);
@@ -5064,6 +5264,21 @@ function applyRoleUI(){
     if (chip) chip.after(tag);
   }
   if (tag) tag.style.display = isViewer ? 'inline' : 'none';
+
+  // Show "Switch User" link for non-org users who identified via picker
+  var switchTag = document.getElementById('switchUserTag');
+  if (_storedEmailHint) {
+    if (!switchTag) {
+      switchTag = document.createElement('span');
+      switchTag.id = 'switchUserTag';
+      switchTag.innerHTML = '<button onclick="_signOut()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:.68rem;cursor:pointer;padding:2px 6px;border-radius:4px;font-family:inherit" title="Switch account">⇄ Switch</button>';
+      var chip = document.getElementById('userChip');
+      if (chip) chip.after(switchTag);
+    }
+    switchTag.style.display = 'inline';
+  } else if (switchTag) {
+    switchTag.style.display = 'none';
+  }
 }
 
 // ── Connection status ─────────────────────────────────────────────────────────
@@ -5311,9 +5526,13 @@ function runGmailScan() {
       document.getElementById('gmailScanLoading').classList.remove('show');
       document.getElementById('btnRunScan').disabled = false;
       var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
-      document.getElementById('gmailScanStatus').textContent = '⚠ ' + msg;
+      var statusEl = document.getElementById('gmailScanStatus');
+      statusEl.innerHTML = '<span style="color:var(--red)">⚠ ' + _escAttr(msg) + '</span>';
+      document.getElementById('gmailScanResults').innerHTML =
+        '<div style="padding:.75rem;background:var(--red-bg);border-radius:8px;color:var(--red);font-size:.84rem;line-height:1.5">' +
+        '<strong>Error details:</strong><br>' + _escAttr(msg) + '</div>';
     })
-    .processMovement('scanGmail', { query: query, daysBack: daysBack, maxResults: maxResults });
+    .processMovement('scanGmail', _h({ query: query, daysBack: daysBack, maxResults: maxResults }));
 }
 
 function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
