@@ -1441,7 +1441,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '3.7';
+var APP_VERSION = '3.9';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Email hint for non-org users (stored in localStorage after identity pick)
@@ -3236,8 +3236,7 @@ function _checkStockSuggest(inputEl){
   if (!matches.length) { box.style.display = 'none'; return; }
   box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
     matches.map(function(s){
-      var safeName = s.name.replace(/'/g,"&#39;").replace(/"/g,'&quot;');
-      return '<div class="inc-suggest-item" onmousedown="_applyStockSuggest(\'' + safeName + '\');return false;">' +
+      return '<div class="inc-suggest-item" data-action="stock-suggest" data-name="' + _he(s.name) + '">' +
         '<span class="inc-tag">' + nt(s.category) + '</span>' +
         '<span>' + s.name + '</span>' +
         '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
@@ -3280,9 +3279,8 @@ function _checkExitMatSuggest(n, inputEl){
   if (!matches.length) { box.style.display = 'none'; return; }
   box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
     matches.map(function(s){
-      var safeName = s.name.replace(/'/g,"&#39;").replace(/"/g,'&quot;');
       var safeCat  = nt(s.category);
-      return '<div class="inc-suggest-item" onmousedown="_applyExitMatSuggest('+n+',\'' + safeName + '\',\'' + safeCat + '\');return false;">' +
+      return '<div class="inc-suggest-item" data-action="exit-suggest" data-n="'+n+'" data-name="'+_he(s.name)+'" data-cat="'+_he(s.category)+'">' +
         '<span class="inc-tag">' + safeCat + '</span>' +
         '<span>' + s.name + '</span>' +
         '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
@@ -3547,7 +3545,7 @@ function _renderSettingsTab(tab) {
         '<button class="cfg-btn" onclick="_cfgCancelEdit(\''+tab+'\','+i+')">✗</button>' +
       '</div>' +
       '<button class="cfg-btn" onclick="_cfgStartEdit(\''+tab+'\','+i+')">✏️</button>' +
-      '<button class="cfg-btn cfg-btn-danger" onclick="_cfgDelete(\''+tab+'\',\''+_he(v)+'\')">🗑</button>' +
+      '<button class="cfg-btn cfg-btn-danger" data-action="cfg-delete" data-tab="'+tab+'" data-val="'+_he(v)+'">🗑</button>' +
     '</li>';
   }).join('');
 
@@ -3656,9 +3654,9 @@ function _filterMatList() {
       '<span class="mat-item-cat">'+catBadge(m.category)+'</span>' +
       '<span class="mat-item-name">'+m.name+'</span>' +
       '<span style="color:var(--muted);font-size:.7rem">'+m.count+' rows</span>' +
-      '<button class="cfg-btn" onclick="_matAction(\'rename\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">✏️ Rename</button>' +
-      '<button class="cfg-btn" onclick="_matAction(\'changeCategory\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">↕ Category</button>' +
-      '<button class="cfg-btn" onclick="_matAction(\'merge\',\''+_he(m.name)+'\',\''+_he(m.category)+'\')">🔗 Merge</button>' +
+      '<button class="cfg-btn" data-action="mat-action" data-op="rename">✏️ Rename</button>' +
+      '<button class="cfg-btn" data-action="mat-action" data-op="changeCategory">↕ Category</button>' +
+      '<button class="cfg-btn" data-action="mat-action" data-op="merge">🔗 Merge</button>' +
     '</div>';
   }).join('') + (filtered.length > 80 ? '<p style="font-size:.75rem;color:var(--muted);padding:.5rem">Showing first 80. Type to filter.</p>' : '');
 }
@@ -3704,6 +3702,51 @@ function _matCall(payload) {
 
 // ── Shared settings helpers ───────────────────────────────────────────────────
 function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Event delegation ──────────────────────────────────────────────────────────
+// Buttons inside dynamically-rendered lists carry  data-action + data-* payload
+// instead of inline  onclick="fn('+value+')".  The payload is read with
+// getAttribute() — a plain string that is NEVER parsed as JS — so a material named
+// 36" GLASS or O'BRIEN can no longer break the handler. (HTML-entity escaping like
+// &#39; does NOT help inline handlers: the parser decodes it back to ' before the
+// JS runs.) This permanently removes the quote/escape class of bugs.
+(function _installEventDelegation(){
+  function dispatch(el){
+    var a = el.getAttribute('data-action');
+    if (a === 'mat-action') {
+      var host = el.closest('[data-name]') || el;
+      _matAction(el.getAttribute('data-op'), host.getAttribute('data-name'), host.getAttribute('data-cat'));
+    } else if (a === 'cfg-delete') {
+      _cfgDelete(el.getAttribute('data-tab'), el.getAttribute('data-val'));
+    } else if (a === 'open-rack') {
+      openRackDrawer(el.getAttribute('data-rack'));
+    } else if (a === 'edit-incoming') {
+      openIncomingModal(el.getAttribute('data-id'));
+    } else if (a === 'edit-user') {
+      editUser(el.getAttribute('data-email'));
+    } else if (a === 'deact-user') {
+      deactivateUser(el.getAttribute('data-email'));
+    } else if (a === 'stock-suggest') {
+      _applyStockSuggest(el.getAttribute('data-name'));
+    } else if (a === 'exit-suggest') {
+      _applyExitMatSuggest(parseInt(el.getAttribute('data-n'),10), el.getAttribute('data-name'), el.getAttribute('data-cat'));
+    }
+  }
+  document.addEventListener('click', function(e){
+    var el = e.target.closest && e.target.closest('[data-action]');
+    if (!el) return;
+    var a = el.getAttribute('data-action');
+    if (a === 'stock-suggest' || a === 'exit-suggest') return; // handled on mousedown
+    dispatch(el);
+  });
+  // Suggestion items must fire on mousedown — before the input's blur hides the box.
+  document.addEventListener('mousedown', function(e){
+    var el = e.target.closest && e.target.closest('[data-action="stock-suggest"],[data-action="exit-suggest"]');
+    if (!el) return;
+    e.preventDefault(); // keep input focus / win the blur race
+    dispatch(el);
+  });
+})();
 
 function _settingMsg(txt, type) {
   var bar = document.getElementById('settingsMsgBar');
@@ -4151,8 +4194,7 @@ function renderWarehouseMap(){
         return '<span class="rack-cat-dot" style="background:'+col+'" title="'+nt(i.category)+'"></span>';
       }).join('');
 
-    var safeName = rack.replace(/'/g, '&#39;');
-    return '<div class="rack-card" onclick="openRackDrawer(\''+safeName+'\')" title="Click to see contents">'+
+    return '<div class="rack-card" data-action="open-rack" data-rack="'+_he(rack)+'" title="Click to see contents">'+
       '<div class="rack-name">📦 '+rack+'</div>'+
       '<div class="rack-fill-bar"><div class="rack-fill-inner '+fillCls+'" style="width:'+pct+'%"></div></div>'+
       '<div class="rack-cats">'+dots+'</div>'+
@@ -4402,7 +4444,7 @@ function renderIncomingTable() {
       '<td style="font-weight:700">' + item.qty + '</td>' +
       '<td style="color:var(--muted);font-size:.78rem">' + item.unit + '</td>' +
       '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
-      (isAdmin ? '<td><button class="btn-icon" onclick="openIncomingModal(\'' + item.id + '\')">✏️</button></td>' : '') +
+      (isAdmin ? '<td><button class="btn-icon" data-action="edit-incoming" data-id="' + _he(item.id) + '">✏️</button></td>' : '') +
     '</tr>';
   }).join('');
   html += '</tbody></table>';
@@ -4782,9 +4824,9 @@ function _renderUsersTable() {
       '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
       '<td style="white-space:nowrap">' +
         (!isSelf
-          ? '<button class="btn-icon" onclick="editUser(\'' + u.email + '\')" title="Edit">✏️</button> ' +
+          ? '<button class="btn-icon" data-action="edit-user" data-email="' + _he(u.email) + '" title="Edit">✏️</button> ' +
             (u.active
-              ? '<button class="btn-icon" onclick="deactivateUser(\'' + u.email + '\')" title="Deactivate">🚫</button>'
+              ? '<button class="btn-icon" data-action="deact-user" data-email="' + _he(u.email) + '" title="Deactivate">🚫</button>'
               : '<span style="color:var(--muted);font-size:.72rem">inactive</span>')
           : '<span style="color:var(--muted);font-size:.72rem">—</span>') +
       '</td>' +

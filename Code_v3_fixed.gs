@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '3.7';
+var APP_VERSION = '3.9';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -710,6 +710,8 @@ function _addMovementsBatch(ss, archive, movements, auth) {
       rowMeta.push({
         mt: mt, name: name, matId: matId, proj: proj, qty: qty, unit: row[AC.UNIT],
         src: src, dest: dest,
+        rawName: String(d.name || '').trim(),                       // original casing for the email
+        rawProj: (d.isGeneric ? '' : String(d.project || '').trim()),
         docGroups: d.docGroups || [], files: d.files || [],
         notify: d.notifyRecipients || null
       });
@@ -756,18 +758,21 @@ function _addMovementsBatch(ss, archive, movements, auth) {
     var auditDetail = rowMeta.map(function (m) { return m.mt + ' ' + m.name + ' x' + m.qty; }).join('; ');
     _auditLog(ss, 'ADD_MOVEMENT', auth.email, auditDetail, '', '');
 
-    // ── On-demand notification emails + WASTE alerts ─────────────────────────
+    // ── On-demand notification (ONE email covering the whole batch) ──────────
     var emailError = null;
+    var notifyCfg = null;
     for (var n = 0; n < rowMeta.length; n++) {
-      var nm = rowMeta[n];
-      if (nm.notify && nm.notify.emails) {
-        try {
-          var err2 = _sendNotifyEmail(nm, auth);
-          if (err2 && !emailError) emailError = err2;
-        } catch (ne) { if (!emailError) emailError = ne.message; Logger.log('Email error: ' + ne.message); }
-      }
-      if (nm.mt === 'WASTE') {
-        try { _checkNotifications(ss, { name: nm.name, comments: '' }, 'WASTE', nm.qty, auth.email); } catch (we) {}
+      if (rowMeta[n].notify && rowMeta[n].notify.emails) { notifyCfg = rowMeta[n].notify; break; }
+    }
+    if (notifyCfg) {
+      try { emailError = _sendBatchNotifyEmail(notifyCfg, rowMeta, auth); }
+      catch (ne) { emailError = ne.message; Logger.log('Email error: ' + ne.message); }
+    }
+
+    // ── WASTE alerts (per row) ───────────────────────────────────────────────
+    for (var w = 0; w < rowMeta.length; w++) {
+      if (rowMeta[w].mt === 'WASTE') {
+        try { _checkNotifications(ss, { name: rowMeta[w].name, comments: '' }, 'WASTE', rowMeta[w].qty, auth.email); } catch (we) {}
       }
     }
 
@@ -881,29 +886,60 @@ function _checkDuplicateInValues(archiveValues, mt, cat, name, qty, userEmail) {
   return null;
 }
 
-// Send an on-demand "material received" email for one ENTRY row.
+// Send ONE on-demand "material received" email covering the whole batch.
+//   • Subject summarizes ALL materials + real projects, and differs for 1 vs many.
+//   • Recipients: first = TO, rest = CC (all visible, same thread).
+//   • Recipient parsing accepts commas, semicolons, spaces and newlines, so a list
+//     typed as "a@x b@y; c@z" still reaches everyone (the old comma-only split was
+//     why only the first person got it and nobody appeared in CC).
 // Returns an error string if no valid recipient, else null.
-function _sendNotifyEmail(meta, auth) {
-  var name = meta.name, proj = meta.proj, qty = meta.qty, unit = meta.unit;
-  var where = meta.dest || meta.src || 'the warehouse';
-  var subject = 'Material Received: ' + name + (proj && proj !== 'GENERIC' ? ' — ' + proj : '');
-  var msgBody = meta.notify.message;
+function _sendBatchNotifyEmail(notify, rowMeta, auth) {
+  // ── Robust recipient parse ───────────────────────────────────────────────
+  var valid = [];
+  var raw = String(notify.emails || '').split(/[\s,;]+/);
+  for (var i = 0; i < raw.length; i++) {
+    var addr = raw[i].trim();
+    if (addr && addr.indexOf('@') !== -1 && valid.indexOf(addr) === -1) valid.push(addr);
+  }
+  if (valid.length === 0) return 'No valid email addresses provided.';
+
+  // ── Subject from ALL rows: distinct materials + distinct real projects ───
+  var matNames = [], projects = [];
+  for (var r = 0; r < rowMeta.length; r++) {
+    var dn = rowMeta[r].rawName || rowMeta[r].name;
+    if (dn && matNames.indexOf(dn) === -1) matNames.push(dn);
+    var pj = rowMeta[r].rawProj;
+    if (pj && pj.toUpperCase() !== 'GENERIC' && projects.indexOf(pj) === -1) projects.push(pj);
+  }
+  var projSuffix = projects.length ? ' — ' + projects.join(', ') : '';
+  var subject;
+  if (matNames.length <= 1) {
+    subject = 'Material Received: ' + (matNames[0] || 'Material') + projSuffix;
+  } else {
+    subject = 'Materials Received: ' + matNames.length + ' items (' +
+              matNames.slice(0, 3).join(', ') + (matNames.length > 3 ? ', …' : '') + ')' + projSuffix;
+  }
+
+  // ── Body: use the frontend-built message (already lists every material),
+  //         else build a fallback summary of all rows. ──────────────────────
+  var msgBody = notify.message;
   if (!msgBody) {
-    msgBody = 'Hi,\n\nThe ' + qty + ' ' + (unit || 'UNIT') + '(s) of ' + name +
-      ' for ' + (proj && proj !== 'GENERIC' ? proj : 'OX Glass Co.') +
-      ' were received today and are now stored in ' + where +
-      '.\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+    var lines = rowMeta.map(function (m) {
+      var dn = m.rawName || m.name;
+      return '  • ' + m.qty + ' ' + (m.unit || 'UNIT') + '(s) of ' + dn +
+             (m.dest || m.src ? ' → ' + (m.dest || m.src) : '');
+    }).join('\n');
+    msgBody = 'Hi,\n\nThe following materials were received today and are now in our warehouse:\n' +
+              lines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
   }
-  var emailList = meta.notify.emails.split(',');
-  var sent = 0;
-  for (var em = 0; em < emailList.length; em++) {
-    var addr = emailList[em].trim();
-    if (addr && addr.indexOf('@') !== -1) {
-      GmailApp.sendEmail(addr, subject, msgBody, { name: 'OX Glass Co. — Warehouse', replyTo: auth.email });
-      sent++;
-    }
-  }
-  return sent === 0 ? 'No valid email addresses provided.' : null;
+
+  // ── Send: first = TO, rest = CC ──────────────────────────────────────────
+  var to  = valid[0];
+  var cc  = valid.slice(1).join(',');   // '' if only one recipient
+  var opts = { name: 'OX Glass Co. — Warehouse', replyTo: auth.email };
+  if (cc) opts.cc = cc;
+  GmailApp.sendEmail(to, subject, msgBody, opts);
+  return null;
 }
 
 // ─── ADD MOVEMENT ─────────────────────────────────────────────────────────────
