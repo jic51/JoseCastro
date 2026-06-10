@@ -4,6 +4,11 @@
 //         RETURN logic, custom on-demand notifications, WASTE-only auto-email
 // ════════════════════════════════════════════════════════════════════════════════
 
+// Version handshake — bump this whenever Code.gs and Index.html change together.
+// getInitialData() returns it; the frontend compares against its own APP_VERSION
+// and warns if they differ (i.e. one file was deployed without the other).
+var APP_VERSION = '3.7';
+
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
   LIVE: 'LIVE_STOCK',
@@ -41,12 +46,33 @@ function doGet(e) {
 //   1. USERS_V3 sheet  (managed via in-app admin panel)
 //   2. CONFIG sheet    (legacy — existing rows still work)
 // Unknown emails → DENIED (admin must register the user first).
-function getUserRole() {
+// ── Public user list — no auth required, used by identity picker ─────────────
+function getPublicUsers() {
+  var ss         = SpreadsheetApp.getActiveSpreadsheet();
+  var usersSheet = ss.getSheetByName('USERS_V3');
+  var list       = [];
+  if (usersSheet && usersSheet.getLastRow() > 1) {
+    var uRows = usersSheet.getDataRange().getValues();
+    for (var u = 1; u < uRows.length; u++) {
+      var uEmail  = String(uRows[u][1] || '').toLowerCase().trim();
+      var uName   = String(uRows[u][2] || '').trim();
+      var uRole   = String(uRows[u][3] || 'WAREHOUSE').toUpperCase().trim();
+      var uActive = uRows[u][6];
+      var isActive = (uActive === true || String(uActive).toUpperCase() === 'TRUE' || uActive === '');
+      if (uEmail && isActive) list.push({ email: uEmail, name: uName, role: uRole });
+    }
+  }
+  return list;
+}
+
+function getUserRole(emailHint) {
   var email = '';
   try { email = Session.getActiveUser().getEmail(); } catch(e) { email = ''; }
   if (!email) {
     try { email = Session.getEffectiveUser().getEmail(); } catch(e2) { email = ''; }
   }
+  // For non-org users (Execute as: Me), email is empty — use emailHint from localStorage
+  if (!email && emailHint) email = String(emailHint).toLowerCase().trim();
   if (!email) return { role: 'NO_SESSION', email: '' };
 
   var ss        = SpreadsheetApp.getActiveSpreadsheet();
@@ -155,17 +181,19 @@ function getLegacyMaterialId(cat, name, proj) {
 }
 
 // ─── INITIAL DATA ────────────────────────────────────────────────────────────
-function getInitialData() {
+function getInitialData(emailHint) {
   try {
-    var auth = getUserRole();
+    var auth = getUserRole(emailHint);
 
-    // Not authenticated with Google at all (wrong deployment mode)
+    // Not authenticated — return public user list so frontend can show identity picker
     if (auth.role === 'NO_SESSION') {
-      return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION' };
+      return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION',
+               serverVersion: APP_VERSION, publicUsers: getPublicUsers() };
     }
     // Authenticated but not registered in CONFIG
     if (auth.role === 'DENIED') {
-      return { accessStatus: 'DENIED', userEmail: auth.email, userRole: 'DENIED' };
+      return { accessStatus: 'DENIED', userEmail: auth.email, userRole: 'DENIED',
+               serverVersion: APP_VERSION };
     }
 
     var ss       = SpreadsheetApp.getActiveSpreadsheet();
@@ -216,6 +244,7 @@ function getInitialData() {
     }
 
     return {
+      serverVersion:      APP_VERSION,
       movements:          movements,
       stock:              stock,
       config:             config,
@@ -425,7 +454,7 @@ function findFirstWarehouseLoc(locs, needed) {
 
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
 function processMovement(action, data) {
-  var auth = getUserRole();
+  var auth = getUserRole(data && data._userEmailHint);
   if (auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
   if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
   if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
@@ -435,14 +464,15 @@ function processMovement(action, data) {
   if (!archive) throw new Error('Archive sheet not found.');
 
   if (action === 'addMovement') {
-    // Multi-location ENTRY: one archive row per destination location
+    // Multi-location ENTRY: one archive row per destination location.
+    // Built as a batch so the whole submission is one atomic read/write.
     if (data.moveType === 'ENTRY' && Array.isArray(data.locations) && data.locations.length > 0) {
-      var lastResult;
+      var entryRows = [];
       for (var li = 0; li < data.locations.length; li++) {
         var locEntry = data.locations[li];
         if (!locEntry.qty || locEntry.qty <= 0) continue;
-        var singleData = {
-          moveType:         data.moveType,
+        entryRows.push({
+          moveType:         'ENTRY',
           category:         data.category,
           name:             data.name,
           project:          data.project,
@@ -457,26 +487,33 @@ function processMovement(action, data) {
           supplier:         data.supplier,
           comments:         data.comments,
           responsible:      data.responsible,
-          files:            li === 0 ? (data.files     || []) : [],
-          docGroups:        li === 0 ? (data.docGroups || []) : [],
-          notifyRecipients: li === 0 ? data.notifyRecipients : null,
-          // Only check for duplicates on the FIRST location row.
-          // Subsequent rows in the same multi-loc submission are intentionally
-          // similar (same material, close timestamps) — not real duplicates.
-          forceSubmit:      li === 0 ? !!data.forceSubmit : true
-        };
-        lastResult = _addMovement(ss, archive, singleData, auth);
+          pm:               data.pm,
+          // Shared docs + notify go only on the first location row.
+          files:            entryRows.length === 0 ? (data.files     || []) : [],
+          docGroups:        entryRows.length === 0 ? (data.docGroups || []) : [],
+          notifyRecipients: entryRows.length === 0 ? data.notifyRecipients : null,
+          // Only dup-check the first row; later rows are intentionally similar.
+          forceSubmit:      entryRows.length === 0 ? !!data.forceSubmit : true
+        });
       }
-      return lastResult || { status: 'success', message: 'ENTRY recorded.' };
+      var entryRes = _addMovementsBatch(ss, archive, entryRows, auth);
+      return {
+        status:     'success',
+        rowIdx:     entryRes.firstRowIdx,
+        rowCount:   entryRes.rowCount,
+        fileError:  entryRes.fileError,
+        emailError: entryRes.emailError,
+        message:    'ENTRY recorded' + (entryRes.rowCount > 1 ? ' (' + entryRes.rowCount + ' locations).' : '.')
+      };
     }
 
-    // Multi-source EXIT: one archive row per source location
+    // Multi-source EXIT: one archive row per source location (atomic batch).
     if (data.moveType === 'EXIT' && Array.isArray(data.exitLocations) && data.exitLocations.length > 0) {
-      var exitResult;
+      var exitRows = [];
       for (var xi = 0; xi < data.exitLocations.length; xi++) {
         var exitEntry = data.exitLocations[xi];
         if (!exitEntry.qty || exitEntry.qty <= 0) continue;
-        var exitData = {
+        exitRows.push({
           moveType:         'EXIT',
           category:         data.category,
           name:             data.name,
@@ -492,14 +529,20 @@ function processMovement(action, data) {
           supplier:         data.supplier,
           comments:         data.comments,
           responsible:      data.responsible,
-          files:            xi === 0 ? (data.files || []) : [],
+          files:            exitRows.length === 0 ? (data.files || []) : [],
           notifyRecipients: null,                  // no email for EXIT
-          // Same reasoning: only check first EXIT location for duplicates
-          forceSubmit:      xi === 0 ? !!data.forceSubmit : true
-        };
-        exitResult = _addMovement(ss, archive, exitData, auth);
+          forceSubmit:      exitRows.length === 0 ? !!data.forceSubmit : true
+        });
       }
-      return exitResult || { status: 'success', message: 'EXIT recorded.' };
+      var exitRes = _addMovementsBatch(ss, archive, exitRows, auth);
+      return {
+        status:     'success',
+        rowIdx:     exitRes.firstRowIdx,
+        rowCount:   exitRes.rowCount,
+        fileError:  exitRes.fileError,
+        emailError: exitRes.emailError,
+        message:    'EXIT recorded' + (exitRes.rowCount > 1 ? ' (' + exitRes.rowCount + ' locations).' : '.')
+      };
     }
 
     return _addMovement(ss, archive, data, auth);
@@ -531,6 +574,336 @@ function processMovement(action, data) {
     return _adminAction(ss, data);
   }
   throw new Error('Unknown action: ' + action);
+}
+
+// ─── BATCH MOVEMENT ENGINE ────────────────────────────────────────────────────
+// Validates and writes N movements as ONE atomic operation:
+//   1 lock · 1 archive read · 1 in-memory stock snapshot · 1 setValues write ·
+//   1 write-verify read · 1 derived-sheet refresh.
+//
+// Replaces the old per-row loop that re-read the ENTIRE archive AND rebuilt the
+// derived sheets for every sub-movement (a 5-material × 3-rack entry did 15 full
+// reads + 15 refreshes — tens of seconds). Now it does each exactly once.
+//
+// Validation is ALL-OR-NOTHING: every row is validated against a live, mutating
+// snapshot before anything is written. If any row fails, NOTHING is saved — so a
+// 15-row entry can never leave 8 rows half-committed.
+//
+// `movements` = array of normalized movement objects (same shape _addMovement
+// accepts). Each row may carry its own docGroups/files/notifyRecipients/forceSubmit.
+function _addMovementsBatch(ss, archive, movements, auth) {
+  var EMPTY = { status: 'success', firstRowIdx: null, rowCount: 0, fileError: null, emailError: null, availableByMat: {} };
+  if (!movements || !movements.length) return EMPTY;
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(8000); }
+  catch (e) { throw new Error('System busy — another save is in progress. Please retry in a moment.'); }
+
+  try {
+    // ── ONE read of the whole archive ────────────────────────────────────────
+    var archiveValues = archive.getDataRange().getValues();
+
+    // ── ONE read of reservations → reserved qty per matId ────────────────────
+    var reservedByMat = {};
+    var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
+    if (resSheet) {
+      var rData = resSheet.getDataRange().getValues();
+      for (var r = 1; r < rData.length; r++) {
+        if (String(rData[r][7] || '').toUpperCase() !== 'ACTIVE') continue;
+        var rKey = getMaterialId(normalizeString(rData[r][1] || ''), normalizeString(rData[r][2] || ''));
+        reservedByMat[rKey] = (reservedByMat[rKey] || 0) + Number(rData[r][4] || 0);
+      }
+    }
+
+    // ── In-memory stock snapshot for ALL materials (mutated as we validate) ───
+    var snapshot = _buildStockSnapshot(archiveValues);
+
+    var now     = new Date();
+    var tzDate  = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    var newRows = [];   // arrays for setValues
+    var rowMeta = [];   // parallel metadata for post-write steps
+
+    // ── Validate every movement against the live snapshot, build its row ─────
+    for (var i = 0; i < movements.length; i++) {
+      var d  = movements[i];
+      var mt = String(d.moveType || '').toUpperCase().trim();
+      if (mt === 'DISPATCH') mt = 'EXIT';
+      if (['ENTRY','EXIT','TRANSFER','RETURN','WASTE'].indexOf(mt) === -1) {
+        throw new Error('Invalid move type: ' + mt);
+      }
+
+      var qty = Math.abs(Number(d.qty || 0));
+      if (qty <= 0) throw new Error('Quantity must be greater than 0.');
+
+      var cat  = normalizeString(d.category);
+      var name = normalizeString(d.name);
+      if (!cat || !name) throw new Error('Category and Name are required.');
+
+      var proj = d.isGeneric ? 'GENERIC' : normalizeString(d.project || '');
+      if (!proj && mt === 'ENTRY') proj = 'GENERIC';
+      var matId = getMaterialId(cat, name);
+
+      // Locations: uppercase+trim for storage (special chars preserved), but use
+      // normalizeString as the in-memory key so lookups match the snapshot.
+      var src     = String(d.sourceLoc || '').toUpperCase().trim();
+      var dest    = String(d.destLoc   || '').toUpperCase().trim();
+      var srcKey  = normalizeString(src);
+      var destKey = normalizeString(dest);
+
+      // Duplicate guard — only when not forced. Scans recent rows of the
+      // archive snapshot we already read (no extra read).
+      if (!d.forceSubmit) {
+        var dup = _checkDuplicateInValues(archiveValues, mt, cat, name, qty, auth.email);
+        if (dup) throw new Error('DUPLICATE_MOVEMENT|' + dup.rowIdx + '|' + dup.minutesAgo);
+      }
+
+      var snap     = snapshot[matId] || (snapshot[matId] = { wh: 0, site: 0, locs: {} });
+      var reserved = reservedByMat[matId] || 0;
+
+      // Stock validation for outgoing moves against the LIVE (mutated) snapshot,
+      // so two EXITs from the same rack in one batch are checked cumulatively.
+      if (mt === 'EXIT' || mt === 'TRANSFER' || mt === 'WASTE') {
+        var avail    = Math.max(0, snap.wh - reserved);
+        var locAvail = srcKey ? (snap.locs[srcKey] || 0) : avail;
+        if (avail < qty) {
+          throw new Error('INSUFFICIENT STOCK for ' + name + '. Available: ' + avail +
+            ' (Warehouse: ' + snap.wh + ', Reserved: ' + reserved + '). Cannot remove ' + qty + '.');
+        }
+        if (srcKey && locAvail < qty) {
+          throw new Error('INSUFFICIENT at ' + src + ' for ' + name + '. Available there: ' +
+            locAvail + '. Total available: ' + avail);
+        }
+      }
+      if (mt === 'WASTE' && !String(d.comments || '').trim()) {
+        throw new Error('WASTE movements require a reason in comments.');
+      }
+
+      // Mutate snapshot so subsequent rows in this batch see the effect.
+      _applyMovementToSnapshot(snap, mt, qty, srcKey, destKey);
+
+      var statusVal = (mt === 'ENTRY' || mt === 'RETURN' || mt === 'TRANSFER') ? 'In Stock'
+                    : (mt === 'EXIT') ? 'Dispatched' : 'Damaged';
+
+      var row = new Array(20);
+      row[AC.TIMESTAMP]   = now;
+      row[AC.CATEGORY]    = cat;
+      row[AC.NAME]        = name;
+      row[AC.GC]          = String(d.gc || '').trim();
+      row[AC.PO]          = String(d.po || '').trim();
+      row[AC.QTY]         = qty;
+      row[AC.UNIT]        = String(d.unit || 'UNIT').toUpperCase();
+      row[AC.DATE_REC]    = d.dateRec || tzDate;
+      row[AC.SRC_LOC]     = src;
+      row[AC.SUPPLIER]    = String(d.supplier || '').trim();
+      row[AC.COMMENTS]    = String(d.comments || '').trim();
+      row[AC.STATUS]      = statusVal;
+      row[AC.RESPONSIBLE] = String(d.responsible || auth.email).trim();
+      row[AC.PROJECT]     = proj;
+      row[AC.MAT_ID]      = matId;
+      row[AC.DOC_LINKS]   = '';
+      row[AC.USER_EMAIL]  = auth.email;
+      row[AC.DEST_LOC]    = dest;
+      row[AC.MOVETYPE]    = mt;
+      row[AC.PM]          = String(d.pm || '').trim();
+
+      newRows.push(row);
+      rowMeta.push({
+        mt: mt, name: name, matId: matId, proj: proj, qty: qty, unit: row[AC.UNIT],
+        src: src, dest: dest,
+        docGroups: d.docGroups || [], files: d.files || [],
+        notify: d.notifyRecipients || null
+      });
+    }
+
+    if (!newRows.length) return EMPTY;
+
+    // ── ONE write of all rows ────────────────────────────────────────────────
+    var startRow = archive.getLastRow() + 1;
+    archive.getRange(startRow, 1, newRows.length, 20).setValues(newRows);
+    archive.getRange(startRow, AC.TIMESTAMP + 1, newRows.length, 1).setNumberFormat('mm/dd/yyyy hh:mm');
+
+    // ── ONE write-verify read of the whole block ─────────────────────────────
+    var verifyVals = archive.getRange(startRow, AC.NAME + 1, newRows.length, 1).getValues();
+    for (var v = 0; v < verifyVals.length; v++) {
+      if (normalizeString(String(verifyVals[v][0] || '').trim()) !== normalizeString(rowMeta[v].name)) {
+        throw new Error('WRITE_VERIFY_FAIL: row ' + (startRow + v) +
+          ' could not be confirmed in the archive. Please reload and check before retrying.');
+      }
+    }
+
+    // ── File / document uploads (per row carrying docs) ──────────────────────
+    var fileError = null;
+    for (var u = 0; u < rowMeta.length; u++) {
+      var meta = rowMeta[u];
+      var hasDocGroups = meta.docGroups && meta.docGroups.length > 0;
+      var hasFiles     = meta.files     && meta.files.length     > 0;
+      if (!hasDocGroups && !hasFiles) continue;
+      try {
+        var links = hasDocGroups
+          ? _uploadDocGroups(meta.docGroups, meta.name)
+          : _uploadFiles(meta.files, meta.name, 'DOC');
+        if (links) archive.getRange(startRow + u, AC.DOC_LINKS + 1).setValue(links);
+      } catch (fe) {
+        if (!fileError) fileError = fe.message;
+        Logger.log('File upload error: ' + fe.message);
+      }
+    }
+
+    // ── ONE derived-sheet refresh for the whole batch ────────────────────────
+    try { _refreshDerivedSheets(ss); } catch (re) { Logger.log('Refresh warning: ' + re.message); }
+
+    // ── ONE audit-log entry summarizing the batch ───────────────────────────
+    var auditDetail = rowMeta.map(function (m) { return m.mt + ' ' + m.name + ' x' + m.qty; }).join('; ');
+    _auditLog(ss, 'ADD_MOVEMENT', auth.email, auditDetail, '', '');
+
+    // ── On-demand notification emails + WASTE alerts ─────────────────────────
+    var emailError = null;
+    for (var n = 0; n < rowMeta.length; n++) {
+      var nm = rowMeta[n];
+      if (nm.notify && nm.notify.emails) {
+        try {
+          var err2 = _sendNotifyEmail(nm, auth);
+          if (err2 && !emailError) emailError = err2;
+        } catch (ne) { if (!emailError) emailError = ne.message; Logger.log('Email error: ' + ne.message); }
+      }
+      if (nm.mt === 'WASTE') {
+        try { _checkNotifications(ss, { name: nm.name, comments: '' }, 'WASTE', nm.qty, auth.email); } catch (we) {}
+      }
+    }
+
+    // ── available-after per material from the final snapshot ─────────────────
+    var availableByMat = {};
+    for (var m2 in snapshot) {
+      if (snapshot.hasOwnProperty(m2)) {
+        availableByMat[m2] = Math.max(0, snapshot[m2].wh - (reservedByMat[m2] || 0));
+      }
+    }
+
+    return {
+      status:         'success',
+      firstRowIdx:    startRow,
+      rowCount:       newRows.length,
+      fileError:      fileError,
+      emailError:     emailError,
+      availableByMat: availableByMat
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Build a stock snapshot for every material from raw archive values (read once).
+// Returns { matId: { wh, site, locs } } with location keys normalized.
+function _buildStockSnapshot(archiveValues) {
+  var snap = {};
+  for (var i = 1; i < archiveValues.length; i++) {
+    var row = archiveValues[i];
+    if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
+
+    var matId  = getMaterialId(normalizeString(row[AC.CATEGORY] || ''), normalizeString(row[AC.NAME] || ''));
+    var rawQty = Number(row[AC.QTY] || 0);
+    var rawMT  = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
+    var rawSt  = String(row[AC.STATUS]   || '').toUpperCase().trim();
+    var qty    = Math.abs(rawQty);
+    var mt;
+    if (!rawMT || rawMT === 'IN STOCK') {
+      mt = (rawQty < 0 || rawSt === 'DISPATCHED' || rawSt === 'DISPATCH') ? 'EXIT' : 'ENTRY';
+    } else if (rawMT === 'DISPATCHED' || rawMT === 'DISPATCH' || rawMT === 'DEL') {
+      mt = 'EXIT';
+    } else { mt = rawMT; }
+
+    var s = snap[matId] || (snap[matId] = { wh: 0, site: 0, locs: {} });
+    _applyMovementToSnapshot(s, mt, qty, normalizeString(row[AC.SRC_LOC] || ''), normalizeString(row[AC.DEST_LOC] || ''));
+  }
+  for (var k in snap) {
+    if (!snap.hasOwnProperty(k)) continue;
+    var locs = snap[k].locs;
+    for (var l in locs) { if (locs.hasOwnProperty(l) && locs[l] < 0) locs[l] = 0; }
+  }
+  return snap;
+}
+
+// Apply one movement's effect to a single material's snapshot entry in place.
+// Mirrors the math in calculateStock / getCurrentStockForItem.
+function _applyMovementToSnapshot(s, mt, qty, srcKey, destKey) {
+  if (mt === 'ENTRY') {
+    var rack = destKey || srcKey || 'UNASSIGNED';
+    s.locs[rack] = (s.locs[rack] || 0) + qty;
+    s.wh += qty;
+  } else if (mt === 'EXIT' || mt === 'DISPATCH') {
+    var exSrc = srcKey || findFirstWarehouseLoc(s.locs, qty);
+    if (exSrc && s.locs[exSrc]) s.locs[exSrc] -= qty;
+    s.wh = Math.max(0, s.wh - qty);
+    s.site += qty;
+  } else if (mt === 'TRANSFER') {
+    if (srcKey && s.locs[srcKey] != null) s.locs[srcKey] -= qty;
+    if (destKey) s.locs[destKey] = (s.locs[destKey] || 0) + qty;
+  } else if (mt === 'RETURN') {
+    s.site = Math.max(0, s.site - qty);
+    var retRack = destKey || 'UNASSIGNED';
+    s.locs[retRack] = (s.locs[retRack] || 0) + qty;
+    s.wh += qty;
+  } else if (mt === 'WASTE') {
+    var wSrc = srcKey || findFirstWarehouseLoc(s.locs, qty);
+    if (wSrc && s.locs[wSrc]) s.locs[wSrc] -= qty;
+    s.wh = Math.max(0, s.wh - qty);
+  }
+}
+
+// In-memory duplicate check over the last rows of already-read archive values.
+// Same 3-minute window / last-40-rows logic as _checkDuplicateMovement, no read.
+function _checkDuplicateInValues(archiveValues, mt, cat, name, qty, userEmail) {
+  var WINDOW_MS = 3 * 60 * 1000;
+  var MAX_ROWS  = 40;
+  var lastIdx   = archiveValues.length - 1;
+  if (lastIdx < 1) return null;
+
+  var startIdx = Math.max(1, lastIdx - MAX_ROWS + 1);
+  var now      = new Date().getTime();
+
+  for (var i = lastIdx; i >= startIdx; i--) {
+    var row   = archiveValues[i];
+    var rowTs = row[AC.TIMESTAMP];
+    if (!(rowTs instanceof Date)) continue;
+
+    var ageMs = now - rowTs.getTime();
+    if (ageMs > WINDOW_MS) break; // chronological — once outside the window, stop
+
+    if (String(row[AC.MOVETYPE]   || '').toUpperCase().trim() === mt.toUpperCase()  &&
+        String(row[AC.CATEGORY]   || '').toUpperCase().trim() === cat.toUpperCase() &&
+        String(row[AC.NAME]       || '').toUpperCase().trim() === name.toUpperCase()&&
+        Number(row[AC.QTY]        || 0)                       === qty               &&
+        String(row[AC.USER_EMAIL] || '').toLowerCase().trim() === (userEmail || '').toLowerCase()) {
+      return { rowIdx: i + 1, minutesAgo: Math.round(ageMs / 60000 * 10) / 10 };
+    }
+  }
+  return null;
+}
+
+// Send an on-demand "material received" email for one ENTRY row.
+// Returns an error string if no valid recipient, else null.
+function _sendNotifyEmail(meta, auth) {
+  var name = meta.name, proj = meta.proj, qty = meta.qty, unit = meta.unit;
+  var where = meta.dest || meta.src || 'the warehouse';
+  var subject = 'Material Received: ' + name + (proj && proj !== 'GENERIC' ? ' — ' + proj : '');
+  var msgBody = meta.notify.message;
+  if (!msgBody) {
+    msgBody = 'Hi,\n\nThe ' + qty + ' ' + (unit || 'UNIT') + '(s) of ' + name +
+      ' for ' + (proj && proj !== 'GENERIC' ? proj : 'OX Glass Co.') +
+      ' were received today and are now stored in ' + where +
+      '.\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+  }
+  var emailList = meta.notify.emails.split(',');
+  var sent = 0;
+  for (var em = 0; em < emailList.length; em++) {
+    var addr = emailList[em].trim();
+    if (addr && addr.indexOf('@') !== -1) {
+      GmailApp.sendEmail(addr, subject, msgBody, { name: 'OX Glass Co. — Warehouse', replyTo: auth.email });
+      sent++;
+    }
+  }
+  return sent === 0 ? 'No valid email addresses provided.' : null;
 }
 
 // ─── ADD MOVEMENT ─────────────────────────────────────────────────────────────
@@ -736,11 +1109,8 @@ function addMultiEntry(ss, archive, data, auth) {
     throw new Error('No materials provided.');
   }
 
-  var totalRows    = 0;
-  var totalMats    = 0;
-  var fileError    = null;
-  var emailError   = null;
-  var isFirstRow   = true;   // only first row gets docs + notify
+  var totalMats = 0;
+  var rows      = [];
 
   for (var mi = 0; mi < data.materials.length; mi++) {
     var mat = data.materials[mi];
@@ -751,7 +1121,8 @@ function addMultiEntry(ss, archive, data, auth) {
       var locEntry = mat.locations[li];
       if (!locEntry.qty || locEntry.qty <= 0) continue;
 
-      var rowData = {
+      var isFirstRow = (rows.length === 0);
+      rows.push({
         moveType:         'ENTRY',
         category:         mat.category || data.category || '',
         name:             mat.name,
@@ -767,37 +1138,25 @@ function addMultiEntry(ss, archive, data, auth) {
         supplier:         data.supplier || '',
         comments:         data.comments || '',
         responsible:      data.responsible || '',
-        truck:            data.truck    || '',
         pm:               data.pm       || '',
-        status:           'In Stock',
         files:            [],
-        // Shared docs go only on the very first archive row
-        docGroups:        isFirstRow ? (data.docGroups        || []) : [],
-        notifyRecipients: isFirstRow ? data.notifyRecipients  : null,
-        // Skip duplicate check for all rows after the first
+        // Shared docs + notify go only on the very first archive row.
+        docGroups:        isFirstRow ? (data.docGroups       || []) : [],
+        notifyRecipients: isFirstRow ? data.notifyRecipients : null,
+        // Only dup-check the first row of the whole submission.
         forceSubmit:      !isFirstRow || !!data.forceSubmit
-      };
-
-      try {
-        var res = _addMovement(ss, archive, rowData, auth);
-        if (res && res.fileError  && !fileError)  fileError  = res.fileError;
-        if (res && res.emailError && !emailError) emailError = res.emailError;
-      } catch (e) {
-        throw e; // let the caller surface the error
-      }
-
-      isFirstRow = false;
-      totalRows++;
+      });
     }
   }
 
+  var res = _addMovementsBatch(ss, archive, rows, auth);
   return {
     status:     'success',
     count:      totalMats,
-    rowCount:   totalRows,
-    fileError:  fileError  || null,
-    emailError: emailError || null,
-    message:    totalMats + ' material(s), ' + totalRows + ' row(s) recorded.'
+    rowCount:   res.rowCount,
+    fileError:  res.fileError  || null,
+    emailError: res.emailError || null,
+    message:    totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }
 
@@ -809,8 +1168,8 @@ function addMultiExit(ss, archive, data, auth) {
     throw new Error('No materials provided.');
   }
 
-  var totalRows = 0;
   var totalMats = 0;
+  var rows      = [];
 
   for (var mi = 0; mi < data.materials.length; mi++) {
     var mat = data.materials[mi];
@@ -821,32 +1180,29 @@ function addMultiExit(ss, archive, data, auth) {
       var loc = mat.locations[li];
       if (!loc.qty || loc.qty <= 0) continue;
 
-      var rowData = {
+      rows.push({
         moveType:    'EXIT',
         category:    mat.category || '',
         name:        mat.name,
         qty:         loc.qty,
         unit:        mat.unit || 'UNIT',
         dateRec:     data.dateRec     || '',
-        sourceLoc:   loc.loc         || '',
-        destLoc:     data.destLoc    || '',
+        sourceLoc:   loc.loc          || '',
+        destLoc:     data.destLoc     || '',
         responsible: data.responsible || '',
-        comments:    data.comments   || '',
-        status:      data.status     || 'Out',
-        // Skip dup check for rows after the first of this batch
-        forceSubmit: (mi > 0 || li > 0)
-      };
-
-      _addMovement(ss, archive, rowData, auth);
-      totalRows++;
+        comments:    data.comments    || '',
+        // Only dup-check the first row of the whole submission.
+        forceSubmit: rows.length === 0 ? !!data.forceSubmit : true
+      });
     }
   }
 
+  var res = _addMovementsBatch(ss, archive, rows, auth);
   return {
     status:   'success',
     count:    totalMats,
-    rowCount: totalRows,
-    message:  totalMats + ' material(s), ' + totalRows + ' row(s) recorded.'
+    rowCount: res.rowCount,
+    message:  totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }
 
@@ -1199,37 +1555,51 @@ function _photosToDocPdf(photos, docName, targetFolder) {
   var doc  = DocumentApp.create(tempTitle);
   var body = doc.getBody();
 
-  // Minimal margins so the image fills as much of the page as possible (9pt ≈ 1/8 inch)
-  var margin = 9;
-  body.setMarginTop(margin);
-  body.setMarginBottom(margin);
-  body.setMarginLeft(margin);
-  body.setMarginRight(margin);
+  // Set margins to 0 so the image can fill the full physical page.
+  // Google Docs may enforce a small minimum (~1pt) but the PDF export
+  // honours these near-zero values — unlike the old 9pt setting which
+  // was silently overridden by the Docs renderer, causing images to be
+  // clipped to the default 1-inch text area and appear at only ~75-80 %.
+  body.setMarginTop(0);
+  body.setMarginBottom(0);
+  body.setMarginLeft(0);
+  body.setMarginRight(0);
 
-  // Standard US letter: 612 × 792 points. Usable area with minimal margins:
-  var usableW = 612 - (2 * margin);   // 594 pt
-  var usableH = 792 - (2 * margin);   // 774 pt
+  // Full US Letter page in points (72 pt = 1 inch).
+  // We scale against the whole page, not a text-area sub-region.
+  var PAGE_W = 612;
+  var PAGE_H = 792;
 
-  // Remove default blank paragraph so images start cleanly
+  // Remove the default blank paragraph so images start at the very top.
   body.clear();
 
   for (var i = 0; i < photos.length; i++) {
     if (i > 0) body.appendPageBreak();
+
     var p     = photos[i];
     var bytes = Utilities.base64Decode(p.fileData);
     var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg');
     var img   = body.appendImage(blob);
 
+    // getWidth/getHeight return the auto-scaled display dimensions (in points).
     var origW = img.getWidth();
     var origH = img.getHeight();
 
-    // Scale to fill the page while preserving aspect ratio (fit inside usable box)
-    var scaleW = usableW / origW;
-    var scaleH = usableH / origH;
-    var scale  = Math.min(scaleW, scaleH);  // use the smaller scale so it fits both dims
-
+    // Scale image to fill the full page while preserving aspect ratio.
+    var scale = Math.min(PAGE_W / origW, PAGE_H / origH);
     img.setWidth(Math.round(origW * scale));
     img.setHeight(Math.round(origH * scale));
+
+    // Remove paragraph spacing so the image sits flush with the page edge.
+    // (Default Google Docs paragraph has 10-12 pt spacing before/after which
+    //  creates a white gap at the top and bottom of each page.)
+    try {
+      var para = img.getParent().asParagraph();
+      para.setSpacingBefore(0);
+      para.setSpacingAfter(0);
+      para.setLineSpacing(1);
+      para.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+    } catch(e) { /* no-op if paragraph cast fails */ }
   }
 
   doc.saveAndClose();

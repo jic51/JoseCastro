@@ -1439,6 +1439,9 @@ var colVis = (function(){
 var _movPage     = 1;
 var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
+// Version handshake — must match APP_VERSION in Code.gs. If they differ, one
+// file was deployed without the other; loadDataFromGoogle shows a warning banner.
+var APP_VERSION = '3.7';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Email hint for non-org users (stored in localStorage after identity pick)
@@ -5010,6 +5013,7 @@ function loadDataFromGoogle(skipCache){
         _saveCache(data);
         lastLoadTime = Date.now();
         setConnStatus('online');
+        _checkVersionMatch(data.serverVersion);
         var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
         document.getElementById('userChip').textContent = displayName;
         if (data.activeUsers) renderActiveUsers(data.activeUsers);
@@ -5075,6 +5079,27 @@ function _applyData(data) {
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
   if (data.users && data.users.length) _usersData = data.users;
+}
+
+// Warn if the backend (Code.gs) and this page (Index.html) were not deployed
+// together. A mismatch is the usual cause of "feature X silently doesn't work".
+function _checkVersionMatch(serverVersion) {
+  var existing = document.getElementById('versionMismatchBanner');
+  if (!serverVersion || serverVersion === APP_VERSION) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return; // already showing
+  var bar = document.createElement('div');
+  bar.id = 'versionMismatchBanner';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;' +
+    'color:#fff;font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  bar.innerHTML = '⚠ Versión desincronizada — App v' + APP_VERSION + ' vs Servidor v' + serverVersion +
+    '. Vuelve a desplegar AMBOS archivos (Code.gs e Index.html) con una <b>New version</b>. ' +
+    '<span style="cursor:pointer;text-decoration:underline" onclick="this.parentNode.remove()">cerrar</span>';
+  document.body.appendChild(bar);
+  console.warn('VERSION MISMATCH: frontend=' + APP_VERSION + ' backend=' + serverVersion);
 }
 
 // ── Toast Notifications ───────────────────────────────────────────────────────
@@ -5734,7 +5759,7 @@ setInterval(function(){
 // ── Version tag — set by JS so we can confirm script is running ───────────────
 (function(){
   var t = document.getElementById('jsVersionTag');
-  if (t) t.textContent = 'JS v3.6 ✓';
+  if (t) t.textContent = 'JS v' + APP_VERSION + ' ✓';
 })();
 
 // Start
