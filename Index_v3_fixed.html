@@ -118,8 +118,16 @@
     /* ── OVERLAY / MODAL ── */
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center;padding:15px}
     .overlay.show{display:flex}
-    .modal{background:var(--card);border-radius:14px;padding:1.75rem;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
     .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
+    /* Sticky modal header — stays pinned while the body scrolls, so the X is always reachable */
+    .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.6rem;margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem 1rem .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
+    .mhdr h3{margin:0;font-size:1.05rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .modal-x{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:none;background:var(--border);color:var(--text);font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s}
+    .modal-x:hover{background:var(--red);color:#fff}
+    /* Header flash — feedback when the user clicks outside the modal (which no longer closes it) */
+    @keyframes hdr-flash{0%{box-shadow:inset 0 0 0 0 var(--accent)}30%{box-shadow:inset 0 0 0 3px var(--accent)}100%{box-shadow:inset 0 0 0 0 var(--accent)}}
+    .flash-hdr{animation:hdr-flash .55s ease}
     /* ── MOVE TYPE BAR ── */
     .modal-type-bar{display:flex;gap:4px;background:#F3F4F6;padding:4px;border-radius:8px;margin-bottom:1.25rem;flex-wrap:wrap}
     .modal-type-bar button{flex:1;border:none;border-radius:6px;padding:.45rem .5rem;font-size:.78rem;font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
@@ -562,7 +570,7 @@
       .toolbar{flex-direction:column;align-items:stretch;width:100%}
       .toolbar input,.toolbar select,.toolbar button{width:100%}
       .form-grid{grid-template-columns:1fr}
-      .modal{padding:1.25rem}
+      .modal{--mpad:1.25rem}
       th,td{padding:.45rem .5rem}
       .charts-grid{grid-template-columns:1fr}
       .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem;min-height:40px}
@@ -636,9 +644,9 @@
 <!-- ══ USERS MANAGEMENT MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="usersOverlay">
   <div class="modal" style="max-width:700px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-      <h3 style="margin:0">👥 User Management</h3>
-      <button class="btn-icon" onclick="closeModal('usersOverlay')" style="font-size:1.2rem">✕</button>
+    <div class="mhdr">
+      <h3>👥 User Management</h3>
+      <button class="modal-x" onclick="closeModal('usersOverlay')" title="Close">✕</button>
     </div>
 
     <!-- Add / Edit form -->
@@ -895,12 +903,11 @@
 <!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="incomingOverlay">
   <div class="modal" style="max-width:500px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
-      <h3 id="incomingModalTitle" style="margin:0">📦 Add Expected Material</h3>
+    <div class="mhdr">
+      <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
       <button class="btn btn-ghost btn-sm" onclick="aiExtractFromIncoming()" title="Upload a PO or delivery confirmation and let AI fill the fields"
-        style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
-        🪄 AI Extract from PO
-      </button>
+        style="border-color:var(--purple);color:var(--purple);font-size:.72rem;flex-shrink:0">🪄 AI Extract</button>
+      <button class="modal-x" onclick="closeModal('incomingOverlay')" title="Close">✕</button>
     </div>
     <input type="hidden" id="incId">
     <div id="incAiStatus" style="display:none;margin-bottom:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
@@ -962,7 +969,7 @@
 </div>
 
 <!-- ══ GMAIL SCANNER MODAL ════════════════════════════════════════════════════ -->
-<div class="gmail-scan-overlay" id="gmailScanOverlay" onclick="if(event.target===this)closeGmailScanModal()">
+<div class="gmail-scan-overlay" id="gmailScanOverlay" onclick="if(event.target===this)_flashModalHeader('gmailScanOverlay')">
   <div class="gmail-scan-modal">
     <div class="gmail-scan-hdr">
       <h3>📧 Scan Gmail for Deliveries</h3>
@@ -1008,7 +1015,10 @@
 <!-- ══ MONITOR SETTINGS MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="monitorOverlay">
   <div class="modal" style="max-width:560px">
-    <h3>⚙ Low-Stock Monitor Settings</h3>
+    <div class="mhdr">
+      <h3>⚙ Low-Stock Monitor Settings</h3>
+      <button class="modal-x" onclick="closeModal('monitorOverlay')" title="Close">✕</button>
+    </div>
     <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">
       Select which materials appear in the alert banner. Leave all unchecked to monitor <em>all</em> materials.
     </p>
@@ -1042,9 +1052,10 @@
 <!-- ══ EDIT MOVEMENT MODAL ════════════════════════════════════════════════════ -->
 <div class="overlay" id="editMovOverlay">
   <div class="modal" style="max-width:620px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
-      <h3 style="margin:0">✏️ Edit Movement</h3>
-      <span id="editMovRowTag" style="font-size:.72rem;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--muted)"></span>
+    <div class="mhdr">
+      <h3>✏️ Edit Movement</h3>
+      <span id="editMovRowTag" style="font-size:.72rem;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--muted);flex-shrink:0"></span>
+      <button class="modal-x" onclick="closeModal('editMovOverlay')" title="Close">✕</button>
     </div>
     <div id="editMovTypeTag" style="margin-bottom:.6rem"></div>
 
@@ -1148,7 +1159,10 @@
 <!-- ══ MOVEMENT MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="moveOverlay">
   <div class="modal">
-    <h3 id="moveTitle">New Movement</h3>
+    <div class="mhdr">
+      <h3 id="moveTitle">New Movement</h3>
+      <button class="modal-x" onclick="closeMoveModalGuarded()" title="Close">✕</button>
+    </div>
 
     <!-- Move Type Selector -->
     <div class="modal-type-bar" id="moveTypeBar">
@@ -1380,9 +1394,9 @@
 <!-- ══ SETTINGS MODAL ════════════════════════════════════════════════════════ -->
 <div class="overlay" id="settingsOverlay">
   <div class="modal" style="max-width:680px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-      <h3 style="margin:0">⚙️ App Settings</h3>
-      <button class="btn-icon" onclick="closeModal('settingsOverlay')" style="font-size:1.2rem">✕</button>
+    <div class="mhdr">
+      <h3>⚙️ App Settings</h3>
+      <button class="modal-x" onclick="closeModal('settingsOverlay')" title="Close">✕</button>
     </div>
     <!-- Tab bar -->
     <div style="display:flex;gap:4px;background:var(--bg);border-radius:8px;padding:4px;margin-bottom:1.25rem;flex-wrap:wrap">
@@ -1401,7 +1415,10 @@
 <!-- ══ ATTACH MODAL ══════════════════════════════════════════════════════════ -->
 <div class="overlay" id="attachOverlay">
   <div class="modal" style="max-width:500px">
-    <h3>📎 Attach Document</h3>
+    <div class="mhdr">
+      <h3>📎 Attach Document</h3>
+      <button class="modal-x" onclick="closeModal('attachOverlay')" title="Close">✕</button>
+    </div>
     <p style="font-size:.8rem;color:var(--muted);margin:.25rem 0 1rem">Name your document, then take photos or pick files. Multiple photos become one PDF. Will be linked to the selected record.</p>
     <input type="hidden" id="aRowIdx">
     <input type="hidden" id="aFolderName">
@@ -1441,7 +1458,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '3.9';
+var APP_VERSION = '4.0';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Email hint for non-org users (stored in localStorage after identity pick)
@@ -3797,7 +3814,43 @@ function closeModal(id){
   if (id === 'attachOverlay') resetAttachDocBuilder();
 }
 
-function closeIfOutside(e, id){ if (e.target.id === id) closeModal(id); }
+// Clicking the dark backdrop NO LONGER closes the modal (it was closing forms by
+// accident while selecting/copying text). Instead we flash the sticky header so the
+// user knows to use the ✕. Closing is only via the ✕ button now.
+function closeIfOutside(e, id){ if (e.target.id === id) _flashModalHeader(id); }
+
+function _flashModalHeader(overlayId){
+  var ov = document.getElementById(overlayId); if (!ov) return;
+  var h = ov.querySelector('.mhdr, .gmail-scan-hdr, .rack-drawer-hdr'); if (!h) return;
+  h.classList.remove('flash-hdr'); void h.offsetWidth; h.classList.add('flash-hdr');
+}
+
+// Close guard for the big Entry/Exit modal: if the form has data, confirm first.
+function closeMoveModalGuarded(){
+  if (_moveModalHasData()){
+    _showConfirm({
+      icon: '⚠️', title: 'Discard changes?',
+      message: 'You have unsaved data in this form. Close and lose it?',
+      confirmText: 'Discard', danger: true,
+      onConfirm: function(){ closeModal('moveOverlay'); }
+    });
+  } else {
+    closeModal('moveOverlay');
+  }
+}
+
+function _moveModalHasData(){
+  var ids = ['mName','mQty','mProj','mSup','mPO','mGC','mTruck','mComments','mResp','mDest','mSrc','mNotifyEmails'];
+  for (var i=0;i<ids.length;i++){
+    var el = document.getElementById(ids[i]);
+    if (el && String(el.value||'').trim()) return true;
+  }
+  var any = false;
+  document.querySelectorAll('#multiMatContainer input[id^="mat-name-"], #multiExitContainer input[id^="exit-name-"]').forEach(function(inp){
+    if (String(inp.value||'').trim()) any = true;
+  });
+  return any;
+}
 
 function openAttachModal(rowIdx, folderName){
   document.getElementById('aRowIdx').value     = rowIdx;
@@ -5261,6 +5314,8 @@ document.addEventListener('DOMContentLoaded', function(){
   // Modals — close on outside click
   _safeOn('incomingOverlay','click', function(e){ closeIfOutside(e,'incomingOverlay'); });
   _safeOn('monitorOverlay','click',  function(e){ closeIfOutside(e,'monitorOverlay'); });
+  _safeOn('usersOverlay','click',    function(e){ closeIfOutside(e,'usersOverlay'); });
+  _safeOn('editMovOverlay','click',  function(e){ closeIfOutside(e,'editMovOverlay'); });
   _safeOn('morningOverlay','click',  function(e){ if (e.target===document.getElementById('morningOverlay')) closeMorningPopup(); });
 
   // Open modal buttons
@@ -5289,7 +5344,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Modal submit / cancel
   _safeOn('moveSubmit','click', submitMovement);
-  _safeOn('btnCancelMove','click', function(){ closeModal('moveOverlay'); });
+  _safeOn('btnCancelMove','click', closeMoveModalGuarded);
   _safeOn('moveOverlay','click', function(e){ closeIfOutside(e,'moveOverlay'); });
 
   // Attach modal
