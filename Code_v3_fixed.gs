@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.0';
+var APP_VERSION = '4.1';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -161,6 +161,15 @@ function normalizeString(str) {
     .trim()
     // Finally sanitize filesystem-unsafe chars
     .replace(/[\/\\?%*:|"<>]/g, '_');
+}
+
+// Display/storage form for NAME and CATEGORY: uppercased, trimmed, single-spaced —
+// but KEEPS punctuation like commas, hyphens and slashes (e.g. "A-680, 80 SERIES"
+// or "FLASHING/CAULK" are stored exactly as typed).
+// normalizeString() is still used SEPARATELY to build the matching key (getMaterialId),
+// so "A-680" and "A 680" still merge into one material for stock totals.
+function _cleanDisplay(str) {
+  return String(str || '').toUpperCase().trim().replace(/\s+/g, ' ');
 }
 
 // Convert a spreadsheet cell value to a plain string.
@@ -686,8 +695,8 @@ function _addMovementsBatch(ss, archive, movements, auth) {
 
       var row = new Array(20);
       row[AC.TIMESTAMP]   = now;
-      row[AC.CATEGORY]    = cat;
-      row[AC.NAME]        = name;
+      row[AC.CATEGORY]    = _cleanDisplay(d.category);  // stored as typed (keeps , - /)
+      row[AC.NAME]        = _cleanDisplay(d.name);      // matId above still uses normalized form
       row[AC.GC]          = String(d.gc || '').trim();
       row[AC.PO]          = String(d.po || '').trim();
       row[AC.QTY]         = qty;
@@ -875,9 +884,11 @@ function _checkDuplicateInValues(archiveValues, mt, cat, name, qty, userEmail) {
     var ageMs = now - rowTs.getTime();
     if (ageMs > WINDOW_MS) break; // chronological — once outside the window, stop
 
+    // cat/name passed in are already normalized → normalize the stored row too,
+    // so punctuation differences ("A-680" vs "A 680") still count as the same.
     if (String(row[AC.MOVETYPE]   || '').toUpperCase().trim() === mt.toUpperCase()  &&
-        String(row[AC.CATEGORY]   || '').toUpperCase().trim() === cat.toUpperCase() &&
-        String(row[AC.NAME]       || '').toUpperCase().trim() === name.toUpperCase()&&
+        normalizeString(row[AC.CATEGORY])                     === cat               &&
+        normalizeString(row[AC.NAME])                         === name              &&
         Number(row[AC.QTY]        || 0)                       === qty               &&
         String(row[AC.USER_EMAIL] || '').toLowerCase().trim() === (userEmail || '').toLowerCase()) {
       return { rowIdx: i + 1, minutesAgo: Math.round(ageMs / 60000 * 10) / 10 };
@@ -1023,8 +1034,8 @@ function _addMovement(ss, archive, data, auth) {
 
     var row = new Array(19);
     row[AC.TIMESTAMP]  = now;
-    row[AC.CATEGORY]   = cat;                                        // B: material type
-    row[AC.NAME]       = name;
+    row[AC.CATEGORY]   = _cleanDisplay(data.category);   // stored as typed (keeps , - /)
+    row[AC.NAME]       = _cleanDisplay(data.name);       // matId still uses normalized form for matching
     row[AC.GC]         = String(data.gc  || '').trim();   // keep as-is (contract numbers have special chars)
     row[AC.PO]         = String(data.po  || '').trim();   // keep as-is (PO# uses hyphens, asterisks, etc.)
     row[AC.QTY]        = qty;
@@ -1525,14 +1536,14 @@ function _checkDuplicateMovement(archive, mt, cat, name, qty, userEmail) {
     if (ageMs > WINDOW_MS) break; // rows are chronological; once outside window, stop
 
     var rowMt    = String(row[AC.MOVETYPE]   || '').toUpperCase().trim();
-    var rowCat   = String(row[AC.CATEGORY]   || '').toUpperCase().trim();
-    var rowName  = String(row[AC.NAME]       || '').toUpperCase().trim();
+    var rowCat   = normalizeString(row[AC.CATEGORY]);   // normalize stored value to match
+    var rowName  = normalizeString(row[AC.NAME]);       // (cat/name args are already normalized)
     var rowQty   = Number(row[AC.QTY]        || 0);
     var rowEmail = String(row[AC.USER_EMAIL] || '').toLowerCase().trim();
 
     if (rowMt    === mt.toUpperCase()        &&
-        rowCat   === cat.toUpperCase()       &&
-        rowName  === name.toUpperCase()      &&
+        rowCat   === cat                     &&
+        rowName  === name                    &&
         rowQty   === qty                     &&
         rowEmail === (userEmail || '').toLowerCase()) {
       return {
