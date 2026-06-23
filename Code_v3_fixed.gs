@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.2';
+var APP_VERSION = '4.3';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -180,10 +180,10 @@ function getPublicUsers() {
 function getUserRole(sessionToken) {
   var email = '';
   // 1. Company users (@ox-glass.com, same Workspace) → identified automatically.
+  //    NOTE: do NOT fall back to getEffectiveUser() — under "Execute as: Me" that
+  //    always returns the OWNER, so it would mis-identify every external user as
+  //    the owner. getActiveUser() correctly returns '' for non-domain accounts.
   try { email = Session.getActiveUser().getEmail(); } catch(e) { email = ''; }
-  if (!email) {
-    try { email = Session.getEffectiveUser().getEmail(); } catch(e2) { email = ''; }
-  }
   // 2. Non-org users → email comes from a VERIFIED, signed session token (issued
   //    after Google sign-in). A raw client-provided email is NOT trusted anymore.
   if (!email && sessionToken) email = _verifySessionToken(sessionToken);
