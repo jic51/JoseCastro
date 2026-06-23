@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.1';
+var APP_VERSION = '4.2';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -32,21 +32,133 @@ var AC = {
 
 // ─── ROUTING ─────────────────────────────────────────────────────────────────
 function doGet(e) {
+  // OAuth popup callback: Google redirects here with ?code=...&state=... after a
+  // non-org user signs in. Handle it as a tiny page instead of the full app.
+  if (e && e.parameter && e.parameter.code && e.parameter.state) {
+    return _handleOAuthCallback(e.parameter.code, e.parameter.state);
+  }
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('OX Glass Co. — WMS v3.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+// ─── GOOGLE SIGN-IN (hybrid, for non @ox-glass.com users) ─────────────────────
+// Company users are identified automatically via Session.getActiveUser() (same
+// Workspace domain). Everyone else signs in with Google once: the popup runs the
+// OAuth code flow, we exchange the code server-side for a VERIFIED email, then
+// issue our own signed session token. The token (not a raw email) is what the
+// browser stores and sends back — so identity can't be spoofed.
+
+function _oauthCfg() {
+  var p = PropertiesService.getScriptProperties();
+  return { clientId: p.getProperty('OAUTH_CLIENT_ID') || '', clientSecret: p.getProperty('OAUTH_CLIENT_SECRET') || '' };
+}
+
+// Stable secret used to sign session tokens (auto-created once).
+function _serverSecret() {
+  var p = PropertiesService.getScriptProperties();
+  var s = p.getProperty('SESSION_SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('SESSION_SECRET', s); }
+  return s;
+}
+
+// Must EXACTLY match the "Authorized redirect URI" registered in Google Cloud.
+// We read it from a Script Property so it can't drift from what getUrl() guesses
+// (the domain /a/macros/ form vs the /macros/s/ form). Falls back to getUrl().
+function _redirectUri() {
+  return PropertiesService.getScriptProperties().getProperty('OAUTH_REDIRECT_URI')
+      || ScriptApp.getService().getUrl();
+}
+
+// Signed token = base64(email|expiry).base64(HMAC). Tamper-proof without the secret.
+function _makeSessionToken(email) {
+  var exp     = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+  var payload = Utilities.base64EncodeWebSafe(String(email).toLowerCase().trim() + '|' + exp);
+  var sig     = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, _serverSecret()));
+  return payload + '.' + sig;
+}
+
+function _verifySessionToken(token) {
+  if (!token || String(token).indexOf('.') === -1) return '';
+  var parts   = String(token).split('.');
+  var payload = parts[0], sig = parts[1];
+  var expect  = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, _serverSecret()));
+  if (sig !== expect) return '';
+  var decoded = Utilities.newBlob(Utilities.base64DecodeWebSafe(payload)).getDataAsString();
+  var bits    = decoded.split('|');
+  var email   = bits[0], exp = Number(bits[1] || 0);
+  if (!email || Date.now() > exp) return '';
+  return email;
+}
+
+// Decode the verified email out of a Google id_token (obtained directly from
+// Google's token endpoint over TLS, so the payload is trustworthy).
+function _emailFromIdToken(idToken) {
+  var parts = String(idToken || '').split('.');
+  if (parts.length < 2) return '';
+  try {
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString());
+    return payload.email || '';
+  } catch (e) { return ''; }
+}
+
+// Popup callback: exchange the auth code for the user's email, stash it under the
+// random state so the main window can pick it up via pollLogin().
+function _handleOAuthCallback(code, state) {
+  var ok = false, msg = '';
+  try {
+    var cfg  = _oauthCfg();
+    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+      method: 'post', muteHttpExceptions: true,
+      payload: {
+        code: code, client_id: cfg.clientId, client_secret: cfg.clientSecret,
+        redirect_uri: _redirectUri(), grant_type: 'authorization_code'
+      }
+    });
+    var data  = JSON.parse(resp.getContentText());
+    var email = data.id_token ? _emailFromIdToken(data.id_token) : '';
+    if (email) {
+      CacheService.getScriptCache().put('login_' + state, email.toLowerCase().trim(), 300);
+      ok = true;
+    } else {
+      msg = (data.error_description || data.error || 'No se pudo verificar el correo.') + '';
+    }
+  } catch (err) { msg = 'Error: ' + err.message; }
+
+  var html = ok
+    ? '<div style="font-family:system-ui,sans-serif;text-align:center;padding:2.5rem 1rem;color:#15803d">' +
+      '<div style="font-size:3rem">✓</div><h2 style="margin:.5rem 0">Sesión iniciada</h2>' +
+      '<p style="color:#555">Puedes volver a la app. Esta ventana se cerrará sola.</p></div>' +
+      '<script>setTimeout(function(){try{window.close();}catch(e){}},800);<\/script>'
+    : '<div style="font-family:system-ui,sans-serif;text-align:center;padding:2.5rem 1rem;color:#b91c1c">' +
+      '<div style="font-size:3rem">⚠</div><h2 style="margin:.5rem 0">No se pudo iniciar sesión</h2>' +
+      '<p style="color:#555">' + msg + '</p><p>Cierra esta ventana e intenta de nuevo.</p></div>';
+  return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Main window polls this until the popup callback has stored the verified email.
+// Returns a signed session token the browser will send on every later call.
+function pollLogin(state) {
+  var cache = CacheService.getScriptCache();
+  var email = cache.get('login_' + state);
+  if (!email) return { ready: false };
+  cache.remove('login_' + state);
+  return { ready: true, sessionToken: _makeSessionToken(email), email: email };
+}
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
-// Deployment required: "Execute as: User accessing the web app" +
-//                      "Anyone with a Google account"
+// Deployment REQUIRED: "Execute as: Me (owner)" + "Who has access: Anyone with a
+// Google account". This is essential for the hybrid login:
+//   • Company users (@ox-glass.com) are auto-detected via Session.getActiveUser().
+//   • Non-org users sign in with Google; the OAuth callback + sheet reads run as
+//     the owner, so those users never need direct access to the spreadsheet.
 //
 // Lookup order:
 //   1. USERS_V3 sheet  (managed via in-app admin panel)
 //   2. CONFIG sheet    (legacy — existing rows still work)
 // Unknown emails → DENIED (admin must register the user first).
-// ── Public user list — no auth required, used by identity picker ─────────────
+// ── Public user list — kept for reference (identity picker was replaced by login) ─
 function getPublicUsers() {
   var ss         = SpreadsheetApp.getActiveSpreadsheet();
   var usersSheet = ss.getSheetByName('USERS_V3');
@@ -65,14 +177,16 @@ function getPublicUsers() {
   return list;
 }
 
-function getUserRole(emailHint) {
+function getUserRole(sessionToken) {
   var email = '';
+  // 1. Company users (@ox-glass.com, same Workspace) → identified automatically.
   try { email = Session.getActiveUser().getEmail(); } catch(e) { email = ''; }
   if (!email) {
     try { email = Session.getEffectiveUser().getEmail(); } catch(e2) { email = ''; }
   }
-  // For non-org users (Execute as: Me), email is empty — use emailHint from localStorage
-  if (!email && emailHint) email = String(emailHint).toLowerCase().trim();
+  // 2. Non-org users → email comes from a VERIFIED, signed session token (issued
+  //    after Google sign-in). A raw client-provided email is NOT trusted anymore.
+  if (!email && sessionToken) email = _verifySessionToken(sessionToken);
   if (!email) return { role: 'NO_SESSION', email: '' };
 
   var ss        = SpreadsheetApp.getActiveSpreadsheet();
@@ -190,14 +304,16 @@ function getLegacyMaterialId(cat, name, proj) {
 }
 
 // ─── INITIAL DATA ────────────────────────────────────────────────────────────
-function getInitialData(emailHint) {
+function getInitialData(sessionToken) {
   try {
-    var auth = getUserRole(emailHint);
+    var auth = getUserRole(sessionToken);
 
     // Not authenticated — return public user list so frontend can show identity picker
     if (auth.role === 'NO_SESSION') {
+      var oc = _oauthCfg();
       return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION',
-               serverVersion: APP_VERSION, publicUsers: getPublicUsers() };
+               serverVersion: APP_VERSION,
+               oauthClientId: oc.clientId, oauthRedirectUri: _redirectUri() };
     }
     // Authenticated but not registered in CONFIG
     if (auth.role === 'DENIED') {
@@ -463,7 +579,7 @@ function findFirstWarehouseLoc(locs, needed) {
 
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
 function processMovement(action, data) {
-  var auth = getUserRole(data && data._userEmailHint);
+  var auth = getUserRole(data && data._sessionToken);
   if (auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
   if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
   if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');

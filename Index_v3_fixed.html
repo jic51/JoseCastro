@@ -1458,14 +1458,16 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.1';
+var APP_VERSION = '4.2';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
-// Email hint for non-org users (stored in localStorage after identity pick)
-var _EMAIL_HINT_KEY  = 'oxwms_user_email_v3';
-var _storedEmailHint = (function(){ try{ return localStorage.getItem(_EMAIL_HINT_KEY)||''; }catch(e){return '';} })();
-// Injects _userEmailHint into any data object — needed when GAS can't detect non-org emails
-function _h(data){ return _storedEmailHint ? Object.assign({}, data||{}, {_userEmailHint:_storedEmailHint}) : (data||{}); }
+// Signed session token for non-org users (issued by the backend after Google
+// sign-in). Replaces the old spoofable email hint. Company users don't need it —
+// they're detected automatically by Session.getActiveUser() on the backend.
+var _SESSION_KEY   = 'oxwms_session_v3';
+var _sessionToken  = (function(){ try{ return localStorage.getItem(_SESSION_KEY)||''; }catch(e){return '';} })();
+// Injects the verified session token into any payload sent to processMovement.
+function _h(data){ return _sessionToken ? Object.assign({}, data||{}, {_sessionToken:_sessionToken}) : (data||{}); }
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
 var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
@@ -2047,7 +2049,7 @@ function _doDeleteMovementRow(rowIdx){
     .withFailureHandler(function(err){
       showToast('Delete failed: ' + (err.message || err), 'err', 6000);
     })
-    .processMovement('manageMaterial', { op: 'deleteRow', rowIdx: rowIdx });
+    .processMovement('manageMaterial', _h({ op: 'deleteRow', rowIdx: rowIdx }));
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
@@ -3537,7 +3539,7 @@ function _loadSettings() {
   google.script.run
     .withSuccessHandler(function(d) { _settingsData = d; _renderSettingsTab(_settingsTab); })
     .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
-    .processMovement('getSettings', {});
+    .processMovement('getSettings', _h({}));
 }
 
 function switchSettingsTab(tab) {
@@ -3625,11 +3627,11 @@ function _cfgCall(payload, onDone) {
       google.script.run
         .withSuccessHandler(function(d){ config = d.config || config; refreshCategoryDropdowns(); })
         .withFailureHandler(function(){})
-        .getInitialData();
+        .getInitialData(_sessionToken || null);
       _settingMsg('Saved ✓', 'ok');
     })
     .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
-    .processMovement('updateConfig', payload);
+    .processMovement('updateConfig', _h(payload));
 }
 
 // ── Materials tab ─────────────────────────────────────────────────────────────
@@ -3654,7 +3656,7 @@ function _loadMatList() {
       _filterMatList();
     })
     .withFailureHandler(function(e){ if(cont) cont.innerHTML = '<p style="color:var(--red);font-size:.82rem">Error: '+(e.message||e)+'</p>'; })
-    .processMovement('listMaterials', {});
+    .processMovement('listMaterials', _h({}));
 }
 
 function _filterMatList() {
@@ -3714,7 +3716,7 @@ function _matCall(payload) {
       loadDataFromGoogle(true);  // skipCache — refresh movements + stock
     })
     .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
-    .processMovement('manageMaterial', payload);
+    .processMovement('manageMaterial', _h(payload));
 }
 
 // ── Shared settings helpers ───────────────────────────────────────────────────
@@ -3796,11 +3798,11 @@ function submitAttachment() {
       showToast('Upload failed: ' + (err.message || err), 'err', 6000);
       btn.textContent = 'Upload & Attach'; btn.disabled = false;
     })
-    .processMovement('updateDocument', {
+    .processMovement('updateDocument', _h({
       rowIdx:    parseInt(document.getElementById('aRowIdx').value),
       docGroups: docs,
       files:     []
-    });
+    }));
 }
 
 // ── Close / Open helpers ──────────────────────────────────────────────────────
@@ -4417,7 +4419,7 @@ function saveMonitorSettings() {
     .withFailureHandler(function(err){
       console.warn('Monitor save failed (local state is fine):', err.message);
     })
-    .processMovement('setMonitoredMaterials', { names: names });
+    .processMovement('setMonitoredMaterials', _h({ names: names }));
 }
 
 // ── Incoming Materials ────────────────────────────────────────────────────────
@@ -4574,7 +4576,7 @@ function saveIncomingItem() {
       btn.textContent = '💾 Save'; btn.disabled = false;
       showToast('Error: ' + err.message, 'err', 5000);
     })
-    .processMovement(action, payload);
+    .processMovement(action, _h(payload));
 }
 
 function deleteIncomingItem() {
@@ -4595,7 +4597,7 @@ function _doDeleteIncomingItem(id){
       loadDataFromGoogle(true); // skipCache
     })
     .withFailureHandler(function(err){ showToast('Error: ' + err.message, 'err', 5000); })
-    .processMovement('deleteIncoming', { id: id });
+    .processMovement('deleteIncoming', _h({ id: id }));
 }
 
 // ── Morning Popup ─────────────────────────────────────────────────────────────
@@ -4852,7 +4854,7 @@ function _loadUsersTable() {
     .withFailureHandler(function(err) {
       tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);padding:.75rem">' + (err.message || err) + '</td></tr>';
     })
-    .processMovement('getUsers', {});
+    .processMovement('getUsers', _h({}));
 }
 
 function _roleBadge(role) {
@@ -4943,7 +4945,7 @@ function saveUser() {
       btn.textContent = 'Save User'; btn.disabled = false;
       _userFormMsg(err.message || String(err), 'error');
     })
-    .processMovement(action, payload);
+    .processMovement(action, _h(payload));
 }
 
 function deactivateUser(email) {
@@ -4956,58 +4958,87 @@ function deactivateUser(email) {
       google.script.run
         .withSuccessHandler(function() { _loadUsersTable(); })
         .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
-        .processMovement('removeUser', { email: email });
+        .processMovement('removeUser', _h({ email: email }));
     }
   });
 }
 
 // ── Access Denied Screen ──────────────────────────────────────────────────────
 // ── Identity Picker (for non-org users when GAS can't detect email) ──────────
-function _showIdentityPicker(users) {
+// Sign-in screen for non-org users. Company users never reach this (auto-detected).
+var _oauthClientId = '', _oauthRedirectUri = '';
+function _showGoogleSignIn(clientId, redirectUri) {
+  _oauthClientId    = clientId    || '';
+  _oauthRedirectUri = redirectUri || '';
   var topbar    = document.querySelector('.topbar');
   var container = document.querySelector('.container');
   if (topbar)    topbar.style.display = 'none';
   if (!container) return;
 
-  // Filter out admins from picker (admins must log in with org email)
-  var pickable = users.filter(function(u){ return u.role !== 'ADMIN'; });
-
-  var opts = pickable.map(function(u){
-    return '<option value="'+u.email.replace(/"/g,'&quot;')+'">'+(u.name||u.email)+' ('+u.role+')</option>';
-  }).join('');
-
+  var configured = _oauthClientId && _oauthRedirectUri;
   container.innerHTML =
     '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
-    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:440px;width:100%;text-align:center">' +
-      '<div style="font-size:3rem;margin-bottom:.75rem">👤</div>' +
-      '<h2 style="font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">Who are you?</h2>' +
-      '<p style="color:#6B7280;font-size:.85rem;margin-bottom:1.25rem;line-height:1.5">Select your account to continue.</p>' +
-      (pickable.length
-        ? '<select id="identityPickerSel" style="width:100%;padding:.65rem .85rem;border:1px solid #E5E7EB;border-radius:8px;font-size:.95rem;font-family:inherit;margin-bottom:1rem;color:#1a1a2e;background:#fff">' +
-            '<option value="">— Select your name —</option>' + opts +
-          '</select>' +
-          '<button onclick="_confirmIdentity()" style="width:100%;padding:.7rem 1rem;background:#3B7DD8;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.15s" onmouseover="this.style.background=\'#2563EB\'" onmouseout="this.style.background=\'#3B7DD8\'">Enter →</button>' +
-          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.85rem">Your selection is saved in this browser. Admins must use their @ox-glass.com account.</p>'
-        : '<p style="color:#EF4444;font-size:.85rem">No active user accounts found. Contact your admin.</p>'
+    '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:420px;width:100%;text-align:center">' +
+      '<div style="font-size:3rem;margin-bottom:.75rem">🔒</div>' +
+      '<h2 style="font-size:1.25rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">OX Glass WMS</h2>' +
+      '<p style="color:#6B7280;font-size:.86rem;margin-bottom:1.5rem;line-height:1.5">Inicia sesión con tu cuenta de Google para continuar.</p>' +
+      (configured
+        ? '<button id="googleSignInBtn" onclick="_startGoogleLogin()" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:.6rem;padding:.75rem 1rem;background:#fff;color:#1f2937;border:1px solid #DADCE0;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.06)" onmouseover="this.style.background=\'#F8FAFC\'" onmouseout="this.style.background=\'#fff\'">' +
+            '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.2l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.4c-.3 2.1-1.6 5.2-4.6 7.3l7.1 5.5c4.2-3.9 6.7-9.6 6.7-16.5z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.9-6.1C.9 16.5 0 20.1 0 23.8s.9 7.3 2.5 10.6l7.9-6.1z"/><path fill="#34A853" d="M24 47.5c6.1 0 11.3-2 15-5.5l-7.1-5.5c-2 1.4-4.6 2.3-7.9 2.3-6.4 0-11.8-3.8-13.6-9.8l-7.9 6.1C6.4 42.1 14.6 47.5 24 47.5z"/></svg>' +
+            'Iniciar sesión con Google</button>' +
+          '<p id="signInStatus" style="color:#6B7280;font-size:.78rem;margin-top:1rem;min-height:1.1em"></p>' +
+          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">El personal de @ox-glass.com entra automáticamente, sin este paso.</p>'
+        : '<p style="color:#EF4444;font-size:.85rem">El inicio de sesión no está configurado. Falta el OAuth Client ID en el servidor. Contacta al administrador.</p>'
       ) +
     '</div></div>';
 }
 
-function _confirmIdentity() {
-  var sel = document.getElementById('identityPickerSel');
-  if (!sel || !sel.value) { alert('Please select your name.'); return; }
-  var email = sel.value;
-  try { localStorage.setItem(_EMAIL_HINT_KEY, email); } catch(e) {}
-  _storedEmailHint = email;
-  // Reload with the stored hint
-  document.querySelector('.topbar').style.display = '';
-  document.querySelector('.container').innerHTML = '<p style="padding:2rem;color:var(--muted)">Loading…</p>';
-  loadDataFromGoogle(true);
+// Opens the Google OAuth popup and polls the backend until the verified token is ready.
+var _loginPollTimer = null;
+function _startGoogleLogin() {
+  if (!_oauthClientId || !_oauthRedirectUri) return;
+  var state = 'st_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+  var authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
+    '?client_id='     + encodeURIComponent(_oauthClientId) +
+    '&redirect_uri='  + encodeURIComponent(_oauthRedirectUri) +
+    '&response_type=code' +
+    '&scope='         + encodeURIComponent('openid email profile') +
+    '&state='         + encodeURIComponent(state) +
+    '&prompt=select_account';
+
+  var popup  = window.open(authUrl, 'oxglass_login', 'width=480,height=640');
+  var status = document.getElementById('signInStatus');
+  if (status) status.textContent = 'Esperando inicio de sesión…';
+
+  if (_loginPollTimer) clearInterval(_loginPollTimer);
+  var tries = 0;
+  _loginPollTimer = setInterval(function(){
+    tries++;
+    if (tries > 160) { // ~4 minutes then give up
+      clearInterval(_loginPollTimer);
+      if (status) status.textContent = 'Tiempo agotado. Intenta de nuevo.';
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res && res.ready) {
+          clearInterval(_loginPollTimer);
+          try { popup && popup.close(); } catch(e) {}
+          _sessionToken = res.sessionToken;
+          try { localStorage.setItem(_SESSION_KEY, _sessionToken); } catch(e) {}
+          if (status) status.textContent = '✓ Sesión iniciada, cargando…';
+          var tb = document.querySelector('.topbar'); if (tb) tb.style.display = '';
+          loadDataFromGoogle(true);
+        }
+      })
+      .withFailureHandler(function(){ /* transient — keep polling */ })
+      .pollLogin(state);
+  }, 1500);
 }
 
 function _signOut() {
-  try { localStorage.removeItem(_EMAIL_HINT_KEY); } catch(e) {}
-  _storedEmailHint = '';
+  try { localStorage.removeItem(_SESSION_KEY); } catch(e) {}
+  _sessionToken = '';
   loadDataFromGoogle(true);
 }
 
@@ -5099,8 +5130,8 @@ function loadDataFromGoogle(skipCache){
           return;
         }
         if (data.accessStatus === 'NO_SESSION') {
-          // Non-org user: show identity picker instead of error screen
-          _showIdentityPicker(data.publicUsers || []);
+          // Non-org user not signed in → show the Google sign-in screen.
+          _showGoogleSignIn(data.oauthClientId, data.oauthRedirectUri);
           return;
         }
         // ── Normal load ─────────────────────────────────────────────────────
@@ -5137,7 +5168,7 @@ function loadDataFromGoogle(skipCache){
       if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+msg+'<br><small style="opacity:.7">Check GAS Executions log for details.</small></p>';
       console.error('getInitialData failed:', msg);
     })
-    .getInitialData(_storedEmailHint || null);
+    .getInitialData(_sessionToken || null);
 }
 
 // ── Charts Load ───────────────────────────────────────────────────────────────
@@ -5390,9 +5421,9 @@ function applyRoleUI(){
   }
   if (tag) tag.style.display = isViewer ? 'inline' : 'none';
 
-  // Show "Switch User" link for non-org users who identified via picker
+  // Show "Sign out" link only for non-org users who signed in with Google.
   var switchTag = document.getElementById('switchUserTag');
-  if (_storedEmailHint) {
+  if (_sessionToken) {
     if (!switchTag) {
       switchTag = document.createElement('span');
       switchTag.id = 'switchUserTag';
@@ -5600,7 +5631,7 @@ function saveEditMov() {
       var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
       showToast('Error: ' + msg, 'err', 6000);
     })
-    .processMovement('modifyMovement', payload);
+    .processMovement('modifyMovement', _h(payload));
 }
 
 // ── Gmail Scanner ─────────────────────────────────────────────────────────────
@@ -5842,7 +5873,7 @@ function saveGmailDraft(idx) {
       showToast('Save failed: ' + msg, 'err');
       if (btn) { btn.disabled = false; btn.textContent = '✓ Save as Incoming'; }
     })
-    .processMovement('addIncoming', item);
+    .processMovement('addIncoming', _h(item));
 }
 
 // Heartbeat every 90 s — keeps this user visible, refreshes list
