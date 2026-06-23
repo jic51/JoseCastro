@@ -1458,7 +1458,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.4';
+var APP_VERSION = '4.5';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -5474,7 +5474,7 @@ function togglePresence(e){
     google.script.run
       .withSuccessHandler(renderActiveUsers)
       .withFailureHandler(function(){})
-      .heartbeat();
+      .heartbeat(_sessionToken || null);
   }
 }
 
@@ -5883,7 +5883,7 @@ setInterval(function(){
   google.script.run
     .withSuccessHandler(renderActiveUsers)
     .withFailureHandler(function(){})
-    .heartbeat();
+    .heartbeat(_sessionToken || null);
 }, 90000);
 
 // ── Version tag — set by JS so we can confirm script is running ───────────────
