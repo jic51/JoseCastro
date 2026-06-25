@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.4';
+var APP_VERSION = '4.5';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -354,7 +354,7 @@ function getInitialData(sessionToken) {
 
     // Register this user's presence and return active users list
     var activeUsers = [];
-    try { activeUsers = heartbeat(); } catch(e) {}
+    try { activeUsers = heartbeat(sessionToken); } catch(e) {}
 
     // Incoming materials + monitored-materials filter
     var incoming = [];
@@ -1949,9 +1949,11 @@ function menuOpenApp() {
 // ─── PRESENCE / HEARTBEAT ────────────────────────────────────────────────────
 // Called on page load and every 90 s from the frontend.
 // Stores a timestamp per user in ScriptProperties and returns the active list.
-function heartbeat() {
-  var auth = getUserRole();
-  if (!auth || auth.role === 'DENIED') return [];
+function heartbeat(sessionToken) {
+  // Must receive the token so non-org users are identified correctly. Without it,
+  // getUserRole() returns NO_SESSION and would register a ghost empty user.
+  var auth = getUserRole(sessionToken);
+  if (!auth || auth.role === 'DENIED' || auth.role === 'NO_SESSION' || !auth.email) return [];
 
   var props    = PropertiesService.getScriptProperties();
   var raw      = props.getProperty('WMS_SESSIONS');
@@ -1964,9 +1966,10 @@ function heartbeat() {
   // Update this user
   sessions[auth.email] = { email: auth.email, role: auth.role, time: now };
 
-  // Prune stale entries
+  // Prune stale entries AND any malformed/unauthenticated ghosts from old builds
   Object.keys(sessions).forEach(function(k) {
-    if (sessions[k].time < cutoff) delete sessions[k];
+    var s = sessions[k];
+    if (!k || !s || !s.email || s.role === 'NO_SESSION' || s.time < cutoff) delete sessions[k];
   });
 
   props.setProperty('WMS_SESSIONS', JSON.stringify(sessions));
