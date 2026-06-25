@@ -1484,7 +1484,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.8';
+var APP_VERSION = '4.9';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4272,6 +4272,9 @@ function renderWarehouseMap(){
   var cf  = document.getElementById('mapCatFilter').value;
   var rackMap = _buildRackMap('', '');   // full content; filter is applied per-cell (dim)
   var container = document.getElementById('warehouseMapBody');
+  // This container is styled as a CSS grid (.rack-grid) which would cram the whole
+  // structured map into one 260px column. Force block so aisles use the full width.
+  container.style.display = 'block';
 
   // Full location list = configured Locations + any seen in stock (so nothing is missed)
   var allNames = (config.locations || []).map(function(l){ return l.name; });
