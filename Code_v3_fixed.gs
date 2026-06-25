@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.5';
+var APP_VERSION = '4.6';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -679,7 +679,7 @@ function processMovement(action, data) {
   if (action === 'cancelReservation')     return _cancelReservation(ss, data, auth);
   if (action === 'addIncoming')           return addIncoming(data);
   if (action === 'updateIncoming')        return updateIncoming(data);
-  if (action === 'deleteIncoming')        return deleteIncoming(data.id);
+  if (action === 'deleteIncoming')        return deleteIncoming(data.id, data._sessionToken);
   if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
@@ -2287,21 +2287,20 @@ function manageMaterial(data, auth) {
 // Sheet: INCOMING_V3  Columns (1-indexed, 0-based in array):
 //  A=0:ID  B=1:EstDate  C=2:Category  D=3:Name  E=4:Qty  F=5:Unit
 //  G=6:Supplier  H=7:PO  I=8:Notes  J=9:Status  K=10:AddedBy  L=11:AddedAt
-//  M=12:PM (Project Manager)
+//  M=12:PM (Project Manager)  N=13:Doc Link (attached PDF/photo URL)
 
 function _ensureIncomingSheet(ss) {
   var sheet = ss.getSheetByName('INCOMING_V3');
   if (!sheet) {
     sheet = ss.insertSheet('INCOMING_V3');
-    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At','PM']);
+    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At','PM','Doc Link']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 13).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
   } else {
-    // Add PM header if sheet exists but column M is missing
+    // Migrate older sheets: add PM (M) and Doc Link (N) headers if missing
     var lastCol = sheet.getLastColumn();
-    if (lastCol < 13) {
-      sheet.getRange(1, 13).setValue('PM').setFontWeight('bold');
-    }
+    if (lastCol < 13) sheet.getRange(1, 13).setValue('PM').setFontWeight('bold');
+    if (lastCol < 14) sheet.getRange(1, 14).setValue('Doc Link').setFontWeight('bold');
   }
   return sheet;
 }
@@ -2337,7 +2336,8 @@ function getIncoming() {
       status:   String(row[9]  || 'Pending'),
       addedBy:  String(row[10] || ''),
       addedAt:  String(row[11] || ''),
-      pm:       String(row[12] || '')
+      pm:       String(row[12] || ''),
+      docLink:  String(row[13] || '')
     });
   }
   // Return sorted nearest-first
@@ -2347,13 +2347,14 @@ function getIncoming() {
 }
 
 function addIncoming(data) {
-  var auth = getUserRole();
+  var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = _ensureIncomingSheet(ss);
   var id    = 'INC-' + new Date().getTime();
   // Add noon UTC to avoid timezone shift when GAS converts string→Date
   var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : '';
+  var docLink = _uploadIncomingDoc(data.docFile, data.name, data.po);
   sheet.appendRow([
     id,
     estDate,
@@ -2367,22 +2368,37 @@ function addIncoming(data) {
     'Pending',
     auth.email,
     new Date(),
-    String(data.pm       || '')
+    String(data.pm       || ''),
+    docLink
   ]);
-  return { status: 'success', id: id };
+  return { status: 'success', id: id, docLink: docLink };
+}
+
+// Uploads an attached PDF/photo for an incoming item; returns the Drive URL ('' if none).
+function _uploadIncomingDoc(docFile, name, po) {
+  if (!docFile || !docFile.fileData) return '';
+  try {
+    return _uploadFiles([docFile], String(name || 'Incoming'), String(po || 'INC'));
+  } catch (e) {
+    Logger.log('Incoming doc upload failed: ' + e.message);
+    return '';
+  }
 }
 
 function updateIncoming(data) {
-  var auth = getUserRole();
+  var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
   var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet  = ss.getSheetByName('INCOMING_V3');
-  if (!sheet) throw new Error('INCOMING_V3 sheet not found.');
+  var sheet  = _ensureIncomingSheet(ss);   // guarantees the Doc Link column exists
   var values = sheet.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(data.id)) {
       var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : values[i][1];
-      sheet.getRange(i + 1, 1, 1, 13).setValues([[
+      // New file replaces the old link; otherwise keep whatever was there (col N, idx 13)
+      var docLink = data.docFile && data.docFile.fileData
+        ? _uploadIncomingDoc(data.docFile, data.name, data.po)
+        : (values[i][13] || '');
+      sheet.getRange(i + 1, 1, 1, 14).setValues([[
         data.id,
         estDate,
         String(data.category || '').toUpperCase().trim(),
@@ -2395,16 +2411,17 @@ function updateIncoming(data) {
         String(data.status   || 'Pending'),
         values[i][10],          // preserve addedBy
         values[i][11],          // preserve addedAt
-        String(data.pm || '')   // PM — Project Manager
+        String(data.pm || ''),  // PM — Project Manager
+        docLink
       ]]);
-      return { status: 'success' };
+      return { status: 'success', docLink: docLink };
     }
   }
   throw new Error('Incoming item not found: ' + data.id);
 }
 
-function deleteIncoming(id) {
-  var auth = getUserRole();
+function deleteIncoming(id, sessionToken) {
+  var auth = getUserRole(sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
   var ss     = SpreadsheetApp.getActiveSpreadsheet();
   var sheet  = ss.getSheetByName('INCOMING_V3');

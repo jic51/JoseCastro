@@ -97,6 +97,16 @@
     .rack-count-row .rc-items{font-size:.7rem;color:var(--muted)}
     .rack-count-row .rc-total{font-size:.78rem;font-weight:700;color:var(--accent2)}
     .rack-empty{padding:2rem;text-align:center;color:var(--muted);font-size:.85rem}
+    /* Structured warehouse map (grouped by letter + special areas) */
+    .wh-map{display:flex;flex-direction:column;gap:.35rem;width:100%}
+    .map-letter-hdr{font-size:1.15rem;font-weight:800;color:var(--navy);padding:.5rem .25rem .15rem;border-bottom:2px solid var(--accent);margin-top:.9rem;letter-spacing:.02em}
+    .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem .25rem .1rem;margin-top:.6rem;border-bottom:1px dashed var(--border)}
+    .map-rack-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.15rem}
+    .map-rack-row > .rack-card{flex:1 1 110px;min-width:100px;max-width:200px}
+    .map-special-grid{display:flex;flex-wrap:wrap;gap:.5rem}
+    .map-special-grid > .rack-card{flex:0 1 190px;min-width:140px}
+    .rack-card.rack-dim{opacity:.22}
+    [data-theme="dark"] .map-letter-hdr{color:#cfe0ff}
     /* Rack Detail Drawer */
     .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,100vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:500;transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
     .rack-drawer.open{transform:translateX(0)}
@@ -925,12 +935,12 @@
         </select>
       </div>
       <div class="field">
-        <label>Category *</label>
+        <label>Category</label>
         <select id="incCategory"><option value="">Select…</option></select>
       </div>
       <div class="field">
-        <label>Material Name *</label>
-        <input type="text" id="incName" list="matNameList" placeholder="Material description">
+        <label>Description / Material</label>
+        <input type="text" id="incName" list="matNameList" placeholder="e.g. Yuma load 6/2, or material name">
       </div>
       <div class="field">
         <label>Quantity</label>
@@ -959,6 +969,12 @@
     <div class="field" style="margin-top:.5rem">
       <label>Notes / Comments</label>
       <textarea id="incNotes" rows="2" placeholder="Truck, time window, special instructions…"></textarea>
+    </div>
+    <div class="field" style="margin-top:.5rem">
+      <label>📎 Attach PDF / Photo <span style="font-weight:400;color:var(--muted)">(load sheet, delivery doc — replaces entering each material)</span></label>
+      <input type="file" id="incFile" class="incFile" accept="image/*,.pdf" onchange="_onIncFileChange()"
+        style="font-size:.82rem">
+      <div id="incDocPreview" style="margin-top:.55rem"></div>
     </div>
     <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end">
       <button id="btnDeleteIncoming" class="btn btn-danger btn-sm" style="margin-right:auto;display:none" onclick="deleteIncomingItem()">🗑 Delete</button>
@@ -1458,7 +1474,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.5';
+var APP_VERSION = '4.6';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4217,31 +4233,68 @@ function _buildRackMap(q, cf) {
   return rackMap;
 }
 
+// Order racks by leading letter: A,B,C first, then P,O,X (as the user laid out),
+// then any other letters alphabetically.
+var RACK_LETTER_ORDER = ['A','B','C','P','O','X'];
+function _letterSort(a, b){
+  var ia = RACK_LETTER_ORDER.indexOf(a), ib = RACK_LETTER_ORDER.indexOf(b);
+  if (ia === -1 && ib === -1) return a < b ? -1 : (a > b ? 1 : 0);
+  if (ia === -1) return 1;
+  if (ib === -1) return -1;
+  return ia - ib;
+}
+
+// Classify a location name: a rack (Letter(s)+Number+Letter, e.g. A1A, B12C) or a
+// special area sorted into a named section by keyword.
+function _classifyLocation(name){
+  var up = String(name || '').toUpperCase().trim();
+  var m  = up.match(/^([A-Z]+)\s*(\d+)\s*([A-Z])$/);   // A1A, A 1 A, B12C…
+  if (m) return { type:'rack', letter:m[1], row:parseInt(m[2],10), col:m[3], name:up };
+  if (up.indexOf('WAREHOUSE') !== -1) return { type:'special', section:'WAREHOUSES', name:up };
+  if (up.indexOf('BAY')       !== -1) return { type:'special', section:'BAYS',       name:up };
+  if (up.indexOf('CART')      !== -1) return { type:'special', section:'CARTS',      name:up };
+  if (up.indexOf('OFFICE')    !== -1) return { type:'special', section:'OFFICE',     name:up };
+  return { type:'special', section:'OTHER', name:up };
+}
+
 function renderWarehouseMap(){
   var q   = (document.getElementById('mapSearch').value   || '').toLowerCase().trim();
   var cf  = document.getElementById('mapCatFilter').value;
-  var rackMap = _buildRackMap(q, cf);
-  var racks = Object.keys(rackMap).sort();
+  var rackMap = _buildRackMap('', '');   // full content; filter is applied per-cell (dim)
   var container = document.getElementById('warehouseMapBody');
 
-  if (!racks.length){
-    container.innerHTML = '<div class="rack-empty">📭 No items in warehouse' +
-      (q||cf ? ' matching the current filter.' : '.') + '</div>';
+  // Full location list = configured Locations + any seen in stock (so nothing is missed)
+  var allNames = (config.locations || []).map(function(l){ return l.name; });
+  Object.keys(rackMap).forEach(function(r){ allNames.push(r); });
+  var seen = {}, locs = [];
+  allNames.forEach(function(n){
+    var u = String(n || '').toUpperCase().trim();
+    if (u && !seen[u]) { seen[u] = 1; locs.push(u); }
+  });
+
+  if (!locs.length){
+    container.innerHTML = '<div class="rack-empty">📭 No locations configured. Add them in ⚙️ Settings → Locations.</div>';
     return;
   }
 
-  // Compute max total for fill-bar scaling
-  var maxTotal = Math.max.apply(null, racks.map(function(r){
-    return rackMap[r].reduce(function(acc,i){ return acc+i.qty; }, 0);
-  }));
+  // Scale fill bars against the fullest location
+  var maxTotal = 1;
+  locs.forEach(function(n){
+    var t = (rackMap[n] || []).reduce(function(a,i){ return a + i.qty; }, 0);
+    if (t > maxTotal) maxTotal = t;
+  });
 
-  container.innerHTML = racks.map(function(rack){
-    var items = rackMap[rack].sort(function(a,b){ return b.qty - a.qty; });
-    var total = items.reduce(function(acc,i){ return acc+i.qty; }, 0);
-    var pct   = maxTotal > 0 ? Math.max(8, Math.round(total/maxTotal*100)) : 8;
+  // Render one location card (empty cells are greyed and not clickable)
+  function cell(name){
+    var items = (rackMap[name] || []).slice().sort(function(a,b){ return b.qty - a.qty; });
+    var total = items.reduce(function(a,i){ return a + i.qty; }, 0);
+    var isEmpty = total === 0;
+    var matches = (!q  || name.toLowerCase().indexOf(q) !== -1 || items.some(function(i){ return i.name.toLowerCase().indexOf(q) !== -1; }))
+               && (!cf || items.some(function(i){ return nt(i.category) === nt(cf); }));
+    var dimCls  = (!isEmpty && (q || cf) && !matches) ? ' rack-dim' : '';
+    var pct     = isEmpty ? 0 : Math.max(8, Math.round(total / maxTotal * 100));
     var fillCls = pct < 35 ? 'rack-fill-low' : pct < 70 ? 'rack-fill-med' : 'rack-fill-high';
 
-    // Unique category dots (up to 5)
     var catsSeen = {};
     var dots = items.filter(function(i){ if(catsSeen[i.category]) return false; catsSeen[i.category]=1; return true; })
       .slice(0,6).map(function(i){
@@ -4249,8 +4302,15 @@ function renderWarehouseMap(){
         return '<span class="rack-cat-dot" style="background:'+col+'" title="'+nt(i.category)+'"></span>';
       }).join('');
 
-    return '<div class="rack-card" data-action="open-rack" data-rack="'+_he(rack)+'" title="Click to see contents">'+
-      '<div class="rack-name">📦 '+rack+'</div>'+
+    if (isEmpty){
+      return '<div class="rack-card rack-empty-card" title="Empty">'+
+        '<div class="rack-name">📦 '+name+'</div>'+
+        '<div class="rack-fill-bar"></div>'+
+        '<div class="rack-count-row"><span class="rc-items">empty</span><span class="rc-total">0</span></div>'+
+      '</div>';
+    }
+    return '<div class="rack-card'+dimCls+'" data-action="open-rack" data-rack="'+_he(name)+'" title="Click to see contents">'+
+      '<div class="rack-name">📦 '+name+'</div>'+
       '<div class="rack-fill-bar"><div class="rack-fill-inner '+fillCls+'" style="width:'+pct+'%"></div></div>'+
       '<div class="rack-cats">'+dots+'</div>'+
       '<div class="rack-count-row">'+
@@ -4258,7 +4318,43 @@ function renderWarehouseMap(){
         '<span class="rc-total">'+total+' units</span>'+
       '</div>'+
     '</div>';
-  }).join('');
+  }
+
+  // Split into racks (grouped by letter → row) and special areas (by section)
+  var rackGroups = {};   // letter → { rowNum → [classified cells] }
+  var special    = { WAREHOUSES:[], BAYS:[], CARTS:[], OFFICE:[], OTHER:[] };
+  locs.forEach(function(n){
+    var c = _classifyLocation(n);
+    if (c.type === 'rack'){
+      (rackGroups[c.letter] = rackGroups[c.letter] || {});
+      (rackGroups[c.letter][c.row] = rackGroups[c.letter][c.row] || []).push(c);
+    } else {
+      (special[c.section] || special.OTHER).push(c);
+    }
+  });
+
+  var html = '';
+
+  // Rack letters in the requested order
+  Object.keys(rackGroups).sort(_letterSort).forEach(function(L){
+    html += '<div class="map-letter-hdr">'+L+'</div>';
+    Object.keys(rackGroups[L]).map(Number).sort(function(a,b){ return a-b; }).forEach(function(rn){
+      var rowCells = rackGroups[L][rn].sort(function(a,b){ return a.col < b.col ? -1 : 1; });
+      html += '<div class="map-rack-row">' + rowCells.map(function(c){ return cell(c.name); }).join('') + '</div>';
+    });
+  });
+
+  // Special areas, in fixed order with friendly titles
+  [['WAREHOUSES','Warehouses'], ['BAYS','Bays'], ['CARTS','Carts'], ['OFFICE','Office'], ['OTHER','Other Areas']]
+    .forEach(function(sec){
+      var arr = special[sec[0]];
+      if (!arr || !arr.length) return;
+      arr.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
+      html += '<div class="map-section-hdr">'+sec[1]+'</div>';
+      html += '<div class="map-special-grid">' + arr.map(function(c){ return cell(c.name); }).join('') + '</div>';
+    });
+
+  container.innerHTML = '<div class="wh-map">' + html + '</div>';
 }
 
 // ── Rack Detail Drawer ────────────────────────────────────────────────────────
@@ -4459,6 +4555,7 @@ function renderIncomingWeekGrid() {
             catBadge(item.category) + ' ' +
             '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' +
             '<span>' + item.name + '</span>' +
+            (item.docLink ? ' <a href="'+_incFirstDocUrl(item.docLink)+'" target="_blank" rel="noopener" title="Documento adjunto" onclick="event.stopPropagation()">📎</a>' : '') +
             (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + item.notes + '</div>' : '') +
             ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
           '</div>';
@@ -4483,7 +4580,7 @@ function renderIncomingTable() {
   var isAdmin = userRole === 'ADMIN';
   var html = '<table><thead><tr>' +
     '<th>Est. Date</th><th>Status</th><th>Category</th><th>Name</th>' +
-    '<th>Qty</th><th>Unit</th><th>Notes / Comments</th>' +
+    '<th>Qty</th><th>Unit</th><th>Doc</th><th>Notes / Comments</th>' +
     (isAdmin ? '<th></th>' : '') +
     '</tr></thead><tbody>';
   html += filtered.map(function(item){
@@ -4498,6 +4595,12 @@ function renderIncomingTable() {
       '<td><strong>' + item.name + '</strong></td>' +
       '<td style="font-weight:700">' + item.qty + '</td>' +
       '<td style="color:var(--muted);font-size:.78rem">' + item.unit + '</td>' +
+      '<td>' + (function(){
+        var du = _incFirstDocUrl(item.docLink), th = _incThumbUrl(item.docLink);
+        if (!du) return '<span style="color:var(--muted)">—</span>';
+        return '<a href="'+du+'" target="_blank" rel="noopener" title="Abrir documento">' +
+          (th ? '<img src="'+th+'" style="height:42px;border-radius:4px;border:1px solid var(--border);vertical-align:middle">' : '📎') + '</a>';
+      })() + '</td>' +
       '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
       (isAdmin ? '<td><button class="btn-icon" data-action="edit-incoming" data-id="' + _he(item.id) + '">✏️</button></td>' : '') +
     '</tr>';
@@ -4537,24 +4640,40 @@ function openIncomingModal(id) {
     document.getElementById('incPM').value       = '';
     document.getElementById('incNotes').value    = '';
   }
+  // Reset the file picker and show the current attachment (if editing)
+  var fi = document.getElementById('incFile'); if (fi) fi.value = '';
+  var prev = document.getElementById('incDocPreview');
+  if (prev){
+    var dl = (isEdit && item) ? item.docLink : '';
+    if (dl){
+      var u = _incFirstDocUrl(dl), th = _incThumbUrl(dl);
+      prev.innerHTML = '<a href="'+u+'" target="_blank" rel="noopener" style="text-decoration:none">' +
+        (th ? '<img src="'+th+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">'
+            : '<span style="font-size:.82rem">📄 Ver documento adjunto</span>') +
+        '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Documento actual (subir otro lo reemplaza)</div></a>';
+    } else { prev.innerHTML = ''; }
+  }
   document.getElementById('incomingOverlay').classList.add('show');
 }
 
 function saveIncomingItem() {
-  var id       = document.getElementById('incId').value;
-  var estDate  = document.getElementById('incDate').value;
-  var category = document.getElementById('incCategory').value;
-  var name     = (document.getElementById('incName').value || '').trim();
-  if (!estDate){ alert('Please select an estimated date'); return; }
-  if (!name)   { alert('Please enter a material name');   return; }
+  var id      = document.getElementById('incId').value;
+  var estDate = document.getElementById('incDate').value;
+  var name    = (document.getElementById('incName').value || '').trim();
+  if (!estDate){ alert('Selecciona la fecha estimada de llegada.'); return; }
+
+  var fileInput = document.getElementById('incFile');
+  var hasFile   = fileInput && fileInput.files && fileInput.files.length;
+  // Detail fields are optional now: require either a description OR an attached doc.
+  if (!name && !hasFile){ alert('Escribe una descripción de lo que llega, o adjunta un PDF/foto.'); return; }
 
   var payload = {
     id:       id || undefined,
     estDate:  estDate,
     status:   document.getElementById('incStatus').value,
-    category: category,
-    name:     name,
-    qty:      Number(document.getElementById('incQty').value) || 1,
+    category: document.getElementById('incCategory').value,
+    name:     name || '📎 See attached',
+    qty:      Number(document.getElementById('incQty').value) || 0,
     unit:     document.getElementById('incUnit').value,
     supplier: document.getElementById('incSupplier').value,
     po:       document.getElementById('incPO').value,
@@ -4562,21 +4681,54 @@ function saveIncomingItem() {
     notes:    document.getElementById('incNotes').value
   };
 
-  var action = id ? 'updateIncoming' : 'addIncoming';
   var btn = document.getElementById('incomingOverlay').querySelector('.btn-primary');
-  btn.textContent = 'Saving… ⏳'; btn.disabled = true;
+  function _send(){
+    var action = id ? 'updateIncoming' : 'addIncoming';
+    btn.textContent = 'Saving… ⏳'; btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(){
+        btn.textContent = '💾 Save'; btn.disabled = false;
+        closeModal('incomingOverlay');
+        loadDataFromGoogle(true); // skipCache
+      })
+      .withFailureHandler(function(err){
+        btn.textContent = '💾 Save'; btn.disabled = false;
+        showToast('Error: ' + err.message, 'err', 5000);
+      })
+      .processMovement(action, _h(payload));
+  }
 
-  google.script.run
-    .withSuccessHandler(function(res){
-      btn.textContent = '💾 Save'; btn.disabled = false;
-      closeModal('incomingOverlay');
-      loadDataFromGoogle(true); // skipCache
-    })
-    .withFailureHandler(function(err){
-      btn.textContent = '💾 Save'; btn.disabled = false;
-      showToast('Error: ' + err.message, 'err', 5000);
-    })
-    .processMovement(action, _h(payload));
+  if (hasFile){
+    btn.textContent = 'Reading file… ⏳'; btn.disabled = true;
+    _readFileAsBase64(fileInput.files[0], function(b64, mime){
+      if (b64){ payload.docFile = { fileData: b64, fileMimeType: mime, fileName: fileInput.files[0].name }; }
+      _send();
+    });
+  } else {
+    _send();
+  }
+}
+
+// ── Incoming attachment helpers ───────────────────────────────────────────────
+function _incFirstDocUrl(docLink){ return docLink ? String(docLink).split('\n')[0].trim() : ''; }
+function _incThumbUrl(docLink){
+  var u = _incFirstDocUrl(docLink); if (!u) return '';
+  var id = extractDriveId(u);
+  return id ? 'https://drive.google.com/thumbnail?id=' + id + '&sz=w200' : '';
+}
+function _onIncFileChange(){
+  var inp  = document.getElementById('incFile');
+  var prev = document.getElementById('incDocPreview');
+  if (!inp || !prev) return;
+  if (!inp.files || !inp.files.length){ prev.innerHTML = ''; return; }
+  var f = inp.files[0];
+  if (/^image\//.test(f.type)){
+    var url = URL.createObjectURL(f);
+    prev.innerHTML = '<img src="'+url+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">'+f.name+'</div>';
+  } else {
+    prev.innerHTML = '<div style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.8rem">📄 '+f.name+'</div>';
+  }
 }
 
 function deleteIncomingItem() {
