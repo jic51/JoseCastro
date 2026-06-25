@@ -101,8 +101,16 @@
     .wh-map{display:flex;flex-direction:column;gap:.35rem;width:100%}
     .map-letter-hdr{font-size:1.15rem;font-weight:800;color:var(--navy);padding:.5rem .25rem .15rem;border-bottom:2px solid var(--accent);margin-top:.9rem;letter-spacing:.02em}
     .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem .25rem .1rem;margin-top:.6rem;border-bottom:1px dashed var(--border)}
-    .map-rack-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.15rem}
-    .map-rack-row > .rack-card{flex:1 1 110px;min-width:100px;max-width:200px}
+    /* Each row is a grid of N equal columns → A1A A1B A1C always stay on ONE line
+       (they shrink on narrow screens instead of stacking). */
+    .map-rack-row{display:grid;gap:.4rem;margin-bottom:.15rem}
+    .map-rack-row > .rack-card{min-width:0}
+    .map-rack-row .rack-name{font-size:.78rem;padding:.4rem .5rem .15rem}
+    .map-rack-row .rack-fill-bar{margin:0 .5rem .3rem}
+    .map-rack-row .rack-cats{padding:0 .5rem .35rem;min-height:0}
+    .map-rack-row .rack-count-row{padding:.25rem .5rem .45rem;flex-wrap:wrap;gap:1px 4px}
+    .map-rack-row .rc-items{font-size:.6rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .map-rack-row .rc-total{font-size:.7rem}
     .map-special-grid{display:flex;flex-wrap:wrap;gap:.5rem}
     .map-special-grid > .rack-card{flex:0 1 190px;min-width:140px}
     .rack-card.rack-dim{opacity:.22}
@@ -1474,7 +1482,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.6';
+var APP_VERSION = '4.7';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4340,7 +4348,8 @@ function renderWarehouseMap(){
     html += '<div class="map-letter-hdr">'+L+'</div>';
     Object.keys(rackGroups[L]).map(Number).sort(function(a,b){ return a-b; }).forEach(function(rn){
       var rowCells = rackGroups[L][rn].sort(function(a,b){ return a.col < b.col ? -1 : 1; });
-      html += '<div class="map-rack-row">' + rowCells.map(function(c){ return cell(c.name); }).join('') + '</div>';
+      html += '<div class="map-rack-row" style="grid-template-columns:repeat(' + rowCells.length + ',minmax(0,1fr))">' +
+        rowCells.map(function(c){ return cell(c.name); }).join('') + '</div>';
     });
   });
 
