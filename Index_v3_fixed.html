@@ -369,18 +369,35 @@
     .expandable-row:hover{background:#f1f5f9 !important}
     .details-row{display:none;background:#fafafa;border-left:4px solid var(--accent)}
     .details-container{padding:15px;font-size:.75rem;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    /* ── STOCK DOC PANEL ── */
-    .stock-doc-row{display:none;background:#f8faff;border-left:4px solid var(--accent)}
-    .stock-doc-row.open{display:table-row}
+    /* ── STOCK DETAIL PANEL (Photos | Documents) ── */
+    .stock-detail-row{display:none;background:#f8faff;border-left:4px solid var(--accent)}
+    .stock-detail-row.open{display:table-row}
     .doc-panel{padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
-    .doc-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;text-decoration:none;color:inherit;transition:.15s}
+    .doc-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;text-decoration:none;color:inherit;transition:.15s;cursor:pointer}
     .doc-card:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
     .doc-card img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6}
     .doc-card .doc-label{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
     .doc-card .doc-date{font-size:.58rem;color:var(--muted);text-align:center}
-    .stock-doc-btn{background:none;border:1px solid #c7d8f0;border-radius:5px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:3px;white-space:nowrap;transition:.15s}
-    .stock-doc-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .stock-doc-summary{font-size:.72rem;color:var(--muted);white-space:nowrap}
     .doc-more-hint{font-size:.67rem;color:var(--accent);opacity:.8;margin-left:.3rem;white-space:nowrap}
+    /* ── STOCK ROW DETAIL (Photos | Documents split panel) ── */
+    .stock-detail-row td{padding:0}
+    .stock-detail-split{display:flex;flex-wrap:wrap}
+    .sd-col{flex:1 1 260px;min-width:240px;padding:.75rem 1rem}
+    .sd-col + .sd-col{border-left:1px solid var(--border)}
+    .sd-col-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
+    [data-theme="dark"] .sd-col + .sd-col{border-color:var(--border)}
+    /* ── MEDIA PREVIEW LIGHTBOX ── */
+    .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:1200;align-items:center;justify-content:center;padding:2rem 1rem}
+    .media-preview-overlay.show{display:flex}
+    .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;background:var(--navy);color:#fff;flex-shrink:0}
+    .media-preview-hdr span{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:.75rem}
+    .media-preview-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.9rem;flex-shrink:0}
+    .media-preview-hdr button:hover{background:rgba(255,255,255,.28)}
+    .media-preview-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#111}
+    .media-preview-body img{max-width:100%;max-height:80vh;object-fit:contain}
+    .media-preview-body iframe{width:100%;height:80vh;border:none}
     /* ── RACK PHOTO GALLERY ── */
     .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem}
     .rack-photo-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
@@ -548,7 +565,7 @@
     [data-theme="dark"] .col-toggle-bar{background:#0F172A}
     [data-theme="dark"] .expandable-row:hover{background:#243044 !important}
     [data-theme="dark"] .details-row{background:#1a2640}
-    [data-theme="dark"] .stock-doc-row{background:#1a2640}
+    [data-theme="dark"] .stock-detail-row{background:#1a2640}
     [data-theme="dark"] .doc-card{background:#0F172A;border-color:var(--border)}
     [data-theme="dark"] .alert-banner{background:rgba(245,158,11,.15);border-color:var(--yellow)}
     [data-theme="dark"] .notify-section{background:#243044;border-color:var(--border)}
@@ -783,7 +800,7 @@
             <th title="Units dispatched to site">At Site</th>
             <th title="Warehouse minus reservations">Available</th>
             <th title="Units recorded as waste/damaged">Wasted</th>
-            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th title="Most recent ENTRY date for this material">Date Entered</th><th>Last Note</th><th>Docs</th>
+            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th title="Date Received from the most recent ENTRY of this material">Date Received</th><th>Last Note</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -1494,15 +1511,16 @@
   </div>
 </div>
 
-<!-- ══ MATERIAL LOCATION PHOTOS ═════════════════════════════════════════════ -->
-<div class="overlay" id="matPhotosOverlay">
-  <div class="modal" style="max-width:640px">
-    <div class="mhdr">
-      <h3 id="matPhotosTitle">📷 Rack Photos</h3>
-      <button class="modal-x" onclick="closeModal('matPhotosOverlay')" title="Close">✕</button>
+<!-- ══ MEDIA PREVIEW LIGHTBOX (large view of a document or rack photo) ══════════ -->
+<!-- Unlike the form modals, this one DOES close on outside click / ESC — it's a
+     viewer, not a form, so there's no data to lose. -->
+<div class="media-preview-overlay" id="mediaPreviewOverlay" onclick="if(event.target===this)closeMediaPreview()">
+  <div class="media-preview-box">
+    <div class="media-preview-hdr">
+      <span id="mediaPreviewLabel"></span>
+      <button onclick="closeMediaPreview()" title="Close">✕</button>
     </div>
-    <p style="font-size:.8rem;color:var(--muted);margin:.1rem 0 1rem">Reference photos of every rack currently holding this material. A photo is tied to the rack itself — uploading one here updates it everywhere.</p>
-    <div id="matPhotosBody" class="rack-photo-grid"></div>
+    <div class="media-preview-body" id="mediaPreviewBody"></div>
   </div>
 </div>
 <input type="file" id="rackPhotoFileInput" accept="image/*" style="display:none">
@@ -1533,7 +1551,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '5.1';
+var APP_VERSION = '5.2';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1802,13 +1820,9 @@ function buildDocMap() {
   return map;
 }
 
-function toggleStockDocs(rowId, btn) {
+function toggleStockDetail(rowId) {
   var el = document.getElementById(rowId);
-  if (!el) return;
-  var opening = !el.classList.contains('open');
-  el.classList.toggle('open', opening);
-  var n = btn.dataset.count || '?';
-  btn.textContent = opening ? ('✕ ' + n + ' doc' + (n !== '1' ? 's' : '')) : ('📎 ' + n);
+  if (el) el.classList.toggle('open');
 }
 
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
@@ -1847,8 +1861,10 @@ function renderStock(){
       '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
     return;
   }
+  var canUpload = userRole !== 'VIEWER';
+
   document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
-    var zero   = s.warehouseQty <= 0 && s.siteQty <= 0;
+    var zero    = s.warehouseQty <= 0 && s.siteQty <= 0;
     var docKey  = nt(s.category) + '|||' + nt(s.name);
     var docs    = docMap[docKey] || [];
     var lastNote = noteMap[docKey] || '';
@@ -1856,38 +1872,66 @@ function renderStock(){
       ? '<span style="font-size:.75rem;color:var(--muted);word-break:break-word;display:block;max-width:180px" title="'+lastNote.replace(/"/g,'&quot;')+'">'
           + (lastNote.length > 60 ? lastNote.substring(0,58)+'…' : lastNote) + '</span>'
       : '<span style="color:var(--muted);font-size:.72rem">—</span>';
-    var docCount = docs.length;
-    var docRowId = 'sdr-' + idx;
-
-    // Docs cell: toggle button or dash
-    var docCell = docCount > 0
-      ? '<button class="stock-doc-btn" data-count="' + docCount + '" onclick="toggleStockDocs(\'' + docRowId + '\', this)">📎 ' + docCount + '</button>'
-      : '<span style="color:var(--muted);font-size:.75rem">—</span>';
-
-    // Doc sub-row: list of document cards
-    var docCards = docs.map(function(d) {
-      var fileId  = extractDriveId(d.url);
-      var thumb   = fileId
-        ? '<img src="https://drive.google.com/thumbnail?id=' + fileId + '&sz=w120" loading="lazy" alt="' + d.name + '">'
-        : '<div style="width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">📄</div>';
-      var shortName = d.name.length > 14 ? d.name.substring(0, 13) + '…' : d.name;
-      return '<a class="doc-card" href="' + d.url + '" target="_blank" title="' + d.name + (d.dateRec ? ' · ' + d.dateRec : '') + '">' +
-        thumb +
-        '<span class="doc-label">' + shortName + '</span>' +
-        (d.dateRec ? '<span class="doc-date">' + d.dateRec + '</span>' : '') +
-        '</a>';
-    }).join('');
-
-    var docPanel = docCount > 0
-      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="11"><div class="doc-panel">' + docCards + '</div></td></tr>'
-      : '';
 
     var entryDate = entryDateMap[docKey] || '';
     var dateCell = entryDate
       ? '<span style="font-size:.78rem;color:var(--muted);white-space:nowrap">'+entryDate+'</span>'
       : '<span style="color:var(--muted);font-size:.72rem">—</span>';
 
-    return '<tr class="'+(zero?'row-zero':'')+'" data-action="open-mat-photos" data-cat="'+_he(s.category)+'" data-name="'+_he(s.name)+'" style="cursor:pointer" title="Click to view rack photos">'+
+    // Racks currently holding this material (for the Photos column of the split panel)
+    var racks = Object.keys(s.warehouseLocs || {}).filter(function(r){ return s.warehouseLocs[r] > 0; })
+                                                    .sort(function(a,b){ return s.warehouseLocs[b]-s.warehouseLocs[a]; });
+    var photoCount = racks.filter(function(r){ return !!rackPhotos[r.toUpperCase()]; }).length;
+
+    // Summary badge — purely informational now; the whole row is the click target.
+    var summaryCell = (photoCount || docs.length)
+      ? '<span class="stock-doc-summary">' +
+          (photoCount ? '📷 '+photoCount+' ' : '') + (docs.length ? '📎 '+docs.length : '') +
+        '</span>'
+      : '<span style="color:var(--muted);font-size:.75rem">—</span>';
+
+    var detailRowId = 'sdr-' + idx;
+
+    // Left column: one card per rack holding this material (photo or "+ Add Photo")
+    var photosHtml = racks.length
+      ? racks.map(function(rack){
+          var photo = rackPhotos[rack.toUpperCase()];
+          var img = photo
+            ? '<img class="rpc-img" src="'+_escAttr(photo.url)+'" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(rack)+'" title="Click to view full size">'
+            : '<div class="rpc-empty"><span style="font-size:1.3rem">📷</span><span>No photo yet</span></div>';
+          var action = canUpload
+            ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
+            : '';
+          return '<div class="rack-photo-card">' +
+            '<div class="rpc-hdr"><span>📦 '+rack+'</span><span class="rpc-qty">'+s.warehouseLocs[rack]+'</span></div>' +
+            img + (action ? '<div class="rpc-actions">'+action+'</div>' : '') +
+          '</div>';
+        }).join('')
+      : '<p style="color:var(--muted);font-size:.8rem;padding:.25rem 0">No warehouse stock right now.</p>';
+
+    // Right column: attached documents (invoices, delivery photos, etc.)
+    var docsHtml = docs.length
+      ? '<div class="doc-panel" style="padding:0">' + docs.map(function(d) {
+          var fileId  = extractDriveId(d.url);
+          var thumb   = fileId
+            ? '<img src="https://drive.google.com/thumbnail?id=' + fileId + '&sz=w120" loading="lazy" alt="' + d.name + '">'
+            : '<div style="width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">📄</div>';
+          var shortName = d.name.length > 14 ? d.name.substring(0, 13) + '…' : d.name;
+          return '<div class="doc-card" data-action="preview-media" data-url="'+_he(d.url)+'" data-label="'+_he(d.name)+'" title="' + d.name + (d.dateRec ? ' · ' + d.dateRec : '') + '">' +
+            thumb +
+            '<span class="doc-label">' + shortName + '</span>' +
+            (d.dateRec ? '<span class="doc-date">' + d.dateRec + '</span>' : '') +
+          '</div>';
+        }).join('') + '</div>'
+      : '<p style="color:var(--muted);font-size:.8rem;padding:.25rem 0">No documents attached.</p>';
+
+    var detailPanel = '<tr id="' + detailRowId + '" class="stock-detail-row"><td colspan="11">' +
+      '<div class="stock-detail-split">' +
+        '<div class="sd-col"><div class="sd-col-hdr">📷 Location Photos</div>' + photosHtml + '</div>' +
+        '<div class="sd-col"><div class="sd-col-hdr">📎 Documents</div>' + docsHtml + '</div>' +
+      '</div></td></tr>';
+
+    return '<tr class="'+(zero?'row-zero':'')+'" data-action="toggle-stock-detail" data-row-id="'+detailRowId+'" style="cursor:pointer" title="Click to view location photos and documents">'+
       '<td>'+catBadge(s.category)+'</td>'+
       '<td><strong>'+s.name+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+s.project+'</span>':'')+'</td>'+
       '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
@@ -1900,8 +1944,8 @@ function renderStock(){
       '<td>'+stockBadge(s)+'</td>'+
       '<td>'+dateCell+'</td>'+
       '<td>'+noteCell+'</td>'+
-      '<td style="text-align:center">'+docCell+'</td></tr>'+
-      docPanel;
+      '<td style="text-align:center">'+summaryCell+'</td></tr>'+
+      detailPanel;
   }).join('');
 }
 
@@ -3905,10 +3949,12 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
       _applyStockSuggest(el.getAttribute('data-name'));
     } else if (a === 'exit-suggest') {
       _applyExitMatSuggest(parseInt(el.getAttribute('data-n'),10), el.getAttribute('data-name'), el.getAttribute('data-cat'));
-    } else if (a === 'open-mat-photos') {
-      openMatLocPhotos(el.getAttribute('data-cat'), el.getAttribute('data-name'));
     } else if (a === 'rack-photo-upload') {
       _triggerRackPhotoUpload(el.getAttribute('data-rack'));
+    } else if (a === 'toggle-stock-detail') {
+      toggleStockDetail(el.getAttribute('data-row-id'));
+    } else if (a === 'preview-media') {
+      openMediaPreview(el.getAttribute('data-url'), el.getAttribute('data-label'));
     }
   }
   document.addEventListener('click', function(e){
@@ -3916,9 +3962,6 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
     if (!el) return;
     var a = el.getAttribute('data-action');
     if (a === 'stock-suggest' || a === 'exit-suggest') return; // handled on mousedown
-    // The docs-toggle button has its own onclick and lives inside the row — don't
-    // also open the photo gallery when the user is just expanding/collapsing docs.
-    if (a === 'open-mat-photos' && e.target.closest('.stock-doc-btn')) return;
     dispatch(el);
   });
   // Suggestion items must fire on mousedown — before the input's blur hides the box.
@@ -4554,10 +4597,9 @@ function closeRackDrawer() {
 }
 
 // ── Rack Photos ────────────────────────────────────────────────────────────────
-// One reference photo per physical location, uploaded from either the Rack Drawer
-// (Warehouse Map) or the "📷 Rack Photos" gallery opened by clicking a Dashboard row.
+// One reference photo per physical location, uploaded/viewed from either the Rack
+// Drawer (Warehouse Map) or the Photos|Documents split panel on a Dashboard row.
 var _rackPhotoUploadTarget = '';
-var _matPhotosCat = '', _matPhotosName = '';
 
 function _renderRackDrawerPhoto(){
   var box = document.getElementById('rackDrawerPhotoBox');
@@ -4566,7 +4608,7 @@ function _renderRackDrawerPhoto(){
   var canUpload = userRole !== 'VIEWER';
 
   var img = photo
-    ? '<a href="'+_escAttr(photo.url)+'" target="_blank" rel="noopener" title="Click to view full size"><img class="rpc-img" style="border-radius:8px" src="'+_escAttr(photo.url)+'"></a>'
+    ? '<img class="rpc-img" style="border-radius:8px" src="'+_escAttr(photo.url)+'" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size">'
     : '<div class="rpc-empty" style="border-radius:8px">' +
         '<span style="font-size:1.3rem">📷</span><span>No photo yet</span>' +
       '</div>';
@@ -4577,42 +4619,24 @@ function _renderRackDrawerPhoto(){
   box.innerHTML = img + (action ? '<div style="text-align:center">'+action+'</div>' : '');
 }
 
-function openMatLocPhotos(cat, name){
-  _matPhotosCat = cat; _matPhotosName = name;
-  document.getElementById('matPhotosTitle').textContent = '📷 ' + name + ' — Rack Photos';
-  _renderMatPhotosGrid();
-  document.getElementById('matPhotosOverlay').classList.add('show');
+// Large-preview lightbox for a document OR a rack photo. Drive files (either type,
+// since both are uploaded the same way) render via Drive's own /preview embed,
+// which handles PDFs, images, pagination, etc. in one code path.
+function openMediaPreview(url, label){
+  document.getElementById('mediaPreviewLabel').textContent = label || '';
+  var fileId = extractDriveId(url);
+  var body = document.getElementById('mediaPreviewBody');
+  body.innerHTML = fileId
+    ? '<iframe src="https://drive.google.com/file/d/'+fileId+'/preview" allow="autoplay"></iframe>'
+    : '<img src="'+_escAttr(url)+'" alt="'+_he(label||'')+'">';
+  document.getElementById('mediaPreviewOverlay').classList.add('show');
 }
 
-function _renderMatPhotosGrid(){
-  var key   = nt(_matPhotosCat) + '|||' + nt(_matPhotosName);
-  var s     = stockData[key];
-  var locs  = (s && s.warehouseLocs) || {};
-  var racks = Object.keys(locs).filter(function(r){ return locs[r] > 0; })
-                                .sort(function(a,b){ return locs[b] - locs[a]; });
-  var body  = document.getElementById('matPhotosBody');
-  var canUpload = userRole !== 'VIEWER';
-
-  if (!racks.length){
-    body.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem;grid-column:1/-1">This material has no warehouse stock right now.</p>';
-    return;
-  }
-
-  body.innerHTML = racks.map(function(rack){
-    var photo = rackPhotos[rack.toUpperCase()];
-    var img = photo
-      ? '<a href="'+_escAttr(photo.url)+'" target="_blank" rel="noopener" title="Click to view full size"><img class="rpc-img" src="'+_escAttr(photo.url)+'"></a>'
-      : '<div class="rpc-empty"><span style="font-size:1.4rem">📷</span><span>No photo yet</span></div>';
-    var action = canUpload
-      ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
-      : '';
-
-    return '<div class="rack-photo-card">' +
-      '<div class="rpc-hdr"><span>📦 '+rack+'</span><span class="rpc-qty">'+locs[rack]+'</span></div>' +
-      img +
-      (action ? '<div class="rpc-actions">'+action+'</div>' : '') +
-    '</div>';
-  }).join('');
+function closeMediaPreview(){
+  var ov = document.getElementById('mediaPreviewOverlay');
+  if (!ov.classList.contains('show')) return;
+  ov.classList.remove('show');
+  document.getElementById('mediaPreviewBody').innerHTML = ''; // stop any iframe playback/loading
 }
 
 function _triggerRackPhotoUpload(rack){
@@ -4634,7 +4658,11 @@ function _handleRackPhotoFileChange(){
       .withSuccessHandler(function(res){
         if (!res || !res.photo) { showToast('Upload failed.', 'err', 5000); return; }
         rackPhotos[rack.toUpperCase()] = res.photo;
-        _renderMatPhotosGrid();
+        // Re-render the stock table (rebuilds the photo grid inline) while keeping
+        // whichever detail row(s) the user currently has expanded open.
+        var openIds = Array.prototype.map.call(document.querySelectorAll('.stock-detail-row.open'), function(el){ return el.id; });
+        renderStock();
+        openIds.forEach(function(id){ var el = document.getElementById(id); if (el) el.classList.add('open'); });
         if (_openRackName === rack) _renderRackDrawerPhoto();
         renderWarehouseMap();
         showToast('📷 Photo saved for ' + rack, 'ok');
@@ -5784,8 +5812,10 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('attachSubmit','click', submitAttachment);
   _safeOn('btnCancelAttach','click', function(){ closeModal('attachOverlay'); });
   _safeOn('attachOverlay','click', function(e){ closeIfOutside(e,'attachOverlay'); });
-  _safeOn('matPhotosOverlay','click', function(e){ closeIfOutside(e,'matPhotosOverlay'); });
   _safeOn('rackPhotoFileInput','change', _handleRackPhotoFileChange);
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeMediaPreview();
+  });
   _safeOn('settingsOverlay','click', function(e){ closeIfOutside(e,'settingsOverlay'); });
 
   } catch(domErr) {
@@ -5899,12 +5929,13 @@ function renderActiveUsers(users){
   list.innerHTML = users.map(function(u){
     var ageSec = (Date.now() - u.time) / 1000;
     var ageStr = ageSec < 60 ? 'just now' : Math.round(ageSec / 60) + ' min ago';
-    var isYou  = (u.email === userEmail);
-    var away   = ageSec > 180; // > 3 min = away
+    var isYou    = (u.email === userEmail);
+    var away     = ageSec > 180; // > 3 min = away
+    var display  = (u.name && u.name.trim()) ? u.name : u.email; // fall back to email if no name on file
     return '<div class="presence-user">' +
       '<span class="presence-dot ' + (away ? 'away' : 'active') + '"></span>' +
-      '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '">' +
-        u.email + (isYou ? ' (you)' : '') +
+      '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '" title="' + u.email + '">' +
+        display + (isYou ? ' (you)' : '') +
       '</span>' +
       '<span class="presence-role">' + (u.role || '—') + '</span>' +
       '<span class="presence-time">' + ageStr + '</span>' +

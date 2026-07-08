@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.1';
+var APP_VERSION = '5.2';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2083,7 +2083,7 @@ function heartbeat(sessionToken) {
   var cutoff = now - 10 * 60 * 1000;  // prune sessions older than 10 min
 
   // Update this user
-  sessions[auth.email] = { email: auth.email, role: auth.role, time: now };
+  sessions[auth.email] = { email: auth.email, name: auth.name || '', role: auth.role, time: now };
 
   // Prune stale entries AND any malformed/unauthenticated ghosts from old builds
   Object.keys(sessions).forEach(function(k) {
