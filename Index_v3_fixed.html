@@ -200,6 +200,16 @@
     .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    /* ── MULTI-PAIR TRANSFER ── */
+    .transfer-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .transfer-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .transfer-row input[type="text"]:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+    .transfer-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
+    .transfer-row input[type="number"]:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+    .transfer-row .exit-avail{flex:1.6;font-size:.78rem;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;min-width:80px}
+    .transfer-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .transfer-row .btn-remove-loc:hover{background:var(--red);color:#fff}
+    .transfer-loc-chip.used{opacity:.4;cursor:default;pointer-events:none}
     /* ── MULTI-MATERIAL ENTRY ── */
     .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
     .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
@@ -371,6 +381,16 @@
     .stock-doc-btn{background:none;border:1px solid #c7d8f0;border-radius:5px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:var(--accent);display:inline-flex;align-items:center;gap:3px;white-space:nowrap;transition:.15s}
     .stock-doc-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
     .doc-more-hint{font-size:.67rem;color:var(--accent);opacity:.8;margin-left:.3rem;white-space:nowrap}
+    /* ── RACK PHOTO GALLERY ── */
+    .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem}
+    .rack-photo-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+    .rack-photo-card .rpc-hdr{display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;font-size:.78rem;font-weight:700;color:var(--navy)}
+    .rack-photo-card .rpc-qty{font-size:.7rem;font-weight:600;color:var(--accent2);background:#DBEAFE;border-radius:10px;padding:1px 8px}
+    .rack-photo-card .rpc-img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer;background:#F3F4F6}
+    .rack-photo-card .rpc-empty{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.75rem;background:#F3F4F6;flex-direction:column;gap:.3rem}
+    .rack-photo-card .rpc-actions{padding:.4rem .6rem;display:flex;justify-content:center}
+    .rack-photo-card .rpc-btn{font-size:.72rem;background:var(--border);color:var(--text);border:none;border-radius:6px;padding:.3rem .6rem;cursor:pointer;transition:.15s}
+    .rack-photo-card .rpc-btn:hover{background:var(--accent);color:#fff}
     /* ── SETTINGS MODAL ── */
     .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
     .settings-tab.active{background:var(--accent);color:#fff}
@@ -763,7 +783,7 @@
             <th title="Units dispatched to site">At Site</th>
             <th title="Warehouse minus reservations">Available</th>
             <th title="Units recorded as waste/damaged">Wasted</th>
-            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th>Last Note</th><th>Docs</th>
+            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th title="Most recent ENTRY date for this material">Date Entered</th><th>Last Note</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -1172,6 +1192,7 @@
     <button class="btn btn-danger btn-sm" id="rackDrawerExitBtn" onclick="openExitFromRack()" style="display:none">↑ Exit from here</button>
     <button class="btn btn-ghost btn-sm" id="rackDrawerTransferBtn" onclick="openTransferFromRack()">⇄ Transfer from here</button>
   </div>
+  <div id="rackDrawerPhotoBox" style="padding:.6rem .75rem 0"></div>
   <div class="rack-drawer-body" id="rackDrawerBody">
     <p style="color:var(--muted);padding:1rem;font-size:.85rem">Select a rack to see its contents.</p>
   </div>
@@ -1305,13 +1326,28 @@
       <button type="button" class="btn-add-loc" style="border-color:var(--red);color:var(--red)" onclick="addExitRow()">+ Add Source Location</button>
     </div>
 
-    <!-- ── Location Fields (non-ENTRY, non-EXIT) ── -->
+    <!-- ── Multi-Pair TRANSFER (source → destination, multiple pairs, partial qty) ── -->
+    <div id="multiTransferSection" style="display:none">
+      <div id="transferChipsBox" style="display:none;margin-bottom:.6rem"></div>
+      <div class="multi-loc-header">
+        <label style="color:var(--accent2)">Transfer Pairs (Source → Destination)</label>
+      </div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center">
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Source Rack</span>
+        <span style="flex:1;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>
+        <span style="flex:1.6;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Available</span>
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Destination Rack</span>
+        <span style="width:32px"></span>
+      </div>
+      <div id="transferRowsContainer"></div>
+      <button type="button" class="btn-add-loc" onclick="addTransferRow()">+ Add Transfer Row</button>
+    </div>
+
+    <!-- ── Location Fields (RETURN / WASTE only) ── -->
     <div class="form-grid" style="margin-top:.75rem" id="singleLocGrid">
       <div class="field" id="mSrcField" style="display:none">
         <label id="mSrcLabel">Source Rack</label>
-        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A" readonly style="background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)">
-        <!-- Transfer location picker — shown when material has stock in multiple racks -->
-        <div id="transferLocPicker" style="display:none;margin-top:.4rem"></div>
+        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
         <datalist id="rackList"></datalist>
       </div>
       <div class="field" id="mDestField" style="display:none">
@@ -1458,6 +1494,19 @@
   </div>
 </div>
 
+<!-- ══ MATERIAL LOCATION PHOTOS ═════════════════════════════════════════════ -->
+<div class="overlay" id="matPhotosOverlay">
+  <div class="modal" style="max-width:640px">
+    <div class="mhdr">
+      <h3 id="matPhotosTitle">📷 Rack Photos</h3>
+      <button class="modal-x" onclick="closeModal('matPhotosOverlay')" title="Close">✕</button>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin:.1rem 0 1rem">Reference photos of every rack currently holding this material. A photo is tied to the rack itself — uploading one here updates it everywhere.</p>
+    <div id="matPhotosBody" class="rack-photo-grid"></div>
+  </div>
+</div>
+<input type="file" id="rackPhotoFileInput" accept="image/*" style="display:none">
+
 <!-- ══ SCRIPT ════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Global State ──────────────────────────────────────────────────────────────
@@ -1484,7 +1533,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '4.9';
+var APP_VERSION = '5.1';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1496,6 +1545,7 @@ var _sessionToken  = (function(){ try{ return localStorage.getItem(_SESSION_KEY)
 function _h(data){ return _sessionToken ? Object.assign({}, data||{}, {_sessionToken:_sessionToken}) : (data||{}); }
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
+var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
 var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -1782,16 +1832,19 @@ function renderStock(){
 
   // Build last-comment map: key → latest comment text from any movement for that material
   var noteMap = {};
+  // Build last-ENTRY-date map: key → most recent ENTRY date for that material
+  // (a material can span multiple racks received on different dates — this shows
+  // the latest one, same "last wins" pattern as noteMap above).
+  var entryDateMap = {};
   movements.forEach(function(m) {
-    if (!m.comments) return;
     var k = nt(m.category) + '|||' + nt(m.name);
-    // Movements are in chronological order; later entries overwrite earlier ones
-    noteMap[k] = m.comments;
+    if (m.comments) noteMap[k] = m.comments; // movements are chronological; later overwrites earlier
+    if (m.moveType === 'ENTRY' && m.dateRec) entryDateMap[k] = m.dateRec;
   });
 
   if (!items.length) {
     document.getElementById('stockBody').innerHTML =
-      '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
+      '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
     return;
   }
   document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
@@ -1826,10 +1879,15 @@ function renderStock(){
     }).join('');
 
     var docPanel = docCount > 0
-      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="10"><div class="doc-panel">' + docCards + '</div></td></tr>'
+      ? '<tr id="' + docRowId + '" class="stock-doc-row"><td colspan="11"><div class="doc-panel">' + docCards + '</div></td></tr>'
       : '';
 
-    return '<tr class="'+(zero?'row-zero':'')+'">'+
+    var entryDate = entryDateMap[docKey] || '';
+    var dateCell = entryDate
+      ? '<span style="font-size:.78rem;color:var(--muted);white-space:nowrap">'+entryDate+'</span>'
+      : '<span style="color:var(--muted);font-size:.72rem">—</span>';
+
+    return '<tr class="'+(zero?'row-zero':'')+'" data-action="open-mat-photos" data-cat="'+_he(s.category)+'" data-name="'+_he(s.name)+'" style="cursor:pointer" title="Click to view rack photos">'+
       '<td>'+catBadge(s.category)+'</td>'+
       '<td><strong>'+s.name+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+s.project+'</span>':'')+'</td>'+
       '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
@@ -1840,6 +1898,7 @@ function renderStock(){
       '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
       '<td style="color:var(--muted);font-size:.78rem;max-width:180px">'+locSummary(s.warehouseLocs)+'</td>'+
       '<td>'+stockBadge(s)+'</td>'+
+      '<td>'+dateCell+'</td>'+
       '<td>'+noteCell+'</td>'+
       '<td style="text-align:center">'+docCell+'</td></tr>'+
       docPanel;
@@ -2251,82 +2310,112 @@ function updateExitTotal(){
 
 // Auto-fill EXIT rows with every rack that has stock (desc qty).
 // Called when material name changes while in EXIT mode.
-// ── Transfer Location Picker ──────────────────────────────────────────────────
+// ── Multi-Pair TRANSFER ────────────────────────────────────────────────────────
+// Chips list every rack holding stock for the typed material. Clicking one adds
+// an editable row (source, qty, destination) rather than locking a single field —
+// this is what allows both partial quantities and multiple source→destination
+// pairs in one submission.
 function renderTransferLocPicker(){
-  var picker = document.getElementById('transferLocPicker');
-  var mSrc   = document.getElementById('mSrc');
-  if (!picker) return;
-
-  if (currentMoveType !== 'TRANSFER') { picker.style.display = 'none'; return; }
+  var box = document.getElementById('transferChipsBox');
+  if (!box) return;
+  if (currentMoveType !== 'TRANSFER') { box.style.display = 'none'; return; }
 
   var cat  = nt((document.getElementById('mType') || {}).value || '');
   var name = ((document.getElementById('mName') || {}).value || '').trim().toUpperCase();
-  if (!name) { picker.style.display = 'none'; if (mSrc) { mSrc.value = ''; mSrc.readOnly = true; } return; }
+  if (!name) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
-  var key  = cat + '|||' + name;
-  var locs = stockData[key] && stockData[key].warehouseLocs;
+  var key   = cat + '|||' + name;
+  var locs  = stockData[key] && stockData[key].warehouseLocs;
   var racks = locs ? Object.keys(locs).filter(function(r){ return locs[r] > 0; })
-                                      .sort(function(a,b){ return locs[b] - locs[a]; }) : [];
+                                       .sort(function(a,b){ return locs[b] - locs[a]; }) : [];
 
-  if (!racks.length) {
-    picker.style.display = 'none';
-    if (mSrc) { mSrc.value = ''; mSrc.readOnly = false; mSrc.style.cssText = ''; }
-    return;
-  }
+  if (!racks.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
-  // Build chip UI
-  picker.innerHTML =
-    '<span class="transfer-loc-label">📦 Select source rack (click to choose):</span>' +
+  var usedRacks = {};
+  document.querySelectorAll('#transferRowsContainer .tr-rack').forEach(function(inp){
+    var v = (inp.value || '').trim().toUpperCase();
+    if (v) usedRacks[v] = true;
+  });
+
+  box.innerHTML =
+    '<span class="transfer-loc-label">📦 Click a rack to add it as a transfer row:</span>' +
     '<div class="transfer-loc-chips">' +
     racks.map(function(rack){
       var safeRack = _escAttr(rack);
       var qty = locs[rack];
-      return '<div class="transfer-loc-chip" data-rack="' + safeRack + '" data-qty="' + qty +
-             '" onmousedown="selectTransferLoc(this);return false;">' +
+      var isUsed = !!usedRacks[rack.toUpperCase()];
+      return '<div class="transfer-loc-chip' + (isUsed ? ' used' : '') + '" data-rack="' + safeRack + '" data-qty="' + qty +
+             '"' + (isUsed ? '' : ' onmousedown="addTransferRowFromChip(this);return false;"') + '>' +
              rack + '<span class="tlc-qty">' + qty + '</span></div>';
     }).join('') +
     '</div>';
-  picker.style.display = 'block';
-
-  // Reset source field to read-only placeholder
-  if (mSrc) {
-    mSrc.value = '';
-    mSrc.readOnly = true;
-    mSrc.placeholder = '← click a rack above';
-    mSrc.style.cssText = 'background:var(--border);color:var(--muted);border-color:var(--border)';
-  }
-  // Reset qty too
-  var mQty = document.getElementById('mQty');
-  if (mQty) { mQty.value = ''; mQty.readOnly = false; mQty.style.cssText = ''; }
+  box.style.display = 'block';
 }
 
-function selectTransferLoc(chip){
+function addTransferRowFromChip(chip){
   var rack = chip.getAttribute('data-rack');
-  var qty  = chip.getAttribute('data-qty');
+  var qty  = parseInt(chip.getAttribute('data-qty'), 10) || 0;
+  addTransferRow(rack, qty, '');
+  renderTransferLocPicker(); // refresh chips so this rack shows as "used"
+}
 
-  // Highlight selected chip
-  document.querySelectorAll('.transfer-loc-chip').forEach(function(c){ c.classList.remove('selected'); });
-  chip.classList.add('selected');
+function addTransferRow(rack, qty, dest){
+  var container = document.getElementById('transferRowsContainer');
+  var row = document.createElement('div');
+  row.className = 'transfer-row';
+  row.innerHTML =
+    '<input type="text"   class="tr-rack" list="rackList"     placeholder="Source rack">' +
+    '<input type="number" class="tr-qty"  min="1"              placeholder="Qty">' +
+    '<span  class="exit-avail neutral">—</span>' +
+    '<input type="text"   class="tr-dest" list="rackListDest" placeholder="Destination rack">' +
+    '<button type="button" class="btn-remove-loc" onclick="removeTransferRow(this)" title="Remove">×</button>';
+  if (rack) row.querySelector('.tr-rack').value = rack;
+  if (qty)  row.querySelector('.tr-qty').value  = qty;
+  if (dest) row.querySelector('.tr-dest').value = dest;
 
-  // Fill + lock source rack and qty
-  var mSrc = document.getElementById('mSrc');
-  var mQty = document.getElementById('mQty');
-  if (mSrc) {
-    mSrc.value = rack;
-    mSrc.readOnly = true;
-    mSrc.style.cssText = 'background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)';
-    mSrc.placeholder = rack;
-  }
-  if (mQty) {
-    mQty.value = qty;
-    mQty.readOnly = true;
-    mQty.style.cssText = 'background:var(--green-bg);font-weight:700;color:var(--green);border-color:var(--green)';
-  }
-  // Focus destination
-  setTimeout(function(){
-    var mDest = document.getElementById('mDest');
-    if (mDest) mDest.focus();
-  }, 80);
+  var rackInp = row.querySelector('.tr-rack');
+  var qtyInp  = row.querySelector('.tr-qty');
+  var destInp = row.querySelector('.tr-dest');
+  rackInp.addEventListener('input', function(){ validateTransferRows(); renderTransferLocPicker(); });
+  qtyInp.addEventListener('input',  validateTransferRows);
+
+  container.appendChild(row);
+  validateTransferRows();
+  (dest ? destInp : (rack ? destInp : rackInp)).focus();
+}
+
+function removeTransferRow(btn){
+  btn.closest('.transfer-row').remove();
+  validateTransferRows();
+  renderTransferLocPicker(); // a chip may become available again
+}
+
+function validateTransferRows(){
+  var cat  = nt(document.getElementById('mType').value);
+  var name = (document.getElementById('mName').value || '').trim().toUpperCase();
+  var key  = cat + '|||' + name;
+  var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
+
+  document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
+    var rack = (row.querySelector('.tr-rack').value || '').trim().toUpperCase();
+    var qty  = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
+    var chip = row.querySelector('.exit-avail');
+    if (!rack || qty <= 0){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
+    var avail = locs[rack] !== undefined ? locs[rack] : null;
+    if (avail === null){
+      chip.textContent = '? unknown rack'; chip.className = 'exit-avail neutral';
+    } else if (qty > avail){
+      chip.textContent = '⚠ only ' + avail + ' avail'; chip.className = 'exit-avail warn';
+    } else {
+      chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok';
+    }
+  });
+}
+
+function _initMultiTransferSection(){
+  document.getElementById('transferRowsContainer').innerHTML = '';
+  var box = document.getElementById('transferChipsBox');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
 }
 
 function autoFillExitRows(){
@@ -2397,13 +2486,7 @@ function openMoveModal(type){
   // Reset multi-location rows (always start with one empty row)
   document.getElementById('locRowsContainer').innerHTML  = '';
   document.getElementById('exitRowsContainer').innerHTML = '';
-  // Reset transfer location picker + unlock source/qty fields
-  var tlp = document.getElementById('transferLocPicker');
-  if (tlp) { tlp.style.display = 'none'; tlp.innerHTML = ''; }
-  var mSrcEl = document.getElementById('mSrc');
-  if (mSrcEl) { mSrcEl.readOnly = false; mSrcEl.style.cssText = ''; }
-  var mQtyEl = document.getElementById('mQty');
-  if (mQtyEl) { mQtyEl.readOnly = false; mQtyEl.style.cssText = ''; }
+  _initMultiTransferSection();
   var tag = document.getElementById('exitAutoTag');
   if (tag) tag.style.display = 'none';
   addLocRow();
@@ -2456,6 +2539,7 @@ function setModalType(type){
 
   var entryLocsSection = document.getElementById('entryLocsSection');
   var exitLocsSection  = document.getElementById('exitLocsSection');
+  var multiTransferSection = document.getElementById('multiTransferSection');
   var exitDestField    = document.getElementById('exitDestField');
   var mQtyField        = document.getElementById('mQtyField');
   var gcField          = document.getElementById('mGCField');
@@ -2473,6 +2557,7 @@ function setModalType(type){
   notifySection.style.display = 'none';
   entryLocsSection.style.display = 'none';
   exitLocsSection.style.display  = 'none';
+  if (multiTransferSection) multiTransferSection.style.display = 'none';
   exitDestField.style.display    = 'none';
   mQtyField.style.display = 'flex';  // show normal qty by default
   // Single-material fields visible by default (hidden only for ENTRY multi-mat)
@@ -2532,16 +2617,17 @@ function setModalType(type){
     _initMultiExitSection();
 
   } else if (type === 'TRANSFER'){
-    srcField.style.display = 'flex';
-    srcLabel.textContent = 'From Rack';
-    destField.style.display = 'flex';
-    destLabel.textContent = 'To Rack';
+    // TRANSFER uses the multi-pair rows section instead of the single src/dest fields
+    // (RETURN/WASTE below still use mSrcField/mDestField unchanged).
+    if (multiTransferSection) multiTransferSection.style.display = 'block';
     supField.style.display  = 'none';
     gcField.style.display   = 'none';
     poField.style.display   = 'none';
     projField.style.display = 'none';
+    mQtyField.style.display = 'none';
     dateLabel.textContent = 'Date Transferred';
     respLabel.textContent = 'Moved By';
+    _initMultiTransferSection();
 
   } else if (type === 'RETURN'){
     srcField.style.display  = 'flex';
@@ -2661,6 +2747,7 @@ function updateNotifyPreview(){
 
 // ── Modal: Submit ─────────────────────────────────────────────────────────────
 async function submitMovement(){
+ try {
   if (currentMoveType === 'ENTRY') { submitMultiEntry(); return; }
   if (currentMoveType === 'EXIT')  { submitMultiExit();  return; }
 
@@ -2706,9 +2793,39 @@ async function submitMovement(){
     }
   }
 
+  // ── TRANSFER: gather multi-pair rows (source → destination, per-row qty) ───
+  // Each row is independently validated against ITS source rack, so partial
+  // quantities and multiple source→destination pairs are both supported.
+  var transferLocations = [];
+  if (currentMoveType === 'TRANSFER'){
+    document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
+      var src = (row.querySelector('.tr-rack').value || '').trim();
+      var dst = (row.querySelector('.tr-dest').value || '').trim();
+      var q   = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
+      if (src && dst && q > 0) transferLocations.push({ sourceLoc: src, destLoc: dst, qty: q });
+    });
+    if (!transferLocations.length){
+      alert('Add at least one transfer row with a source rack, destination rack, and quantity > 0'); return;
+    }
+    var tMatKey  = nt(cat) + '|||' + name.toUpperCase();
+    var tMatLocs = (stockData[tMatKey] && stockData[tMatKey].warehouseLocs) || {};
+    var tOverages = transferLocations.filter(function(tl){
+      return tMatLocs[tl.sourceLoc.toUpperCase()] !== undefined && tl.qty > tMatLocs[tl.sourceLoc.toUpperCase()];
+    });
+    if (tOverages.length){
+      var tMsg = tOverages.map(function(tl){
+        return tl.sourceLoc + ': trying ' + tl.qty + ', only ' + (tMatLocs[tl.sourceLoc.toUpperCase()] || 0) + ' available';
+      }).join('\n');
+      _showConfirm({ icon:'⚠️', title:'Stock Warning', message:'Some transfer rows exceed available stock:\n\n' + tMsg + '\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
+    }
+  }
+
   var qty = parseInt(document.getElementById('mQty').value) || 0;
-  // For ENTRY/EXIT, qty is driven by the multi-loc widgets (mQty synced automatically)
-  if (currentMoveType !== 'ENTRY' && currentMoveType !== 'EXIT' && qty <= 0){
+  if (currentMoveType === 'TRANSFER'){
+    qty = transferLocations.reduce(function(a,tl){ return a + tl.qty; }, 0);
+  }
+  // For ENTRY/EXIT/TRANSFER, qty is driven by the multi-row widgets
+  if (currentMoveType !== 'ENTRY' && currentMoveType !== 'EXIT' && currentMoveType !== 'TRANSFER' && qty <= 0){
     alert('Quantity must be greater than 0'); return;
   }
 
@@ -2725,9 +2842,8 @@ async function submitMovement(){
     sourceLoc = ''; // locations sent in exitLocations[]
     destLoc   = (document.getElementById('mExitDest').value || '').trim();
   } else if (currentMoveType === 'TRANSFER'){
-    sourceLoc = srcVal;
-    destLoc   = destVal;
-    if (!sourceLoc || !destLoc){ alert('Both source and destination racks are required for TRANSFER'); return; }
+    sourceLoc = ''; // pairs sent in transferLocations[]
+    destLoc   = '';
   } else if (currentMoveType === 'RETURN'){
     destLoc   = destVal;
     sourceLoc = srcVal;  // "from" site/project/address captured in source field
@@ -2736,9 +2852,9 @@ async function submitMovement(){
     destLoc   = '';
   }
 
-  // Validation: source required for TRANSFER/WASTE (EXIT uses exitLocations[])
-  if ((currentMoveType === 'TRANSFER' || currentMoveType === 'WASTE') && !sourceLoc){
-    alert('Source rack is required for ' + currentMoveType); return;
+  // Validation: source required for WASTE (TRANSFER uses transferLocations[], EXIT uses exitLocations[])
+  if (currentMoveType === 'WASTE' && !sourceLoc){
+    alert('Source rack is required for WASTE'); return;
   }
 
   // Destination required for RETURN
@@ -2750,8 +2866,8 @@ async function submitMovement(){
   var comments = (document.getElementById('mComm').value || '').trim();
   if (currentMoveType === 'WASTE' && !comments){ alert('Waste movements require a reason in the Comments field'); return; }
 
-  // Advisory total-stock check for TRANSFER/WASTE
-  if (currentMoveType === 'TRANSFER' || currentMoveType === 'WASTE'){
+  // Advisory total-stock check for WASTE (TRANSFER is already validated per-row above)
+  if (currentMoveType === 'WASTE'){
     var key2 = nt(cat) + '|||' + name.toUpperCase();
     var s2 = stockData[key2];
     if (s2 && s2.availableQty < qty){
@@ -2794,8 +2910,9 @@ async function submitMovement(){
     dateRec:          document.getElementById('mDateRec').value,
     sourceLoc:        sourceLoc,
     destLoc:          destLoc,
-    locations:        currentMoveType === 'ENTRY' ? entryLocations : null,
-    exitLocations:    currentMoveType === 'EXIT'  ? exitLocations  : null,
+    locations:         currentMoveType === 'ENTRY'    ? entryLocations    : null,
+    exitLocations:     currentMoveType === 'EXIT'     ? exitLocations     : null,
+    transferLocations: currentMoveType === 'TRANSFER' ? transferLocations : null,
     supplier:         document.getElementById('mSup').value,
     comments:         comments,
     status:           document.getElementById('mStatus').value,
@@ -2861,6 +2978,15 @@ async function submitMovement(){
   }
 
   _doSubmit(false);
+ } catch (e) {
+  // Guarantees SOME visible feedback even on an unexpected error — this is what
+  // used to leave TRANSFER looking like nothing happened when validation code
+  // threw before reaching the spinner/button-state line.
+  console.error('submitMovement error:', e);
+  showToast('⚠ Error: ' + (e && e.message ? e.message : e), 'err', 6000);
+  var btnErr = document.getElementById('moveSubmit');
+  if (btnErr) { btnErr.textContent = 'Save to System'; btnErr.disabled = false; }
+ }
 }
 
 // ── Multi-Material ENTRY ──────────────────────────────────────────────────────
@@ -3409,8 +3535,12 @@ function submitMultiExit(){
   });
 
   var doSubmit = function(){
-    var btn = document.getElementById('moveSaveBtn');
-    if (btn){ btn.disabled=true; btn.textContent='💾 Saving…'; }
+    // BUGFIX: this used to look up 'moveSaveBtn', an id that doesn't exist anywhere
+    // in the HTML (the button is 'moveSubmit') — so `btn` was always null and NO
+    // loading feedback ever appeared for EXIT. Also unified to the same animated
+    // spinner used by ENTRY/TRANSFER/RETURN/WASTE.
+    var btn = document.getElementById('moveSubmit');
+    if (btn){ btn.disabled=true; btn.innerHTML='Saving… <span class="spin-hg">⏳</span>'; }
     google.script.run
       .withSuccessHandler(function(res){
         closeModal('moveOverlay');
@@ -3775,6 +3905,10 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
       _applyStockSuggest(el.getAttribute('data-name'));
     } else if (a === 'exit-suggest') {
       _applyExitMatSuggest(parseInt(el.getAttribute('data-n'),10), el.getAttribute('data-name'), el.getAttribute('data-cat'));
+    } else if (a === 'open-mat-photos') {
+      openMatLocPhotos(el.getAttribute('data-cat'), el.getAttribute('data-name'));
+    } else if (a === 'rack-photo-upload') {
+      _triggerRackPhotoUpload(el.getAttribute('data-rack'));
     }
   }
   document.addEventListener('click', function(e){
@@ -3782,6 +3916,9 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
     if (!el) return;
     var a = el.getAttribute('data-action');
     if (a === 'stock-suggest' || a === 'exit-suggest') return; // handled on mousedown
+    // The docs-toggle button has its own onclick and lives inside the row — don't
+    // also open the photo gallery when the user is just expanding/collapsing docs.
+    if (a === 'open-mat-photos' && e.target.closest('.stock-doc-btn')) return;
     dispatch(el);
   });
   // Suggestion items must fire on mousedown — before the input's blur hides the box.
@@ -4386,6 +4523,8 @@ function openRackDrawer(rackName) {
   var exitBtn = document.getElementById('rackDrawerExitBtn');
   if (exitBtn) exitBtn.style.display = (userRole !== 'VIEWER') ? '' : 'none';
 
+  _renderRackDrawerPhoto();
+
   if (!items.length) {
     document.getElementById('rackDrawerBody').innerHTML =
       '<p style="padding:1rem;color:var(--muted);font-size:.85rem">No items in this rack.</p>';
@@ -4412,6 +4551,99 @@ function openRackDrawer(rackName) {
 function closeRackDrawer() {
   document.getElementById('rackDrawer').classList.remove('open');
   document.getElementById('rackDrawerOverlay').classList.remove('open');
+}
+
+// ── Rack Photos ────────────────────────────────────────────────────────────────
+// One reference photo per physical location, uploaded from either the Rack Drawer
+// (Warehouse Map) or the "📷 Rack Photos" gallery opened by clicking a Dashboard row.
+var _rackPhotoUploadTarget = '';
+var _matPhotosCat = '', _matPhotosName = '';
+
+function _renderRackDrawerPhoto(){
+  var box = document.getElementById('rackDrawerPhotoBox');
+  if (!box) return;
+  var photo = rackPhotos[String(_openRackName || '').toUpperCase()];
+  var canUpload = userRole !== 'VIEWER';
+
+  var img = photo
+    ? '<a href="'+_escAttr(photo.url)+'" target="_blank" rel="noopener" title="Click to view full size"><img class="rpc-img" style="border-radius:8px" src="'+_escAttr(photo.url)+'"></a>'
+    : '<div class="rpc-empty" style="border-radius:8px">' +
+        '<span style="font-size:1.3rem">📷</span><span>No photo yet</span>' +
+      '</div>';
+  var action = canUpload
+    ? '<button class="rpc-btn" style="margin-top:.4rem" data-action="rack-photo-upload" data-rack="'+_he(_openRackName)+'">' + (photo ? '🔄 Replace Photo' : '+ Add Photo') + '</button>'
+    : '';
+
+  box.innerHTML = img + (action ? '<div style="text-align:center">'+action+'</div>' : '');
+}
+
+function openMatLocPhotos(cat, name){
+  _matPhotosCat = cat; _matPhotosName = name;
+  document.getElementById('matPhotosTitle').textContent = '📷 ' + name + ' — Rack Photos';
+  _renderMatPhotosGrid();
+  document.getElementById('matPhotosOverlay').classList.add('show');
+}
+
+function _renderMatPhotosGrid(){
+  var key   = nt(_matPhotosCat) + '|||' + nt(_matPhotosName);
+  var s     = stockData[key];
+  var locs  = (s && s.warehouseLocs) || {};
+  var racks = Object.keys(locs).filter(function(r){ return locs[r] > 0; })
+                                .sort(function(a,b){ return locs[b] - locs[a]; });
+  var body  = document.getElementById('matPhotosBody');
+  var canUpload = userRole !== 'VIEWER';
+
+  if (!racks.length){
+    body.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem;grid-column:1/-1">This material has no warehouse stock right now.</p>';
+    return;
+  }
+
+  body.innerHTML = racks.map(function(rack){
+    var photo = rackPhotos[rack.toUpperCase()];
+    var img = photo
+      ? '<a href="'+_escAttr(photo.url)+'" target="_blank" rel="noopener" title="Click to view full size"><img class="rpc-img" src="'+_escAttr(photo.url)+'"></a>'
+      : '<div class="rpc-empty"><span style="font-size:1.4rem">📷</span><span>No photo yet</span></div>';
+    var action = canUpload
+      ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
+      : '';
+
+    return '<div class="rack-photo-card">' +
+      '<div class="rpc-hdr"><span>📦 '+rack+'</span><span class="rpc-qty">'+locs[rack]+'</span></div>' +
+      img +
+      (action ? '<div class="rpc-actions">'+action+'</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function _triggerRackPhotoUpload(rack){
+  _rackPhotoUploadTarget = rack;
+  document.getElementById('rackPhotoFileInput').click();
+}
+
+function _handleRackPhotoFileChange(){
+  var inp = document.getElementById('rackPhotoFileInput');
+  if (!inp.files || !inp.files.length) return;
+  var file = inp.files[0];
+  var rack = _rackPhotoUploadTarget;
+  inp.value = ''; // reset so re-picking the same file still fires 'change' next time
+  if (!rack) return;
+
+  showToast('📷 Uploading photo…', 'info', 4000);
+  _compressImage(file, 1280, 0.82, function(b64, mime){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (!res || !res.photo) { showToast('Upload failed.', 'err', 5000); return; }
+        rackPhotos[rack.toUpperCase()] = res.photo;
+        _renderMatPhotosGrid();
+        if (_openRackName === rack) _renderRackDrawerPhoto();
+        renderWarehouseMap();
+        showToast('📷 Photo saved for ' + rack, 'ok');
+      })
+      .withFailureHandler(function(err){
+        showToast('Error uploading photo: ' + (err.message || err), 'err', 6000);
+      })
+      .processMovement('uploadRackPhoto', _h({ location: rack, fileData: b64, fileMimeType: mime }));
+  });
 }
 
 function openExitFromRack() {
@@ -5373,6 +5605,7 @@ function _applyData(data) {
   userEmail          = data.userEmail          || '';
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
+  rackPhotos         = data.rackPhotos         || {};
   if (data.users && data.users.length) _usersData = data.users;
 }
 
@@ -5527,8 +5760,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Modal fields
   _safeOn('mType','change', function(){ updateMatList(); checkStock(); });
-  _safeOn('mName','input',  function(){ checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); triggerSimilarCheck(); });
-  _safeOn('mType','change', function(){ validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); });
+  _safeOn('mName','input',  function(){ checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); triggerSimilarCheck(); });
+  _safeOn('mType','change', function(){ validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); });
   _safeOn('mQty','input',   updateNotifyPreview);
   _safeOn('mUnit','change', updateNotifyPreview);
   _safeOn('mProj','input',  updateNotifyPreview);
@@ -5551,6 +5784,8 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('attachSubmit','click', submitAttachment);
   _safeOn('btnCancelAttach','click', function(){ closeModal('attachOverlay'); });
   _safeOn('attachOverlay','click', function(e){ closeIfOutside(e,'attachOverlay'); });
+  _safeOn('matPhotosOverlay','click', function(e){ closeIfOutside(e,'matPhotosOverlay'); });
+  _safeOn('rackPhotoFileInput','change', _handleRackPhotoFileChange);
   _safeOn('settingsOverlay','click', function(e){ closeIfOutside(e,'settingsOverlay'); });
 
   } catch(domErr) {

@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '4.9';
+var APP_VERSION = '5.1';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -368,6 +368,9 @@ function getInitialData(sessionToken) {
       try { users = getUsers(auth); } catch(e) {}
     }
 
+    var rackPhotos = {};
+    try { rackPhotos = getRackPhotos(); } catch(e) { Logger.log('getRackPhotos: ' + e.message); }
+
     return {
       serverVersion:      APP_VERSION,
       movements:          movements,
@@ -380,7 +383,8 @@ function getInitialData(sessionToken) {
       activeUsers:        activeUsers,
       incoming:           incoming,
       monitoredMaterials: monitoredMaterials,
-      users:              users
+      users:              users,
+      rackPhotos:         rackPhotos
     };
   } catch (err) {
     throw new Error('getInitialData: ' + err.message);
@@ -670,6 +674,40 @@ function processMovement(action, data) {
       };
     }
 
+    // Multi-pair TRANSFER: one archive row per (source→destination) pair, each with
+    // its own quantity (partial transfers allowed) — atomic batch.
+    if (data.moveType === 'TRANSFER' && Array.isArray(data.transferLocations) && data.transferLocations.length > 0) {
+      var transferRows = [];
+      for (var ti = 0; ti < data.transferLocations.length; ti++) {
+        var pair = data.transferLocations[ti];
+        if (!pair.qty || pair.qty <= 0) continue;
+        transferRows.push({
+          moveType:    'TRANSFER',
+          category:    data.category,
+          name:        data.name,
+          project:     data.project,
+          isGeneric:   data.isGeneric,
+          qty:         pair.qty,
+          unit:        data.unit,
+          dateRec:     data.dateRec,
+          sourceLoc:   pair.sourceLoc || '',
+          destLoc:     pair.destLoc   || '',
+          comments:    data.comments,
+          responsible: data.responsible,
+          forceSubmit: ti === 0 ? !!data.forceSubmit : true
+        });
+      }
+      var transferRes = _addMovementsBatch(ss, archive, transferRows, auth);
+      return {
+        status:     'success',
+        rowIdx:     transferRes.firstRowIdx,
+        rowCount:   transferRes.rowCount,
+        fileError:  transferRes.fileError,
+        emailError: transferRes.emailError,
+        message:    'TRANSFER recorded' + (transferRes.rowCount > 1 ? ' (' + transferRes.rowCount + ' pairs).' : '.')
+      };
+    }
+
     return _addMovement(ss, archive, data, auth);
   }
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
@@ -683,6 +721,7 @@ function processMovement(action, data) {
   if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
+  if (action === 'uploadRackPhoto')       return uploadRackPhoto(data, auth);
   // ── User management (ADMIN only) ─────────────────────────────────────────
   if (action === 'getUsers')       return getUsers(auth);
   if (action === 'addUser')        return addUser(data, auth);
@@ -1597,6 +1636,86 @@ function _updateDocument(ss, archive, data, auth) {
 }
 
 // Legacy single-file upload (kept for backward compatibility with older clients / attach modal)
+// ─── RACK PHOTOS ──────────────────────────────────────────────────────────────
+// One reference photo per physical location (rack/bay/cart), independent of any
+// specific material or movement — "this is what A1A looks like". Uploading a new
+// photo for a rack replaces the previous one (single active photo, no history).
+// Sheet: RACK_PHOTOS  Columns (0-based): A=Location(upper) B=PhotoURL C=UploadedBy D=UploadedAt
+function _ensureRackPhotosSheet(ss) {
+  var sheet = ss.getSheetByName('RACK_PHOTOS');
+  if (!sheet) {
+    sheet = ss.insertSheet('RACK_PHOTOS');
+    sheet.appendRow(['Location', 'PhotoURL', 'UploadedBy', 'UploadedAt']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+// Returns { LOCATION_UPPER: { url, uploadedBy, uploadedAt } } for every rack with a photo.
+function getRackPhotos() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('RACK_PHOTOS');
+  if (!sheet) return {};
+  var rows = sheet.getDataRange().getValues();
+  var out  = {};
+  for (var i = 1; i < rows.length; i++) {
+    var loc = String(rows[i][0] || '').trim().toUpperCase();
+    var url = String(rows[i][1] || '').trim();
+    if (!loc || !url) continue;
+    out[loc] = {
+      url:        url,
+      uploadedBy: String(rows[i][2] || ''),
+      uploadedAt: rows[i][3] instanceof Date
+        ? Utilities.formatDate(rows[i][3], Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm')
+        : String(rows[i][3] || '')
+    };
+  }
+  return out;
+}
+
+// Uploads/replaces the reference photo for one rack. WAREHOUSE + ADMIN only
+// (VIEWER is already blocked before reaching here — see processMovement's role gate).
+function uploadRackPhoto(data, auth) {
+  var loc = String((data && data.location) || '').trim().toUpperCase();
+  if (!loc) throw new Error('Location is required.');
+  if (!data.fileData) throw new Error('No photo provided.');
+
+  var safe   = loc.replace(/[\/\\?%*:|"<>]/g, '_');
+  var folder = _getOrCreateFolder('OX_WMS_v3_Docs/RackPhotos/' + safe);
+  var bytes  = Utilities.base64Decode(data.fileData);
+  var blob   = Utilities.newBlob(bytes, data.fileMimeType || 'image/jpeg', safe + '.jpg');
+  var file   = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var url = file.getUrl();
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensureRackPhotosSheet(ss);
+  var rows  = sheet.getDataRange().getValues();
+  var now   = new Date();
+  var found = false;
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || '').trim().toUpperCase() === loc) {
+      sheet.getRange(i + 1, 1, 1, 4).setValues([[loc, url, auth.email, now]]);
+      found = true;
+      break;
+    }
+  }
+  if (!found) sheet.appendRow([loc, url, auth.email, now]);
+
+  _auditLog(ss, 'UPLOAD_RACK_PHOTO', auth.email, loc, '', url);
+
+  return {
+    status:  'success',
+    location: loc,
+    photo: {
+      url:        url,
+      uploadedBy: auth.email,
+      uploadedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm')
+    }
+  };
+}
+
 function _uploadFiles(files, materialName, po) {
   // NOTE: no try/catch — errors propagate to caller (_addMovement / _updateDocument)
   var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
