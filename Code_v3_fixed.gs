@@ -7,12 +7,13 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.6';
+var APP_VERSION = '5.7';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
   LIVE: 'LIVE_STOCK',
   SITE: 'SITE_STOCK',
+  WASTE: 'WASTED_STOCK',
   RESERVATIONS: 'RESERVATIONS',
   CONFIG: 'CONFIG',
   AUDIT: 'AUDIT_LOG'
@@ -350,7 +351,15 @@ function getInitialData(sessionToken) {
       }
     }
 
-    var stock = calculateStock(movements, reservations);
+    // Fast path: read pre-aggregated LIVE_STOCK/SITE_STOCK/WASTED_STOCK instead of
+    // re-scanning every movement in JS on every login. Falls back to the full scan
+    // if the derived sheets haven't been populated yet (e.g. brand-new spreadsheet).
+    var stock = _buildStockFromDerivedSheets(ss);
+    if (stock) {
+      _applyReservationsAndFinalize(stock, reservations);
+    } else {
+      stock = calculateStock(movements, reservations);
+    }
 
     // Register this user's presence and return active users list
     var activeUsers = [];
@@ -541,6 +550,15 @@ function calculateStock(movements, reservations) {
     }
   }
 
+  _applyReservationsAndFinalize(stock, reservations);
+  return stock;
+}
+
+// Shared by calculateStock() (full-scan path) and _buildStockFromDerivedSheets()
+// (fast path, reads LIVE_STOCK/SITE_STOCK/WASTED_STOCK instead of re-scanning
+// every movement ever made) — both produce the same stock shape up to this point,
+// so reservations + clamping + availableQty only need to be written once.
+function _applyReservationsAndFinalize(stock, reservations) {
   // Apply active reservations
   if (reservations) {
     for (var r = 0; r < reservations.length; r++) {
@@ -564,15 +582,14 @@ function calculateStock(movements, reservations) {
     }
     item.warehouseQty = Math.max(0, item.warehouseQty);
     item.siteQty      = Math.max(0, item.siteQty);
+    item.wastedQty     = Math.max(0, item.wastedQty || 0);
     item.availableQty = Math.max(0, item.warehouseQty - item.reservedQty);
-    item.totalQty     = item.warehouseQty + item.siteQty;
+    item.totalQty      = item.warehouseQty + item.siteQty;
 
-    if (item._errors.length) {
+    if (item._errors && item._errors.length) {
       Logger.log('STOCK_ERR [' + k + ']: ' + item._errors.join(' | '));
     }
   }
-
-  return stock;
 }
 
 function findFirstWarehouseLoc(locs, needed) {
@@ -583,6 +600,68 @@ function findFirstWarehouseLoc(locs, needed) {
     if (locs.hasOwnProperty(loc2) && locs[loc2] > 0) return loc2;
   }
   return null;
+}
+
+// Fast path for getInitialData(): builds the same stock shape as calculateStock()
+// but from the small pre-aggregated LIVE_STOCK/SITE_STOCK/WASTED_STOCK sheets
+// (already kept current by _refreshDerivedSheets on every save) instead of
+// re-scanning every movement ever recorded on every single login.
+// Returns null if the derived sheets don't exist yet or are empty — the caller
+// falls back to the full calculateStock() scan in that case (e.g. very first run,
+// before any save has ever populated the derived sheets).
+function _buildStockFromDerivedSheets(ss) {
+  var live  = ss.getSheetByName(SHEETS.LIVE);
+  var site  = ss.getSheetByName(SHEETS.SITE);
+  var waste = ss.getSheetByName(SHEETS.WASTE);
+  if (!live || live.getLastRow() < 2) return null; // never refreshed yet — signal fallback
+
+  var stock = {};
+  function ensure(cat, name, unit) {
+    var matId = getMaterialId(cat, name);
+    if (!stock[matId]) {
+      stock[matId] = {
+        matId: matId, category: cat, name: name, project: '',
+        warehouseLocs: {}, warehouseQty: 0, siteQty: 0, wastedQty: 0,
+        totalQty: 0, reservedQty: 0, availableQty: 0, unit: unit || 'UNIT', _errors: []
+      };
+    }
+    return stock[matId];
+  }
+
+  var liveRows = live.getDataRange().getValues();
+  for (var i = 1; i < liveRows.length; i++) {
+    var r = liveRows[i];
+    var cat = String(r[0] || ''), name = String(r[1] || '');
+    if (!cat && !name) continue;
+    var proj = String(r[2] || ''), loc = String(r[3] || ''), qty = Number(r[4] || 0), unit = String(r[5] || 'UNIT');
+    var s = ensure(cat, name, unit);
+    if (proj && proj !== 'GENERIC') s.project = proj; // last row wins, same as calculateStock()
+    if (qty > 0) { s.warehouseLocs[loc] = (s.warehouseLocs[loc] || 0) + qty; s.warehouseQty += qty; }
+  }
+
+  if (site) {
+    var siteRows = site.getDataRange().getValues();
+    for (var j = 1; j < siteRows.length; j++) {
+      var r2 = siteRows[j];
+      var cat2 = String(r2[0] || ''), name2 = String(r2[1] || '');
+      if (!cat2 && !name2) continue;
+      var s2 = ensure(cat2, name2, String(r2[4] || 'UNIT'));
+      s2.siteQty += Number(r2[3] || 0);
+    }
+  }
+
+  if (waste) {
+    var wasteRows = waste.getDataRange().getValues();
+    for (var k = 1; k < wasteRows.length; k++) {
+      var r3 = wasteRows[k];
+      var cat3 = String(r3[0] || ''), name3 = String(r3[1] || '');
+      if (!cat3 && !name3) continue;
+      var s3 = ensure(cat3, name3, String(r3[3] || 'UNIT'));
+      s3.wastedQty += Number(r3[2] || 0);
+    }
+  }
+
+  return stock;
 }
 
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
@@ -1510,12 +1589,24 @@ function getCurrentStockForItem(ss, matId) {
   };
 }
 
+function _ensureWasteSheet(ss) {
+  var sheet = ss.getSheetByName(SHEETS.WASTE);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.WASTE);
+    sheet.appendRow(['Category','Name','Qty','Unit','Last_Updated']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+  }
+  return sheet;
+}
+
 // ─── REFRESH DERIVED SHEETS ──────────────────────────────────────────────────
 function _refreshDerivedSheets(ss) {
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   var live    = ss.getSheetByName(SHEETS.LIVE);
   var site    = ss.getSheetByName(SHEETS.SITE);
   if (!archive || !live || !site) return;
+  var waste = _ensureWasteSheet(ss);
 
   var data  = archive.getDataRange().getValues();
   var stock = {};
@@ -1526,7 +1617,7 @@ function _refreshDerivedSheets(ss) {
     var m   = parseArchiveRow(row, i + 1);
     var key = m.matId || getMaterialId(m.category, m.name);
 
-    if (!stock[key]) stock[key] = { cat: m.category, name: m.name, project: m.project, unit: m.unit || 'UNIT', locs: {}, siteProjs: {} };
+    if (!stock[key]) stock[key] = { cat: m.category, name: m.name, project: m.project, unit: m.unit || 'UNIT', locs: {}, siteProjs: {}, wasted: 0 };
     var s   = stock[key];
     var qty = m.qty;
 
@@ -1553,6 +1644,7 @@ function _refreshDerivedSheets(ss) {
     } else if (m.moveType === 'WASTE') {
       var s2 = m.sourceLoc || 'UNASSIGNED';
       s.locs[s2] = (s.locs[s2] || 0) - qty;
+      s.wasted  += qty;
     }
   }
 
@@ -1584,6 +1676,19 @@ function _refreshDerivedSheets(ss) {
   }
   site.clearContents();
   if (siteRows.length > 0) site.getRange(1, 1, siteRows.length, 7).setValues(siteRows);
+
+  // Cumulative wasted qty per material — the only stock figure that had NO derived
+  // sheet before, forcing getInitialData() to fall back to a full movement scan
+  // just to know how much of something was wasted. Now precomputed here (once per
+  // save) instead of recomputed on every login.
+  var wasteRows = [['Category','Name','Qty','Unit','Last_Updated']];
+  for (var k3 in stock) {
+    if (!stock.hasOwnProperty(k3)) continue;
+    var item3 = stock[k3];
+    if (item3.wasted > 0) wasteRows.push([item3.cat, item3.name, item3.wasted, item3.unit, now]);
+  }
+  waste.clearContents();
+  if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 5).setValues(wasteRows);
 }
 
 // ─── RESERVATIONS ────────────────────────────────────────────────────────────
