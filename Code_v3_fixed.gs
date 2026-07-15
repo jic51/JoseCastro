@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.4';
+var APP_VERSION = '5.5';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -371,6 +371,9 @@ function getInitialData(sessionToken) {
     var rackPhotos = {};
     try { rackPhotos = getRackPhotos(); } catch(e) { Logger.log('getRackPhotos: ' + e.message); }
 
+    var materialLocks = [];
+    try { materialLocks = getMaterialLocks(); } catch(e) { Logger.log('getMaterialLocks: ' + e.message); }
+
     return {
       serverVersion:      APP_VERSION,
       movements:          movements,
@@ -384,7 +387,8 @@ function getInitialData(sessionToken) {
       incoming:           incoming,
       monitoredMaterials: monitoredMaterials,
       users:              users,
-      rackPhotos:         rackPhotos
+      rackPhotos:         rackPhotos,
+      materialLocks:      materialLocks
     };
   } catch (err) {
     throw new Error('getInitialData: ' + err.message);
@@ -722,6 +726,9 @@ function processMovement(action, data) {
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
   if (action === 'uploadRackPhoto')       return uploadRackPhoto(data, auth);
+  if (action === 'lockMaterial')          return lockMaterial(data, auth);
+  if (action === 'unlockMaterial')        return unlockMaterial(data, auth);
+  if (action === 'updateMinStockBulk')    return updateMinStockBulk(data, auth);
   // ── User management (ADMIN only) ─────────────────────────────────────────
   if (action === 'getUsers')       return getUsers(auth);
   if (action === 'addUser')        return addUser(data, auth);
@@ -782,6 +789,9 @@ function _addMovementsBatch(ss, archive, movements, auth) {
     // ── In-memory stock snapshot for ALL materials (mutated as we validate) ───
     var snapshot = _buildStockSnapshot(archiveValues);
 
+    // ── ONE read of active material locks (authoritative — checked per row below) ──
+    var locksMap = _getActiveLocksMap(ss);
+
     var now     = new Date();
     var tzDate  = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
     var newRows = [];   // arrays for setValues
@@ -823,6 +833,9 @@ function _addMovementsBatch(ss, archive, movements, auth) {
 
       var snap     = snapshot[matId] || (snapshot[matId] = { wh: 0, site: 0, locs: {} });
       var reserved = reservedByMat[matId] || 0;
+
+      // Material lock check — authoritative, cannot be bypassed from the frontend.
+      _enforceMaterialLock(locksMap, mt, matId, srcKey, destKey);
 
       // Stock validation for outgoing moves against the LIVE (mutated) snapshot,
       // so two EXITs from the same rack in one batch are checked cumulatively.
@@ -1154,6 +1167,9 @@ function _addMovement(ss, archive, data, auth) {
     // do NOT run normalizeString which would convert "/" and other chars to "_".
     var src  = String(data.sourceLoc || '').toUpperCase().trim();
     var dest = String(data.destLoc   || '').toUpperCase().trim();
+
+    // Material lock check — authoritative, cannot be bypassed from the frontend.
+    _enforceMaterialLock(_getActiveLocksMap(ss), mt, matId, normalizeString(src), normalizeString(dest));
 
     // Stock validation for outgoing moves
     if (['EXIT','TRANSFER','WASTE'].indexOf(mt) !== -1) {
@@ -1608,6 +1624,158 @@ function _cancelReservation(ss, data, auth) {
   throw new Error('Reservation not found.');
 }
 
+// ─── MATERIAL LOCKS ──────────────────────────────────────────────────────────
+// Locks a specific (material, rack) pair — NOT the whole rack, NOT the whole
+// material. While active: EXIT and WASTE of that material FROM that rack are
+// always blocked. TRANSFER is allowed, but if the lock specifies an
+// AllowedDestinations list, the destination rack must be in that list (an empty
+// list means "transfer anywhere is fine, just don't take it out of the warehouse").
+// ADMIN only — see processMovement's routing.
+// Sheet: MATERIAL_LOCKS  Columns (0-based):
+//  A=0:ID B=1:MatId C=2:Category D=3:Name E=4:Rack F=5:AllowedDestinations(CSV)
+//  G=6:Reason H=7:LockedBy I=8:LockedAt J=9:Status K=10:UnlockedBy L=11:UnlockedAt
+
+function _ensureMaterialLocksSheet(ss) {
+  var sheet = ss.getSheetByName('MATERIAL_LOCKS');
+  if (!sheet) {
+    sheet = ss.insertSheet('MATERIAL_LOCKS');
+    sheet.appendRow(['ID','MatId','Category','Name','Rack','AllowedDestinations','Reason','LockedBy','LockedAt','Status','UnlockedBy','UnlockedAt']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 12).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+// Returns all ACTIVE locks as a flat array — sent to the frontend so it can show
+// advisory 🔒 badges before the user even attempts the movement.
+function getMaterialLocks() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('MATERIAL_LOCKS');
+  if (!sheet) return [];
+  var rows = sheet.getDataRange().getValues();
+  var out  = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
+    var destRaw = String(rows[i][5] || '').trim();
+    out.push({
+      id:           String(rows[i][0] || ''),
+      matId:        String(rows[i][1] || ''),
+      category:     String(rows[i][2] || ''),
+      name:         String(rows[i][3] || ''),
+      rack:         String(rows[i][4] || ''),
+      // normalizeString-form, matching _getActiveLocksMap's enforcement key exactly —
+      // the frontend compares against this with _normKey(), so they must agree.
+      allowedDest:  destRaw ? destRaw.split(',').map(function(s){ return normalizeString(s); }).filter(Boolean) : [],
+      reason:       String(rows[i][6] || ''),
+      lockedBy:     String(rows[i][7] || ''),
+      lockedAt:     rows[i][8] instanceof Date
+        ? Utilities.formatDate(rows[i][8], Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm')
+        : String(rows[i][8] || '')
+    });
+  }
+  return out;
+}
+
+// { 'MATID|||RACK': {allowedDest:[...], reason, lockedBy} } — used by the
+// authoritative enforcement check in _addMovement / _addMovementsBatch.
+function _getActiveLocksMap(ss) {
+  var sheet = ss.getSheetByName('MATERIAL_LOCKS');
+  var map = {};
+  if (!sheet) return map;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
+    var matId = String(rows[i][1] || '').trim();
+    var rack  = normalizeString(rows[i][4] || '');
+    if (!matId || !rack) continue;
+    var destRaw = String(rows[i][5] || '').trim();
+    map[matId + '|||' + rack] = {
+      allowedDest: destRaw ? destRaw.split(',').map(function(s){ return normalizeString(s); }).filter(Boolean) : [],
+      reason:      String(rows[i][6] || ''),
+      lockedBy:    String(rows[i][7] || '')
+    };
+  }
+  return map;
+}
+
+// Throws if this movement is blocked by an active material lock.
+// srcKey/destKey must already be normalizeString()-form rack keys.
+function _enforceMaterialLock(locksMap, mt, matId, srcKey, destKey) {
+  if (!srcKey) return;
+  var lock = locksMap[matId + '|||' + srcKey];
+  if (!lock) return;
+  if (mt === 'EXIT' || mt === 'WASTE') {
+    throw new Error('LOCKED: This material is locked at ' + srcKey + ' — ' + lock.reason +
+      ' (by ' + lock.lockedBy + '). Cannot ' + mt + '. Ask an admin to unlock it first.');
+  }
+  if (mt === 'TRANSFER' && lock.allowedDest.length) {
+    if (!destKey || lock.allowedDest.indexOf(destKey) === -1) {
+      throw new Error('LOCKED: Material at ' + srcKey + ' can only be transferred to: ' +
+        lock.allowedDest.join(', ') + ' — ' + lock.reason);
+    }
+  }
+}
+
+// Create or update a lock for one (material, rack) pair. Upsert — locking an
+// already-locked pair just updates the reason/destinations. ADMIN only.
+function lockMaterial(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var cat  = normalizeString(data.category);
+  var name = normalizeString(data.name);
+  var rack = String(data.rack || '').trim().toUpperCase();
+  var reason = String(data.reason || '').trim();
+  if (!cat || !name) throw new Error('Category and name are required.');
+  if (!rack) throw new Error('Rack is required.');
+  if (!reason) throw new Error('A reason is required to lock a material.');
+
+  var matId = getMaterialId(cat, name);
+  // normalizeString-form throughout — must match _getActiveLocksMap's enforcement
+  // key and getMaterialLocks' frontend-facing form exactly, or a rack name with a
+  // hyphen/comma would silently fail to match (the same bug class fixed earlier
+  // for material names).
+  var allowedDest = Array.isArray(data.allowedDestinations)
+    ? data.allowedDestinations.map(function(s){ return normalizeString(s); }).filter(Boolean)
+    : String(data.allowedDestinations || '').split(',').map(function(s){ return normalizeString(s); }).filter(Boolean);
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensureMaterialLocksSheet(ss);
+  var rows  = sheet.getDataRange().getValues();
+  var now   = new Date();
+  var rackKey = normalizeString(rack);
+
+  var nowStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm');
+
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
+    if (String(rows[i][1] || '') === matId && normalizeString(rows[i][4] || '') === rackKey) {
+      sheet.getRange(i + 1, 6, 1, 4).setValues([[allowedDest.join(', '), reason, auth.email, now]]);
+      _auditLog(ss, 'UPDATE_LOCK', auth.email, data.name + ' @ ' + rack, '', reason);
+      return { status: 'success', lock: { id: String(rows[i][0]), matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
+    }
+  }
+
+  var id = 'LOCK-' + new Date().getTime();
+  sheet.appendRow([id, matId, data.category, data.name, rack, allowedDest.join(', '), reason, auth.email, now, 'Active', '', '']);
+  _auditLog(ss, 'LOCK_MATERIAL', auth.email, data.name + ' @ ' + rack, '', reason);
+  return { status: 'success', lock: { id: id, matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
+}
+
+function unlockMaterial(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('MATERIAL_LOCKS');
+  if (!sheet) throw new Error('No locks exist.');
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(data.id) && String(rows[i][9] || '').toUpperCase() === 'ACTIVE') {
+      sheet.getRange(i + 1, 10, 1, 3).setValues([['Removed', auth.email, new Date()]]);
+      _auditLog(ss, 'UNLOCK_MATERIAL', auth.email, String(rows[i][3]) + ' @ ' + String(rows[i][4]), '', '');
+      return { status: 'success' };
+    }
+  }
+  throw new Error('Lock not found or already removed.');
+}
+
 // ─── DOCUMENT UPLOAD ─────────────────────────────────────────────────────────
 function _updateDocument(ss, archive, data, auth) {
   var hasDocGroups = data.docGroups && data.docGroups.length > 0;
@@ -1978,6 +2146,44 @@ function _updateMinStock(ss, data) {
   }
   cfg.appendRow(['','','','','','','','','','','',data.category, Number(data.qty) || 0]);
   return { status: 'success' };
+}
+
+// Bulk version of _updateMinStock — writes every changed min-stock threshold in
+// ONE round trip (Monitor modal saves all edited rows at once, not one call per row).
+// data.updates = [{ name, qty }, ...] — "name" matches CONFIG col L exactly like
+// the legacy per-row _updateMinStock (that column stores material NAMEs, despite
+// the older function's parameter being called "category").
+function updateMinStockBulk(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg) throw new Error('Config sheet not found.');
+  var updates = Array.isArray(data.updates) ? data.updates : [];
+  if (!updates.length) return { status: 'success', updated: 0 };
+
+  var rows = cfg.getDataRange().getValues();
+  var rowByName = {};
+  for (var i = 1; i < rows.length; i++) {
+    var nm = String(rows[i][11] || '').toUpperCase().trim();
+    if (nm) rowByName[nm] = i + 1; // 1-based sheet row
+  }
+
+  var appended = [];
+  updates.forEach(function(u){
+    var nm  = String(u.name || '').toUpperCase().trim();
+    var qty = Number(u.qty) || 0;
+    if (!nm) return;
+    if (rowByName[nm] !== undefined) {
+      cfg.getRange(rowByName[nm], 13).setValue(qty);
+    } else {
+      appended.push(['','','','','','','','','','','', nm, qty]);
+    }
+  });
+  if (appended.length) {
+    cfg.getRange(cfg.getLastRow() + 1, 1, appended.length, 13).setValues(appended);
+  }
+  _auditLog(ss, 'UPDATE_MIN_STOCK_BULK', auth.email, updates.length + ' material(s)', '', '');
+  return { status: 'success', updated: updates.length };
 }
 
 function _runReconciliation(ss) {

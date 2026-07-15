@@ -130,6 +130,9 @@
     .rdw-name{flex:1;font-size:.83rem;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .rdw-rack-qty{font-size:.82rem;font-weight:700;color:var(--red);flex-shrink:0}
     .rdw-total-qty{font-size:.72rem;color:var(--muted);flex-shrink:0}
+    .rdw-lock-badge{flex-shrink:0;font-size:.9rem;cursor:default}
+    .rdw-lock-btn{flex-shrink:0;font-size:.68rem;font-weight:700;background:var(--border);color:var(--text);border:none;border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap;transition:.15s}
+    .rdw-lock-btn:hover{background:var(--red);color:#fff}
     .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,.3)}
     .rack-drawer-overlay.open{display:block}
     /* ── ALERTS ── */
@@ -491,6 +494,7 @@
     .monitor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.4rem;max-height:50vh;overflow-y:auto;padding:.25rem}
     .monitor-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem;border:1px solid transparent;transition:.15s}
     .monitor-item:hover{background:var(--bg);border-color:var(--border)}
+    .mon-min-inp{width:48px;flex-shrink:0;padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:.75rem;text-align:center;cursor:text}
     .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
     .monitor-item label{cursor:pointer;flex:1}
     /* ── USER MANAGEMENT ── */
@@ -790,6 +794,7 @@
             <option value="in">In Stock only</option>
             <option value="zero">Zero Stock only</option>
           </select>
+          <button id="btnMonitorSettingsToolbar" class="btn btn-ghost btn-sm" onclick="openMonitorModal()" title="Choose which materials to monitor and set minimum-stock thresholds" style="display:none">⚙ Stock Alerts</button>
         </div>
       </div>
       <div id="stockSelectBar" style="display:none;align-items:center;gap:.75rem;background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:.5rem .9rem;margin-bottom:.75rem">
@@ -1531,6 +1536,35 @@
 </div>
 <input type="file" id="rackPhotoFileInput" accept="image/*" style="display:none">
 
+<!-- ══ LOCK MATERIAL (ADMIN) ═══════════════════════════════════════════════════ -->
+<div class="overlay" id="lockMatOverlay">
+  <div class="modal" style="max-width:460px">
+    <div class="mhdr">
+      <h3>🔒 Lock Material</h3>
+      <button class="modal-x" onclick="closeModal('lockMatOverlay')" title="Close">✕</button>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin:.1rem 0 1rem">
+      <strong id="lockMatSubject"></strong> at <strong id="lockMatRack"></strong> won't be able to EXIT or WASTE while locked. TRANSFER is still allowed.
+    </p>
+    <input type="hidden" id="lockMatId">
+    <input type="hidden" id="lockMatCat">
+    <input type="hidden" id="lockMatName">
+    <input type="hidden" id="lockMatRackVal">
+    <div class="field">
+      <label>Reason (required)</label>
+      <textarea id="lockReason" rows="2" placeholder="e.g. Reserved for Job #123, awaiting QC, damaged — pending inspection…"></textarea>
+    </div>
+    <div class="field" style="margin-top:.6rem">
+      <label>Allowed transfer destinations <span style="font-weight:400;color:var(--muted)">(optional — leave blank to allow transfer anywhere)</span></label>
+      <input type="text" id="lockAllowedDest" list="rackListDest" placeholder="e.g. B2B, C1A — comma-separated">
+    </div>
+    <div style="display:flex;gap:.75rem;margin-top:1.25rem;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('lockMatOverlay')">Cancel</button>
+      <button class="btn btn-danger btn-sm" id="lockMatSubmit" onclick="submitLockMaterial()">🔒 Lock Material</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ SCRIPT ════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Global State ──────────────────────────────────────────────────────────────
@@ -1557,7 +1591,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '5.4';
+var APP_VERSION = '5.5';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1571,6 +1605,15 @@ var incoming          = [];   // array of { id, estDate, category, name, qty, un
 var monitoredMaterials = null; // null = all; array of names = filtered
 var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
 var _stockSelection = {}; // { matId: stockData[matId] } — checked rows in Stock Dashboard, for "Exit Selected"
+var materialLocks = []; // [{id, matId, category, name, rack, allowedDest:[...], reason, lockedBy, lockedAt}]
+var _locksByKey = {}; // 'MATID|||RACK' -> lock object, rebuilt whenever materialLocks changes (fast lookup for row rendering)
+function _rebuildLocksIndex(){
+  _locksByKey = {};
+  // Must use _normKey (not nt) — mirrors the backend's normalizeString() used to
+  // build the same key server-side (_getActiveLocksMap), or lookups silently miss.
+  materialLocks.forEach(function(l){ _locksByKey[l.matId + '|||' + _normKey(l.rack)] = l; });
+}
+function _findLock(matId, rack){ return _locksByKey[matId + '|||' + _normKey(rack)] || null; }
 var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -2535,9 +2578,21 @@ function validateTransferRows(){
 
   document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
     var rack = (row.querySelector('.tr-rack').value || '').trim().toUpperCase();
+    var dest = (row.querySelector('.tr-dest').value || '').trim().toUpperCase();
     var qty  = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
     var chip = row.querySelector('.exit-avail');
     if (!rack || qty <= 0){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
+    // Locked-with-a-destination-list: this row's transfer will be rejected by the
+    // backend unless the chosen destination is on the allow-list — warn early.
+    var lock = _findLock(key, rack);
+    if (lock && lock.allowedDest && lock.allowedDest.length){
+      var okDest = dest && lock.allowedDest.indexOf(_normKey(dest)) !== -1;
+      if (!okDest){
+        chip.textContent = '🔒 only → ' + lock.allowedDest.join(', ');
+        chip.className = 'exit-avail warn';
+        return;
+      }
+    }
     var avail = locs[rack] !== undefined ? locs[rack] : null;
     if (avail === null){
       chip.textContent = '? unknown rack'; chip.className = 'exit-avail neutral';
@@ -3507,6 +3562,10 @@ function syncExitRackAvail(n){
     var avail = locs[rack];
     var chip  = row.querySelector('.el-avail');
     if (!rack || avail === undefined){ chip.className='el-avail neutral'; chip.textContent='—'; return; }
+    // A locked material can't EXIT from this rack — the backend rejects it anyway,
+    // this is just an early, visible warning before the user even tries to submit.
+    var lock = _findLock(key, rack);
+    if (lock){ chip.className='el-avail warn'; chip.textContent='🔒 locked — ' + lock.reason; return; }
     if (qty > avail){ chip.className='el-avail warn'; chip.textContent='⚠ only '+avail; }
     else { chip.className='el-avail ok'; chip.textContent='✓ '+avail+' avail'; }
   });
@@ -4048,6 +4107,10 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
       toggleStockDetail(el.getAttribute('data-row-id'));
     } else if (a === 'preview-media') {
       openMediaPreview(el.getAttribute('data-url'), el.getAttribute('data-label'));
+    } else if (a === 'open-lock-modal') {
+      openLockModal(el.getAttribute('data-matid'), el.getAttribute('data-cat'), el.getAttribute('data-name'), el.getAttribute('data-rack'));
+    } else if (a === 'unlock-material') {
+      unlockMaterialConfirm(el.getAttribute('data-lock-id'), el.getAttribute('data-lock-name'));
     }
   }
   document.addEventListener('click', function(e){
@@ -4510,7 +4573,7 @@ function _buildRackMap(q, cf) {
       if (q && rack.toLowerCase().indexOf(q)===-1 && s.name.toLowerCase().indexOf(q)===-1) return;
       if (!rackMap[rack]) rackMap[rack] = [];
       rackMap[rack].push({ category:s.category, name:s.name, qty:qty, unit:s.unit||'UNIT',
-        warehouseTotal: s.warehouseQty||0 });
+        warehouseTotal: s.warehouseQty||0, matId: s.matId });
     });
   });
   return rackMap;
@@ -4665,17 +4728,27 @@ function openRackDrawer(rackName) {
     document.getElementById('rackDrawerBody').innerHTML =
       '<p style="padding:1rem;color:var(--muted);font-size:.85rem">No items in this rack.</p>';
   } else {
+    var isAdmin = userRole === 'ADMIN';
     document.getElementById('rackDrawerBody').innerHTML =
       '<div style="padding:.35rem .5rem .15rem;display:flex;justify-content:space-between;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">'+
         '<span>Material</span><span>In Rack&nbsp;/&nbsp;Total WH</span>'+
       '</div>'+
       items.map(function(item){
-        var col = CAT_DOT_COLORS[nt(item.category)] || '#9CA3AF';
+        var col  = CAT_DOT_COLORS[nt(item.category)] || '#9CA3AF';
+        var lock = _findLock(item.matId, rackName);
+        var lockBtn = '';
+        if (lock) {
+          lockBtn = '<span class="rdw-lock-badge" title="🔒 '+_he(lock.reason)+' (by '+_he(lock.lockedBy)+')">🔒</span>' +
+            (isAdmin ? '<button class="rdw-lock-btn" data-action="unlock-material" data-lock-id="'+_he(lock.id)+'" data-lock-name="'+_he(item.name)+'" title="Unlock">Unlock</button>' : '');
+        } else if (isAdmin) {
+          lockBtn = '<button class="rdw-lock-btn" data-action="open-lock-modal" data-matid="'+_he(item.matId)+'" data-cat="'+_he(item.category)+'" data-name="'+_he(item.name)+'" data-rack="'+_he(rackName)+'" title="Lock this material at this rack">🔒 Lock</button>';
+        }
         return '<div class="rdw-item">'+
           '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
           '<span class="rdw-name" title="'+item.name+'">'+item.name+'</span>'+
           '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
           '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
+          lockBtn +
         '</div>';
       }).join('');
   }
@@ -4767,6 +4840,80 @@ function _handleRackPhotoFileChange(){
   });
 }
 
+// ── Material Locks (ADMIN) ───────────────────────────────────────────────────
+function openLockModal(matId, cat, name, rack){
+  document.getElementById('lockMatId').value      = matId;
+  document.getElementById('lockMatCat').value     = cat;
+  document.getElementById('lockMatName').value    = name;
+  document.getElementById('lockMatRackVal').value = rack;
+  document.getElementById('lockMatSubject').textContent = name;
+  document.getElementById('lockMatRack').textContent    = rack;
+  document.getElementById('lockReason').value      = '';
+  document.getElementById('lockAllowedDest').value = '';
+  document.getElementById('lockMatOverlay').classList.add('show');
+}
+
+function submitLockMaterial(){
+  var reason = (document.getElementById('lockReason').value || '').trim();
+  if (!reason) { showToast('A reason is required to lock a material.', 'warn'); return; }
+
+  var payload = {
+    category:            document.getElementById('lockMatCat').value,
+    name:                document.getElementById('lockMatName').value,
+    rack:                document.getElementById('lockMatRackVal').value,
+    reason:              reason,
+    allowedDestinations: document.getElementById('lockAllowedDest').value
+  };
+
+  var btn = document.getElementById('lockMatSubmit');
+  btn.disabled = true; btn.innerHTML = 'Locking… <span class="spin-hg">⏳</span>';
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.innerHTML = '🔒 Lock Material';
+      closeModal('lockMatOverlay');
+      // Apply locally + re-index immediately — don't wait on a full async reload,
+      // which would leave the just-reopened drawer showing stale (unlocked) state.
+      if (res && res.lock) {
+        materialLocks = materialLocks.filter(function(l){ return l.id !== res.lock.id; });
+        materialLocks.push(res.lock);
+        _rebuildLocksIndex();
+      }
+      showToast('🔒 ' + payload.name + ' locked at ' + payload.rack, 'ok');
+      if (_openRackName) openRackDrawer(_openRackName);
+      renderStock();
+      renderWarehouseMap();
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false; btn.innerHTML = '🔒 Lock Material';
+      showToast('Error: ' + (err.message || err), 'err', 6000);
+    })
+    .processMovement('lockMaterial', _h(payload));
+}
+
+function unlockMaterialConfirm(lockId, name){
+  _showConfirm({
+    icon: '🔓', title: 'Unlock ' + name + '?',
+    message: 'This material will be exit-able and unrestricted again at this rack.',
+    confirmText: 'Unlock', danger: false,
+    onConfirm: function(){ _doUnlockMaterial(lockId); }
+  });
+}
+
+function _doUnlockMaterial(lockId){
+  google.script.run
+    .withSuccessHandler(function(){
+      materialLocks = materialLocks.filter(function(l){ return l.id !== lockId; });
+      _rebuildLocksIndex();
+      showToast('🔓 Unlocked.', 'ok');
+      if (_openRackName) openRackDrawer(_openRackName);
+      renderStock();
+      renderWarehouseMap();
+    })
+    .withFailureHandler(function(err){ showToast('Error: ' + (err.message || err), 'err', 6000); })
+    .processMovement('unlockMaterial', _h({ id: lockId }));
+}
+
 function openExitFromRack() {
   closeRackDrawer();
   // Open EXIT modal pre-set — user picks material and auto-fill will use this rack
@@ -4848,12 +4995,16 @@ function openMonitorModal() {
   document.getElementById('monitorGrid').innerHTML = items.map(function(s) {
     var upperName = (s.name || '').toUpperCase().trim();
     var checked = allMonitored || !!monSet[upperName];
+    var minVal = (config.minStock && (config.minStock[s.name] || config.minStock[upperName])) || '';
     return '<label class="monitor-item">' +
       '<input type="checkbox" class="mon-chk" value="' + upperName.replace(/"/g,'&quot;') + '"' +
         (checked ? ' checked' : '') + '>' +
       '<span>' + catBadge(s.category) + '</span>' +
       '<span style="flex:1;margin-left:.35rem">' + s.name + '</span>' +
       '<span style="color:var(--muted);font-size:.73rem;font-family:monospace">' + (s.warehouseQty||0) + ' wh</span>' +
+      '<input type="number" class="mon-min-inp" min="0" placeholder="min" data-name="' + upperName.replace(/"/g,'&quot;') + '"' +
+        (minVal !== '' ? ' value="' + minVal + '"' : '') +
+        ' onclick="event.stopPropagation()" title="Minimum stock — alert fires when available stock drops below this">' +
     '</label>';
   }).join('');
   document.getElementById('monitorOverlay').classList.add('show');
@@ -4872,18 +5023,38 @@ function saveMonitorSettings() {
   var total = document.querySelectorAll('.mon-chk').length;
   var names = (selected.length === 0 || selected.length === total) ? [] : selected;
 
+  // Collect min-stock threshold changes (only send the ones that actually changed)
+  var minUpdates = [];
+  if (!config.minStock) config.minStock = {};
+  document.querySelectorAll('.mon-min-inp').forEach(function(inp){
+    var name    = inp.getAttribute('data-name');
+    var qty     = parseInt(inp.value) || 0;
+    var current = config.minStock[name] || 0;
+    if (qty !== current) minUpdates.push({ name: name, qty: qty });
+    config.minStock[name] = qty; // apply locally immediately regardless
+  });
+
   // Apply locally IMMEDIATELY (no server round-trip needed for UX)
   monitoredMaterials = names.length ? names : null;
   closeModal('monitorOverlay');
-  renderStats(); // updates banner right away
+  renderStats(); // updates banner right away with the new thresholds
 
-  // Persist to ScriptProperties in background (best-effort)
+  // Persist both in background (best-effort — already applied locally either way)
   google.script.run
     .withSuccessHandler(function(){ /* silent — already applied locally */ })
     .withFailureHandler(function(err){
       console.warn('Monitor save failed (local state is fine):', err.message);
     })
     .processMovement('setMonitoredMaterials', _h({ names: names }));
+
+  if (minUpdates.length) {
+    google.script.run
+      .withSuccessHandler(function(){ /* silent — already applied locally */ })
+      .withFailureHandler(function(err){
+        showToast('Error saving min-stock thresholds: ' + (err.message || err), 'err', 6000);
+      })
+      .processMovement('updateMinStockBulk', _h({ updates: minUpdates }));
+  }
 }
 
 // ── Incoming Materials ────────────────────────────────────────────────────────
@@ -5727,6 +5898,8 @@ function _applyData(data) {
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
   rackPhotos         = data.rackPhotos         || {};
+  materialLocks      = data.materialLocks      || [];
+  _rebuildLocksIndex();
   if (data.users && data.users.length) _usersData = data.users;
 }
 
@@ -5906,6 +6079,7 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('btnCancelAttach','click', function(){ closeModal('attachOverlay'); });
   _safeOn('attachOverlay','click', function(e){ closeIfOutside(e,'attachOverlay'); });
   _safeOn('rackPhotoFileInput','change', _handleRackPhotoFileChange);
+  _safeOn('lockMatOverlay','click', function(e){ closeIfOutside(e,'lockMatOverlay'); });
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') closeMediaPreview();
   });
@@ -5933,6 +6107,8 @@ function applyRoleUI(){
   if (scanGmailBtn) scanGmailBtn.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
+  var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');
+  if (gearToolbar) gearToolbar.style.display = isAdmin ? '' : 'none';
   // Admin actions panel inside presence dropdown (Users + Settings)
   var adminPanel = document.getElementById('presenceAdminActions');
   if (adminPanel) adminPanel.style.display = isAdmin ? '' : 'none';
