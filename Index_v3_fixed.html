@@ -1551,7 +1551,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '5.2';
+var APP_VERSION = '5.3';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1569,6 +1569,22 @@ var _popupShownThisLoad = false; // true once popup fires; resets on real page l
 // ── Utility ───────────────────────────────────────────────────────────────────
 function nz(v){ return v || ''; }
 function nt(v){ return (v || '').toUpperCase().trim(); }
+// Mirrors the backend's normalizeString() EXACTLY — stockData keys are built
+// server-side with that transform (strips , . ' `, turns - into a space). Any
+// stockData[key] lookup rebuilt from displayed text (which may contain those
+// characters, e.g. "DAL-BARNES") MUST use this, not nt(), or the lookup silently
+// misses and looks like "no stock" even when stock exists.
+function _normKey(v){
+  return String(v || '')
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[,.'`]/g, '')
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\/\\?%*:|"<>]/g, '_');
+}
 
 // ── Populate all category <select> elements from config (called after data load / settings save)
 var _DEFAULT_CATS = ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT',
@@ -2368,7 +2384,7 @@ function renderTransferLocPicker(){
   var name = ((document.getElementById('mName') || {}).value || '').trim().toUpperCase();
   if (!name) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
-  var key   = cat + '|||' + name;
+  var key   = _normKey(cat) + '|||' + _normKey(name);
   var locs  = stockData[key] && stockData[key].warehouseLocs;
   var racks = locs ? Object.keys(locs).filter(function(r){ return locs[r] > 0; })
                                        .sort(function(a,b){ return locs[b] - locs[a]; }) : [];
@@ -2437,7 +2453,7 @@ function removeTransferRow(btn){
 function validateTransferRows(){
   var cat  = nt(document.getElementById('mType').value);
   var name = (document.getElementById('mName').value || '').trim().toUpperCase();
-  var key  = cat + '|||' + name;
+  var key  = _normKey(cat) + '|||' + _normKey(name);
   var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
 
   document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
@@ -2467,7 +2483,7 @@ function autoFillExitRows(){
   var cat  = nt(document.getElementById('mType').value);
   var name = (document.getElementById('mName').value || '').trim().toUpperCase();
   if (!name) return;
-  var key  = cat + '|||' + name;
+  var key  = _normKey(cat) + '|||' + _normKey(name);
   var locs = stockData[key] && stockData[key].warehouseLocs;
   if (!locs) return;
 
@@ -2494,7 +2510,7 @@ function validateExitRows(){
   var cat  = nt(document.getElementById('mType').value);
   var name = (document.getElementById('mName').value || '').trim().toUpperCase();
   if (!name) return;
-  var key  = cat + '|||' + name;
+  var key  = _normKey(cat) + '|||' + _normKey(name);
   var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
 
   document.querySelectorAll('#exitRowsContainer .exit-row').forEach(function(row){
@@ -2722,7 +2738,7 @@ function checkStock(){
     return;
   }
 
-  var key = cat + '|||' + name;
+  var key = _normKey(cat) + '|||' + _normKey(name);
   var s = stockData[key];
   if (s){
     if (s.availableQty <= 0){
@@ -2824,7 +2840,7 @@ async function submitMovement(){
       alert('Add at least one source location with quantity > 0'); return;
     }
     // Warn if any row exceeds available stock in that rack
-    var matKey  = nt(cat) + '|||' + name.toUpperCase();
+    var matKey  = _normKey(cat) + '|||' + _normKey(name);
     var matLocs = (stockData[matKey] && stockData[matKey].warehouseLocs) || {};
     var overages = exitLocations.filter(function(el){
       return el.loc && matLocs[el.loc.toUpperCase()] !== undefined && el.qty > matLocs[el.loc.toUpperCase()];
@@ -2851,7 +2867,7 @@ async function submitMovement(){
     if (!transferLocations.length){
       alert('Add at least one transfer row with a source rack, destination rack, and quantity > 0'); return;
     }
-    var tMatKey  = nt(cat) + '|||' + name.toUpperCase();
+    var tMatKey  = _normKey(cat) + '|||' + _normKey(name);
     var tMatLocs = (stockData[tMatKey] && stockData[tMatKey].warehouseLocs) || {};
     var tOverages = transferLocations.filter(function(tl){
       return tMatLocs[tl.sourceLoc.toUpperCase()] !== undefined && tl.qty > tMatLocs[tl.sourceLoc.toUpperCase()];
@@ -2912,7 +2928,7 @@ async function submitMovement(){
 
   // Advisory total-stock check for WASTE (TRANSFER is already validated per-row above)
   if (currentMoveType === 'WASTE'){
-    var key2 = nt(cat) + '|||' + name.toUpperCase();
+    var key2 = _normKey(cat) + '|||' + _normKey(name);
     var s2 = stockData[key2];
     if (s2 && s2.availableQty < qty){
       _showConfirm({ icon:'⚠️', title:'Insufficient Stock', message:'Only ' + s2.availableQty + ' units available,\ntrying to remove ' + qty + '.\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
@@ -3404,7 +3420,7 @@ function updateMultiExitTotal(){
 function syncExitRackAvail(n){
   var cat  = nt((document.getElementById('exit-cat-'+n)  || {}).value || '');
   var name = ((document.getElementById('exit-name-'+n) || {}).value || '').trim().toUpperCase();
-  var key  = cat + '|||' + name;
+  var key  = _normKey(cat) + '|||' + _normKey(name);
   var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
   var locsDiv = document.getElementById('exit-locs-' + n);
   if (!locsDiv) return;
@@ -3521,7 +3537,7 @@ function autoFillExitMatRows(n){
   var cat  = nt((document.getElementById('exit-cat-'+n)||{}).value||'');
   var name = ((document.getElementById('exit-name-'+n)||{}).value||'').trim().toUpperCase();
   if (!name){ showToast('Enter a material name first.','warn'); return; }
-  var key  = cat + '|||' + name;
+  var key  = _normKey(cat) + '|||' + _normKey(name);
   var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
   var racks = Object.keys(locs).filter(function(r){ return locs[r]>0; }).sort(function(a,b){ return locs[b]-locs[a]; });
   if (!racks.length){ showToast('No stock found for that material.','warn'); return; }
@@ -3569,7 +3585,7 @@ function submitMultiExit(){
   // Warn if any location exceeds stock
   var overageWarnings = [];
   materials.forEach(function(mat){
-    var key  = nt(mat.category) + '|||' + mat.name;
+    var key  = _normKey(mat.category) + '|||' + _normKey(mat.name);
     var locs = (stockData[key] && stockData[key].warehouseLocs) || {};
     mat.locations.forEach(function(lr){
       var avail = locs[lr.loc.toUpperCase()];
@@ -6053,7 +6069,7 @@ function saveEditMov() {
   if (!payload.name) { showToast('Material name cannot be empty.', 'warn'); return; }
 
   var btn = document.getElementById('btnSaveEditMov');
-  btn.disabled = true; btn.textContent = '💾 Saving…';
+  btn.disabled = true; btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>';
 
   google.script.run
     .withSuccessHandler(function(res) {

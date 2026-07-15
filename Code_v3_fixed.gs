@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.2';
+var APP_VERSION = '5.3';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
