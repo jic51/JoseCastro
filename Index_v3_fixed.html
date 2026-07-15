@@ -491,11 +491,25 @@
     .morning-item-meta{color:var(--muted);font-size:.75rem}
     .morning-popup-footer{padding:.75rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
     /* ── MONITOR MODAL ── */
-    .monitor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.4rem;max-height:50vh;overflow-y:auto;padding:.25rem}
-    .monitor-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:6px;cursor:pointer;font-size:.82rem;border:1px solid transparent;transition:.15s}
-    .monitor-item:hover{background:var(--bg);border-color:var(--border)}
-    .mon-min-inp{width:48px;flex-shrink:0;padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:.75rem;text-align:center;cursor:text}
-    .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2)}
+    /* Outer container: the ONLY scrollbar is vertical — overflow-x:hidden is the
+       actual fix for the horizontal-scroll bug (setting overflow-y alone makes
+       browsers compute overflow-x as "auto" too, per the CSS overflow spec, so
+       any box that's ever even 1px too wide silently added a horizontal scrollbar). */
+    .monitor-grid{max-height:50vh;overflow-y:auto;overflow-x:hidden;padding:.25rem}
+    .monitor-cat-hdr{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.72rem;font-weight:700;color:var(--muted);padding:.5rem .15rem .35rem;margin-top:.4rem;border-bottom:1px solid var(--border)}
+    .monitor-cat-hdr:first-child{margin-top:0}
+    /* Fixed pixel columns (not 1fr) so every box is IDENTICAL width regardless of
+       how many fit per row or how long a neighboring name is. */
+    .monitor-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,150px);justify-content:start;gap:.4rem;margin-bottom:.5rem}
+    .monitor-item{display:flex;flex-direction:column;gap:.25rem;width:150px;height:76px;padding:.4rem .5rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:.15s;box-sizing:border-box;overflow:hidden}
+    .monitor-item:hover{background:var(--bg);border-color:var(--accent)}
+    .monitor-item-top{display:flex;align-items:center;justify-content:space-between;gap:.3rem;min-width:0}
+    .monitor-item-wh{color:var(--muted);font-size:.68rem;font-family:monospace;white-space:nowrap;flex-shrink:0}
+    .monitor-item-name{font-size:.75rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+    .monitor-item-min{display:flex;align-items:center;gap:.3rem;margin-top:auto}
+    .monitor-item-min label{font-size:.65rem;color:var(--muted);text-transform:uppercase;flex-shrink:0}
+    .mon-min-inp{width:100%;min-width:0;padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:.72rem;text-align:center;cursor:text}
+    .monitor-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2);flex-shrink:0}
     .monitor-item label{cursor:pointer;flex:1}
     /* ── USER MANAGEMENT ── */
     .users-table td{vertical-align:middle}
@@ -1088,13 +1102,13 @@
 
 <!-- ══ MONITOR SETTINGS MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="monitorOverlay">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" style="max-width:660px">
     <div class="mhdr">
       <h3>⚙ Low-Stock Monitor Settings</h3>
       <button class="modal-x" onclick="closeModal('monitorOverlay')" title="Close">✕</button>
     </div>
     <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">
-      Select which materials appear in the alert banner. Leave all unchecked to monitor <em>all</em> materials.
+      Select which materials appear in the alert banner, and set a minimum stock threshold per material (leave "Min" blank for no threshold). Leave all unchecked to monitor <em>all</em> materials. <strong>"wh"</strong> = units currently in the warehouse.
     </p>
     <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
       <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(true)">✓ Select All</button>
@@ -1591,7 +1605,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '5.5';
+var APP_VERSION = '5.6';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4985,29 +4999,68 @@ function toggleStockPanel() {
 }
 
 // ── Monitor Settings (which materials to watch) ───────────────────────────────
+// Grouped by category (alphabetical), materials alphabetical within each category —
+// matches the physical Category → Materials mental model instead of one long mixed list.
 function openMonitorModal() {
-  var items = Object.values(stockData).sort(function(a,b){ return a.name < b.name ? -1 : 1; });
   var monSet = {};
   if (monitoredMaterials && monitoredMaterials.length) {
     monitoredMaterials.forEach(function(n){ monSet[(n||'').toUpperCase()] = true; });
   }
   var allMonitored = !monitoredMaterials || monitoredMaterials.length === 0;
-  document.getElementById('monitorGrid').innerHTML = items.map(function(s) {
-    var upperName = (s.name || '').toUpperCase().trim();
-    var checked = allMonitored || !!monSet[upperName];
-    var minVal = (config.minStock && (config.minStock[s.name] || config.minStock[upperName])) || '';
-    return '<label class="monitor-item">' +
-      '<input type="checkbox" class="mon-chk" value="' + upperName.replace(/"/g,'&quot;') + '"' +
-        (checked ? ' checked' : '') + '>' +
-      '<span>' + catBadge(s.category) + '</span>' +
-      '<span style="flex:1;margin-left:.35rem">' + s.name + '</span>' +
-      '<span style="color:var(--muted);font-size:.73rem;font-family:monospace">' + (s.warehouseQty||0) + ' wh</span>' +
-      '<input type="number" class="mon-min-inp" min="0" placeholder="min" data-name="' + upperName.replace(/"/g,'&quot;') + '"' +
-        (minVal !== '' ? ' value="' + minVal + '"' : '') +
-        ' onclick="event.stopPropagation()" title="Minimum stock — alert fires when available stock drops below this">' +
-    '</label>';
+
+  // Group by category
+  var byCat = {};
+  Object.values(stockData).forEach(function(s){
+    var cat = nt(s.category) || 'UNCATEGORIZED';
+    (byCat[cat] = byCat[cat] || []).push(s);
+  });
+  var cats = Object.keys(byCat).sort(); // alphabetical category order
+  cats.forEach(function(c){ byCat[c].sort(function(a,b){ return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }); });
+
+  var html = cats.map(function(cat){
+    var itemsHtml = byCat[cat].map(function(s) {
+      var upperName = (s.name || '').toUpperCase().trim();
+      var checked = allMonitored || !!monSet[upperName];
+      var minVal = (config.minStock && (config.minStock[s.name] || config.minStock[upperName])) || '';
+      return '<label class="monitor-item">' +
+        '<div class="monitor-item-top">' +
+          '<input type="checkbox" class="mon-chk" value="' + upperName.replace(/"/g,'&quot;') + '"' +
+            (checked ? ' checked' : '') + '>' +
+          '<span class="monitor-item-wh" title="Units currently in the warehouse (wh = warehouse)">' + (s.warehouseQty||0) + ' wh</span>' +
+        '</div>' +
+        '<span class="monitor-item-name" title="' + _he(s.name) + '">' + s.name + '</span>' +
+        '<div class="monitor-item-min">' +
+          '<label>Min</label>' +
+          '<input type="number" class="mon-min-inp" min="0" placeholder="—" data-name="' + upperName.replace(/"/g,'&quot;') + '"' +
+            (minVal !== '' ? ' value="' + minVal + '"' : '') +
+            ' onclick="event.stopPropagation()" title="Minimum stock — alert fires when available stock drops below this">' +
+        '</div>' +
+      '</label>';
+    }).join('');
+    return '<div class="monitor-cat-hdr">' + catBadge(cat) + '<span>' + byCat[cat].length + ' item' + (byCat[cat].length!==1?'s':'') + '</span></div>' +
+           '<div class="monitor-cat-grid">' + itemsHtml + '</div>';
   }).join('');
+
+  document.getElementById('monitorGrid').innerHTML = html;
   document.getElementById('monitorOverlay').classList.add('show');
+  // Shrink long material names to fit their fixed-size box instead of overflowing
+  // (only after the modal is visible — measuring width on a display:none element gives 0).
+  setTimeout(_shrinkMonitorNames, 0);
+}
+
+// Progressively reduces font-size on any .monitor-item-name whose text is wider
+// than its box, until it fits (or hits a minimum floor, where ellipsis takes over).
+function _shrinkMonitorNames(){
+  document.querySelectorAll('.monitor-item-name').forEach(function(el){
+    var size = 12; // px, matches the 0.75rem default at 16px root
+    el.style.fontSize = size + 'px';
+    var guard = 0;
+    while (el.scrollWidth > el.clientWidth && size > 8 && guard < 8) {
+      size -= 0.5;
+      el.style.fontSize = size + 'px';
+      guard++;
+    }
+  });
 }
 
 function monitorSelectAll(val) {

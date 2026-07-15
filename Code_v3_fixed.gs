@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.5';
+var APP_VERSION = '5.6';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -921,7 +921,7 @@ function _addMovementsBatch(ss, archive, movements, auth) {
         var links = hasDocGroups
           ? _uploadDocGroups(meta.docGroups, meta.name)
           : _uploadFiles(meta.files, meta.name, 'DOC');
-        if (links) archive.getRange(startRow + u, AC.DOC_LINKS + 1).setValue(links);
+        if (links) archive.getRange(startRow + u, AC.DOC_LINKS + 1).setRichTextValue(_richTextForDocLinks(links));
       } catch (fe) {
         if (!fileError) fileError = fe.message;
         Logger.log('File upload error: ' + fe.message);
@@ -1247,7 +1247,7 @@ function _addMovement(ss, archive, data, auth) {
           ? _uploadDocGroups(data.docGroups, name)  // new multi-photo named groups
           : _uploadFiles(data.files, name, data.po || 'DOC'); // legacy
         if (links) {
-          archive.getRange(newRowIdx, AC.DOC_LINKS + 1).setValue(links);
+          archive.getRange(newRowIdx, AC.DOC_LINKS + 1).setRichTextValue(_richTextForDocLinks(links));
           fileLinks = links;
         }
       } catch (fileErr) {
@@ -1796,9 +1796,9 @@ function _updateDocument(ss, archive, data, auth) {
     : _uploadFiles(data.files, matName, 'row-' + data.rowIdx); // legacy single-file
 
   if (links && data.rowIdx) {
-    var existing = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).getValue();
-    archive.getRange(data.rowIdx, AC.DOC_LINKS + 1)
-      .setValue(existing ? existing + '\n' + links : links);
+    var existing  = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).getValue();
+    var finalText = existing ? existing + '\n' + links : links;
+    archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).setRichTextValue(_richTextForDocLinks(finalText));
   }
   return { status: 'success' };
 }
@@ -1882,6 +1882,35 @@ function uploadRackPhoto(data, auth) {
       uploadedAt: Utilities.formatDate(now, Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm')
     }
   };
+}
+
+// Turns a DOC_LINKS string ("Name||https://...\nName2||https://...") into a
+// RichTextValue where each URL substring is a REAL hyperlink, so the cell shows
+// blue/clickable immediately — no need to double-click in and press Enter.
+//
+// Why that happened before: Sheets' automatic "turn this into a link" behavior
+// only runs on the manual keyboard-input pipeline (a human types text and hits
+// Enter). A script writing via setValue() bypasses that pipeline entirely and
+// the cell stays plain text forever, no matter what it contains.
+//
+// getValues() still returns the exact same plain string afterward (rich text is
+// a formatting layer on top of the value, not a different value) — so nothing
+// that parses "Name||URL" elsewhere (buildDocMap, etc.) is affected.
+function _richTextForDocLinks(text) {
+  var builder = SpreadsheetApp.newRichTextValue().setText(text);
+  var lines   = text.split('\n');
+  var offset  = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var sepIdx = line.indexOf('||');
+    var url = sepIdx !== -1 ? line.substring(sepIdx + 2) : line;
+    var urlStart = sepIdx !== -1 ? offset + sepIdx + 2 : offset;
+    if (url.indexOf('http') === 0 && url.length > 0) {
+      builder.setLinkUrl(urlStart, urlStart + url.length, url);
+    }
+    offset += line.length + 1; // +1 for the '\n' the split() consumed
+  }
+  return builder.build();
 }
 
 function _uploadFiles(files, materialName, po) {
