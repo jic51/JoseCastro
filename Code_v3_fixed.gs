@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.7';
+var APP_VERSION = '5.8';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1254,7 +1254,13 @@ function _addMovement(ss, archive, data, auth) {
     if (['EXIT','TRANSFER','WASTE'].indexOf(mt) !== -1) {
       var reserved = freshStock.reservedQty || 0;
       var avail    = Math.max(0, freshStock.warehouseQty - reserved);
-      var locAvail = src ? (freshStock.warehouseLocs[src] || 0) : avail;
+      // getCurrentStockForItem() keys warehouseLocs by normalizeString(rack) (so
+      // "-" becomes a space and "/" becomes "_"), but `src` here is deliberately
+      // kept in raw display form for writing to the row. Looking it up with the
+      // raw form silently missed any rack whose name has a slash/hyphen/comma
+      // (e.g. "MIRRORS/SHOWERS WAREHOUSE") — it always read back as 0, blocking
+      // EXIT/WASTE/TRANSFER from those racks even with plenty of stock.
+      var locAvail = src ? (freshStock.warehouseLocs[normalizeString(src)] || 0) : avail;
 
       if (avail < qty) {
         throw new Error('INSUFFICIENT STOCK. Available: ' + avail +
