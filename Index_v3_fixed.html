@@ -224,6 +224,13 @@
     .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
     .mat-loc-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:.55rem .7rem;margin-top:.35rem}
+    /* Freezes a modal while its save is in flight — blocks every click inside it
+       (including a second click on Save itself) and dims it so the user knows to wait. */
+    .modal.busy{opacity:.55;pointer-events:none;transition:opacity .15s}
+    /* Same-destination mode: hide per-material rack input + add/remove-location controls — one shared Destination field above handles it */
+    #multiMatContainer.same-dest-mode .loc-rack,
+    #multiMatContainer.same-dest-mode .btn-add-loc,
+    #multiMatContainer.same-dest-mode .btn-remove-loc{display:none}
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
     /* ── INCOMING SUGGESTION BOX ── */
@@ -1336,6 +1343,14 @@
         <label style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em">Materials to Receive</label>
         <span id="multiMatTotal" style="font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px">Total: 0</span>
       </div>
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin-bottom:.5rem;cursor:pointer">
+        <input type="checkbox" id="mSameDestChk" onchange="toggleSameDestination()">
+        Todos los materiales van al mismo lugar
+      </label>
+      <div id="sharedDestField" style="display:none;margin-bottom:.6rem">
+        <label class="mat-line-lbl-sm">Destination (Rack / Location)</label>
+        <input type="text" id="mSharedDest" list="rackList" placeholder="Rack / Location" autocomplete="off" style="width:100%">
+      </div>
       <div id="multiMatContainer"></div>
       <button type="button" class="multi-mat-add" onclick="addMatLine()">+ Add Another Material</button>
     </div>
@@ -1346,6 +1361,10 @@
         <label style="font-size:.72rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.04em">Materials to Dispatch</label>
         <span id="multiExitTotal" style="font-size:.9rem;font-weight:700;color:var(--red);background:var(--red-bg);padding:3px 12px;border-radius:20px">Total: 0</span>
       </div>
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin-bottom:.5rem;cursor:pointer">
+        <input type="checkbox" id="mExitSameDestChk" checked onchange="toggleExitSameDestination()">
+        Todos los materiales van al mismo destino
+      </label>
       <div id="multiExitContainer"></div>
       <button type="button" class="multi-exit-add" onclick="addExitMatLine()">+ Add Another Material</button>
     </div>
@@ -1617,7 +1636,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.1';
+var APP_VERSION = '6.3';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1637,6 +1656,16 @@ function _reportClientError(action, message, stack) {
       .withFailureHandler(function(){})
       .processMovement('logClientError', _h({ action: action, message: String(message||''), stack: String(stack||''), url: location.href }));
   } catch (e) {}
+}
+// Freezes/unfreezes the modal that contains the given overlay while a save is
+// in flight. pointer-events:none blocks a second click on Save (and everything
+// else in the modal) more reliably than button.disabled alone, since it also
+// covers the window where a click can slip through before disabled is applied.
+function _setModalBusy(overlayId, busy) {
+  var ov = document.getElementById(overlayId);
+  if (!ov) return;
+  var modal = ov.querySelector('.modal');
+  if (modal) modal.classList.toggle('busy', busy);
 }
 window.addEventListener('error', function(ev) {
   _reportClientError('window.onerror', ev.message, ev.error && ev.error.stack);
@@ -3189,8 +3218,10 @@ async function submitMovement(){
   function _doSubmit(force) {
     payload.forceSubmit = !!force;
     btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
+        _setModalBusy('moveOverlay', false);
         var savedType = currentMoveType; // capture before modal closes
         var savedName = name;
         var savedQty  = qty;
@@ -3219,6 +3250,7 @@ async function submitMovement(){
         var dupIdx = msg.indexOf('DUPLICATE_MOVEMENT|');
         if (dupIdx !== -1) {
           btn.textContent = 'Save to System'; btn.disabled = false;
+          _setModalBusy('moveOverlay', false);
           var dupStr  = msg.substring(dupIdx);   // "DUPLICATE_MOVEMENT|367|1.9"
           var parts   = dupStr.split('|');
           var minsAgo = parts[2] || '< 1';
@@ -3235,6 +3267,7 @@ async function submitMovement(){
         // ── Any other error ────────────────────────────────────────────────
         showToast('Error: ' + msg, 'err', 6000);
         btn.textContent = 'Save to System'; btn.disabled = false;
+        _setModalBusy('moveOverlay', false);
       })
       .processMovement('addMovement', _h(payload));
   }
@@ -3249,6 +3282,7 @@ async function submitMovement(){
   showToast('⚠ Error: ' + (e && e.message ? e.message : e), 'err', 6000);
   var btnErr = document.getElementById('moveSubmit');
   if (btnErr) { btnErr.textContent = 'Save to System'; btnErr.disabled = false; }
+  _setModalBusy('moveOverlay', false);
  }
 }
 
@@ -3401,6 +3435,31 @@ function _initMultiMatSection(){
   _matLineIdx = 0;
   document.getElementById('multiMatContainer').innerHTML = '';
   addMatLine();
+  var chk = document.getElementById('mSameDestChk');
+  if (chk) chk.checked = false;
+  var dest = document.getElementById('mSharedDest');
+  if (dest) dest.value = '';
+  document.getElementById('multiMatContainer').classList.remove('same-dest-mode');
+  document.getElementById('sharedDestField').style.display = 'none';
+}
+
+// Checked = one Destination field for the whole entry, every material's own
+// rack input is hidden. Unchecked = each material keeps its own location(s),
+// same as before. Toggling ON collapses each material down to a single loc
+// row (no point splitting one material across racks if they all go to one place).
+function toggleSameDestination(){
+  var on   = document.getElementById('mSameDestChk').checked;
+  var cont = document.getElementById('multiMatContainer');
+  cont.classList.toggle('same-dest-mode', on);
+  document.getElementById('sharedDestField').style.display = on ? '' : 'none';
+  if (on) {
+    document.querySelectorAll('#multiMatContainer .mat-locs-container').forEach(function(lc){
+      var rows = lc.querySelectorAll('.loc-row');
+      for (var i = rows.length - 1; i > 0; i--) rows[i].remove(); // keep just the first row
+    });
+    var dest = document.getElementById('mSharedDest');
+    if (dest) setTimeout(function(){ dest.focus(); }, 50);
+  }
 }
 
 // ── Incoming → ENTRY auto-suggest ────────────────────────────────────────────
@@ -3519,7 +3578,21 @@ function _initMultiExitSection(){
   _exitMatLineIdx = 0;
   var container = document.getElementById('multiExitContainer');
   if (container) container.innerHTML = '';
+  var chk = document.getElementById('mExitSameDestChk');
+  if (chk) chk.checked = true; // default: same behavior as before this feature existed
   addExitMatLine();
+  toggleExitSameDestination();
+}
+
+// Checked (default) = one shared Destination field for the whole EXIT, same as
+// before. Unchecked = each material gets its own Destination field instead.
+function toggleExitSameDestination(){
+  var same = document.getElementById('mExitSameDestChk').checked;
+  var sharedField = document.getElementById('exitDestField');
+  if (sharedField) sharedField.style.display = same ? '' : 'none';
+  document.querySelectorAll('#multiExitContainer .exit-per-mat-dest').forEach(function(f){
+    f.style.display = same ? 'none' : '';
+  });
 }
 
 function addExitMatLine(){
@@ -3553,6 +3626,11 @@ function addExitMatLine(){
           '<div class="inc-suggest-box" id="exit-suggest-'+n+'" style="display:none"></div>'+
         '</div>'+
       '</div>'+
+      // Per-material destination — only shown when "same destination for all" is OFF.
+      '<div class="field exit-per-mat-dest" id="exit-destfield-'+n+'" style="display:none;margin-bottom:.5rem">'+
+        '<label>Destination (Project / Site / Address)</label>'+
+        '<input type="text" id="exit-dest-'+n+'" list="projList" placeholder="Project name, site, address…">'+
+      '</div>'+
       '<div class="exit-loc-hdr">'+
         '<span style="flex:2">Rack / Location</span>'+
         '<span style="flex:1">Qty to Take</span>'+
@@ -3567,6 +3645,9 @@ function addExitMatLine(){
     '</div>';
   container.appendChild(wrap.firstChild);
   addExitLocRowMat(n, null, null, true); // add first loc row silently
+  var chk = document.getElementById('mExitSameDestChk');
+  var destField = document.getElementById('exit-destfield-' + n);
+  if (destField) destField.style.display = (chk && !chk.checked) ? '' : 'none';
 }
 
 function removeExitMatLine(n){
@@ -3760,7 +3841,9 @@ function autoFillExitMatRows(n){
 }
 
 function submitMultiExit(){
+  var sameDest = document.getElementById('mExitSameDestChk').checked;
   var dest     = (document.getElementById('mExitDest').value || '').trim();
+  if (sameDest && !dest) { showToast('Enter the Destination.', 'warn'); return; }
   var dateRec  = document.getElementById('mDateRec').value;
   var resp     = (document.getElementById('mResp').value   || '').trim();
   var comments = (document.getElementById('mComm').value   || '').trim();
@@ -3777,6 +3860,11 @@ function submitMultiExit(){
     var cat  = (line.querySelector('select[id^="exit-cat-"]')  ||{}).value || '';
     var name = ((line.querySelector('input[id^="exit-name-"]') ||{}).value||'').trim().toUpperCase();
     if (!name){ showToast('Material '+(i+1)+': enter a name.','warn'); return; }
+    var matDest = '';
+    if (!sameDest) {
+      matDest = ((line.querySelector('input[id^="exit-dest-"]') || {}).value || '').trim();
+      if (!matDest) { showToast('Material '+(i+1)+' ('+name+'): enter its Destination.', 'warn'); return; }
+    }
     var locRows = [];
     line.querySelectorAll('.exit-loc-row').forEach(function(row){
       var rack = (row.querySelector('.el-rack').value||'').trim().toUpperCase();
@@ -3784,7 +3872,7 @@ function submitMultiExit(){
       if (qty > 0) locRows.push({ loc: rack, qty: qty });
     });
     if (!locRows.length){ showToast('Material '+(i+1)+' ('+name+'): add at least one location with qty > 0.','warn'); return; }
-    materials.push({ category: cat, name: name, locations: locRows });
+    materials.push({ category: cat, name: name, locations: locRows, destLoc: matDest });
   }
 
   if (!materials.length){ showToast('Add at least one material.','warn'); return; }
@@ -3808,14 +3896,17 @@ function submitMultiExit(){
     // spinner used by ENTRY/TRANSFER/RETURN/WASTE.
     var btn = document.getElementById('moveSubmit');
     if (btn){ btn.disabled=true; btn.innerHTML='Saving… <span class="spin-hg">⏳</span>'; }
+    _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
+        _setModalBusy('moveOverlay', false);
         closeModal('moveOverlay');
         showToast('✓ '+res.rowCount+' movement record(s) saved.','ok');
         loadDataFromGoogle(true);
       })
       .withFailureHandler(function(err){
         if (btn){ btn.disabled=false; btn.textContent='Save to System'; }
+        _setModalBusy('moveOverlay', false);
         var msg = (err.message||String(err)).replace(/^Error:\s*/i,'');
         showToast('Error: '+msg,'err',6000);
       })
@@ -3853,6 +3944,9 @@ function submitMultiEntry(){
   // Collect material lines
   var materials = [];
   var valid = true;
+  var sameDest = document.getElementById('mSameDestChk').checked;
+  var sharedDest = (document.getElementById('mSharedDest').value || '').trim();
+  if (sameDest && !sharedDest) { alert('Please enter the shared Destination.'); return; }
 
   document.querySelectorAll('#multiMatContainer .mat-line').forEach(function(line){
     if (!valid) return;
@@ -3871,7 +3965,7 @@ function submitMultiEntry(){
     var lc = document.getElementById('mat-locs-' + n);
     if (lc){
       lc.querySelectorAll('.loc-row').forEach(function(row){
-        var loc = (row.querySelector('.loc-rack').value || '').trim();
+        var loc = sameDest ? sharedDest : (row.querySelector('.loc-rack').value || '').trim();
         var qty = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
         if (qty > 0){ locs.push({ loc: loc, qty: qty }); totalQty += qty; }
       });
@@ -3918,8 +4012,10 @@ function submitMultiEntry(){
   function _doMultiSubmit(force){
     payload.forceSubmit = !!force;
     btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
+        _setModalBusy('moveOverlay', false);
         closeModal('moveOverlay');
         loadDataFromGoogle(true);
         setTimeout(function(){
@@ -3938,6 +4034,7 @@ function submitMultiEntry(){
       .withFailureHandler(function(err){
         showToast('Error: ' + (err.message || String(err)), 'err', 6000);
         btn.textContent = 'Save to System'; btn.disabled = false;
+        _setModalBusy('moveOverlay', false);
       })
       .processMovement('addMultiEntry', _h(payload));
   }
@@ -4289,8 +4386,10 @@ function submitAttachment() {
     return;
   }
   btn.innerHTML = 'Uploading… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+  _setModalBusy('attachOverlay', true);
   google.script.run
     .withSuccessHandler(function() {
+      _setModalBusy('attachOverlay', false);
       closeModal('attachOverlay');
       showToast('Document attached ✓', 'ok');
       loadDataFromGoogle(true); // skipCache
@@ -4298,6 +4397,7 @@ function submitAttachment() {
     .withFailureHandler(function(err) {
       showToast('Upload failed: ' + (err.message || err), 'err', 6000);
       btn.textContent = 'Upload & Attach'; btn.disabled = false;
+      _setModalBusy('attachOverlay', false);
     })
     .processMovement('updateDocument', _h({
       rowIdx:    parseInt(document.getElementById('aRowIdx').value),
@@ -6516,15 +6616,18 @@ function saveEditMov() {
 
   var btn = document.getElementById('btnSaveEditMov');
   btn.disabled = true; btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>';
+  _setModalBusy('editMovOverlay', true);
 
   google.script.run
     .withSuccessHandler(function(res) {
+      _setModalBusy('editMovOverlay', false);
       closeModal('editMovOverlay');
       showToast('Movement updated — ' + res.changes + ' field(s) changed. Email sent.', 'ok');
       loadDataFromGoogle(true);
     })
     .withFailureHandler(function(err) {
       btn.disabled = false; btn.textContent = '💾 Save Changes';
+      _setModalBusy('editMovOverlay', false);
       var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
       showToast('Error: ' + msg, 'err', 6000);
     })

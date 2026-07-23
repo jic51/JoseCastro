@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '6.1';
+var APP_VERSION = '6.3';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1351,8 +1351,8 @@ function addMultiExit(ss, archive, data, auth) {
         qty:         loc.qty,
         unit:        mat.unit || 'UNIT',
         dateRec:     data.dateRec     || '',
-        sourceLoc:   loc.loc          || '',
-        destLoc:     data.destLoc     || '',
+        sourceLoc:   loc.loc                    || '',
+        destLoc:     mat.destLoc || data.destLoc || '',
         responsible: data.responsible || '',
         comments:    data.comments    || '',
         // Only dup-check the first row of the whole submission.
