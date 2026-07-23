@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '6.0';
+var APP_VERSION = '6.1';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -17,7 +17,8 @@ var SHEETS = {
   RESERVATIONS: 'RESERVATIONS',
   CONFIG: 'CONFIG',
   AUDIT: 'AUDIT_LOG',
-  ERRORS: 'ERROR_LOG'
+  ERRORS: 'ERROR_LOG',
+  ARCHIVE_HISTORY: 'ARCHIVE_HISTORY'
 };
 
 // Column map matches the ACTUAL sheet structure (19 columns, 0-indexed):
@@ -257,8 +258,10 @@ function loadConfig() {
     if (row[11] && row[12]) {
       c.minStock[String(row[11]).toUpperCase().trim()] = Number(row[12]) || 0;
     }
+    if (row[13] && i === 1) c.archiveCutoffMonths = Number(row[13]) || 12;
   }
   if (!c.adminEmail) c.adminEmail = 'jose@ox-glass.com';
+  if (!c.archiveCutoffMonths) c.archiveCutoffMonths = 12;
   return c;
 }
 
@@ -879,8 +882,9 @@ function _processMovementInner(ss, action, data, auth) {
     if (auth.role !== 'ADMIN') throw new Error('Admin only.');
     return _adminAction(ss, data);
   }
-  if (action === 'getErrorLog')    return getErrorLog(auth);
-  if (action === 'logClientError') return logClientError(data, auth);
+  if (action === 'getErrorLog')     return getErrorLog(auth);
+  if (action === 'logClientError')  return logClientError(data, auth);
+  if (action === 'loadOlderHistory') return loadOlderHistory(auth);
   throw new Error('Unknown action: ' + action);
 }
 
@@ -1463,15 +1467,142 @@ function _ensureWasteSheet(ss) {
   return sheet;
 }
 
+// ─── ARCHIVING OLD MOVEMENTS ─────────────────────────────────────────────────
+// Keeps MASTER_ARCHIVE_V3 (what getInitialData sends to every browser on every
+// login) bounded to "recent" movements, moving anything older than the
+// configured cutoff into ARCHIVE_HISTORY — same columns, viewed on demand via
+// loadOlderHistory(). This is what actually shrinks the payload the client has
+// to download/parse; the movements table already paginates in the DOM, so the
+// remaining weight problem was purely "we ship the whole history every time."
+//
+// Bidirectional: if the admin RAISES the cutoff (e.g. 6mo → 18mo), rows that
+// are now "recent enough" move back from ARCHIVE_HISTORY into MASTER_ARCHIVE_V3
+// so they reappear in the normal view — the cutoff is always the single source
+// of truth for where a row lives, not a one-way ratchet.
+//
+// Stock totals are unaffected either way: _refreshDerivedSheets() below scans
+// BOTH sheets, so LIVE_STOCK/SITE_STOCK/WASTED_STOCK stay correct regardless of
+// which sheet a given row currently sits in.
+function _ensureArchiveHistorySheet(ss) {
+  var sheet = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
+  if (!sheet) {
+    var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+    var headers = archive.getRange(1, 1, 1, 20).getValues()[0];
+    sheet = ss.insertSheet(SHEETS.ARCHIVE_HISTORY);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+// Rewrites MASTER_ARCHIVE_V3 and ARCHIVE_HISTORY so every row lands in the
+// sheet matching the CURRENT cutoff. Locked against concurrent movement saves
+// (same script lock _addMovementsBatch uses) since row positions shift.
+function archiveOldMovements(ss) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { status: 'busy' };
+  try {
+    var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+    if (!archive) return { status: 'no-archive' };
+    var history = _ensureArchiveHistorySheet(ss);
+
+    var cfg          = loadConfig();
+    var cutoffMonths = cfg.archiveCutoffMonths || 12;
+    var cutoffDate   = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - cutoffMonths);
+
+    var colCount = 20;
+    var aData    = archive.getDataRange().getValues();
+    var keep = [], toArchive = [];
+    for (var i = 1; i < aData.length; i++) {
+      var row = aData[i];
+      if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
+      var ts = row[AC.TIMESTAMP] instanceof Date ? row[AC.TIMESTAMP] : null;
+      (ts && ts < cutoffDate ? toArchive : keep).push(row);
+    }
+
+    var hData = history.getDataRange().getValues();
+    var stillOld = [], toRestore = [];
+    for (var j = 1; j < hData.length; j++) {
+      var hrow = hData[j];
+      if (!hrow[AC.CATEGORY] && !hrow[AC.NAME]) continue;
+      var hts = hrow[AC.TIMESTAMP] instanceof Date ? hrow[AC.TIMESTAMP] : null;
+      (hts && hts >= cutoffDate ? toRestore : stillOld).push(hrow);
+    }
+
+    if (!toArchive.length && !toRestore.length) return { status: 'noop' };
+
+    var byTs = function(a, b) {
+      var ta = a[AC.TIMESTAMP] instanceof Date ? a[AC.TIMESTAMP].getTime() : 0;
+      var tb = b[AC.TIMESTAMP] instanceof Date ? b[AC.TIMESTAMP].getTime() : 0;
+      return ta - tb;
+    };
+    var newActive  = toRestore.concat(keep).sort(byTs);
+    var newHistory = stillOld.concat(toArchive).sort(byTs);
+
+    archive.getRange(2, 1, Math.max(archive.getMaxRows() - 1, 1), colCount).clearContent();
+    if (newActive.length) archive.getRange(2, 1, newActive.length, colCount).setValues(newActive);
+
+    history.getRange(2, 1, Math.max(history.getMaxRows() - 1, 1), colCount).clearContent();
+    if (newHistory.length) history.getRange(2, 1, newHistory.length, colCount).setValues(newHistory);
+
+    _auditLog(ss, 'ARCHIVE_RECONCILE', 'system', 'cutoff=' + cutoffMonths + 'mo',
+      toArchive.length + ' archived', toRestore.length + ' restored');
+    return { status: 'success', archived: toArchive.length, restored: toRestore.length };
+  } catch (e) {
+    _logError(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', e.message, null, _newRequestId());
+    throw e;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function archiveOldMovementsTrigger() {
+  archiveOldMovements(SpreadsheetApp.getActiveSpreadsheet());
+}
+
+// Idempotent — installs the daily trigger once. Called the first time an admin
+// saves an archive cutoff so it's self-serve (no manual Apps Script setup step).
+function _ensureArchiveTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'archiveOldMovementsTrigger') return;
+  }
+  ScriptApp.newTrigger('archiveOldMovementsTrigger').timeBased().everyDays(1).atHour(3).create();
+}
+
+// ADMIN only. Returns movements older than the cutoff, for on-demand viewing/
+// export ("Load older history"). Read-only in the UI — rowIdx here refers to
+// ARCHIVE_HISTORY's row, not MASTER_ARCHIVE_V3's, so it's tagged `archived: true`
+// and must never be sent to modifyMovement/_updateDocument.
+function loadOlderHistory(auth) {
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var history = _ensureArchiveHistorySheet(ss);
+  var data    = history.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
+    var m = parseArchiveRow(row, i + 1);
+    m.archived = true;
+    out.push(m);
+  }
+  return out;
+}
+
 // ─── REFRESH DERIVED SHEETS ──────────────────────────────────────────────────
+// Scans MASTER_ARCHIVE_V3 AND ARCHIVE_HISTORY together — stock totals must stay
+// correct regardless of which sheet a movement currently lives in.
 function _refreshDerivedSheets(ss) {
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   var live    = ss.getSheetByName(SHEETS.LIVE);
   var site    = ss.getSheetByName(SHEETS.SITE);
   if (!archive || !live || !site) return;
-  var waste = _ensureWasteSheet(ss);
+  var waste   = _ensureWasteSheet(ss);
+  var history = _ensureArchiveHistorySheet(ss);
 
-  var data  = archive.getDataRange().getValues();
+  var data  = archive.getDataRange().getValues().concat(history.getDataRange().getValues().slice(1));
   var stock = {};
 
   for (var i = 1; i < data.length; i++) {
@@ -1754,9 +1885,20 @@ function _updateDocument(ss, archive, data, auth) {
   var matName = 'attachment';
   if (data.rowIdx) {
     try {
-      var rv = archive.getRange(data.rowIdx, AC.NAME + 1, 1, 1).getValues();
-      matName = String((rv[0] || [])[0] || 'attachment').trim() || 'attachment';
-    } catch(e) {}
+      var rv = archive.getRange(data.rowIdx, AC.CATEGORY + 1, 1, 2).getValues()[0];
+      matName = String(rv[1] || 'attachment').trim() || 'attachment';
+      // Same stale-row guard as modifyMovement — row numbers shift when
+      // archiveOldMovements() reconciles the sheet.
+      if (data.expectedCategory !== undefined || data.expectedName !== undefined) {
+        var curCat2  = String(rv[0] || '').trim().toUpperCase();
+        var curName2 = String(rv[1] || '').trim().toUpperCase();
+        var expCat2  = String(data.expectedCategory || '').trim().toUpperCase();
+        var expName2 = String(data.expectedName     || '').trim().toUpperCase();
+        if (curCat2 !== expCat2 || curName2 !== expName2) {
+          throw new Error('This row has changed (data was reorganized). Please refresh and try again.');
+        }
+      }
+    } catch(e) { if (/reorganized/.test(e.message)) throw e; }
   }
 
   var links = hasDocGroups
@@ -2531,7 +2673,8 @@ function getSettings(auth) {
     categories: c.categories,
     projects:   c.projects,
     suppliers:  c.suppliers,
-    locations:  c.locations.map(function(l){ return l.name; })
+    locations:  c.locations.map(function(l){ return l.name; }),
+    archiveCutoffMonths: c.archiveCutoffMonths
   };
 }
 
@@ -2544,6 +2687,16 @@ function updateConfig(data, auth) {
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) throw new Error('CONFIG sheet not found.');
+
+  if (data.type === 'archiveCutoffMonths') {
+    var months = Number(data.value);
+    if ([6, 12, 18].indexOf(months) === -1) throw new Error('Cutoff must be 6, 12, or 18 months.');
+    cfg.getRange(2, 14).setValue(months);
+    _ensureArchiveTrigger();
+    var res = archiveOldMovements(ss);
+    _auditLog(ss, 'UPDATE_CONFIG', auth.email, 'archiveCutoffMonths', 'set', String(months) + 'mo');
+    return { status: 'success', reconcile: res };
+  }
 
   // Column index in CONFIG sheet (0-based array index = col number - 1)
   var colMap = { categories: 1, projects: 0, suppliers: 2, locations: 3 };
@@ -2883,6 +3036,21 @@ function modifyMovement(data, auth) {
   // Read current row (20 cols)
   var range   = archive.getRange(rowIdx, 1, 1, 20);
   var rowVals = range.getValues()[0];
+
+  // Row numbers shift whenever archiveOldMovements() reconciles the sheet —
+  // guard against silently editing the wrong movement if the client's cached
+  // rowIdx is now stale (e.g. an archiving pass ran between page load and this
+  // edit). The client sends what it expects to find there; if it doesn't match,
+  // the row moved — fail loudly instead of overwriting a different movement.
+  if (data.expectedCategory !== undefined || data.expectedName !== undefined) {
+    var curCat  = String(rowVals[AC.CATEGORY] || '').trim().toUpperCase();
+    var curName = String(rowVals[AC.NAME]     || '').trim().toUpperCase();
+    var expCat  = String(data.expectedCategory || '').trim().toUpperCase();
+    var expName = String(data.expectedName     || '').trim().toUpperCase();
+    if (curCat !== expCat || curName !== expName) {
+      throw new Error('This row has changed (data was reorganized). Please refresh and try again.');
+    }
+  }
 
   // Map of field key → { col (0-indexed), label }
   var FIELDS = {

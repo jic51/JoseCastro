@@ -850,6 +850,7 @@
           </select>
           <select id="movCatFilter"><option value="">All Categories</option></select>
           <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
+          <button id="btnLoadOlderHistory" class="btn btn-ghost btn-sm">📜 Cargar historial anterior</button>
           <button id="btnEntry" class="btn btn-primary">+ Entry (IN)</button>
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
         </div>
@@ -1511,6 +1512,16 @@
       <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 Materials</button>
       <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 Error Log</button>
     </div>
+    <!-- Archive cutoff (global, not per-tab) -->
+    <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:var(--bg);border-radius:7px;margin-bottom:1rem;font-size:.8rem">
+      <span>🗄 Archivar movimientos después de:</span>
+      <select id="archiveCutoffSel" onchange="_saveArchiveCutoff()" style="padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
+        <option value="6">6 meses</option>
+        <option value="12">12 meses</option>
+        <option value="18">18 meses</option>
+      </select>
+      <span style="color:var(--muted);font-size:.72rem">Los movimientos más viejos siguen accesibles con "Cargar historial anterior".</span>
+    </div>
     <!-- Tab content -->
     <div id="settingsTabContent" style="min-height:240px"></div>
     <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
@@ -1606,7 +1617,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.0';
+var APP_VERSION = '6.1';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1634,6 +1645,8 @@ window.addEventListener('unhandledrejection', function(ev) {
   var reason = ev.reason;
   _reportClientError('unhandledrejection', reason && reason.message ? reason.message : String(reason), reason && reason.stack);
 });
+var oldMovements       = [];  // ARCHIVE_HISTORY rows, loaded on demand via "Cargar historial anterior" — view/export only
+var _oldHistoryLoaded  = false;
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
 var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
@@ -2216,7 +2229,8 @@ function renderMovements(){
   var cf   = document.getElementById('movCatFilter').value;
   var v    = colVis;
 
-  var filtered = movements.slice().reverse().filter(function(m){
+  var allMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
+  var filtered = allMovs.slice().reverse().filter(function(m){
     var norm = normMT(m.moveType);
     if (tf && norm !== tf) return false;
     if (cf && nt(m.category) !== cf) return false;
@@ -2274,7 +2288,9 @@ function renderMovements(){
       locDisplay = m.sourceLoc || m.destLoc || '—';
     }
     var docBtn = renderDocLinks(m.docLinks);
-    var attachBtn = '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
+    // Archived (ARCHIVE_HISTORY) rows use a different rowIdx space than the
+    // active sheet — view/export only, no edit/attach (see loadOlderHistory()).
+    var attachBtn = m.archived ? '' : '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
     return '<tr class="'+rowClass(m.moveType)+'">'+
       '<td>'+moveBadge(m.moveType)+'</td>'+
@@ -2296,7 +2312,7 @@ function renderMovements(){
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
       '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
-      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px"><button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button></div></td>':'')+
+      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Movimiento archivado — solo lectura">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>':'')+
       '</tr>';
   }).join('');
 
@@ -2319,6 +2335,27 @@ function renderMovements(){
   document.getElementById('tableContainer').querySelectorAll('[data-row]').forEach(function(btn){
     btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
   });
+}
+
+function _loadOlderHistoryClicked() {
+  var btn = document.getElementById('btnLoadOlderHistory');
+  if (_oldHistoryLoaded) { showToast('Historial anterior ya cargado (' + oldMovements.length + ' movimientos).', 'ok'); return; }
+  btn.disabled = true; btn.textContent = 'Cargando…';
+  google.script.run
+    .withSuccessHandler(function(rows) {
+      oldMovements = rows || [];
+      _oldHistoryLoaded = true;
+      btn.disabled = false;
+      btn.textContent = '📜 Historial anterior (' + oldMovements.length + ')';
+      _movPage = 1;
+      renderMovements();
+      showToast('✓ Se cargaron ' + oldMovements.length + ' movimientos archivados.', 'ok');
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = '📜 Cargar historial anterior';
+      showToast('⚠ Error: ' + (e.message||e), 'err');
+    })
+    .processMovement('loadOlderHistory', _h({}));
 }
 
 function _loadMoreMovements(){
@@ -3923,9 +3960,23 @@ function _loadSettings() {
   document.getElementById('settingsTabContent').innerHTML =
     '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
   google.script.run
-    .withSuccessHandler(function(d) { _settingsData = d; _renderSettingsTab(_settingsTab); })
+    .withSuccessHandler(function(d) {
+      _settingsData = d;
+      var sel = document.getElementById('archiveCutoffSel');
+      if (sel) sel.value = String(d.archiveCutoffMonths || 12);
+      _renderSettingsTab(_settingsTab);
+    })
     .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
     .processMovement('getSettings', _h({}));
+}
+
+function _saveArchiveCutoff() {
+  var sel = document.getElementById('archiveCutoffSel');
+  var months = sel.value;
+  google.script.run
+    .withSuccessHandler(function() { showToast('✓ Corte de archivado actualizado a ' + months + ' meses.', 'ok'); })
+    .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err'); })
+    .processMovement('updateConfig', _h({ type: 'archiveCutoffMonths', value: months }));
 }
 
 function switchSettingsTab(tab) {
@@ -4250,6 +4301,8 @@ function submitAttachment() {
     })
     .processMovement('updateDocument', _h({
       rowIdx:    parseInt(document.getElementById('aRowIdx').value),
+      expectedCategory: _attachOrigCategory,
+      expectedName:     _attachOrigName,
       docGroups: docs,
       files:     []
     }));
@@ -4304,9 +4357,14 @@ function _moveModalHasData(){
   return any;
 }
 
+var _attachOrigCategory = '';
+var _attachOrigName = '';
 function openAttachModal(rowIdx, folderName){
   document.getElementById('aRowIdx').value     = rowIdx;
   document.getElementById('aFolderName').value = folderName;
+  var mov = movements.find(function(m){ return m.rowIdx === rowIdx; });
+  _attachOrigCategory = mov ? (mov.category || '') : '';
+  _attachOrigName     = mov ? (mov.name     || '') : '';
   resetAttachDocBuilder();  // fresh doc builder each time
   document.getElementById('attachOverlay').classList.add('show');
 }
@@ -4614,7 +4672,8 @@ function refreshDropdowns(){
 // ── CSV Export ────────────────────────────────────────────────────────────────
 function exportMovementsCSV(){
   var headers = ['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Responsible','Comments','User'];
-  var rows = movements.slice().reverse().map(function(m){
+  var srcMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
+  var rows = srcMovs.slice().reverse().map(function(m){
     return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.project||'',
             m.qty,m.unit||'',m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' '),m.userEmail||'']
       .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
@@ -6160,6 +6219,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Export
   _safeOn('btnExportCSV','click', exportMovementsCSV);
+  _safeOn('btnLoadOlderHistory','click', _loadOlderHistoryClicked);
   _safeOn('btnExportProject','click', exportProjectCSV);
 
   // Incoming filter
@@ -6363,6 +6423,8 @@ function _confirmCancel() {
 
 // ── Edit Movement ─────────────────────────────────────────────────────────────
 var _editMovRowIdx = 0;
+var _editMovOrigCategory = '';
+var _editMovOrigName = '';
 
 function openEditMovModal(rowIdx) {
   var mov = null;
@@ -6372,6 +6434,8 @@ function openEditMovModal(rowIdx) {
   if (!mov) { showToast('Movement not found in current view.', 'warn'); return; }
 
   _editMovRowIdx = rowIdx;
+  _editMovOrigCategory = mov.category || '';
+  _editMovOrigName     = mov.name     || '';
 
   // Row tag
   document.getElementById('editMovRowTag').textContent  = 'Row #' + rowIdx;
@@ -6429,6 +6493,8 @@ function saveEditMov() {
 
   var payload = {
     rowIdx:      _editMovRowIdx,
+    expectedCategory: _editMovOrigCategory,
+    expectedName:     _editMovOrigName,
     reason:      reason,
     category:    document.getElementById('em_category').value,
     name:        document.getElementById('em_name').value.trim(),
