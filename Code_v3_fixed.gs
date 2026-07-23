@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '5.8';
+var APP_VERSION = '6.0';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -16,7 +16,8 @@ var SHEETS = {
   WASTE: 'WASTED_STOCK',
   RESERVATIONS: 'RESERVATIONS',
   CONFIG: 'CONFIG',
-  AUDIT: 'AUDIT_LOG'
+  AUDIT: 'AUDIT_LOG',
+  ERRORS: 'ERROR_LOG'
 };
 
 // Column map matches the ACTUAL sheet structure (19 columns, 0-indexed):
@@ -400,6 +401,11 @@ function getInitialData(sessionToken) {
       materialLocks:      materialLocks
     };
   } catch (err) {
+    try {
+      var _ss = SpreadsheetApp.getActiveSpreadsheet();
+      var _auth = getUserRole(sessionToken);
+      _logError(_ss, 'ERROR', 'backend', 'getInitialData', _auth.email, err.message, null, _newRequestId());
+    } catch (e2) {}
     throw new Error('getInitialData: ' + err.message);
   }
 }
@@ -671,7 +677,19 @@ function processMovement(action, data) {
   if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
   if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
 
-  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    return _processMovementInner(ss, action, data, auth);
+  } catch (err) {
+    var reqId = _newRequestId();
+    var severity = _classifyErrorSeverity(err.message);
+    _logError(ss, severity, 'backend', action, auth.email, err.message, data, reqId);
+    if (severity === 'ERROR') throw new Error(err.message + ' [ID: ' + reqId + ']');
+    throw err;
+  }
+}
+
+function _processMovementInner(ss, action, data, auth) {
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   if (!archive) throw new Error('Archive sheet not found.');
 
@@ -791,7 +809,45 @@ function processMovement(action, data) {
       };
     }
 
-    return _addMovement(ss, archive, data, auth);
+    // WASTE / RETURN (and anything else without its own multi-row array) — wrap
+    // as a single-row batch so it goes through the SAME atomic, lock-enforced,
+    // validated engine as ENTRY/EXIT/TRANSFER instead of the old separate
+    // _addMovement() implementation. Two parallel paths for "save a movement"
+    // is exactly what let the rack-name-with-slash bug slip past WASTE/RETURN
+    // after it had already been fixed everywhere else — one engine, one fix site.
+    var singleRes = _addMovementsBatch(ss, archive, [{
+      moveType:         data.moveType,
+      category:         data.category,
+      name:             data.name,
+      project:          data.project,
+      isGeneric:        data.isGeneric,
+      gc:               data.gc,
+      po:               data.po,
+      qty:              data.qty,
+      unit:             data.unit,
+      dateRec:          data.dateRec,
+      sourceLoc:        data.sourceLoc,
+      destLoc:          data.destLoc,
+      supplier:         data.supplier,
+      comments:         data.comments,
+      responsible:      data.responsible,
+      pm:               data.pm,
+      files:            data.files     || [],
+      docGroups:        data.docGroups || [],
+      notifyRecipients: data.notifyRecipients || null,
+      forceSubmit:      !!data.forceSubmit
+    }], auth);
+
+    var singleMatId = getMaterialId(normalizeString(data.category), normalizeString(data.name));
+    var availAfter  = singleRes.availableByMat && singleRes.availableByMat[singleMatId];
+    return {
+      status:         'success',
+      rowIdx:         singleRes.firstRowIdx,
+      message:        String(data.moveType || '').toUpperCase() + ' recorded successfully.',
+      availableAfter: availAfter != null ? availAfter : null,
+      fileError:      singleRes.fileError,
+      emailError:     singleRes.emailError
+    };
   }
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
   if (action === 'addMultiExit')          return addMultiExit(ss, archive, data, auth);
@@ -823,6 +879,8 @@ function processMovement(action, data) {
     if (auth.role !== 'ADMIN') throw new Error('Admin only.');
     return _adminAction(ss, data);
   }
+  if (action === 'getErrorLog')    return getErrorLog(auth);
+  if (action === 'logClientError') return logClientError(data, auth);
   throw new Error('Unknown action: ' + action);
 }
 
@@ -1198,207 +1256,6 @@ function _sendBatchNotifyEmail(notify, rowMeta, auth) {
   if (cc) opts.cc = cc;
   GmailApp.sendEmail(to, subject, msgBody, opts);
   return null;
-}
-
-// ─── ADD MOVEMENT ─────────────────────────────────────────────────────────────
-function _addMovement(ss, archive, data, auth) {
-  var mt = String(data.moveType || '').toUpperCase().trim();
-
-  // Normalize legacy DISPATCH → EXIT for all new records
-  if (mt === 'DISPATCH') mt = 'EXIT';
-
-  var validTypes = ['ENTRY','EXIT','TRANSFER','RETURN','WASTE'];
-  if (validTypes.indexOf(mt) === -1) throw new Error('Invalid move type: ' + mt);
-
-  var qty = Math.abs(Number(data.qty || 0));
-  if (qty <= 0) throw new Error('Quantity must be greater than 0.');
-
-  var cat  = normalizeString(data.category);
-  var name = normalizeString(data.name);
-  if (!cat || !name) throw new Error('Category and Name are required.');
-
-  var proj  = data.isGeneric ? 'GENERIC' : normalizeString(data.project || '');
-  if (!proj && mt === 'ENTRY') proj = 'GENERIC';
-  var matId = getMaterialId(cat, name);
-
-  // Use GAS built-in LockService (never blocks the 30-second execution limit)
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(8000); // wait up to 8 s for the lock
-  } catch(lockErr) {
-    throw new Error('System busy — another save is in progress. Please retry in a moment.');
-  }
-
-  try {
-    // ── Duplicate-movement guard ──────────────────────────────────────────────
-    // Check if an identical movement (same type+category+name+qty+user) was already
-    // saved within the last 3 minutes. This catches double-clicks and double-tabs.
-    // Pass forceSubmit:true from the frontend to bypass if the user confirms.
-    if (!data.forceSubmit) {
-      var dupResult = _checkDuplicateMovement(archive, mt, cat, name, qty, auth.email);
-      if (dupResult) {
-        throw new Error('DUPLICATE_MOVEMENT|' + dupResult.rowIdx + '|' + dupResult.minutesAgo);
-      }
-    }
-
-    var freshStock = getCurrentStockForItem(ss, matId);
-    // Locations are user-configured values (datalist-selected) — only uppercase+trim,
-    // do NOT run normalizeString which would convert "/" and other chars to "_".
-    var src  = String(data.sourceLoc || '').toUpperCase().trim();
-    var dest = String(data.destLoc   || '').toUpperCase().trim();
-
-    // Material lock check — authoritative, cannot be bypassed from the frontend.
-    _enforceMaterialLock(_getActiveLocksMap(ss), mt, matId, normalizeString(src), normalizeString(dest));
-
-    // Stock validation for outgoing moves
-    if (['EXIT','TRANSFER','WASTE'].indexOf(mt) !== -1) {
-      var reserved = freshStock.reservedQty || 0;
-      var avail    = Math.max(0, freshStock.warehouseQty - reserved);
-      // getCurrentStockForItem() keys warehouseLocs by normalizeString(rack) (so
-      // "-" becomes a space and "/" becomes "_"), but `src` here is deliberately
-      // kept in raw display form for writing to the row. Looking it up with the
-      // raw form silently missed any rack whose name has a slash/hyphen/comma
-      // (e.g. "MIRRORS/SHOWERS WAREHOUSE") — it always read back as 0, blocking
-      // EXIT/WASTE/TRANSFER from those racks even with plenty of stock.
-      var locAvail = src ? (freshStock.warehouseLocs[normalizeString(src)] || 0) : avail;
-
-      if (avail < qty) {
-        throw new Error('INSUFFICIENT STOCK. Available: ' + avail +
-          ' (Warehouse: ' + freshStock.warehouseQty + ', Reserved: ' + reserved +
-          '). Cannot remove ' + qty + '.');
-      }
-      if (src && locAvail < qty) {
-        throw new Error('INSUFFICIENT at ' + src + '. Available there: ' + locAvail +
-          '. Total available: ' + avail);
-      }
-    }
-
-    if (mt === 'WASTE' && !String(data.comments || '').trim()) {
-      throw new Error('WASTE movements require a reason in comments.');
-    }
-
-    // Build and save archive row
-    var now   = new Date();
-    var tDate = data.dateRec || Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-
-    // Row matches the 19-column sheet structure exactly (AC map above)
-    var statusVal = (mt === 'ENTRY' || mt === 'RETURN' || mt === 'TRANSFER')
-                    ? 'In Stock'
-                    : (mt === 'EXIT' || mt === 'DISPATCH')
-                    ? 'Dispatched'
-                    : 'Damaged';  // WASTE
-
-    var row = new Array(19);
-    row[AC.TIMESTAMP]  = now;
-    row[AC.CATEGORY]   = _cleanDisplay(data.category);   // stored as typed (keeps , - /)
-    row[AC.NAME]       = _cleanDisplay(data.name);       // matId still uses normalized form for matching
-    row[AC.GC]         = String(data.gc  || '').trim();   // keep as-is (contract numbers have special chars)
-    row[AC.PO]         = String(data.po  || '').trim();   // keep as-is (PO# uses hyphens, asterisks, etc.)
-    row[AC.QTY]        = qty;
-    row[AC.UNIT]       = String(data.unit || 'UNIT').toUpperCase();
-    row[AC.DATE_REC]   = tDate;
-    row[AC.SRC_LOC]    = src;
-    row[AC.SUPPLIER]   = String(data.supplier || '').trim(); // keep as-is
-    row[AC.COMMENTS]   = String(data.comments  || '').trim();
-    row[AC.STATUS]     = statusVal;                                   // L: In Stock / Dispatched / Damaged
-    row[AC.RESPONSIBLE]= String(data.responsible || auth.email).trim();
-    row[AC.PROJECT]    = proj;
-    row[AC.MAT_ID]     = matId;
-    row[AC.DOC_LINKS]  = '';
-    row[AC.USER_EMAIL] = auth.email;
-    row[AC.DEST_LOC]   = dest;
-    row[AC.MOVETYPE]   = mt;                                          // S: transaction type
-    row[AC.PM]         = String(data.pm || '').trim();               // T: Project Manager (ENTRY only)
-
-    archive.appendRow(row);
-    var newRowIdx = archive.getLastRow();
-    archive.getRange(newRowIdx, AC.TIMESTAMP + 1).setNumberFormat('mm/dd/yyyy hh:mm');
-
-    // ── Write-verify: confirm the row was actually persisted ──────────────────
-    var verifyName = String(archive.getRange(newRowIdx, AC.NAME + 1).getValue() || '').trim().toUpperCase();
-    if (!verifyName || normalizeString(verifyName) !== normalizeString(name)) {
-      Logger.log('WRITE_VERIFY_FAIL row=' + newRowIdx + ' expected=' + name + ' got=' + verifyName);
-      throw new Error('WRITE_VERIFY_FAIL: row ' + newRowIdx + ' could not be confirmed in the archive. Please try again.');
-    }
-
-    // ── File / Document uploads ───────────────────────────────────────────────
-    var fileLinks = '';
-    var fileError = '';
-    var hasDocGroups = data.docGroups && data.docGroups.length > 0;
-    var hasFiles     = data.files     && data.files.length     > 0;
-    if (hasDocGroups || hasFiles) {
-      try {
-        var links = hasDocGroups
-          ? _uploadDocGroups(data.docGroups, name)  // new multi-photo named groups
-          : _uploadFiles(data.files, name, data.po || 'DOC'); // legacy
-        if (links) {
-          archive.getRange(newRowIdx, AC.DOC_LINKS + 1).setRichTextValue(_richTextForDocLinks(links));
-          fileLinks = links;
-        }
-      } catch (fileErr) {
-        fileError = fileErr.message;
-        Logger.log('File upload error: ' + fileErr.message);
-      }
-    }
-
-    // ── Refresh derived sheets (best-effort, non-blocking) ───────────────────
-    try { _refreshDerivedSheets(ss); } catch (refreshErr) {
-      Logger.log('Refresh warning: ' + refreshErr.message);
-    }
-
-    _auditLog(ss, 'ADD_MOVEMENT', auth.email, mt + ' | ' + name + ' x' + qty, '', '');
-
-    // ── On-demand notification email (ENTRY checkbox only) ───────────────────
-    var emailError = '';
-    if (data.notifyRecipients && data.notifyRecipients.emails) {
-      try {
-        var subject = 'Material Received: ' + name +
-          (proj && proj !== 'GENERIC' ? ' — ' + proj : '');
-        var msgBody = data.notifyRecipients.message;
-        if (!msgBody) {
-          msgBody = 'Hi,\n\nThe ' + qty + ' ' + String(data.unit || 'UNIT').toUpperCase() +
-            '(s) of ' + name + ' for ' + (proj || 'OX Glass Co.') +
-            ' were received today and are now stored in ' +
-            (dest || src || 'the warehouse') +
-            '.\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
-        }
-        var emailList = data.notifyRecipients.emails.split(',');
-        var sent = 0;
-        for (var em = 0; em < emailList.length; em++) {
-          var addr = emailList[em].trim();
-          if (addr && addr.indexOf('@') !== -1) {
-            // GmailApp.sendEmail runs with the script owner's credentials — no
-            // per-user OAuth needed, so it works regardless of who triggers it.
-            GmailApp.sendEmail(addr, subject, msgBody, {
-              name: 'OX Glass Co. — Warehouse',
-              replyTo: auth.email   // reply goes back to the user who saved the entry
-            });
-            sent++;
-          }
-        }
-        if (sent === 0) emailError = 'No valid email addresses provided.';
-      } catch (notifErr) {
-        emailError = notifErr.message;
-        Logger.log('Email error: ' + notifErr.message);
-      }
-    }
-
-    if (mt === 'WASTE') {
-      try { _checkNotifications(ss, data, mt, qty, auth.email); } catch(e) {}
-    }
-
-    return {
-      status:         'success',
-      rowIdx:         newRowIdx,
-      message:        mt + ' recorded successfully.' + (fileLinks ? ' Files attached.' : ''),
-      availableAfter: Math.max(0, (freshStock.availableQty || 0) - qty),
-      fileError:      fileError  || null,
-      emailError:     emailError || null
-    };
-
-  } finally {
-    lock.releaseLock();
-  }
 }
 
 // ─── ADD MULTI-ENTRY ──────────────────────────────────────────────────────────
@@ -2338,9 +2195,106 @@ function _auditLog(ss, action, user, details, oldVal, newVal) {
   sheet.appendRow([new Date(), action, user, details, oldVal, newVal]);
 }
 
+// ─── ERROR LOG ────────────────────────────────────────────────────────────────
+// Structured error log: one row per error, backend or frontend, with a stable
+// severity, the action being attempted, and a correlation ID so a user can
+// report "error XXXXXX" and an admin can find that exact row instantly.
+function _ensureErrorLogSheet(ss) {
+  var sheet = ss.getSheetByName(SHEETS.ERRORS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.ERRORS);
+    sheet.appendRow(['Timestamp', 'Severity', 'User', 'Source', 'Action', 'Message', 'Context', 'RequestId']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+// Known, user-facing validation messages are expected business-rule rejections,
+// not bugs — classified WARN so they don't drown out real ERROR entries in the
+// admin viewer, while still being captured for pattern-spotting (e.g. one rack
+// repeatedly hitting INSUFFICIENT stock might mean a data problem, not user error).
+var _KNOWN_VALIDATION_PREFIXES = [
+  'INSUFFICIENT', 'LOCKED', 'DUPLICATE_MOVEMENT', 'Not authenticated',
+  'Access denied', 'Read-only access', 'Admin only', 'Archive sheet not found',
+  'Unknown action', 'Category and Name are required', 'Quantity must be',
+  'A reason is required', 'Rack is required', 'Cannot reserve',
+  'Reservation not found', 'Lock not found', 'WASTE movements require'
+];
+function _classifyErrorSeverity(msg) {
+  msg = String(msg || '');
+  for (var i = 0; i < _KNOWN_VALIDATION_PREFIXES.length; i++) {
+    if (msg.indexOf(_KNOWN_VALIDATION_PREFIXES[i]) === 0) return 'WARN';
+  }
+  return 'ERROR';
+}
+
+// Strips session tokens / anything sensitive before a payload gets written to the log.
+function _sanitizeErrorContext(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  var clean = {};
+  for (var k in obj) {
+    if (!obj.hasOwnProperty(k)) continue;
+    if (/session|token|password/i.test(k)) continue;
+    clean[k] = obj[k];
+  }
+  try { return JSON.stringify(clean).substring(0, 1000); } catch (e) { return ''; }
+}
+
+function _newRequestId() {
+  return Utilities.getUuid().substring(0, 8);
+}
+
+// Never throws — logging failures must not mask the original error.
+function _logError(ss, severity, source, action, userEmail, message, context, requestId) {
+  try {
+    var sheet = _ensureErrorLogSheet(ss);
+    sheet.appendRow([
+      new Date(), severity, userEmail || '', source, action || '',
+      String(message || '').substring(0, 500), _sanitizeErrorContext(context), requestId || ''
+    ]);
+  } catch (e) {
+    Logger.log('_logError failed: ' + e.message);
+  }
+}
+
+// ADMIN only. Returns the most recent error log entries, newest first.
+function getErrorLog(auth) {
+  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensureErrorLogSheet(ss);
+  var last  = sheet.getLastRow();
+  if (last < 2) return [];
+  var rowCount = Math.min(last - 1, 300);
+  var startRow = last - rowCount + 1;
+  var rows = sheet.getRange(startRow, 1, rowCount, 8).getValues();
+  var out = [];
+  for (var i = rows.length - 1; i >= 0; i--) {
+    var r = rows[i];
+    out.push({
+      timestamp: r[0] instanceof Date ? r[0].toISOString() : String(r[0]),
+      severity: r[1], user: r[2], source: r[3], action: r[4],
+      message: r[5], context: r[6], requestId: r[7]
+    });
+  }
+  return out;
+}
+
+// Frontend uncaught-error reporter. Any signed-in user (not just ADMIN) can log
+// a client-side crash so admins see it — routed through the same auth gate as
+// every other action, so NO_SESSION/DENIED/VIEWER users are still blocked upstream.
+function logClientError(data, auth) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var requestId = _newRequestId();
+  _logError(ss, 'ERROR', 'frontend', data.action || '', auth.email,
+    data.message, { stack: data.stack, url: data.url }, requestId);
+  return { status: 'success', requestId: requestId };
+}
+
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
 // Only called automatically for WASTE. ENTRY notifications are user-triggered
-// via the modal checkbox and handled directly in _addMovement().
+// via the modal checkbox and handled directly in _addMovementsBatch() /
+// _sendBatchNotifyEmail().
 function _checkNotifications(ss, data, moveType, qty, userEmail) {
   try {
     var cfg       = loadConfig();

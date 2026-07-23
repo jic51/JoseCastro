@@ -1509,6 +1509,7 @@
       <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 Suppliers</button>
       <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 Locations</button>
       <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 Materials</button>
+      <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 Error Log</button>
     </div>
     <!-- Tab content -->
     <div id="settingsTabContent" style="min-height:240px"></div>
@@ -1605,7 +1606,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '5.8';
+var APP_VERSION = '6.0';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1615,6 +1616,24 @@ var _SESSION_KEY   = 'oxwms_session_v3';
 var _sessionToken  = (function(){ try{ return localStorage.getItem(_SESSION_KEY)||''; }catch(e){return '';} })();
 // Injects the verified session token into any payload sent to processMovement.
 function _h(data){ return _sessionToken ? Object.assign({}, data||{}, {_sessionToken:_sessionToken}) : (data||{}); }
+// Fire-and-forget report of an unexpected client error to ERROR_LOG. Never
+// blocks or alarms the user if the report itself fails — logging is best-effort.
+function _reportClientError(action, message, stack) {
+  try {
+    if (!_sessionToken && userRole === 'NO_SESSION') return;
+    google.script.run
+      .withSuccessHandler(function(){})
+      .withFailureHandler(function(){})
+      .processMovement('logClientError', _h({ action: action, message: String(message||''), stack: String(stack||''), url: location.href }));
+  } catch (e) {}
+}
+window.addEventListener('error', function(ev) {
+  _reportClientError('window.onerror', ev.message, ev.error && ev.error.stack);
+});
+window.addEventListener('unhandledrejection', function(ev) {
+  var reason = ev.reason;
+  _reportClientError('unhandledrejection', reason && reason.message ? reason.message : String(reason), reason && reason.stack);
+});
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
 var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
@@ -3189,6 +3208,7 @@ async function submitMovement(){
   // used to leave TRANSFER looking like nothing happened when validation code
   // threw before reaching the spinner/button-state line.
   console.error('submitMovement error:', e);
+  _reportClientError('submitMovement', e && e.message ? e.message : String(e), e && e.stack);
   showToast('⚠ Error: ' + (e && e.message ? e.message : e), 'err', 6000);
   var btnErr = document.getElementById('moveSubmit');
   if (btnErr) { btnErr.textContent = 'Save to System'; btnErr.disabled = false; }
@@ -3917,6 +3937,7 @@ function switchSettingsTab(tab) {
 function _renderSettingsTab(tab) {
   var content = document.getElementById('settingsTabContent');
   if (tab === 'materials') { _renderMaterialsTab(); return; }
+  if (tab === 'errorlog')  { _renderErrorLogTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -3941,6 +3962,59 @@ function _renderSettingsTab(tab) {
       '<input type="text" id="cfgNewVal" placeholder="New '+label+' name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\''+tab+'\')">' +
       '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\''+tab+'\')">+ Add</button>' +
     '</div>';
+}
+
+var _errorLogData = [];
+function _renderErrorLogTab() {
+  var content = document.getElementById('settingsTabContent');
+  content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  google.script.run
+    .withSuccessHandler(function(rows) { _errorLogData = rows || []; _drawErrorLog(); })
+    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+(e.message||e)+'</p>'; })
+    .processMovement('getErrorLog', _h({}));
+}
+
+function _drawErrorLog(filterText) {
+  var content = document.getElementById('settingsTabContent');
+  var q = String(filterText || '').toLowerCase();
+  var rows = _errorLogData.filter(function(r) {
+    if (!q) return true;
+    return (r.message+' '+r.action+' '+r.user+' '+r.requestId).toLowerCase().indexOf(q) !== -1;
+  });
+
+  var trs = rows.map(function(r) {
+    var color = r.severity === 'ERROR' ? '#c0392b' : '#b8860b';
+    var ts = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
+    return '<tr>' +
+      '<td style="white-space:nowrap;font-size:.72rem;color:var(--muted)">'+_he(ts)+'</td>' +
+      '<td><span style="color:'+color+';font-weight:700;font-size:.7rem">'+_he(r.severity)+'</span></td>' +
+      '<td style="font-size:.72rem">'+_he(r.user)+'</td>' +
+      '<td style="font-size:.72rem">'+_he(r.source)+'/'+_he(r.action)+'</td>' +
+      '<td style="font-size:.75rem">'+_he(r.message)+'</td>' +
+      '<td style="font-size:.68rem;color:var(--muted)">'+_he(r.requestId)+'</td>' +
+    '</tr>';
+  }).join('');
+
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Last '+_errorLogData.length+' entries (backend + frontend). ERROR = unexpected bug, WARN = expected validation rejection.</p>' +
+    '<input type="text" id="errLogSearch" placeholder="Search message, action, user, or ID…" ' +
+      'style="width:100%;margin-bottom:.6rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:var(--bg);color:var(--text)" ' +
+      'oninput="_drawErrorLog(this.value)" value="'+_he(filterText||'')+'">' +
+    '<div style="max-height:45vh;overflow:auto;border:1px solid var(--border);border-radius:6px">' +
+      '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr style="position:sticky;top:0;background:var(--bg)">' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">Time</th>' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">Sev</th>' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">User</th>' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">Where</th>' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">Message</th>' +
+          '<th style="text-align:left;padding:.4rem;font-size:.7rem">ID</th>' +
+        '</tr></thead>' +
+        '<tbody>'+(trs || '<tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--muted);font-size:.8rem">No errors logged.</td></tr>')+'</tbody>' +
+      '</table>' +
+    '</div>';
+  var inp = document.getElementById('errLogSearch');
+  if (inp) { inp.focus(); var v = inp.value; inp.value=''; inp.value=v; }
 }
 
 function _cfgStartEdit(tab, i) {
