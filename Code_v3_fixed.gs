@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '6.3';
+var APP_VERSION = '6.4';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1747,7 +1747,26 @@ function _ensureMaterialLocksSheet(ss) {
 
 // Returns all ACTIVE locks as a flat array — sent to the frontend so it can show
 // advisory 🔒 badges before the user even attempts the movement.
+// Reads/writes go through CacheService (shared across all users, 5 min TTL) —
+// this is read on every single getInitialData() call (every login/refresh) but
+// only changes when an admin locks/unlocks something, so recomputing it from
+// the sheet every time was pure wasted backend execution time.
+function _cacheGet(key, ttlSec, builderFn) {
+  var cache  = CacheService.getScriptCache();
+  var cached = cache.get(key);
+  if (cached !== null) {
+    try { return JSON.parse(cached); } catch (e) {}
+  }
+  var value = builderFn();
+  try { cache.put(key, JSON.stringify(value), ttlSec); } catch (e) {} // e.g. >100KB — just skip caching
+  return value;
+}
+
 function getMaterialLocks() {
+  return _cacheGet('materialLocksV1', 300, _getMaterialLocksUncached);
+}
+
+function _getMaterialLocksUncached() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('MATERIAL_LOCKS');
   if (!sheet) return [];
@@ -1849,6 +1868,7 @@ function lockMaterial(data, auth) {
     if (String(rows[i][1] || '') === matId && normalizeString(rows[i][4] || '') === rackKey) {
       sheet.getRange(i + 1, 6, 1, 4).setValues([[allowedDest.join(', '), reason, auth.email, now]]);
       _auditLog(ss, 'UPDATE_LOCK', auth.email, data.name + ' @ ' + rack, '', reason);
+      CacheService.getScriptCache().remove('materialLocksV1');
       return { status: 'success', lock: { id: String(rows[i][0]), matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
     }
   }
@@ -1856,6 +1876,7 @@ function lockMaterial(data, auth) {
   var id = 'LOCK-' + new Date().getTime();
   sheet.appendRow([id, matId, data.category, data.name, rack, allowedDest.join(', '), reason, auth.email, now, 'Active', '', '']);
   _auditLog(ss, 'LOCK_MATERIAL', auth.email, data.name + ' @ ' + rack, '', reason);
+  CacheService.getScriptCache().remove('materialLocksV1');
   return { status: 'success', lock: { id: id, matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
 }
 
@@ -1869,6 +1890,7 @@ function unlockMaterial(data, auth) {
     if (String(rows[i][0]) === String(data.id) && String(rows[i][9] || '').toUpperCase() === 'ACTIVE') {
       sheet.getRange(i + 1, 10, 1, 3).setValues([['Removed', auth.email, new Date()]]);
       _auditLog(ss, 'UNLOCK_MATERIAL', auth.email, String(rows[i][3]) + ' @ ' + String(rows[i][4]), '', '');
+      CacheService.getScriptCache().remove('materialLocksV1');
       return { status: 'success' };
     }
   }
@@ -1932,6 +1954,10 @@ function _ensureRackPhotosSheet(ss) {
 
 // Returns { LOCATION_UPPER: { url, uploadedBy, uploadedAt } } for every rack with a photo.
 function getRackPhotos() {
+  return _cacheGet('rackPhotosV1', 300, _getRackPhotosUncached);
+}
+
+function _getRackPhotosUncached() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('RACK_PHOTOS');
   if (!sheet) return {};
@@ -1982,6 +2008,7 @@ function uploadRackPhoto(data, auth) {
   if (!found) sheet.appendRow([loc, url, auth.email, now]);
 
   _auditLog(ss, 'UPLOAD_RACK_PHOTO', auth.email, loc, '', url);
+  CacheService.getScriptCache().remove('rackPhotosV1');
 
   return {
     status:  'success',
