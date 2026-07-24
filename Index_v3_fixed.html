@@ -1624,7 +1624,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.5';
+var APP_VERSION = '6.6';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3426,36 +3426,83 @@ function _initMultiMatSection(){
 }
 
 // ── Incoming → ENTRY auto-suggest ────────────────────────────────────────────
+// Existing-stock matches for an ENTRY name field — lets the user see, before
+// saving, that this material (possibly under a slightly different project) is
+// already sitting somewhere in the warehouse, with how much and where.
+function _stockMatchesFor(typed, cat){
+  return Object.values(stockData)
+    .filter(function(s){
+      return (!cat || nt(s.category) === cat) &&
+             s.warehouseQty > 0 &&
+             s.name.toLowerCase().indexOf(typed) !== -1;
+    })
+    .sort(function(a,b){ return b.warehouseQty - a.warehouseQty; })
+    .slice(0, 5);
+}
+
 function _checkIncomingSuggest(n, inputEl){
   var typed = (inputEl.value || '').trim().toLowerCase();
   var box = document.getElementById('inc-suggest-' + n);
   if (!box) return;
   if (typed.length < 2) { box.style.display = 'none'; return; }
 
+  var cat = nt((document.getElementById('mat-cat-' + n) || {}).value || '');
+  var stockMatches = _stockMatchesFor(typed, cat);
+
   var today = _isoDate(new Date());
   // Match incoming items arriving today/recently (within 3 days) that are not yet Received
-  var matches = (incoming || []).filter(function(item){
+  var incMatches = (incoming || []).filter(function(item){
     return (item.status || '').toLowerCase() !== 'received' &&
            item.name && item.name.toLowerCase().indexOf(typed) !== -1 &&
            item.estDate >= today;  // today or future
   }).slice(0, 6);
 
-  if (!matches.length) { box.style.display = 'none'; return; }
+  if (!stockMatches.length && !incMatches.length) { box.style.display = 'none'; return; }
 
-  box.innerHTML = '<div class="inc-suggest-hdr">📦 Matches in Incoming</div>' +
-    matches.map(function(item){
-      var safeId   = _escAttr(item.id);
-      var safeName = _escAttr(item.name);
-      var safeCat  = _escAttr(item.category || '?');
-      var safeMeta = item.qty + ' ' + item.unit + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
-      return '<div class="inc-suggest-item" data-n="' + n + '" data-inc-id="' + safeId + '"' +
-        ' onmousedown="_clickIncomingSuggest(this);return false;">' +
-        '<span class="inc-tag">' + safeCat + '</span>' +
-        '<span>' + safeName + '</span>' +
-        '<span class="inc-meta">' + safeMeta + '</span>' +
-      '</div>';
-    }).join('');
+  var html = '';
+  if (stockMatches.length) {
+    html += '<div class="inc-suggest-hdr">📦 Already In Stock</div>' +
+      stockMatches.map(function(s){
+        var racks = Object.keys(s.warehouseLocs || {}).filter(function(r){ return s.warehouseLocs[r] > 0; });
+        var rackStr = racks.slice(0, 3).map(function(r){ return r + ' (' + s.warehouseLocs[r] + ')'; }).join(', ');
+        var projStr = s.project && s.project !== 'GENERIC' ? ' · ' + _escAttr(s.project) : '';
+        return '<div class="inc-suggest-item" data-n="' + n + '" data-stock-name="' + _escAttr(s.name) + '"' +
+          ' onmousedown="_clickStockMatchSuggest(this);return false;">' +
+          '<span class="inc-tag">' + _escAttr(nt(s.category)) + '</span>' +
+          '<span>' + _escAttr(s.name) + '</span>' +
+          '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.warehouseQty + ' total' + projStr + '</span>' +
+          (rackStr ? '<span class="inc-meta">' + _escAttr(rackStr) + '</span>' : '') +
+        '</div>';
+      }).join('');
+  }
+  if (incMatches.length) {
+    html += '<div class="inc-suggest-hdr">🚚 Expected Delivery</div>' +
+      incMatches.map(function(item){
+        var safeId   = _escAttr(item.id);
+        var safeName = _escAttr(item.name);
+        var safeCat  = _escAttr(item.category || '?');
+        var safeMeta = item.qty + ' ' + item.unit + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
+        return '<div class="inc-suggest-item" data-n="' + n + '" data-inc-id="' + safeId + '"' +
+          ' onmousedown="_clickIncomingSuggest(this);return false;">' +
+          '<span class="inc-tag">' + safeCat + '</span>' +
+          '<span>' + safeName + '</span>' +
+          '<span class="inc-meta">' + safeMeta + '</span>' +
+        '</div>';
+      }).join('');
+  }
+  box.innerHTML = html;
   box.style.display = 'block';
+}
+
+// Safe bridge for a stock-match click: just fills the name (and category, if
+// empty) — informational only, the user still picks the destination rack.
+function _clickStockMatchSuggest(el) {
+  var n    = parseInt(el.getAttribute('data-n'), 10);
+  var name = el.getAttribute('data-stock-name');
+  var nameEl = document.getElementById('mat-name-' + n);
+  if (nameEl) nameEl.value = name;
+  var box = document.getElementById('inc-suggest-' + n);
+  if (box) box.style.display = 'none';
 }
 
 // Safe bridge: reads data-n and data-inc-id from the clicked element
