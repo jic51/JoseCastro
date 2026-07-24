@@ -227,10 +227,6 @@
     /* Freezes a modal while its save is in flight — blocks every click inside it
        (including a second click on Save itself) and dims it so the user knows to wait. */
     .modal.busy{opacity:.55;pointer-events:none;transition:opacity .15s}
-    /* Same-destination mode: hide per-material rack input + add/remove-location controls — one shared Destination field above handles it */
-    #multiMatContainer.same-dest-mode .loc-rack,
-    #multiMatContainer.same-dest-mode .btn-add-loc,
-    #multiMatContainer.same-dest-mode .btn-remove-loc{display:none}
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
     /* ── INCOMING SUGGESTION BOX ── */
@@ -857,7 +853,7 @@
           </select>
           <select id="movCatFilter"><option value="">All Categories</option></select>
           <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
-          <button id="btnLoadOlderHistory" class="btn btn-ghost btn-sm">📜 Cargar historial anterior</button>
+          <button id="btnLoadOlderHistory" class="btn btn-ghost btn-sm">📜 Load Older History</button>
           <button id="btnEntry" class="btn btn-primary">+ Entry (IN)</button>
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
         </div>
@@ -1343,14 +1339,6 @@
         <label style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em">Materials to Receive</label>
         <span id="multiMatTotal" style="font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px">Total: 0</span>
       </div>
-      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin-bottom:.5rem;cursor:pointer">
-        <input type="checkbox" id="mSameDestChk" onchange="toggleSameDestination()">
-        Todos los materiales van al mismo lugar
-      </label>
-      <div id="sharedDestField" style="display:none;margin-bottom:.6rem">
-        <label class="mat-line-lbl-sm">Destination (Rack / Location)</label>
-        <input type="text" id="mSharedDest" list="rackList" placeholder="Rack / Location" autocomplete="off" style="width:100%">
-      </div>
       <div id="multiMatContainer"></div>
       <button type="button" class="multi-mat-add" onclick="addMatLine()">+ Add Another Material</button>
     </div>
@@ -1363,7 +1351,7 @@
       </div>
       <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin-bottom:.5rem;cursor:pointer">
         <input type="checkbox" id="mExitSameDestChk" checked onchange="toggleExitSameDestination()">
-        Todos los materiales van al mismo destino
+        All materials go to the same destination
       </label>
       <div id="multiExitContainer"></div>
       <button type="button" class="multi-exit-add" onclick="addExitMatLine()">+ Add Another Material</button>
@@ -1533,13 +1521,13 @@
     </div>
     <!-- Archive cutoff (global, not per-tab) -->
     <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:var(--bg);border-radius:7px;margin-bottom:1rem;font-size:.8rem">
-      <span>🗄 Archivar movimientos después de:</span>
+      <span>🗄 Archive movements older than:</span>
       <select id="archiveCutoffSel" onchange="_saveArchiveCutoff()" style="padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
-        <option value="6">6 meses</option>
-        <option value="12">12 meses</option>
-        <option value="18">18 meses</option>
+        <option value="6">6 months</option>
+        <option value="12">12 months</option>
+        <option value="18">18 months</option>
       </select>
-      <span style="color:var(--muted);font-size:.72rem">Los movimientos más viejos siguen accesibles con "Cargar historial anterior".</span>
+      <span style="color:var(--muted);font-size:.72rem">Older movements stay accessible via "Load Older History".</span>
     </div>
     <!-- Tab content -->
     <div id="settingsTabContent" style="min-height:240px"></div>
@@ -1636,7 +1624,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.4';
+var APP_VERSION = '6.5';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1674,7 +1662,7 @@ window.addEventListener('unhandledrejection', function(ev) {
   var reason = ev.reason;
   _reportClientError('unhandledrejection', reason && reason.message ? reason.message : String(reason), reason && reason.stack);
 });
-var oldMovements       = [];  // ARCHIVE_HISTORY rows, loaded on demand via "Cargar historial anterior" — view/export only
+var oldMovements       = [];  // ARCHIVE_HISTORY rows, loaded on demand via "Load Older History" — view/export only
 var _oldHistoryLoaded  = false;
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
@@ -2341,7 +2329,7 @@ function renderMovements(){
       (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
       '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
       '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
-      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Movimiento archivado — solo lectura">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>':'')+
+      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>':'')+
       '</tr>';
   }).join('');
 
@@ -2368,20 +2356,20 @@ function renderMovements(){
 
 function _loadOlderHistoryClicked() {
   var btn = document.getElementById('btnLoadOlderHistory');
-  if (_oldHistoryLoaded) { showToast('Historial anterior ya cargado (' + oldMovements.length + ' movimientos).', 'ok'); return; }
-  btn.disabled = true; btn.textContent = 'Cargando…';
+  if (_oldHistoryLoaded) { showToast('Older history already loaded (' + oldMovements.length + ' movements).', 'ok'); return; }
+  btn.disabled = true; btn.textContent = 'Loading…';
   google.script.run
     .withSuccessHandler(function(rows) {
       oldMovements = rows || [];
       _oldHistoryLoaded = true;
       btn.disabled = false;
-      btn.textContent = '📜 Historial anterior (' + oldMovements.length + ')';
+      btn.textContent = '📜 Older History (' + oldMovements.length + ')';
       _movPage = 1;
       renderMovements();
-      showToast('✓ Se cargaron ' + oldMovements.length + ' movimientos archivados.', 'ok');
+      showToast('✓ Loaded ' + oldMovements.length + ' archived movement(s).', 'ok');
     })
     .withFailureHandler(function(e) {
-      btn.disabled = false; btn.textContent = '📜 Cargar historial anterior';
+      btn.disabled = false; btn.textContent = '📜 Load Older History';
       showToast('⚠ Error: ' + (e.message||e), 'err');
     })
     .processMovement('loadOlderHistory', _h({}));
@@ -3435,31 +3423,6 @@ function _initMultiMatSection(){
   _matLineIdx = 0;
   document.getElementById('multiMatContainer').innerHTML = '';
   addMatLine();
-  var chk = document.getElementById('mSameDestChk');
-  if (chk) chk.checked = false;
-  var dest = document.getElementById('mSharedDest');
-  if (dest) dest.value = '';
-  document.getElementById('multiMatContainer').classList.remove('same-dest-mode');
-  document.getElementById('sharedDestField').style.display = 'none';
-}
-
-// Checked = one Destination field for the whole entry, every material's own
-// rack input is hidden. Unchecked = each material keeps its own location(s),
-// same as before. Toggling ON collapses each material down to a single loc
-// row (no point splitting one material across racks if they all go to one place).
-function toggleSameDestination(){
-  var on   = document.getElementById('mSameDestChk').checked;
-  var cont = document.getElementById('multiMatContainer');
-  cont.classList.toggle('same-dest-mode', on);
-  document.getElementById('sharedDestField').style.display = on ? '' : 'none';
-  if (on) {
-    document.querySelectorAll('#multiMatContainer .mat-locs-container').forEach(function(lc){
-      var rows = lc.querySelectorAll('.loc-row');
-      for (var i = rows.length - 1; i > 0; i--) rows[i].remove(); // keep just the first row
-    });
-    var dest = document.getElementById('mSharedDest');
-    if (dest) setTimeout(function(){ dest.focus(); }, 50);
-  }
 }
 
 // ── Incoming → ENTRY auto-suggest ────────────────────────────────────────────
@@ -3944,9 +3907,6 @@ function submitMultiEntry(){
   // Collect material lines
   var materials = [];
   var valid = true;
-  var sameDest = document.getElementById('mSameDestChk').checked;
-  var sharedDest = (document.getElementById('mSharedDest').value || '').trim();
-  if (sameDest && !sharedDest) { alert('Please enter the shared Destination.'); return; }
 
   document.querySelectorAll('#multiMatContainer .mat-line').forEach(function(line){
     if (!valid) return;
@@ -3965,7 +3925,7 @@ function submitMultiEntry(){
     var lc = document.getElementById('mat-locs-' + n);
     if (lc){
       lc.querySelectorAll('.loc-row').forEach(function(row){
-        var loc = sameDest ? sharedDest : (row.querySelector('.loc-rack').value || '').trim();
+        var loc = (row.querySelector('.loc-rack').value || '').trim();
         var qty = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
         if (qty > 0){ locs.push({ loc: loc, qty: qty }); totalQty += qty; }
       });
@@ -4071,7 +4031,7 @@ function _saveArchiveCutoff() {
   var sel = document.getElementById('archiveCutoffSel');
   var months = sel.value;
   google.script.run
-    .withSuccessHandler(function() { showToast('✓ Corte de archivado actualizado a ' + months + ' meses.', 'ok'); })
+    .withSuccessHandler(function() { showToast('✓ Archive cutoff updated to ' + months + ' months.', 'ok'); })
     .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err'); })
     .processMovement('updateConfig', _h({ type: 'archiveCutoffMonths', value: months }));
 }
@@ -5474,8 +5434,8 @@ function openIncomingModal(id) {
       var u = _incFirstDocUrl(dl), th = _incThumbUrl(dl);
       prev.innerHTML = '<a href="'+u+'" target="_blank" rel="noopener" style="text-decoration:none">' +
         (th ? '<img src="'+th+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">'
-            : '<span style="font-size:.82rem">📄 Ver documento adjunto</span>') +
-        '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Documento actual (subir otro lo reemplaza)</div></a>';
+            : '<span style="font-size:.82rem">📄 View attached document</span>') +
+        '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Current document (uploading another replaces it)</div></a>';
     } else { prev.innerHTML = ''; }
   }
   document.getElementById('incomingOverlay').classList.add('show');
@@ -5485,12 +5445,12 @@ function saveIncomingItem() {
   var id      = document.getElementById('incId').value;
   var estDate = document.getElementById('incDate').value;
   var name    = (document.getElementById('incName').value || '').trim();
-  if (!estDate){ alert('Selecciona la fecha estimada de llegada.'); return; }
+  if (!estDate){ alert('Select the estimated arrival date.'); return; }
 
   var fileInput = document.getElementById('incFile');
   var hasFile   = fileInput && fileInput.files && fileInput.files.length;
   // Detail fields are optional now: require either a description OR an attached doc.
-  if (!name && !hasFile){ alert('Escribe una descripción de lo que llega, o adjunta un PDF/foto.'); return; }
+  if (!name && !hasFile){ alert('Enter a description of what is arriving, or attach a PDF/photo.'); return; }
 
   var payload = {
     id:       id || undefined,
@@ -5958,14 +5918,14 @@ function _showGoogleSignIn(clientId, redirectUri) {
     '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:420px;width:100%;text-align:center">' +
       '<div style="font-size:3rem;margin-bottom:.75rem">🔒</div>' +
       '<h2 style="font-size:1.25rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">OX Glass WMS</h2>' +
-      '<p style="color:#6B7280;font-size:.86rem;margin-bottom:1.5rem;line-height:1.5">Inicia sesión con tu cuenta de Google para continuar.</p>' +
+      '<p style="color:#6B7280;font-size:.86rem;margin-bottom:1.5rem;line-height:1.5">Sign in with your Google account to continue.</p>' +
       (configured
         ? '<button id="googleSignInBtn" onclick="_startGoogleLogin()" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:.6rem;padding:.75rem 1rem;background:#fff;color:#1f2937;border:1px solid #DADCE0;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.06)" onmouseover="this.style.background=\'#F8FAFC\'" onmouseout="this.style.background=\'#fff\'">' +
             '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.2l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.4c-.3 2.1-1.6 5.2-4.6 7.3l7.1 5.5c4.2-3.9 6.7-9.6 6.7-16.5z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.9-6.1C.9 16.5 0 20.1 0 23.8s.9 7.3 2.5 10.6l7.9-6.1z"/><path fill="#34A853" d="M24 47.5c6.1 0 11.3-2 15-5.5l-7.1-5.5c-2 1.4-4.6 2.3-7.9 2.3-6.4 0-11.8-3.8-13.6-9.8l-7.9 6.1C6.4 42.1 14.6 47.5 24 47.5z"/></svg>' +
-            'Iniciar sesión con Google</button>' +
+            'Sign in with Google</button>' +
           '<p id="signInStatus" style="color:#6B7280;font-size:.78rem;margin-top:1rem;min-height:1.1em"></p>' +
-          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">El personal de @ox-glass.com entra automáticamente, sin este paso.</p>'
-        : '<p style="color:#EF4444;font-size:.85rem">El inicio de sesión no está configurado. Falta el OAuth Client ID en el servidor. Contacta al administrador.</p>'
+          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">@ox-glass.com staff sign in automatically, without this step.</p>'
+        : '<p style="color:#EF4444;font-size:.85rem">Sign-in is not configured. The OAuth Client ID is missing on the server. Contact your administrator.</p>'
       ) +
     '</div></div>';
 }
@@ -5985,7 +5945,7 @@ function _startGoogleLogin() {
 
   var popup  = window.open(authUrl, 'oxglass_login', 'width=480,height=640');
   var status = document.getElementById('signInStatus');
-  if (status) status.textContent = 'Esperando inicio de sesión…';
+  if (status) status.textContent = 'Waiting for sign-in…';
 
   if (_loginPollTimer) clearInterval(_loginPollTimer);
   var tries = 0;
@@ -5993,7 +5953,7 @@ function _startGoogleLogin() {
     tries++;
     if (tries > 160) { // ~4 minutes then give up
       clearInterval(_loginPollTimer);
-      if (status) status.textContent = 'Tiempo agotado. Intenta de nuevo.';
+      if (status) status.textContent = 'Timed out. Please try again.';
       return;
     }
     google.script.run
@@ -6003,7 +5963,7 @@ function _startGoogleLogin() {
           try { popup && popup.close(); } catch(e) {}
           try { localStorage.setItem(_SESSION_KEY, res.sessionToken); } catch(e) {}
           _sessionToken = res.sessionToken;
-          if (status) status.textContent = '✓ Sesión iniciada, cargando…';
+          if (status) status.textContent = '✓ Signed in, loading…';
           // The sign-in screen replaced the page content, so reload to rebuild the
           // original DOM. The token is now in localStorage → the normal load path
           // runs and renders everything (no sign-in prompt again).
@@ -6203,9 +6163,9 @@ function _checkVersionMatch(serverVersion) {
   bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;' +
     'color:#fff;font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;' +
     'box-shadow:0 2px 8px rgba(0,0,0,.3)';
-  bar.innerHTML = '⚠ Versión desincronizada — App v' + APP_VERSION + ' vs Servidor v' + serverVersion +
-    '. Vuelve a desplegar AMBOS archivos (Code.gs e Index.html) con una <b>New version</b>. ' +
-    '<span style="cursor:pointer;text-decoration:underline" onclick="this.parentNode.remove()">cerrar</span>';
+  bar.innerHTML = '⚠ Version mismatch — App v' + APP_VERSION + ' vs Server v' + serverVersion +
+    '. Redeploy BOTH files (Code.gs and Index.html) with a <b>New version</b>. ' +
+    '<span style="cursor:pointer;text-decoration:underline" onclick="this.parentNode.remove()">dismiss</span>';
   document.body.appendChild(bar);
   console.warn('VERSION MISMATCH: frontend=' + APP_VERSION + ' backend=' + serverVersion);
 }

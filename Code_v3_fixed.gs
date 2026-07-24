@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '6.4';
+var APP_VERSION = '6.5';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -125,18 +125,18 @@ function _handleOAuthCallback(code, state) {
       CacheService.getScriptCache().put('login_' + state, email.toLowerCase().trim(), 300);
       ok = true;
     } else {
-      msg = (data.error_description || data.error || 'No se pudo verificar el correo.') + '';
+      msg = (data.error_description || data.error || 'Could not verify the email address.') + '';
     }
   } catch (err) { msg = 'Error: ' + err.message; }
 
   var html = ok
     ? '<div style="font-family:system-ui,sans-serif;text-align:center;padding:2.5rem 1rem;color:#15803d">' +
-      '<div style="font-size:3rem">✓</div><h2 style="margin:.5rem 0">Sesión iniciada</h2>' +
-      '<p style="color:#555">Puedes volver a la app. Esta ventana se cerrará sola.</p></div>' +
+      '<div style="font-size:3rem">✓</div><h2 style="margin:.5rem 0">Signed in</h2>' +
+      '<p style="color:#555">You can go back to the app. This window will close itself.</p></div>' +
       '<script>setTimeout(function(){try{window.close();}catch(e){}},800);<\/script>'
     : '<div style="font-family:system-ui,sans-serif;text-align:center;padding:2.5rem 1rem;color:#b91c1c">' +
-      '<div style="font-size:3rem">⚠</div><h2 style="margin:.5rem 0">No se pudo iniciar sesión</h2>' +
-      '<p style="color:#555">' + msg + '</p><p>Cierra esta ventana e intenta de nuevo.</p></div>';
+      '<div style="font-size:3rem">⚠</div><h2 style="margin:.5rem 0">Could not sign in</h2>' +
+      '<p style="color:#555">' + msg + '</p><p>Close this window and try again.</p></div>';
   return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
