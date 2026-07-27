@@ -1540,6 +1540,11 @@
       </select>
       <span style="color:var(--muted);font-size:.72rem">Older movements stay accessible via "Load Older History".</span>
     </div>
+    <!-- Manual stock rebuild -->
+    <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:var(--bg);border-radius:7px;margin-bottom:1rem;font-size:.8rem">
+      <button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>
+      <span style="color:var(--muted);font-size:.72rem">Recalculates LIVE_STOCK / SITE_STOCK / WASTED_STOCK from the current movement history. Use this if a deleted or edited movement left stale numbers behind.</span>
+    </div>
     <!-- Tab content -->
     <div id="settingsTabContent" style="min-height:240px"></div>
     <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
@@ -1635,7 +1640,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.9';
+var APP_VERSION = '7.0';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4154,6 +4159,22 @@ function _saveArchiveCutoff() {
     .withSuccessHandler(function() { showToast('✓ Archive cutoff updated to ' + months + ' months.', 'ok'); })
     .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err'); })
     .processMovement('updateConfig', _h({ type: 'archiveCutoffMonths', value: months }));
+}
+
+function _rebuildStockNow() {
+  var btn = document.getElementById('btnRebuildStock');
+  btn.disabled = true; btn.textContent = 'Rebuilding…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
+      showToast('✓ ' + (res && res.message ? res.message : 'Stock totals rebuilt.'), 'ok');
+      loadDataFromGoogle(true);
+    })
+    .withFailureHandler(function(e){
+      btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
+      showToast('⚠ Error: ' + (e.message||e), 'err', 6000);
+    })
+    .processMovement('adminAction', _h({ action: 'reconcile' }));
 }
 
 function switchSettingsTab(tab) {

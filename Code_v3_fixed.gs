@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '6.9';
+var APP_VERSION = '7.0';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2876,6 +2876,10 @@ function manageMaterial(data, auth) {
     _auditLog(ss, 'DELETE_ROW', auth.email, String(rowData[AC.CATEGORY]), String(rowData[AC.NAME]),
               'row ' + rowIdx + ' — ' + JSON.stringify(rowData.slice(0, 8)));
     archive.deleteRow(rowIdx);
+    // LIVE_STOCK/SITE_STOCK/WASTED_STOCK are aggregates built from the archive —
+    // deleting a row without recomputing them leaves stale totals behind forever
+    // (the deleted movement's effect stays baked in even though the row is gone).
+    _refreshDerivedSheets(ss);
     return { status: 'success' };
   }
 
@@ -3118,6 +3122,10 @@ function modifyMovement(data, auth) {
 
   // Write updated row back
   range.setValues([rowVals]);
+  // Same class of bug as manageMaterial's deleteRow: qty/category/location edits
+  // change what LIVE_STOCK/SITE_STOCK/WASTED_STOCK should total to — without this,
+  // the derived sheets keep reflecting the pre-edit numbers indefinitely.
+  _refreshDerivedSheets(ss);
 
   // Audit log
   _auditLog(ss, 'MODIFY_MOVEMENT', auth.email,
