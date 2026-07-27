@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '7.0';
+var APP_VERSION = '7.2';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -371,9 +371,9 @@ function getInitialData(sessionToken) {
 
     // Incoming materials + monitored-materials filter
     var incoming = [];
-    try { incoming = getIncoming(); } catch(e) { Logger.log('getIncoming: ' + e.message); }
+    try { incoming = getIncoming(sessionToken); } catch(e) { Logger.log('getIncoming: ' + e.message); }
     var monitoredMaterials = null;
-    try { monitoredMaterials = getMonitoredMaterials(); } catch(e) {}
+    try { monitoredMaterials = getMonitoredMaterials(sessionToken); } catch(e) {}
 
     // User list — only sent to ADMINs
     var users = [];
@@ -862,7 +862,7 @@ function _processMovementInner(ss, action, data, auth) {
   if (action === 'deleteIncoming')        return deleteIncoming(data.id, data._sessionToken);
   if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
-  if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names);
+  if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names, auth);
   if (action === 'uploadRackPhoto')       return uploadRackPhoto(data, auth);
   if (action === 'lockMaterial')          return lockMaterial(data, auth);
   if (action === 'unlockMaterial')        return unlockMaterial(data, auth);
@@ -2908,9 +2908,15 @@ function _ensureIncomingSheet(ss) {
   return sheet;
 }
 
-function getIncoming() {
-  var auth = getUserRole();
-  if (auth.role === 'DENIED') throw new Error('Access denied.');
+function getIncoming(sessionToken) {
+  // Apps Script exposes every top-level function to any web app visitor via
+  // google.script.run, regardless of whether the app's own frontend calls it
+  // directly — this used to check getUserRole() with no token (always
+  // NO_SESSION for non-org users) and only blocked DENIED, so an anonymous
+  // visitor could call this and read supplier/PO/quantity data with zero
+  // authentication. Now requires a real session.
+  var auth = getUserRole(sessionToken);
+  if (auth.role === 'DENIED' || auth.role === 'NO_SESSION') throw new Error('Not authenticated.');
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('INCOMING_V3');
   if (!sheet) return [];
@@ -3499,9 +3505,9 @@ function _parseEmailTextAsIncoming(bodyText, subject, from, apiKey) {
 // null  = monitor ALL materials (default — no filter)
 // array = monitor only these material names in the low-stock alert banner
 
-function getMonitoredMaterials() {
-  var auth = getUserRole();
-  if (auth.role === 'DENIED') throw new Error('Access denied.');
+function getMonitoredMaterials(sessionToken) {
+  var auth = getUserRole(sessionToken);
+  if (auth.role === 'DENIED' || auth.role === 'NO_SESSION') throw new Error('Not authenticated.');
   var props = PropertiesService.getScriptProperties();
   var raw   = props.getProperty('WMS_MONITORED_MATERIALS');
   if (!raw) return null;
@@ -3516,9 +3522,17 @@ function getMonitoredMaterials() {
 // To add the key:  GAS Editor → ⚙ Project Settings → Script Properties → Add:
 //   Property: GEMINI_API_KEY   Value: your_key_from_aistudio.google.com
 //
-function extractDocumentInfo(fileData, mimeType) {
-  var auth = getUserRole();
-  if (auth.role === 'DENIED') throw new Error('Access denied.');
+function extractDocumentInfo(fileData, mimeType, sessionToken) {
+  // Called directly via google.script.run (not through processMovement), and
+  // Apps Script exposes every top-level function to any web app visitor — so
+  // this function's own check is the ONLY thing standing between an anonymous
+  // visitor and burning the owner's paid Gemini quota. It used to call
+  // getUserRole() with no token (always NO_SESSION for non-org users) and only
+  // blocked DENIED — NO_SESSION sailed straight through, meaning anyone who
+  // opened the web app URL, logged in or not, could call this and rack up API
+  // costs. Now requires real authentication, same as everything else.
+  var auth = getUserRole(sessionToken);
+  if (auth.role === 'DENIED' || auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
 
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error(
@@ -3596,9 +3610,8 @@ function extractDocumentInfo(fileData, mimeType) {
   }
 }
 
-function setMonitoredMaterials(names) {
-  var auth = getUserRole();
-  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+function setMonitoredMaterials(names, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
   var props = PropertiesService.getScriptProperties();
   if (!names || names.length === 0) {
     props.deleteProperty('WMS_MONITORED_MATERIALS');

@@ -1640,7 +1640,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.0';
+var APP_VERSION = '7.2';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2099,8 +2099,8 @@ function renderStock(){
     var docs    = docMap[docKey] || [];
     var lastNote = noteMap[docKey] || '';
     var noteCell = lastNote
-      ? '<span style="font-size:.75rem;color:var(--muted);word-break:break-word;display:block;max-width:180px" title="'+lastNote.replace(/"/g,'&quot;')+'">'
-          + (lastNote.length > 60 ? lastNote.substring(0,58)+'…' : lastNote) + '</span>'
+      ? '<span style="font-size:.75rem;color:var(--muted);word-break:break-word;display:block;max-width:180px" title="'+_he(lastNote)+'">'
+          + _he(lastNote.length > 60 ? lastNote.substring(0,58)+'…' : lastNote) + '</span>'
       : '<span style="color:var(--muted);font-size:.72rem">—</span>';
 
     var entryDate = entryDateMap[docKey] || '';
@@ -2174,7 +2174,7 @@ function renderStock(){
     return '<tr class="'+(zero?'row-zero':'')+'" data-action="toggle-stock-detail" data-row-id="'+detailRowId+'" style="cursor:pointer" title="Click to view location photos and documents">'+
       '<td onclick="event.stopPropagation()">'+selCell+'</td>'+
       '<td>'+catBadge(s.category)+'</td>'+
-      '<td><strong>'+s.name+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+s.project+'</span>':'')+'</td>'+
+      '<td><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>'+
       '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
       '<td style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
       '<td><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
@@ -2354,23 +2354,23 @@ function renderMovements(){
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
     return '<tr class="'+rowClass(m.moveType)+'">'+
       '<td>'+moveBadge(m.moveType)+'</td>'+
-      '<td style="white-space:nowrap">'+(m.dateRec||m.timestamp||'—')+'</td>'+
+      '<td style="white-space:nowrap">'+_he(m.dateRec||m.timestamp||'—')+'</td>'+
       '<td>'+catBadge(m.category)+'</td>'+
-      '<td><strong>'+displayName(m)+'</strong></td>'+
+      '<td><strong>'+_he(displayName(m))+'</strong></td>'+
       '<td style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+
         (isOut?'−':'+')+m.qty+'</td>'+
-      '<td style="color:var(--muted);font-size:.78rem">'+(m.unit||'—')+'</td>'+
-      '<td style="font-size:.78rem">'+(m.po||'—')+'</td>'+
-      '<td style="font-size:.78rem;color:var(--muted)">'+locDisplay+'</td>'+
-      (v.srcDest?'<td style="font-size:.75rem;color:var(--muted)">'+srcDest+'</td>':'')+
-      (v.gc     ?'<td style="font-size:.78rem">'+(m.gc||'—')+'</td>':'')+
-      (v.project?'<td style="font-size:.78rem">'+(m.project||'—')+'</td>':'')+
-      (v.supplier?'<td style="font-size:.78rem">'+(m.supplier||'—')+'</td>':'')+
-      (v.resp   ?'<td style="font-size:.78rem">'+(m.responsible||'—')+'</td>':'')+
-      (v.comment?'<td style="font-size:.78rem;max-width:300px;word-break:break-word;white-space:normal">'+(m.comments||'—')+'</td>':'')+
-      (v.pm     ?'<td style="font-size:.78rem">'+(m.pm||'—')+'</td>':'')+
-      (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+(m.timestamp||'—')+'</td>':'')+
-      '<td style="font-size:.7rem;color:var(--muted)">'+(m.userEmail||'—')+'</td>'+
+      '<td style="color:var(--muted);font-size:.78rem">'+_he(m.unit||'—')+'</td>'+
+      '<td style="font-size:.78rem">'+_he(m.po||'—')+'</td>'+
+      '<td style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>'+
+      (v.srcDest?'<td style="font-size:.75rem;color:var(--muted)">'+_he(srcDest)+'</td>':'')+
+      (v.gc     ?'<td style="font-size:.78rem">'+_he(m.gc||'—')+'</td>':'')+
+      (v.project?'<td style="font-size:.78rem">'+_he(m.project||'—')+'</td>':'')+
+      (v.supplier?'<td style="font-size:.78rem">'+_he(m.supplier||'—')+'</td>':'')+
+      (v.resp   ?'<td style="font-size:.78rem">'+_he(m.responsible||'—')+'</td>':'')+
+      (v.comment?'<td style="font-size:.78rem;max-width:300px;word-break:break-word;white-space:normal">'+_he(m.comments||'—')+'</td>':'')+
+      (v.pm     ?'<td style="font-size:.78rem">'+_he(m.pm||'—')+'</td>':'')+
+      (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+_he(m.timestamp||'—')+'</td>':'')+
+      '<td style="font-size:.7rem;color:var(--muted)">'+_he(m.userEmail||'—')+'</td>'+
       '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
       (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>':'')+
       '</tr>';
@@ -2487,8 +2487,8 @@ function renderProjectView(){
   body.innerHTML = Object.values(summary).map(function(s,i){
     var net = s.in - s.out;
     return '<tr class="expandable-row" data-detail="pd-'+i+'">'+
-      '<td><span class="badge badge-blue">'+s.category+'</span></td>'+
-      '<td><strong>'+s.name+'</strong> <span style="font-size:.75rem;color:var(--muted)">▾</span></td>'+
+      '<td><span class="badge badge-blue">'+_he(s.category)+'</span></td>'+
+      '<td><strong>'+_he(s.name)+'</strong> <span style="font-size:.75rem;color:var(--muted)">▾</span></td>'+
       '<td style="color:var(--green)">'+s.in+'</td>'+
       '<td style="color:var(--red)">'+s.out+'</td>'+
       '<td><strong style="color:'+(net<=0?'var(--red)':'inherit')+'">'+net+'</strong></td>'+
@@ -3809,10 +3809,10 @@ function _checkStockSuggest(inputEl){
   box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
     matches.map(function(s){
       return '<div class="inc-suggest-item" data-action="stock-suggest" data-name="' + _he(s.name) + '">' +
-        '<span class="inc-tag">' + nt(s.category) + '</span>' +
-        '<span>' + s.name + '</span>' +
+        '<span class="inc-tag">' + _he(nt(s.category)) + '</span>' +
+        '<span>' + _he(s.name) + '</span>' +
         '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
-        (s.warehouseLocs ? '<span class="inc-meta">' + Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ') + '</span>' : '') +
+        (s.warehouseLocs ? '<span class="inc-meta">' + _he(Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ')) + '</span>' : '') +
       '</div>';
     }).join('');
   box.style.display = 'block';
@@ -3851,12 +3851,12 @@ function _checkExitMatSuggest(n, inputEl){
   if (!matches.length) { box.style.display = 'none'; return; }
   box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
     matches.map(function(s){
-      var safeCat  = nt(s.category);
+      var safeCat  = _he(nt(s.category));
       return '<div class="inc-suggest-item" data-action="exit-suggest" data-n="'+n+'" data-name="'+_he(s.name)+'" data-cat="'+_he(s.category)+'">' +
         '<span class="inc-tag">' + safeCat + '</span>' +
-        '<span>' + s.name + '</span>' +
+        '<span>' + _he(s.name) + '</span>' +
         '<span class="inc-meta" style="color:var(--green);font-weight:700">' + s.availableQty + ' avail</span>' +
-        (s.warehouseLocs ? '<span class="inc-meta">' + Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ') + '</span>' : '') +
+        (s.warehouseLocs ? '<span class="inc-meta">' + _he(Object.keys(s.warehouseLocs).filter(function(r){ return s.warehouseLocs[r]>0; }).slice(0,2).join(', ')) + '</span>' : '') +
       '</div>';
     }).join('');
   box.style.display = 'block';
@@ -4360,7 +4360,7 @@ function _filterMatList() {
     var mid = 'mat-'+i;
     return '<div class="mat-item" id="'+mid+'" data-name="'+_he(m.name)+'" data-cat="'+_he(m.category)+'">' +
       '<span class="mat-item-cat">'+catBadge(m.category)+'</span>' +
-      '<span class="mat-item-name">'+m.name+'</span>' +
+      '<span class="mat-item-name">'+_he(m.name)+'</span>' +
       '<span style="color:var(--muted);font-size:.7rem">'+m.count+' rows</span>' +
       '<button class="cfg-btn" data-action="mat-action" data-op="rename">✏️ Rename</button>' +
       '<button class="cfg-btn" data-action="mat-action" data-op="changeCategory">↕ Category</button>' +
@@ -5097,7 +5097,7 @@ function openRackDrawer(rackName) {
         }
         return '<div class="rdw-item">'+
           '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
-          '<span class="rdw-name" title="'+item.name+'">'+item.name+'</span>'+
+          '<span class="rdw-name" title="'+_he(item.name)+'">'+_he(item.name)+'</span>'+
           '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
           '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
           lockBtn +
@@ -5313,7 +5313,7 @@ function _buildStockDetailPanel(zeroItems, belowMin) {
   var zeroHtml = zeroItems.length
     ? zeroItems.map(function(s){
         return '<div class="sdp-row">' +
-          '<span class="sdp-name" title="' + s.name + '">' + s.name + '</span>' +
+          '<span class="sdp-name" title="' + _he(s.name) + '">' + _he(s.name) + '</span>' +
           '<span class="sdp-qty">' +
             '<span class="badge badge-red">0</span>' +
           '</span></div>';
@@ -5322,7 +5322,7 @@ function _buildStockDetailPanel(zeroItems, belowMin) {
   var lowHtml = belowMin.length
     ? belowMin.map(function(b){
         return '<div class="sdp-row">' +
-          '<span class="sdp-name" title="' + b.name + '">' + b.name + '</span>' +
+          '<span class="sdp-name" title="' + _he(b.name) + '">' + _he(b.name) + '</span>' +
           '<span class="sdp-qty">' +
             '<span class="badge badge-yellow" title="Current">' + b.current + '</span>' +
             '<span style="color:var(--muted);font-size:.7rem">min ' + b.min + '</span>' +
@@ -5494,9 +5494,9 @@ function renderIncomingWeekGrid() {
           return '<div class="day-item">' +
             catBadge(item.category) + ' ' +
             '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' +
-            '<span>' + item.name + '</span>' +
-            (item.docLink ? ' <a href="'+_incFirstDocUrl(item.docLink)+'" target="_blank" rel="noopener" title="Documento adjunto" onclick="event.stopPropagation()">📎</a>' : '') +
-            (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + item.notes + '</div>' : '') +
+            '<span>' + _he(item.name) + '</span>' +
+            (item.docLink ? ' <a href="'+_he(_incFirstDocUrl(item.docLink))+'" target="_blank" rel="noopener" title="Attached document" onclick="event.stopPropagation()">📎</a>' : '') +
+            (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + _he(item.notes) + '</div>' : '') +
             ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
           '</div>';
         }).join('')
@@ -5532,16 +5532,16 @@ function renderIncomingTable() {
       '<td style="white-space:nowrap;font-weight:600' + (isOverdue?';color:var(--red)':'') + '">' + (item.estDate||'—') + '</td>' +
       '<td>' + statusBadge + '</td>' +
       '<td>' + catBadge(item.category) + '</td>' +
-      '<td><strong>' + item.name + '</strong></td>' +
+      '<td><strong>' + _he(item.name) + '</strong></td>' +
       '<td style="font-weight:700">' + item.qty + '</td>' +
-      '<td style="color:var(--muted);font-size:.78rem">' + item.unit + '</td>' +
+      '<td style="color:var(--muted);font-size:.78rem">' + _he(item.unit) + '</td>' +
       '<td>' + (function(){
         var du = _incFirstDocUrl(item.docLink), th = _incThumbUrl(item.docLink);
         if (!du) return '<span style="color:var(--muted)">—</span>';
-        return '<a href="'+du+'" target="_blank" rel="noopener" title="Abrir documento">' +
-          (th ? '<img src="'+th+'" style="height:42px;border-radius:4px;border:1px solid var(--border);vertical-align:middle">' : '📎') + '</a>';
+        return '<a href="'+_he(du)+'" target="_blank" rel="noopener" title="Open document">' +
+          (th ? '<img src="'+_he(th)+'" style="height:42px;border-radius:4px;border:1px solid var(--border);vertical-align:middle">' : '📎') + '</a>';
       })() + '</td>' +
-      '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (item.notes||'').replace(/"/g,'&quot;') + '">' + (item.notes||'—') + '</td>' +
+      '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _he(item.notes||'') + '">' + _he(item.notes||'—') + '</td>' +
       (isAdmin ? '<td><button class="btn-icon" data-action="edit-incoming" data-id="' + _he(item.id) + '">✏️</button></td>' : '') +
     '</tr>';
   }).join('');
@@ -5746,11 +5746,11 @@ function showMorningPopup(items, todayStr) {
       '<div style="flex:1;min-width:0">' +
         '<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.15rem">' +
           catBadge(item.category) +
-          '<span class="morning-item-name">' + item.qty + ' ' + item.unit + ' — ' + item.name + '</span>' +
+          '<span class="morning-item-name">' + item.qty + ' ' + _he(item.unit) + ' — ' + _he(item.name) + '</span>' +
         '</div>' +
         '<div class="morning-item-meta">' +
-          (item.estDate !== todayStr ? item.estDate + (item.notes ? ' · ' : '') : '') +
-          (item.notes ? item.notes : '') +
+          (item.estDate !== todayStr ? _he(item.estDate) + (item.notes ? ' · ' : '') : '') +
+          (item.notes ? _he(item.notes) : '') +
         '</div>' +
       '</div>' +
       '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '" style="flex-shrink:0;margin-left:.5rem">' + (item.status||'Pending') + '</span>' +
@@ -5833,7 +5833,7 @@ function aiExtractFromModal() {
           statusEl.style.display = 'block';
           statusEl.textContent = '⚠ ' + err.message;
         })
-        .extractDocumentInfo(b64, mime);
+        .extractDocumentInfo(b64, mime, _sessionToken);
     });
   });
 }
@@ -5898,7 +5898,7 @@ function aiExtractFromIncoming() {
         .withFailureHandler(function(err) {
           statusEl.textContent = '⚠ ' + err.message;
         })
-        .extractDocumentInfo(b64, mime);
+        .extractDocumentInfo(b64, mime, _sessionToken);
     });
   });
 }
