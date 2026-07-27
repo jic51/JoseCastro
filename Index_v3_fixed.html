@@ -1635,7 +1635,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '6.8';
+var APP_VERSION = '6.9';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1656,16 +1656,42 @@ function _reportClientError(action, message, stack) {
       .processMovement('logClientError', _h({ action: action, message: String(message||''), stack: String(stack||''), url: location.href }));
   } catch (e) {}
 }
-// Freezes/unfreezes the whole overlay (backdrop + modal + header/X) while a
-// save is in flight. pointer-events:none on the OVERLAY (not just the modal)
-// blocks literally everything — a second click on Save, the header turning
-// blue on hover, click-outside-to-close, all of it — more reliably than
-// button.disabled alone, since it also covers the window where a click can
-// slip through before disabled is applied.
+// Freezes/unfreezes EVERYTHING while a save is in flight — not just the modal.
+// pointer-events:none on .modal stops clicks inside it, but that alone doesn't
+// stop two other paths the background stayed reachable through: (1) keyboard
+// input still goes to whatever DOM element already had focus before the modal
+// opened — pointer-events has no effect on keyboard events at all — and (2) the
+// page behind could still scroll via mouse wheel while hovering the backdrop.
+// So on busy: blur whatever was focused, lock body scroll, and swallow every
+// keydown/wheel event that isn't targeting the busy overlay itself.
+var _busyKeyGuard = null;
 function _setModalBusy(overlayId, busy) {
   var ov = document.getElementById(overlayId);
   if (!ov) return;
   ov.classList.toggle('busy', busy);
+
+  if (busy) {
+    if (document.activeElement && document.activeElement !== document.body) {
+      try { document.activeElement.blur(); } catch (e) {}
+    }
+    document.body.style.overflow = 'hidden';
+    if (_busyKeyGuard) { // safety: don't stack listeners if already busy
+      document.removeEventListener('keydown', _busyKeyGuard, true);
+      document.removeEventListener('wheel',   _busyKeyGuard, true);
+    }
+    _busyKeyGuard = function (e) {
+      if (!ov.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    document.addEventListener('keydown', _busyKeyGuard, true);
+    document.addEventListener('wheel',   _busyKeyGuard, { capture: true, passive: false });
+  } else {
+    document.body.style.overflow = '';
+    if (_busyKeyGuard) {
+      document.removeEventListener('keydown', _busyKeyGuard, true);
+      document.removeEventListener('wheel',   _busyKeyGuard, true);
+      _busyKeyGuard = null;
+    }
+  }
 }
 window.addEventListener('error', function(ev) {
   _reportClientError('window.onerror', ev.message, ev.error && ev.error.stack);
