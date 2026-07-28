@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.0';
+var APP_VERSION = '8.1';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1300,7 +1300,7 @@ function addMultiEntry(ss, archive, data, auth) {
         project:          matProject,
         isGeneric:        mat.project !== undefined ? !matProject : data.isGeneric,
         gc:               mat.gc       || data.gc       || '',
-        po:               data.po       || '',
+        po:               mat.po       || data.po       || '',
         qty:              locEntry.qty,
         unit:             mat.unit      || 'UNIT',
         dateRec:          data.dateRec  || '',

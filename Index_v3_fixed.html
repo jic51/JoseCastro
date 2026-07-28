@@ -1656,7 +1656,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.0';
+var APP_VERSION = '8.1';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3400,12 +3400,13 @@ function _matLineTpl(n){
       '<div class="mat-locs-container" id="mat-locs-' + n + '"></div>' +
       '<button type="button" class="btn-add-loc" style="font-size:.75rem;padding:.25rem .7rem;margin-top:.3rem" onclick="addLocRowMat(' + n + ')">+ Add Location</button>' +
     '</div>' +
-    // Per-material Supplier/GC/Project/PM/Responsible/Comments — only shown
+    // Per-material Supplier/GC/PO#/Project/PM/Responsible/Comments — only shown
     // when "All materials share the same..." is unchecked (toggleEntrySameInfo()).
     '<div class="mat-per-info" id="mat-perinfo-' + n + '" style="display:none;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--border)">' +
       '<div class="mat-line-grid">' +
         '<div class="field"><label class="mat-line-lbl-sm">Supplier</label><input type="text" id="mat-sup-' + n + '" list="supplierList"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">GC</label><input type="text" id="mat-gc-' + n + '"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">PO#</label><input type="text" id="mat-po-' + n + '"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">Project / Client</label><input type="text" id="mat-proj-' + n + '" list="projList"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">PM</label><input type="text" id="mat-pm-' + n + '" list="pmNameList" placeholder="Name of project manager"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">Received By</label><input type="text" id="mat-resp-' + n + '"></div>' +
@@ -3455,7 +3456,7 @@ function addMatLine(){
 // material gets its own set of those fields instead.
 function toggleEntrySameInfo(){
   var same = document.getElementById('mSameEntryInfoChk').checked;
-  ['mSupField','mGCField','mProjField','mPMField','mRespFieldWrap','mCommFieldWrap'].forEach(function(id){
+  ['mSupField','mGCField','mPOField','mProjField','mPMField','mRespFieldWrap','mCommFieldWrap'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.style.display = same ? '' : 'none';
   });
@@ -4131,6 +4132,7 @@ function submitMultiEntry(){
     if (!sameInfo) {
       matEntry.supplier    = ((document.getElementById('mat-sup-'  + n) || {}).value || '').trim();
       matEntry.gc          = ((document.getElementById('mat-gc-'   + n) || {}).value || '').trim();
+      matEntry.po          = ((document.getElementById('mat-po-'   + n) || {}).value || '').trim();
       matEntry.project     = ((document.getElementById('mat-proj-' + n) || {}).value || '').trim();
       matEntry.pm          = ((document.getElementById('mat-pm-'   + n) || {}).value || '').trim();
       matEntry.responsible = ((document.getElementById('mat-resp-' + n) || {}).value || '').trim();
