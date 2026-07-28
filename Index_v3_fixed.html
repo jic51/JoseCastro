@@ -815,7 +815,6 @@
     <span>⚠️</span>
     <span id="alertText" style="flex:1"></span>
     <div class="alert-banner-actions" onclick="event.stopPropagation()">
-      <button onclick="toggleStockPanel()" title="Show detail list">📋 Details</button>
       <button id="btnMonitorSettings" onclick="openMonitorModal()" title="Choose which materials to monitor" style="display:none">⚙ Monitor</button>
     </div>
   </div>
@@ -1651,7 +1650,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.6';
+var APP_VERSION = '7.8';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -1929,25 +1928,24 @@ function renderStats(){
   var alertText = document.getElementById('alertText');
 
   if (zeroItems.length || belowMin.length){
+    // Title + counter only — the full breakdown (names, quantities) lives one
+    // click away in the detail panel this banner already opens. The old inline
+    // comma-separated name list plus a separate "Details" button both did the
+    // same job the banner's own click already does.
     var parts = [];
     if (zeroItems.length){
-      var zeroNames = zeroItems.slice(0,4).map(function(s){ return s.name; }).join(', ');
-      if (zeroItems.length > 4) zeroNames += ' +' + (zeroItems.length-4) + ' more';
-      parts.push('<span style="color:var(--red);font-weight:700">🚫 Zero stock (' + zeroItems.length + '):</span> ' + zeroNames);
+      parts.push('<span style="color:var(--red);font-weight:700">🚫 Zero Stock (' + zeroItems.length + ')</span>');
     }
     if (belowMin.length){
-      var lowNames = belowMin.slice(0,4).map(function(b){
-        return b.name + ' <span style="opacity:.75">(' + b.current + '/' + b.min + ')</span>';
-      }).join(', ');
-      if (belowMin.length > 4) lowNames += ' +' + (belowMin.length-4) + ' more';
-      parts.push('<span style="color:var(--yellow);font-weight:700">⚠ Below minimum (' + belowMin.length + '):</span> ' + lowNames);
+      parts.push('<span style="color:var(--yellow);font-weight:700">⚠ Below Minimum (' + belowMin.length + ')</span>');
     }
     // Append filter indicator if monitoring only specific materials
     var filterTag = '';
     if (monitoredMaterials && monitoredMaterials.length) {
       filterTag = ' <span style="font-size:.68rem;background:rgba(0,0,0,.12);border-radius:20px;padding:1px 7px;opacity:.85">🔍 ' + monitoredMaterials.length + ' monitored</span>';
     }
-    alertText.innerHTML = parts.join('<br style="margin:.15rem 0">') + filterTag;
+    alertText.innerHTML = parts.join(' &nbsp;·&nbsp; ') + filterTag +
+      ' <span style="font-size:.72rem;opacity:.7;font-weight:400">— click for details</span>';
     // Red border when there are zero-stock items, yellow when only low
     banner.style.borderColor  = zeroItems.length ? 'var(--red)'    : 'var(--yellow)';
     banner.style.background   = zeroItems.length ? 'var(--red-bg)' : 'var(--yellow-bg)';
@@ -2089,14 +2087,22 @@ function renderStock(){
   // (a material can span multiple racks received on different dates — this shows
   // the latest one, same "last wins" pattern as noteMap above).
   var entryDateMap = {};
-  // Most recent supplier per material — same "last wins" pattern (movements
-  // array is chronological, so a later ENTRY's supplier overwrites an earlier one).
-  var supplierMap = {};
+  // Every distinct supplier that has ever delivered this material — not just the
+  // most recent one. There's no per-batch/lot tracking in this system (all
+  // quantities of a material are pooled together, not tagged by which delivery
+  // they came from), so "still in warehouse" is approximated at the MATERIAL
+  // level: the badge list only shows at all when warehouseQty > 0 for that
+  // material. Once every unit of a material has been exited, none of its past
+  // suppliers are considered "active" anymore, even though we still remember them.
+  var supplierSetMap = {};
   movements.forEach(function(m) {
     var k = nt(m.category) + '|||' + nt(m.name);
     if (m.comments) noteMap[k] = m.comments; // movements are chronological; later overwrites earlier
     if (m.moveType === 'ENTRY' && m.dateRec) entryDateMap[k] = m.dateRec;
-    if (m.moveType === 'ENTRY' && m.supplier) supplierMap[k] = m.supplier;
+    if (m.moveType === 'ENTRY' && m.supplier) {
+      if (!supplierSetMap[k]) supplierSetMap[k] = {};
+      supplierSetMap[k][m.supplier] = true;
+    }
   });
 
   if (!items.length) {
@@ -2123,9 +2129,11 @@ function renderStock(){
       ? '<span style="font-size:.78rem;color:var(--muted);white-space:nowrap">'+entryDate+'</span>'
       : '<span style="color:var(--muted);font-size:.72rem">—</span>';
 
-    var lastSupplier = supplierMap[docKey] || '';
-    var supplierBadgeHtml = lastSupplier
-      ? '<span class="badge '+(CAT_BADGE[nt(s.category)] || 'badge-gray')+'" title="Most recent supplier">🏢 '+_he(lastSupplier)+'</span>'
+    var activeSuppliers = s.warehouseQty > 0 ? Object.keys(supplierSetMap[docKey] || {}) : [];
+    var supplierBadgeHtml = activeSuppliers.length
+      ? activeSuppliers.map(function(sup){
+          return '<span class="badge '+(CAT_BADGE[nt(s.category)] || 'badge-gray')+'" title="Supplier with stock still in warehouse" style="margin-right:4px">🏢 '+_he(sup)+'</span>';
+        }).join('')
       : '';
 
     // Racks currently holding this material (for the Photos column of the split panel)
