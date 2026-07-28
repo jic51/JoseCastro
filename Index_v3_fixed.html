@@ -1651,7 +1651,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.5';
+var APP_VERSION = '7.6';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2089,10 +2089,14 @@ function renderStock(){
   // (a material can span multiple racks received on different dates — this shows
   // the latest one, same "last wins" pattern as noteMap above).
   var entryDateMap = {};
+  // Most recent supplier per material — same "last wins" pattern (movements
+  // array is chronological, so a later ENTRY's supplier overwrites an earlier one).
+  var supplierMap = {};
   movements.forEach(function(m) {
     var k = nt(m.category) + '|||' + nt(m.name);
     if (m.comments) noteMap[k] = m.comments; // movements are chronological; later overwrites earlier
     if (m.moveType === 'ENTRY' && m.dateRec) entryDateMap[k] = m.dateRec;
+    if (m.moveType === 'ENTRY' && m.supplier) supplierMap[k] = m.supplier;
   });
 
   if (!items.length) {
@@ -2118,6 +2122,11 @@ function renderStock(){
     var dateCell = entryDate
       ? '<span style="font-size:.78rem;color:var(--muted);white-space:nowrap">'+entryDate+'</span>'
       : '<span style="color:var(--muted);font-size:.72rem">—</span>';
+
+    var lastSupplier = supplierMap[docKey] || '';
+    var supplierBadgeHtml = lastSupplier
+      ? '<span class="badge '+(CAT_BADGE[nt(s.category)] || 'badge-gray')+'" title="Most recent supplier">🏢 '+_he(lastSupplier)+'</span>'
+      : '';
 
     // Racks currently holding this material (for the Photos column of the split panel)
     var racks = Object.keys(s.warehouseLocs || {}).filter(function(r){ return s.warehouseLocs[r] > 0; })
@@ -2167,6 +2176,7 @@ function renderStock(){
       : '<p style="color:var(--muted);font-size:.8rem;padding:.25rem 0">No documents attached.</p>';
 
     var detailPanel = '<tr id="' + detailRowId + '" class="stock-detail-row"><td colspan="13">' +
+      (supplierBadgeHtml ? '<div style="padding:.6rem .75rem 0">' + supplierBadgeHtml + '</div>' : '') +
       '<div class="stock-detail-split">' +
         '<div class="sd-col"><div class="sd-col-hdr">📷 Location Photos</div>' + photosHtml + '</div>' +
         '<div class="sd-col"><div class="sd-col-hdr">📎 Documents</div>' + docsHtml + '</div>' +
