@@ -139,9 +139,18 @@
     .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
     .alert-banner.show{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
     /* ── OVERLAY / MODAL ── */
-    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:550;align-items:center;justify-content:center;padding:15px}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:550;align-items:center;justify-content:center;padding:15px}
     .overlay.show{display:flex}
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    /* Standardized size tiers (scale with viewport via min(), never grow past
+       that from content) — every popup uses one of these three instead of an
+       ad-hoc per-modal pixel value. Content still picks the tier that fits it
+       (a lock-reason dialog doesn't need to be as wide as the movement form),
+       but within a tier every modal is now identical, and none can silently
+       balloon past its cap the way an unconstrained wide table used to. */
+    .modal-sm{max-width:min(480px,92vw)}
+    .modal-md{max-width:min(640px,92vw)}
+    .modal-lg{max-width:min(760px,92vw)}
     .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
     /* Sticky modal header — stays pinned while the body scrolls, so the X is always reachable */
     .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.6rem;margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem 1rem .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
@@ -229,14 +238,14 @@
        the overlay (header, X, click-outside-to-close, a second click on Save) and
        darkens the backdrop so the user knows to wait. The modal itself stays fully
        legible — only the backdrop darkens, nothing inside becomes see-through. */
-    /* IMPORTANT: pointer-events:none on .overlay itself would make the backdrop
-       stop intercepting clicks — they'd fall straight through to whatever is
-       behind it (the rest of the page), which is the opposite of "frozen".
-       Instead: the backdrop keeps normal pointer-events (still blocks/darkens
-       everything behind it), and only the modal BOX becomes inert. closeIfOutside()
-       also short-circuits while .busy so a click that lands on the backdrop
-       doesn't flash the header either. */
-    .overlay.busy{background:rgba(0,0,0,.78);transition:background .15s}
+    /* Every overlay already darkens the whole screen at the same tone the moment
+       it opens (.overlay background above) — busy state only needs to make the
+       modal BOX itself inert. IMPORTANT: pointer-events:none on .overlay itself
+       would make the backdrop stop intercepting clicks — they'd fall straight
+       through to whatever is behind it (the rest of the page), which is the
+       opposite of "frozen". So only .modal gets it, backdrop keeps normal
+       pointer-events. closeIfOutside() also short-circuits while .busy so a
+       click that lands on the backdrop doesn't flash the header either. */
     .overlay.busy .modal{pointer-events:none;cursor:wait}
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
@@ -429,7 +438,7 @@
        .settings-tab keeps its base look (used by JS toggling .active) but now
        lays out as a full-width sidebar row instead of an inline pill, so a long
        tab list never wraps into a cramped multi-row header again. */
-    .modal.settings-modal{max-width:920px;width:100%;max-height:88vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
+    .modal.settings-modal{max-width:min(920px,92vw);width:100%;max-height:88vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
     .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
     .settings-body{display:flex;flex:1;min-height:0}
     .settings-sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .6rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
@@ -744,7 +753,7 @@
 
 <!-- ══ USERS MANAGEMENT MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="usersOverlay">
-  <div class="modal" style="max-width:700px">
+  <div class="modal modal-lg">
     <div class="mhdr">
       <h3>👥 User Management</h3>
       <button class="modal-x" onclick="closeModal('usersOverlay')" title="Close">✕</button>
@@ -1011,7 +1020,7 @@
 
 <!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="incomingOverlay">
-  <div class="modal" style="max-width:500px">
+  <div class="modal modal-sm">
     <div class="mhdr">
       <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
       <button class="btn btn-ghost btn-sm" onclick="aiExtractFromIncoming()" title="Upload a PO or delivery confirmation and let AI fill the fields"
@@ -1129,7 +1138,7 @@
 
 <!-- ══ MONITOR SETTINGS MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="monitorOverlay">
-  <div class="modal" style="max-width:660px">
+  <div class="modal modal-lg">
     <div class="mhdr">
       <h3>⚙ Low-Stock Monitor Settings</h3>
       <button class="modal-x" onclick="closeModal('monitorOverlay')" title="Close">✕</button>
@@ -1166,7 +1175,7 @@
 
 <!-- ══ EDIT MOVEMENT MODAL ════════════════════════════════════════════════════ -->
 <div class="overlay" id="editMovOverlay">
-  <div class="modal" style="max-width:620px">
+  <div class="modal modal-md">
     <div class="mhdr">
       <h3>✏️ Edit Movement</h3>
       <span id="editMovRowTag" style="font-size:.72rem;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--muted);flex-shrink:0"></span>
@@ -1274,7 +1283,7 @@
 
 <!-- ══ MOVEMENT MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="moveOverlay">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="mhdr">
       <h3 id="moveTitle">New Movement</h3>
       <button class="modal-x" onclick="closeMoveModalGuarded()" title="Close">✕</button>
@@ -1555,7 +1564,7 @@
 
 <!-- ══ ATTACH MODAL ══════════════════════════════════════════════════════════ -->
 <div class="overlay" id="attachOverlay">
-  <div class="modal" style="max-width:500px">
+  <div class="modal modal-sm">
     <div class="mhdr">
       <h3>📎 Attach Document</h3>
       <button class="modal-x" onclick="closeModal('attachOverlay')" title="Close">✕</button>
@@ -1589,7 +1598,7 @@
 
 <!-- ══ LOCK MATERIAL (ADMIN) ═══════════════════════════════════════════════════ -->
 <div class="overlay" id="lockMatOverlay">
-  <div class="modal" style="max-width:460px">
+  <div class="modal modal-sm">
     <div class="mhdr">
       <h3>🔒 Lock Material</h3>
       <button class="modal-x" onclick="closeModal('lockMatOverlay')" title="Close">✕</button>
@@ -1642,7 +1651,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.4';
+var APP_VERSION = '7.5';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4153,6 +4162,22 @@ function _loadSettings() {
     })
     .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
     .processMovement('getSettings', _h({}));
+
+  // Prefetch Materials + Error Log in parallel so switching to those tabs feels
+  // as instant as Categories/Projects/Suppliers/Locations (which come bundled
+  // in getSettings above) — previously each one only fetched on first visit to
+  // that tab, showing a "Loading…" flash the other tabs never had.
+  _matListAll = null;
+  google.script.run
+    .withSuccessHandler(function(list) { _matListAll = list; if (_settingsTab === 'materials') _filterMatList(); })
+    .withFailureHandler(function(){})
+    .processMovement('listMaterials', _h({}));
+
+  _errorLogData = null;
+  google.script.run
+    .withSuccessHandler(function(rows) { _errorLogData = rows || []; if (_settingsTab === 'errorlog') _drawErrorLog(); })
+    .withFailureHandler(function(){})
+    .processMovement('getErrorLog', _h({}));
 }
 
 function _saveArchiveCutoff() {
@@ -4245,6 +4270,8 @@ function _renderSettingsTab(tab) {
 var _errorLogData = [];
 function _renderErrorLogTab() {
   var content = document.getElementById('settingsTabContent');
+  // Already prefetched in _loadSettings() — render immediately if it's there.
+  if (_errorLogData) { _drawErrorLog(); return; }
   content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
   google.script.run
     .withSuccessHandler(function(rows) { _errorLogData = rows || []; _drawErrorLog(); })
@@ -4362,7 +4389,9 @@ function _renderMaterialsTab() {
       '<button class="btn btn-ghost btn-sm" onclick="_loadMatList()">↺ Refresh</button>' +
     '</div>' +
     '<div class="mat-list" id="matListContainer"><p style="color:var(--muted);font-size:.82rem">Loading…</p></div>';
-  _loadMatList();
+  // Already prefetched in _loadSettings() (fired the moment the modal opened) —
+  // render immediately instead of re-fetching and flashing "Loading…" again.
+  if (_matListAll) { _filterMatList(); } else { _loadMatList(); }
 }
 
 function _loadMatList() {
