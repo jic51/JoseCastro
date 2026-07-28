@@ -425,10 +425,22 @@
     .rack-photo-card .rpc-actions{padding:.4rem .6rem;display:flex;justify-content:center}
     .rack-photo-card .rpc-btn{font-size:.72rem;background:var(--border);color:var(--text);border:none;border-radius:6px;padding:.3rem .6rem;cursor:pointer;transition:.15s}
     .rack-photo-card .rpc-btn:hover{background:var(--accent);color:#fff}
-    /* ── SETTINGS MODAL ── */
+    /* ── SETTINGS MODAL — vertical sidebar layout ──
+       .settings-tab keeps its base look (used by JS toggling .active) but now
+       lays out as a full-width sidebar row instead of an inline pill, so a long
+       tab list never wraps into a cramped multi-row header again. */
+    .modal.settings-modal{max-width:920px;width:100%;max-height:88vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
+    .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
+    .settings-body{display:flex;flex:1;min-height:0}
+    .settings-sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .6rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+    .settings-sidebar-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.9rem .6rem .3rem}
+    .settings-sidebar-label:first-child{padding-top:.2rem}
+    .settings-content{flex:1;min-width:0;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem}
     .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
     .settings-tab.active{background:var(--accent);color:#fff}
     .settings-tab:hover:not(.active){background:rgba(0,0,0,.06)}
+    .settings-sidebar .settings-tab{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;padding:.55rem .7rem;font-size:.83rem}
+    .settings-sidebar .settings-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
     .cfg-list{list-style:none;margin:0;padding:0}
     .cfg-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-radius:6px;font-size:.85rem;border-bottom:1px solid var(--border)}
     .cfg-item:last-child{border-bottom:none}
@@ -1516,38 +1528,28 @@
 
 <!-- ══ SETTINGS MODAL ════════════════════════════════════════════════════════ -->
 <div class="overlay" id="settingsOverlay">
-  <div class="modal" style="max-width:680px">
+  <div class="modal settings-modal">
     <div class="mhdr">
       <h3>⚙️ App Settings</h3>
       <button class="modal-x" onclick="closeModal('settingsOverlay')" title="Close">✕</button>
     </div>
-    <!-- Tab bar -->
-    <div style="display:flex;gap:4px;background:var(--bg);border-radius:8px;padding:4px;margin-bottom:1.25rem;flex-wrap:wrap">
-      <button class="settings-tab active" data-tab="categories"  onclick="switchSettingsTab('categories')">📦 Categories</button>
-      <button class="settings-tab"        data-tab="projects"    onclick="switchSettingsTab('projects')">📁 Projects</button>
-      <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 Suppliers</button>
-      <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 Locations</button>
-      <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 Materials</button>
-      <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 Error Log</button>
+    <div class="settings-body">
+      <nav class="settings-sidebar" aria-label="Settings sections">
+        <div class="settings-sidebar-label">Catalog</div>
+        <button class="settings-tab active" data-tab="categories"  onclick="switchSettingsTab('categories')">📦 <span>Categories</span></button>
+        <button class="settings-tab"        data-tab="projects"    onclick="switchSettingsTab('projects')">📁 <span>Projects</span></button>
+        <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 <span>Suppliers</span></button>
+        <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
+        <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
+        <div class="settings-sidebar-label">Diagnostics</div>
+        <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
+        <button class="settings-tab"        data-tab="system"      onclick="switchSettingsTab('system')">🗄 <span>System</span></button>
+      </nav>
+      <div class="settings-content">
+        <div id="settingsTabContent" style="min-height:240px"></div>
+        <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
+      </div>
     </div>
-    <!-- Archive cutoff (global, not per-tab) -->
-    <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:var(--bg);border-radius:7px;margin-bottom:1rem;font-size:.8rem">
-      <span>🗄 Archive movements older than:</span>
-      <select id="archiveCutoffSel" onchange="_saveArchiveCutoff()" style="padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
-        <option value="6">6 months</option>
-        <option value="12">12 months</option>
-        <option value="18">18 months</option>
-      </select>
-      <span style="color:var(--muted);font-size:.72rem">Older movements stay accessible via "Load Older History".</span>
-    </div>
-    <!-- Manual stock rebuild -->
-    <div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;background:var(--bg);border-radius:7px;margin-bottom:1rem;font-size:.8rem">
-      <button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>
-      <span style="color:var(--muted);font-size:.72rem">Recalculates LIVE_STOCK / SITE_STOCK / WASTED_STOCK from the current movement history. Use this if a deleted or edited movement left stale numbers behind.</span>
-    </div>
-    <!-- Tab content -->
-    <div id="settingsTabContent" style="min-height:240px"></div>
-    <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
   </div>
 </div>
 
@@ -1640,7 +1642,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.2';
+var APP_VERSION = '7.4';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3257,7 +3259,10 @@ async function submitMovement(){
         var savedName = name;
         var savedQty  = qty;
         closeModal('moveOverlay');
-        loadDataFromGoogle(true); // skipCache — always show the newly saved movement
+        // Show cached numbers instantly (no skeleton-card flash), fresh data quietly
+        // replaces them a moment later once the round-trip completes — the "reload"
+        // feeling was the skeleton cards, not the actual data refresh.
+        loadDataFromGoogle(false);
         setTimeout(function(){
           if (res && (res.emailError || res.fileError)){
             var msgs = [];
@@ -3955,7 +3960,7 @@ function submitMultiExit(){
         _setModalBusy('moveOverlay', false);
         closeModal('moveOverlay');
         showToast('✓ '+res.rowCount+' movement record(s) saved.','ok');
-        loadDataFromGoogle(true);
+        loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
       })
       .withFailureHandler(function(err){
         if (btn){ btn.disabled=false; btn.textContent='Save to System'; }
@@ -4084,7 +4089,7 @@ function submitMultiEntry(){
       .withSuccessHandler(function(res){
         _setModalBusy('moveOverlay', false);
         closeModal('moveOverlay');
-        loadDataFromGoogle(true);
+        loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
         setTimeout(function(){
           var count = (res && res.count) ? res.count : materials.length;
           var rows  = (res && res.rowCount) ? res.rowCount : count;
@@ -4144,8 +4149,6 @@ function _loadSettings() {
   google.script.run
     .withSuccessHandler(function(d) {
       _settingsData = d;
-      var sel = document.getElementById('archiveCutoffSel');
-      if (sel) sel.value = String(d.archiveCutoffMonths || 12);
       _renderSettingsTab(_settingsTab);
     })
     .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
@@ -4177,6 +4180,31 @@ function _rebuildStockNow() {
     .processMovement('adminAction', _h({ action: 'reconcile' }));
 }
 
+function _renderSystemTab() {
+  var content = document.getElementById('settingsTabContent');
+  var months = String((_settingsData && _settingsData.archiveCutoffMonths) || 12);
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">System-wide maintenance — not specific to any one category.</p>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label>Archive movements older than</label>' +
+      '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
+        '<select id="archiveCutoffSel" onchange="_saveArchiveCutoff()" style="padding:.4rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
+          '<option value="6"'  + (months==='6'  ? ' selected' : '') + '>6 months</option>' +
+          '<option value="12"' + (months==='12' ? ' selected' : '') + '>12 months</option>' +
+          '<option value="18"' + (months==='18' ? ' selected' : '') + '>18 months</option>' +
+        '</select>' +
+        '<span style="color:var(--muted);font-size:.75rem">Older movements stay accessible via "Load Older History".</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="field">' +
+      '<label>Stock totals</label>' +
+      '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
+        '<button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>' +
+        '<span style="color:var(--muted);font-size:.75rem">Recalculates LIVE_STOCK / SITE_STOCK / WASTED_STOCK from the current movement history. Use this if a deleted or edited movement left stale numbers behind.</span>' +
+      '</div>' +
+    '</div>';
+}
+
 function switchSettingsTab(tab) {
   _settingsTab = tab;
   document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
@@ -4187,6 +4215,7 @@ function _renderSettingsTab(tab) {
   var content = document.getElementById('settingsTabContent');
   if (tab === 'materials') { _renderMaterialsTab(); return; }
   if (tab === 'errorlog')  { _renderErrorLogTab(); return; }
+  if (tab === 'system')    { _renderSystemTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -4493,7 +4522,7 @@ function submitAttachment() {
       _setModalBusy('attachOverlay', false);
       closeModal('attachOverlay');
       showToast('Document attached ✓', 'ok');
-      loadDataFromGoogle(true); // skipCache
+      loadDataFromGoogle(false);
     })
     .withFailureHandler(function(err) {
       showToast('Upload failed: ' + (err.message || err), 'err', 6000);
@@ -5629,7 +5658,7 @@ function saveIncomingItem() {
       .withSuccessHandler(function(){
         btn.textContent = '💾 Save'; btn.disabled = false;
         closeModal('incomingOverlay');
-        loadDataFromGoogle(true); // skipCache
+        loadDataFromGoogle(false);
       })
       .withFailureHandler(function(err){
         btn.textContent = '💾 Save'; btn.disabled = false;
@@ -6972,7 +7001,7 @@ function saveGmailDraft(idx) {
       if (badge) badge.textContent = '✓ Saved!';
       if (btn)   { btn.disabled = true; btn.textContent = 'Saved'; }
       // Refresh the incoming list in background
-      loadDataFromGoogle(true);
+      loadDataFromGoogle(false);
       // Update status bar
       var saved = 0, skipped = 0, total = _gmailScanResults.length;
       for (var i = 0; i < total; i++) {
