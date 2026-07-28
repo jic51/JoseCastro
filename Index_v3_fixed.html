@@ -141,7 +141,11 @@
     /* ── OVERLAY / MODAL ── */
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:550;align-items:center;justify-content:center;padding:15px}
     .overlay.show{display:flex}
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:92vh;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    /* height (not max-height): the box is ALWAYS this size, tied only to the
+       viewport — never shrinks for a short form, never grows for a long one.
+       Short content just leaves empty space at the bottom; long content scrolls
+       inside via overflow-y. Every .modal instance shares this one fixed size. */
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);height:min(82vh,700px);overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.25)}
     /* Standardized size tiers (scale with viewport via min(), never grow past
        that from content) — every popup uses one of these three instead of an
        ad-hoc per-modal pixel value. Content still picks the tier that fits it
@@ -438,7 +442,7 @@
        .settings-tab keeps its base look (used by JS toggling .active) but now
        lays out as a full-width sidebar row instead of an inline pill, so a long
        tab list never wraps into a cramped multi-row header again. */
-    .modal.settings-modal{max-width:min(920px,92vw);width:100%;max-height:88vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
+    .modal.settings-modal{max-width:min(920px,92vw);width:100%;height:min(82vh,700px);padding:0;display:flex;flex-direction:column;overflow:hidden}
     .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
     .settings-body{display:flex;flex:1;min-height:0}
     .settings-sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .6rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
@@ -1554,7 +1558,7 @@
         <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 <span>Suppliers</span></button>
         <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
         <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
-        <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>PM Directory</span></button>
+        <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>Directory</span></button>
         <div class="settings-sidebar-label">Diagnostics</div>
         <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
         <button class="settings-tab"        data-tab="system"      onclick="switchSettingsTab('system')">🗄 <span>System</span></button>
@@ -1656,7 +1660,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.1';
+var APP_VERSION = '8.2';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4445,11 +4449,11 @@ function _drawPmDirectory() {
   }).join('');
 
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Maps a PM\'s name (as typed in the PM field on ENTRY) to their email. When materials for the same PM are received in one batch, they get ONE email with all of it — not one email per material. PMs not listed here are simply skipped (no email sent).</p>' +
-    '<ul class="cfg-list">'+(rows || '<li style="padding:.5rem;color:var(--muted);font-size:.82rem">No PMs registered yet.</li>')+'</ul>' +
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">General address book — employees, suppliers, PMs, anyone you email regularly. One special behavior: if a name here matches what\'s typed in the PM field on ENTRY, materials for that batch auto-send ONE grouped email to that address (not one per material). Everyone else here is just a saved contact — use them with the "Send notification email" option when saving a movement.</p>' +
+    '<ul class="cfg-list">'+(rows || '<li style="padding:.5rem;color:var(--muted);font-size:.82rem">No contacts registered yet.</li>')+'</ul>' +
     '<div class="cfg-add-row" style="flex-wrap:wrap">' +
-      '<input type="text" id="pmDirNewName" placeholder="PM name…" style="flex:1;min-width:120px">' +
-      '<input type="email" id="pmDirNewEmail" placeholder="PM email…" style="flex:1;min-width:160px">' +
+      '<input type="text" id="pmDirNewName" placeholder="Name…" style="flex:1;min-width:120px">' +
+      '<input type="email" id="pmDirNewEmail" placeholder="Email…" style="flex:1;min-width:160px">' +
       '<button class="btn btn-primary btn-sm" onclick="_pmDirAdd()">+ Add</button>' +
     '</div>';
 }
@@ -4472,7 +4476,7 @@ function _pmDirDelete(name) {
   _showConfirm({
     icon: '🗑️', danger: true,
     title: 'Remove PM?',
-    message: '"' + name + '" will be removed from the PM Directory. Future batches for this PM won\'t get an automatic email until re-added.',
+    message: '"' + name + '" will be removed from the Directory. If they were a PM, future batches for them won\'t get an automatic email until re-added.',
     confirmText: 'Remove',
     onConfirm: function(){
       google.script.run
