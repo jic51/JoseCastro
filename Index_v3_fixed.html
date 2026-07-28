@@ -1370,6 +1370,10 @@
         <label style="font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em">Materials to Receive</label>
         <span id="multiMatTotal" style="font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px">Total: 0</span>
       </div>
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;margin-bottom:.5rem;cursor:pointer">
+        <input type="checkbox" id="mSameEntryInfoChk" checked onchange="toggleEntrySameInfo()">
+        All materials share the same Supplier / GC / Project / PM / Received By / Comments
+      </label>
       <div id="multiMatContainer"></div>
       <button type="button" class="multi-mat-add" onclick="addMatLine()">+ Add Another Material</button>
     </div>
@@ -1460,13 +1464,14 @@
         <input type="text" id="mProj" list="projList">
         <datalist id="projList"></datalist>
       </div>
-      <div class="field">
+      <div class="field" id="mRespFieldWrap">
         <label id="respLabel">Responsible</label>
         <input type="text" id="mResp">
       </div>
       <div class="field" id="mPMField" style="display:none">
         <label>PM (Project Manager)</label>
-        <input type="text" id="mPM" placeholder="Name of project manager">
+        <input type="text" id="mPM" list="pmNameList" placeholder="Name of project manager">
+        <datalist id="pmNameList"></datalist>
       </div>
       <div class="field" id="mStatusField" style="display:none">
         <label>Status</label>
@@ -1479,7 +1484,7 @@
     </div>
 
     <!-- ── Comments ── -->
-    <div class="form-grid full" style="margin-top:.75rem">
+    <div class="form-grid full" style="margin-top:.75rem" id="mCommFieldWrap">
       <div class="field">
         <label id="commLabel">Comments</label>
         <textarea id="mComm" rows="2" placeholder="Notes, dimensions, instructions..."></textarea>
@@ -1549,6 +1554,7 @@
         <button class="settings-tab"        data-tab="suppliers"   onclick="switchSettingsTab('suppliers')">🏢 <span>Suppliers</span></button>
         <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
         <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
+        <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>PM Directory</span></button>
         <div class="settings-sidebar-label">Diagnostics</div>
         <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
         <button class="settings-tab"        data-tab="system"      onclick="switchSettingsTab('system')">🗄 <span>System</span></button>
@@ -1650,7 +1656,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '7.8';
+var APP_VERSION = '8.0';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3394,6 +3400,18 @@ function _matLineTpl(n){
       '<div class="mat-locs-container" id="mat-locs-' + n + '"></div>' +
       '<button type="button" class="btn-add-loc" style="font-size:.75rem;padding:.25rem .7rem;margin-top:.3rem" onclick="addLocRowMat(' + n + ')">+ Add Location</button>' +
     '</div>' +
+    // Per-material Supplier/GC/Project/PM/Responsible/Comments — only shown
+    // when "All materials share the same..." is unchecked (toggleEntrySameInfo()).
+    '<div class="mat-per-info" id="mat-perinfo-' + n + '" style="display:none;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--border)">' +
+      '<div class="mat-line-grid">' +
+        '<div class="field"><label class="mat-line-lbl-sm">Supplier</label><input type="text" id="mat-sup-' + n + '" list="supplierList"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">GC</label><input type="text" id="mat-gc-' + n + '"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">Project / Client</label><input type="text" id="mat-proj-' + n + '" list="projList"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">PM</label><input type="text" id="mat-pm-' + n + '" list="pmNameList" placeholder="Name of project manager"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">Received By</label><input type="text" id="mat-resp-' + n + '"></div>' +
+      '</div>' +
+      '<div class="field" style="margin-top:.4rem"><label class="mat-line-lbl-sm">Comments</label><textarea id="mat-comm-' + n + '" rows="2" placeholder="Notes, dimensions, instructions..."></textarea></div>' +
+    '</div>' +
   '</div>';
 }
 
@@ -3423,6 +3441,27 @@ function addMatLine(){
       if (name.length > 1) _fillSharedFromHistory(name, cat);
     });
   }
+  // If per-material mode is already active, new lines should show their own
+  // info block too (not just the ones that existed when the checkbox was toggled).
+  var chk = document.getElementById('mSameEntryInfoChk');
+  if (chk && !chk.checked) {
+    var perInfo = document.getElementById('mat-perinfo-' + n);
+    if (perInfo) perInfo.style.display = '';
+  }
+}
+
+// Checked (default) = one shared Supplier/GC/Project/PM/Responsible/Comments for
+// the whole ENTRY, same as before this feature existed. Unchecked = each
+// material gets its own set of those fields instead.
+function toggleEntrySameInfo(){
+  var same = document.getElementById('mSameEntryInfoChk').checked;
+  ['mSupField','mGCField','mProjField','mPMField','mRespFieldWrap','mCommFieldWrap'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = same ? '' : 'none';
+  });
+  document.querySelectorAll('#multiMatContainer .mat-per-info').forEach(function(el){
+    el.style.display = same ? 'none' : '';
+  });
 }
 
 function removeMatLine(n){
@@ -3497,7 +3536,19 @@ function updateMatLineNameList(n){
 function _initMultiMatSection(){
   _matLineIdx = 0;
   document.getElementById('multiMatContainer').innerHTML = '';
+  var chk = document.getElementById('mSameEntryInfoChk');
+  if (chk) chk.checked = true; // default: same behavior as before this feature existed
   addMatLine();
+  toggleEntrySameInfo();
+  // PM datalist needs the directory even if Settings was never opened this session.
+  if (_pmDirectoryData) {
+    _refreshPmDatalist();
+  } else {
+    google.script.run
+      .withSuccessHandler(function(list) { _pmDirectoryData = list || []; _refreshPmDatalist(); })
+      .withFailureHandler(function(){})
+      .processMovement('getPmDirectory', _h({}));
+  }
 }
 
 // ── Incoming → ENTRY auto-suggest ────────────────────────────────────────────
@@ -4044,8 +4095,9 @@ function submitMultiEntry(){
   var docGroups = _collectDocGroups('docGroupsContainer');
 
   // Collect material lines
-  var materials = [];
-  var valid = true;
+  var materials  = [];
+  var valid      = true;
+  var sameInfo   = document.getElementById('mSameEntryInfoChk').checked;
 
   document.querySelectorAll('#multiMatContainer .mat-line').forEach(function(line){
     if (!valid) return;
@@ -4075,7 +4127,16 @@ function submitMultiEntry(){
       valid = false; return;
     }
 
-    materials.push({ category: cat, name: name, unit: unit, locations: locs, qty: totalQty });
+    var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty };
+    if (!sameInfo) {
+      matEntry.supplier    = ((document.getElementById('mat-sup-'  + n) || {}).value || '').trim();
+      matEntry.gc          = ((document.getElementById('mat-gc-'   + n) || {}).value || '').trim();
+      matEntry.project     = ((document.getElementById('mat-proj-' + n) || {}).value || '').trim();
+      matEntry.pm          = ((document.getElementById('mat-pm-'   + n) || {}).value || '').trim();
+      matEntry.responsible = ((document.getElementById('mat-resp-' + n) || {}).value || '').trim();
+      matEntry.comments    = ((document.getElementById('mat-comm-' + n) || {}).value || '').trim();
+    }
+    materials.push(matEntry);
   });
 
   if (!valid || !materials.length) return;
@@ -4120,11 +4181,12 @@ function submitMultiEntry(){
         setTimeout(function(){
           var count = (res && res.count) ? res.count : materials.length;
           var rows  = (res && res.rowCount) ? res.rowCount : count;
-          if (res && (res.emailError || res.fileError)){
+          if (res && (res.emailError || res.fileError || res.pmError)){
             var msgs = [];
             if (res.emailError) msgs.push('📧 Email: ' + res.emailError);
             if (res.fileError)  msgs.push('📎 File: '  + res.fileError);
-            showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', 7000);
+            if (res.pmError)    msgs.push('📇 ' + res.pmError);
+            showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', 8000);
           } else {
             showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', 5000);
           }
@@ -4196,6 +4258,25 @@ function _loadSettings() {
     .withSuccessHandler(function(rows) { _errorLogData = rows || []; if (_settingsTab === 'errorlog') _drawErrorLog(); })
     .withFailureHandler(function(){})
     .processMovement('getErrorLog', _h({}));
+
+  _pmDirectoryData = null;
+  google.script.run
+    .withSuccessHandler(function(list) {
+      _pmDirectoryData = list || [];
+      if (_settingsTab === 'pmdirectory') _drawPmDirectory();
+      _refreshPmDatalist();
+    })
+    .withFailureHandler(function(){})
+    .processMovement('getPmDirectory', _h({}));
+}
+
+// PM name datalist for the ENTRY PM fields (shared + per-material) — lets users
+// pick a registered PM instead of retyping the name, which avoids the typos that
+// would otherwise silently break the auto-grouped-email matching.
+function _refreshPmDatalist() {
+  var dl = document.getElementById('pmNameList');
+  if (!dl || !_pmDirectoryData) return;
+  dl.innerHTML = _pmDirectoryData.map(function(p){ return '<option value="'+_he(p.name)+'">'; }).join('');
 }
 
 function _saveArchiveCutoff() {
@@ -4256,9 +4337,10 @@ function switchSettingsTab(tab) {
 
 function _renderSettingsTab(tab) {
   var content = document.getElementById('settingsTabContent');
-  if (tab === 'materials') { _renderMaterialsTab(); return; }
-  if (tab === 'errorlog')  { _renderErrorLogTab(); return; }
-  if (tab === 'system')    { _renderSystemTab(); return; }
+  if (tab === 'materials')   { _renderMaterialsTab(); return; }
+  if (tab === 'errorlog')    { _renderErrorLogTab(); return; }
+  if (tab === 'system')      { _renderSystemTab(); return; }
+  if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -4338,6 +4420,69 @@ function _drawErrorLog(filterText) {
     '</div>';
   var inp = document.getElementById('errLogSearch');
   if (inp) { inp.focus(); var v = inp.value; inp.value=''; inp.value=v; }
+}
+
+var _pmDirectoryData = null;
+function _renderPmDirectoryTab() {
+  var content = document.getElementById('settingsTabContent');
+  if (_pmDirectoryData) { _drawPmDirectory(); return; }
+  content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  google.script.run
+    .withSuccessHandler(function(list) { _pmDirectoryData = list || []; _drawPmDirectory(); })
+    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+(e.message||e)+'</p>'; })
+    .processMovement('getPmDirectory', _h({}));
+}
+
+function _drawPmDirectory() {
+  var content = document.getElementById('settingsTabContent');
+  var rows = _pmDirectoryData.map(function(p) {
+    return '<li class="cfg-item">' +
+      '<span class="cfg-item-name" style="flex:1"><strong>'+_he(p.name)+'</strong> <span style="color:var(--muted);font-size:.78rem">'+_he(p.email)+'</span></span>' +
+      '<button class="cfg-btn cfg-btn-danger" data-action="pm-dir-delete" data-val="'+_he(p.name)+'">🗑</button>' +
+    '</li>';
+  }).join('');
+
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Maps a PM\'s name (as typed in the PM field on ENTRY) to their email. When materials for the same PM are received in one batch, they get ONE email with all of it — not one email per material. PMs not listed here are simply skipped (no email sent).</p>' +
+    '<ul class="cfg-list">'+(rows || '<li style="padding:.5rem;color:var(--muted);font-size:.82rem">No PMs registered yet.</li>')+'</ul>' +
+    '<div class="cfg-add-row" style="flex-wrap:wrap">' +
+      '<input type="text" id="pmDirNewName" placeholder="PM name…" style="flex:1;min-width:120px">' +
+      '<input type="email" id="pmDirNewEmail" placeholder="PM email…" style="flex:1;min-width:160px">' +
+      '<button class="btn btn-primary btn-sm" onclick="_pmDirAdd()">+ Add</button>' +
+    '</div>';
+}
+
+function _pmDirAdd() {
+  var name  = (document.getElementById('pmDirNewName').value  || '').trim();
+  var email = (document.getElementById('pmDirNewEmail').value || '').trim();
+  if (!name || !email) { showToast('Enter both a name and an email.', 'warn'); return; }
+  google.script.run
+    .withSuccessHandler(function() {
+      _pmDirectoryData = null; // force refetch
+      _renderPmDirectoryTab();
+      showToast('✓ PM added.', 'ok');
+    })
+    .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err', 6000); })
+    .processMovement('managePmDirectory', _h({ op: 'add', name: name, email: email }));
+}
+
+function _pmDirDelete(name) {
+  _showConfirm({
+    icon: '🗑️', danger: true,
+    title: 'Remove PM?',
+    message: '"' + name + '" will be removed from the PM Directory. Future batches for this PM won\'t get an automatic email until re-added.',
+    confirmText: 'Remove',
+    onConfirm: function(){
+      google.script.run
+        .withSuccessHandler(function() {
+          _pmDirectoryData = null;
+          _renderPmDirectoryTab();
+          showToast('PM removed.', 'ok');
+        })
+        .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err', 6000); })
+        .processMovement('managePmDirectory', _h({ op: 'delete', name: name }));
+    }
+  });
 }
 
 function _cfgStartEdit(tab, i) {
@@ -4502,6 +4647,8 @@ function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;
       _matAction(el.getAttribute('data-op'), host.getAttribute('data-name'), host.getAttribute('data-cat'));
     } else if (a === 'cfg-delete') {
       _cfgDelete(el.getAttribute('data-tab'), el.getAttribute('data-val'));
+    } else if (a === 'pm-dir-delete') {
+      _pmDirDelete(el.getAttribute('data-val'));
     } else if (a === 'open-rack') {
       openRackDrawer(el.getAttribute('data-rack'));
     } else if (a === 'edit-incoming') {

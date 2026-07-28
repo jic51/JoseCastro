@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '7.8';
+var APP_VERSION = '8.0';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -863,6 +863,8 @@ function _processMovementInner(ss, action, data, auth) {
   if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names, auth);
+  if (action === 'getPmDirectory')        return getPmDirectory();
+  if (action === 'managePmDirectory')     return managePmDirectory(data, auth);
   if (action === 'uploadRackPhoto')       return uploadRackPhoto(data, auth);
   if (action === 'lockMaterial')          return lockMaterial(data, auth);
   if (action === 'unlockMaterial')        return unlockMaterial(data, auth);
@@ -1286,23 +1288,28 @@ function addMultiEntry(ss, archive, data, auth) {
       if (!locEntry.qty || locEntry.qty <= 0) continue;
 
       var isFirstRow = (rows.length === 0);
+      // Per-material values win when "same info for all" is off (mSameEntryInfoChk
+      // unchecked client-side) — mat.xxx is only sent then. Falls back to the
+      // shared data.xxx fields otherwise, same override pattern already used for
+      // EXIT's per-material destLoc.
+      var matProject = mat.project || data.project || '';
       rows.push({
         moveType:         'ENTRY',
         category:         mat.category || data.category || '',
         name:             mat.name,
-        project:          data.project  || '',
-        isGeneric:        data.isGeneric,
-        gc:               data.gc       || '',
+        project:          matProject,
+        isGeneric:        mat.project !== undefined ? !matProject : data.isGeneric,
+        gc:               mat.gc       || data.gc       || '',
         po:               data.po       || '',
         qty:              locEntry.qty,
         unit:             mat.unit      || 'UNIT',
         dateRec:          data.dateRec  || '',
         sourceLoc:        '',
         destLoc:          locEntry.loc  || '',
-        supplier:         data.supplier || '',
-        comments:         data.comments || '',
-        responsible:      data.responsible || '',
-        pm:               data.pm       || '',
+        supplier:         mat.supplier    || data.supplier    || '',
+        comments:         mat.comments    || data.comments    || '',
+        responsible:      mat.responsible || data.responsible || '',
+        pm:               mat.pm          || data.pm          || '',
         files:            [],
         // Shared docs + notify go only on the very first archive row.
         docGroups:        isFirstRow ? (data.docGroups       || []) : [],
@@ -1314,12 +1321,20 @@ function addMultiEntry(ss, archive, data, auth) {
   }
 
   var res = _addMovementsBatch(ss, archive, rows, auth);
+
+  // One email per PM, grouped — never one email per material, never a PM
+  // seeing another PM's materials. Independent of the manual "notify" checkbox
+  // (notifyRecipients above), which is for ad-hoc recipients typed by hand.
+  var pmError = null;
+  try { pmError = _sendPmGroupedEmails(rows, auth); } catch (e) { pmError = 'PM notification error: ' + e.message; }
+
   return {
     status:     'success',
     count:      totalMats,
     rowCount:   res.rowCount,
     fileError:  res.fileError  || null,
     emailError: res.emailError || null,
+    pmError:    pmError,
     message:    totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }
@@ -1733,6 +1748,129 @@ function _cancelReservation(ss, data, auth) {
 // Sheet: MATERIAL_LOCKS  Columns (0-based):
 //  A=0:ID B=1:MatId C=2:Category D=3:Name E=4:Rack F=5:AllowedDestinations(CSV)
 //  G=6:Reason H=7:LockedBy I=8:LockedAt J=9:Status K=10:UnlockedBy L=11:UnlockedAt
+
+// ─── PM DIRECTORY ─────────────────────────────────────────────────────────────
+// Maps a PM's display name (typed into the PM field on ENTRY) to their email, so
+// batch ENTRY saves can auto-group materials by PM and send each PM one email
+// with just their own materials — instead of the old flow where a human had to
+// type recipient emails by hand every time. Admin-managed from Settings.
+function _ensurePmDirectorySheet(ss) {
+  var sheet = ss.getSheetByName('PM_DIRECTORY');
+  if (!sheet) {
+    sheet = ss.insertSheet('PM_DIRECTORY');
+    sheet.appendRow(['Name', 'Email']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getPmDirectory() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensurePmDirectorySheet(ss);
+  var rows  = sheet.getDataRange().getValues();
+  var out   = [];
+  for (var i = 1; i < rows.length; i++) {
+    var name = String(rows[i][0] || '').trim();
+    var email = String(rows[i][1] || '').trim();
+    if (name && email) out.push({ name: name, email: email });
+  }
+  return out;
+}
+
+// data.op: 'add' | 'rename' | 'delete'. Matches by name, case-insensitive.
+function managePmDirectory(data, auth) {
+  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = _ensurePmDirectorySheet(ss);
+  var rows  = sheet.getDataRange().getValues();
+  var name  = String(data.name  || '').trim();
+  var email = String(data.email || '').trim();
+
+  if (data.op === 'add') {
+    if (!name)  throw new Error('PM name is required.');
+    if (!email || email.indexOf('@') === -1) throw new Error('A valid email is required.');
+    for (var i = 1; i < rows.length; i++) {
+      if (String(rows[i][0] || '').trim().toUpperCase() === name.toUpperCase()) {
+        throw new Error('"' + name + '" is already in the PM directory.');
+      }
+    }
+    sheet.appendRow([name, email]);
+  } else if (data.op === 'rename') {
+    var oldName = String(data.oldName || '').trim();
+    if (!oldName) throw new Error('Current PM name is required.');
+    var found = false;
+    for (var j = 1; j < rows.length; j++) {
+      if (String(rows[j][0] || '').trim().toUpperCase() === oldName.toUpperCase()) {
+        sheet.getRange(j + 1, 1, 1, 2).setValues([[name || oldName, email || rows[j][1]]]);
+        found = true;
+        break;
+      }
+    }
+    if (!found) throw new Error('"' + oldName + '" not found in PM directory.');
+  } else if (data.op === 'delete') {
+    if (!name) throw new Error('PM name is required.');
+    var delFound = false;
+    for (var k = 1; k < rows.length; k++) {
+      if (String(rows[k][0] || '').trim().toUpperCase() === name.toUpperCase()) {
+        sheet.deleteRow(k + 1);
+        delFound = true;
+        break;
+      }
+    }
+    if (!delFound) throw new Error('"' + name + '" not found in PM directory.');
+  } else {
+    throw new Error('Unknown managePmDirectory op: ' + data.op);
+  }
+
+  _auditLog(ss, 'MANAGE_PM_DIRECTORY', auth.email, data.op, name, email);
+  return { status: 'success' };
+}
+
+// Groups the just-saved ENTRY rows by PM name and sends each PM ONE email
+// listing only their own materials — never a combined email with other PMs'
+// materials, and never more than one email per PM per batch. PMs without a
+// matching entry in PM_DIRECTORY are silently skipped (no email address to
+// send to) and reported back so the admin knows to add them.
+function _sendPmGroupedEmails(rows, auth) {
+  var byPm = {}; // upper(pmName) -> { displayName, items: [{name, qty, unit}] }
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var pm = String(r.pm || '').trim();
+    if (!pm) continue;
+    var key = pm.toUpperCase();
+    if (!byPm[key]) byPm[key] = { displayName: pm, items: [] };
+    byPm[key].items.push({ name: r.name, qty: r.qty, unit: r.unit || 'UNIT' });
+  }
+  var pmNames = Object.keys(byPm);
+  if (!pmNames.length) return null;
+
+  var directory = getPmDirectory();
+  var emailByName = {};
+  directory.forEach(function(d) { emailByName[d.name.toUpperCase()] = d.email; });
+
+  var unmatched = [];
+  var sent = 0;
+  pmNames.forEach(function(key) {
+    var group = byPm[key];
+    var email = emailByName[key];
+    if (!email) { unmatched.push(group.displayName); return; }
+    var lines = group.items.map(function(it){ return '  • ' + it.qty + ' ' + it.unit + '(s) of ' + it.name; }).join('\n');
+    var body = 'Hi ' + group.displayName + ',\n\nThe following materials were received today for your project(s):\n\n' +
+      lines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+    try {
+      GmailApp.sendEmail(email,
+        'Materials Received' + (group.items.length > 1 ? ' (' + group.items.length + ' items)' : ''),
+        body, { name: 'OX Glass Co. — WMS', replyTo: auth.email });
+      sent++;
+    } catch (e) {
+      unmatched.push(group.displayName + ' (send failed: ' + e.message + ')');
+    }
+  });
+
+  if (!unmatched.length) return null;
+  return 'No PM Directory match for: ' + unmatched.join(', ') + '. Add them in Settings → PM Directory.';
+}
 
 function _ensureMaterialLocksSheet(ss) {
   var sheet = ss.getSheetByName('MATERIAL_LOCKS');
