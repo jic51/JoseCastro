@@ -254,7 +254,11 @@
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
     /* ── INCOMING SUGGESTION BOX ── */
-    .inc-suggest-box{position:absolute;left:0;right:0;top:100%;z-index:400;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);overflow:hidden;margin-top:2px}
+    /* Always anchored to the side of its input, fixed width — never stretches to
+       match whatever ancestor happens to be position:relative (that's what made
+       it balloon to a huge box in some places and a thin strip in others before).
+       Caps to 40vw so it can't overflow a narrow/mobile viewport either. */
+    .inc-suggest-box{position:absolute;top:0;left:calc(100% + 8px);width:260px;max-width:40vw;max-height:280px;overflow-y:auto;z-index:400;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
     .inc-suggest-hdr{padding:.3rem .7rem;font-size:.68rem;font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
     .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;transition:background .12s}
     .inc-suggest-item:last-child{border-bottom:none}
@@ -1660,7 +1664,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.2';
+var APP_VERSION = '8.3';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
