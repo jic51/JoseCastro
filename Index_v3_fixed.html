@@ -254,11 +254,15 @@
     .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
     /* ── INCOMING SUGGESTION BOX ── */
-    /* Always anchored to the side of its input, fixed width — never stretches to
-       match whatever ancestor happens to be position:relative (that's what made
-       it balloon to a huge box in some places and a thin strip in others before).
+    /* position:fixed, not absolute — the modal it lives in scrolls
+       (overflow-y:auto), which clips anything absolutely positioned near its
+       edge. _positionSuggestBox() sets top/left in JS from the input's actual
+       screen position every time the box is shown, escaping that clipping
+       entirely (position:absolute is only a fallback here). Fixed width — never
+       stretches to match whatever ancestor happens to be position:relative
+       (that used to make it balloon huge in some places, thin in others).
        Caps to 40vw so it can't overflow a narrow/mobile viewport either. */
-    .inc-suggest-box{position:absolute;top:0;left:calc(100% + 8px);width:260px;max-width:40vw;max-height:280px;overflow-y:auto;z-index:400;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+    .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;z-index:1300;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
     .inc-suggest-hdr{padding:.3rem .7rem;font-size:.68rem;font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
     .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;transition:background .12s}
     .inc-suggest-item:last-child{border-bottom:none}
@@ -452,7 +456,13 @@
     .settings-sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .6rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
     .settings-sidebar-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.9rem .6rem .3rem}
     .settings-sidebar-label:first-child{padding-top:.2rem}
-    .settings-content{flex:1;min-width:0;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem}
+    /* display:flex so a tab's list/table can flex:1 to fill the fixed modal
+       height exactly — before, .mat-list and the Error Log table had their own
+       fixed max-height (320px / 45vh) left over from when the modal itself grew
+       with content; now that the modal is a fixed size, those stale caps left a
+       big empty gap below a short list instead of the list filling the box. */
+    .settings-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column}
+    #settingsTabContent{display:flex;flex-direction:column;flex:1;min-height:0}
     .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
     .settings-tab.active{background:var(--accent);color:#fff}
     .settings-tab:hover:not(.active){background:rgba(0,0,0,.06)}
@@ -472,7 +482,7 @@
     /* Materials tab */
     .mat-search-row{display:flex;gap:.5rem;margin-bottom:.75rem}
     .mat-search-row input{flex:1;padding:.4rem .7rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
-    .mat-list{max-height:320px;overflow-y:auto}
+    .mat-list{flex:1;min-height:0;overflow-y:auto}
     .mat-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem;flex-wrap:wrap}
     .mat-item-name{flex:1;min-width:120px;font-weight:500}
     .mat-item-cat{font-size:.72rem;color:var(--muted)}
@@ -1664,7 +1674,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.3';
+var APP_VERSION = '8.4';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3627,6 +3637,7 @@ function _checkIncomingSuggest(n, inputEl){
   }
   box.innerHTML = html;
   box.style.display = 'block';
+  _positionSuggestBox(box, inputEl);
 }
 
 // Safe bridge for a stock-match click: just fills the name (and category, if
@@ -3908,6 +3919,7 @@ function _checkStockSuggest(inputEl){
       '</div>';
     }).join('');
   box.style.display = 'block';
+  _positionSuggestBox(box, inputEl);
 }
 
 function _applyStockSuggest(name){
@@ -3926,6 +3938,25 @@ function _applyStockSuggest(name){
 }
 
 // ── Stock suggestion box for multi-EXIT exit-name inputs ─────────────────────
+// Positions a suggestion box using position:fixed (viewport coordinates) instead
+// of position:absolute inside the modal — the modal itself scrolls
+// (overflow-y:auto), which clips anything absolutely positioned near its edge.
+// Fixed positioning escapes that clipping entirely, so the box always renders
+// fully visible regardless of where the input sits or how far the modal has
+// scrolled. Flips to the LEFT of the input if there isn't enough room on the
+// right (near the modal's right edge), same idea for the bottom edge.
+function _positionSuggestBox(box, inputEl) {
+  var rect = inputEl.getBoundingClientRect();
+  var boxW = 260, boxH = Math.min(box.scrollHeight || 280, 280);
+  var spaceRight = window.innerWidth - rect.right;
+  var left = spaceRight >= boxW + 16 ? rect.right + 8 : Math.max(8, rect.left - boxW - 8);
+  var top  = rect.top;
+  if (top + boxH > window.innerHeight - 8) top = Math.max(8, window.innerHeight - boxH - 8);
+  box.style.position = 'fixed';
+  box.style.top  = top + 'px';
+  box.style.left = left + 'px';
+}
+
 function _checkExitMatSuggest(n, inputEl){
   var box = document.getElementById('exit-suggest-' + n);
   if (!box) return;
@@ -3952,6 +3983,7 @@ function _checkExitMatSuggest(n, inputEl){
       '</div>';
     }).join('');
   box.style.display = 'block';
+  _positionSuggestBox(box, inputEl);
 }
 
 function _applyExitMatSuggest(n, name, cat){
@@ -4415,7 +4447,7 @@ function _drawErrorLog(filterText) {
     '<input type="text" id="errLogSearch" placeholder="Search message, action, user, or ID…" ' +
       'style="width:100%;margin-bottom:.6rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:var(--bg);color:var(--text)" ' +
       'oninput="_drawErrorLog(this.value)" value="'+_he(filterText||'')+'">' +
-    '<div style="max-height:45vh;overflow:auto;border:1px solid var(--border);border-radius:6px">' +
+    '<div style="flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px">' +
       '<table style="width:100%;border-collapse:collapse">' +
         '<thead><tr style="position:sticky;top:0;background:var(--bg)">' +
           '<th style="text-align:left;padding:.4rem;font-size:.7rem">Time</th>' +
