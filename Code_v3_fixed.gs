@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.5';
+var APP_VERSION = '8.6';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1650,28 +1650,40 @@ function _refreshDerivedSheets(ss) {
     var s   = stock[key];
     var qty = m.qty;
 
+    // CRITICAL: rack names must be compared normalized (uppercase+trim), not as
+    // whatever literal text happens to be stored. _addMovementsBatch forces
+    // upper+trim on every new save, but modifyMovement's manual-edit path did
+    // NOT (fixed separately below) — so any row ever touched by a manual edit,
+    // or any older/legacy row, could have "B1A" vs "b1a" vs " B1A" sitting in
+    // the sheet. Those would never net against each other as the same rack —
+    // an ENTRY's +21 stays parked under one key forever while a later EXIT's
+    // -21 lands under a slightly different key, and even a full rebuild from
+    // scratch reproduces the same stale "still in stock" result, because the
+    // matching itself — not just when it runs — was the bug.
+    var rackKey = function(r){ return String(r || '').toUpperCase().trim(); };
+
     if (m.moveType === 'ENTRY') {
-      var rack = m.destLoc || m.sourceLoc || 'UNASSIGNED';
+      var rack = rackKey(m.destLoc || m.sourceLoc || 'UNASSIGNED');
       s.locs[rack] = (s.locs[rack] || 0) + qty;
 
     } else if (m.moveType === 'EXIT' || m.moveType === 'DISPATCH') {
-      var sr = m.sourceLoc || 'UNASSIGNED';
+      var sr = rackKey(m.sourceLoc || 'UNASSIGNED');
       s.locs[sr] = (s.locs[sr] || 0) - qty;
       var p = m.project || 'UNASSIGNED';
       s.siteProjs[p] = (s.siteProjs[p] || 0) + qty;
 
     } else if (m.moveType === 'TRANSFER') {
-      if (m.sourceLoc) s.locs[m.sourceLoc] = (s.locs[m.sourceLoc] || 0) - qty;
-      if (m.destLoc)   s.locs[m.destLoc]   = (s.locs[m.destLoc]   || 0) + qty;
+      if (m.sourceLoc) { var trSrc = rackKey(m.sourceLoc); s.locs[trSrc] = (s.locs[trSrc] || 0) - qty; }
+      if (m.destLoc)   { var trDest = rackKey(m.destLoc);  s.locs[trDest] = (s.locs[trDest] || 0) + qty; }
 
     } else if (m.moveType === 'RETURN') {
-      var retRack = m.destLoc || 'UNASSIGNED';
+      var retRack = rackKey(m.destLoc || 'UNASSIGNED');
       s.locs[retRack] = (s.locs[retRack] || 0) + qty;
       var p2 = m.project || 'UNKNOWN';
       if (s.siteProjs[p2]) s.siteProjs[p2] = Math.max(0, s.siteProjs[p2] - qty);
 
     } else if (m.moveType === 'WASTE') {
-      var s2 = m.sourceLoc || 'UNASSIGNED';
+      var s2 = rackKey(m.sourceLoc || 'UNASSIGNED');
       s.locs[s2] = (s.locs[s2] || 0) - qty;
       s.wasted  += qty;
     }
@@ -3268,6 +3280,20 @@ function modifyMovement(data, auth) {
   var changes    = [];
   var origVals   = {};
 
+  // Fields whose stored casing/whitespace MUST match how _addMovementsBatch
+  // writes them, or stock aggregation silently stops recognizing this row as
+  // "the same material/rack" as every other row — even a full stock rebuild
+  // can't fix it then, because the rebuild trusts whatever's actually stored.
+  // This is exactly the bug class that caused stock to look "still in the
+  // warehouse" after a real EXIT: an edited row's rack name (or category)
+  // ended up with different case/whitespace than the row it should net against.
+  var NORMALIZE_ON_WRITE = {
+    category:  function(v){ return v.toUpperCase(); },
+    name:      _cleanDisplay,
+    sourceLoc: function(v){ return v.toUpperCase(); },
+    destLoc:   function(v){ return v.toUpperCase(); }
+  };
+
   Object.keys(FIELDS).forEach(function(key) {
     if (data[key] === undefined || data[key] === null) return;
     var f      = FIELDS[key];
@@ -3275,6 +3301,7 @@ function modifyMovement(data, auth) {
     var newStr = key === 'qty'
       ? String(parseFloat(data[key]) || 0)
       : String(data[key] || '').trim();
+    if (NORMALIZE_ON_WRITE[key]) newStr = NORMALIZE_ON_WRITE[key](newStr);
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
@@ -3283,6 +3310,13 @@ function modifyMovement(data, auth) {
   });
 
   if (!changes.length) throw new Error('No changes detected — nothing to save.');
+
+  // If category or name changed, the stored MatID must be recomputed too —
+  // otherwise this row keeps pointing at the OLD material forever, silently
+  // mismatching every other row for what's now supposed to be the same item.
+  if (origVals['Category'] !== undefined || origVals['Name'] !== undefined) {
+    rowVals[AC.MAT_ID] = getMaterialId(rowVals[AC.CATEGORY], rowVals[AC.NAME]);
+  }
 
   // Write updated row back
   range.setValues([rowVals]);
