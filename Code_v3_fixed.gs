@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.4';
+var APP_VERSION = '8.5';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -736,6 +736,7 @@ function _processMovementInner(ss, action, data, auth) {
         rowCount:   entryRes.rowCount,
         fileError:  entryRes.fileError,
         emailError: entryRes.emailError,
+        refreshError: entryRes.refreshError,
         message:    'ENTRY recorded' + (entryRes.rowCount > 1 ? ' (' + entryRes.rowCount + ' locations).' : '.')
       };
     }
@@ -774,6 +775,7 @@ function _processMovementInner(ss, action, data, auth) {
         rowCount:   exitRes.rowCount,
         fileError:  exitRes.fileError,
         emailError: exitRes.emailError,
+        refreshError: exitRes.refreshError,
         message:    'EXIT recorded' + (exitRes.rowCount > 1 ? ' (' + exitRes.rowCount + ' locations).' : '.')
       };
     }
@@ -808,6 +810,7 @@ function _processMovementInner(ss, action, data, auth) {
         rowCount:   transferRes.rowCount,
         fileError:  transferRes.fileError,
         emailError: transferRes.emailError,
+        refreshError: transferRes.refreshError,
         message:    'TRANSFER recorded' + (transferRes.rowCount > 1 ? ' (' + transferRes.rowCount + ' pairs).' : '.')
       };
     }
@@ -849,7 +852,8 @@ function _processMovementInner(ss, action, data, auth) {
       message:        String(data.moveType || '').toUpperCase() + ' recorded successfully.',
       availableAfter: availAfter != null ? availAfter : null,
       fileError:      singleRes.fileError,
-      emailError:     singleRes.emailError
+      emailError:     singleRes.emailError,
+      refreshError:   singleRes.refreshError
     };
   }
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
@@ -1072,7 +1076,20 @@ function _addMovementsBatch(ss, archive, movements, auth) {
     }
 
     // ── ONE derived-sheet refresh for the whole batch ────────────────────────
-    try { _refreshDerivedSheets(ss); } catch (re) { Logger.log('Refresh warning: ' + re.message); }
+    // CRITICAL: if this throws and we only Logger.log it, the movement itself
+    // still saves fine (so it looks correct in Movement History) but
+    // LIVE_STOCK/SITE_STOCK/WASTED_STOCK silently keep the PRE-save numbers —
+    // e.g. an EXIT that fully empties a rack, with the rack drawer still
+    // showing the old quantity forever, and nobody finds out until they notice
+    // by eye. Must land in the real ERROR_LOG (visible in Settings), not just
+    // Apps Script's own execution log that nobody checks day to day.
+    var refreshError = null;
+    try {
+      _refreshDerivedSheets(ss);
+    } catch (re) {
+      refreshError = 'Stock totals may be out of date — run Settings → System → "Rebuild Stock Totals Now". (' + re.message + ')';
+      _logError(ss, 'ERROR', 'backend', '_addMovementsBatch/_refreshDerivedSheets', auth.email, re.message, { rowCount: newRows.length }, _newRequestId());
+    }
 
     // ── ONE audit-log entry summarizing the batch ───────────────────────────
     var auditDetail = rowMeta.map(function (m) { return m.mt + ' ' + m.name + ' x' + m.qty; }).join('; ');
@@ -1110,6 +1127,7 @@ function _addMovementsBatch(ss, archive, movements, auth) {
       rowCount:       newRows.length,
       fileError:      fileError,
       emailError:     emailError,
+      refreshError:   refreshError,
       availableByMat: availableByMat
     };
 
@@ -1334,6 +1352,7 @@ function addMultiEntry(ss, archive, data, auth) {
     rowCount:   res.rowCount,
     fileError:  res.fileError  || null,
     emailError: res.emailError || null,
+    refreshError: res.refreshError || null,
     pmError:    pmError,
     message:    totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
@@ -1381,6 +1400,7 @@ function addMultiExit(ss, archive, data, auth) {
     status:   'success',
     count:    totalMats,
     rowCount: res.rowCount,
+    refreshError: res.refreshError || null,
     message:  totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }

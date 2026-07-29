@@ -1674,7 +1674,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.4';
+var APP_VERSION = '8.5';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -3315,11 +3315,12 @@ async function submitMovement(){
         // feeling was the skeleton cards, not the actual data refresh.
         loadDataFromGoogle(false);
         setTimeout(function(){
-          if (res && (res.emailError || res.fileError)){
+          if (res && (res.emailError || res.fileError || res.refreshError)){
             var msgs = [];
-            if (res.emailError) msgs.push('📧 Email not sent: ' + res.emailError);
-            if (res.fileError)  msgs.push('📎 File not attached: ' + res.fileError);
-            showToast('Saved ✓ — but note: ' + msgs.join(' | '), 'warn', 6000);
+            if (res.emailError)   msgs.push('📧 Email not sent: ' + res.emailError);
+            if (res.fileError)    msgs.push('📎 File not attached: ' + res.fileError);
+            if (res.refreshError) msgs.push('⚠ ' + res.refreshError);
+            showToast('Saved ✓ — but note: ' + msgs.join(' | '), 'warn', res.refreshError ? 12000 : 6000);
           } else if (savedType === 'WASTE') {
             var remaining = (res && res.availableAfter != null) ? res.availableAfter : '—';
             showToast('✕ WASTE recorded: ' + savedQty + ' unit(s) of ' + savedName +
@@ -4078,7 +4079,11 @@ function submitMultiExit(){
       .withSuccessHandler(function(res){
         _setModalBusy('moveOverlay', false);
         closeModal('moveOverlay');
-        showToast('✓ '+res.rowCount+' movement record(s) saved.','ok');
+        if (res && res.refreshError) {
+          showToast('✓ '+res.rowCount+' movement record(s) saved — but ⚠ '+res.refreshError, 'warn', 12000);
+        } else {
+          showToast('✓ '+res.rowCount+' movement record(s) saved.','ok');
+        }
         loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
       })
       .withFailureHandler(function(err){
@@ -4223,12 +4228,13 @@ function submitMultiEntry(){
         setTimeout(function(){
           var count = (res && res.count) ? res.count : materials.length;
           var rows  = (res && res.rowCount) ? res.rowCount : count;
-          if (res && (res.emailError || res.fileError || res.pmError)){
+          if (res && (res.emailError || res.fileError || res.pmError || res.refreshError)){
             var msgs = [];
-            if (res.emailError) msgs.push('📧 Email: ' + res.emailError);
-            if (res.fileError)  msgs.push('📎 File: '  + res.fileError);
-            if (res.pmError)    msgs.push('📇 ' + res.pmError);
-            showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', 8000);
+            if (res.emailError)   msgs.push('📧 Email: ' + res.emailError);
+            if (res.fileError)    msgs.push('📎 File: '  + res.fileError);
+            if (res.pmError)      msgs.push('📇 ' + res.pmError);
+            if (res.refreshError) msgs.push('⚠ ' + res.refreshError);
+            showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', res.refreshError ? 12000 : 8000);
           } else {
             showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', 5000);
           }
