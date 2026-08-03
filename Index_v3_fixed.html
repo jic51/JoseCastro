@@ -1675,7 +1675,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.12';
+var APP_VERSION = '8.13';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2200,9 +2200,9 @@ function renderStock(){
             ? _privImgTag(d.url, 'loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{innerHTML:\'📄\',style:\'width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem\'}))"', d.name)
             : '<div style="width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">📄</div>';
           var shortName = d.name.length > 14 ? d.name.substring(0, 13) + '…' : d.name;
-          return '<div class="doc-card" data-action="preview-media" data-url="'+_he(d.url)+'" data-label="'+_he(d.name)+'" title="' + d.name + (d.dateRec ? ' · ' + d.dateRec : '') + '">' +
+          return '<div class="doc-card" data-action="preview-media" data-url="'+_he(d.url)+'" data-label="'+_he(d.name)+'" title="' + _he(d.name) + (d.dateRec ? ' · ' + _he(d.dateRec) : '') + '">' +
             thumb +
-            '<span class="doc-label">' + shortName + '</span>' +
+            '<span class="doc-label">' + _he(shortName) + '</span>' +
             (d.dateRec ? '<span class="doc-date">' + d.dateRec + '</span>' : '') +
           '</div>';
         }).join('') + '</div>'
@@ -2607,10 +2607,10 @@ function renderProjectView(){
       '<td>'+stockBadge({availableQty:net,warehouseQty:net,siteQty:0,reservedQty:0})+'</td></tr>'+
       '<tr id="pd-'+i+'" class="details-row"><td colspan="6"><div class="details-container">'+
         '<div><strong>Movement history:</strong><br>'+
-        s.history.map(function(h){ return '• '+h.date+': <span style="color:'+(h.isOut?'var(--red)':'var(--green)')+'">'+
-          (h.isOut?'−':'+')+h.qty+'</span> @ '+h.loc+(h.comment?' — '+h.comment:''); }).join('<br>')+
-        '</div><div><strong>Last location:</strong> '+s.history[s.history.length-1].loc+'<br>'+
-        '<strong>Last user:</strong> '+s.history[s.history.length-1].user+'</div>'+
+        s.history.map(function(h){ return '• '+_he(h.date)+': <span style="color:'+(h.isOut?'var(--red)':'var(--green)')+'">'+
+          (h.isOut?'−':'+')+h.qty+'</span> @ '+_he(h.loc)+(h.comment?' — '+_he(h.comment):''); }).join('<br>')+
+        '</div><div><strong>Last location:</strong> '+_he(s.history[s.history.length-1].loc)+'<br>'+
+        '<strong>Last user:</strong> '+_he(s.history[s.history.length-1].user)+'</div>'+
       '</div></td></tr>';
   }).join('');
 
@@ -4597,7 +4597,7 @@ function _renderErrorLogTab() {
   content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
   google.script.run
     .withSuccessHandler(function(rows) { _errorLogData = rows || []; _drawErrorLog(); })
-    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+(e.message||e)+'</p>'; })
+    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+_he(e.message||e)+'</p>'; })
     .processMovement('getErrorLog', _h({}));
 }
 
@@ -4651,7 +4651,7 @@ function _renderPmDirectoryTab() {
   content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
   google.script.run
     .withSuccessHandler(function(list) { _pmDirectoryData = list || []; _drawPmDirectory(); })
-    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+(e.message||e)+'</p>'; })
+    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+_he(e.message||e)+'</p>'; })
     .processMovement('getPmDirectory', _h({}));
 }
 
@@ -4787,7 +4787,7 @@ function _loadMatList() {
       _matListAll = list;
       _filterMatList();
     })
-    .withFailureHandler(function(e){ if(cont) cont.innerHTML = '<p style="color:var(--red);font-size:.82rem">Error: '+(e.message||e)+'</p>'; })
+    .withFailureHandler(function(e){ if(cont) cont.innerHTML = '<p style="color:var(--red);font-size:.82rem">Error: '+_he(e.message||e)+'</p>'; })
     .processMovement('listMaterials', _h({}));
 }
 
@@ -5455,18 +5455,18 @@ function renderWarehouseMap(){
     var dots = items.filter(function(i){ if(catsSeen[i.category]) return false; catsSeen[i.category]=1; return true; })
       .slice(0,6).map(function(i){
         var col = CAT_DOT_COLORS[nt(i.category)] || '#9CA3AF';
-        return '<span class="rack-cat-dot" style="background:'+col+'" title="'+nt(i.category)+'"></span>';
+        return '<span class="rack-cat-dot" style="background:'+col+'" title="'+_he(nt(i.category))+'"></span>';
       }).join('');
 
     if (isEmpty){
       return '<div class="rack-card rack-empty-card" title="Empty">'+
-        '<div class="rack-name">📦 '+name+'</div>'+
+        '<div class="rack-name">📦 '+_he(name)+'</div>'+
         '<div class="rack-fill-bar"></div>'+
         '<div class="rack-count-row"><span class="rc-items">empty</span><span class="rc-total">0</span></div>'+
       '</div>';
     }
     return '<div class="rack-card'+dimCls+'" data-action="open-rack" data-rack="'+_he(name)+'" title="Click to see contents">'+
-      '<div class="rack-name">📦 '+name+'</div>'+
+      '<div class="rack-name">📦 '+_he(name)+'</div>'+
       '<div class="rack-fill-bar"><div class="rack-fill-inner '+fillCls+'" style="width:'+pct+'%"></div></div>'+
       '<div class="rack-cats">'+dots+'</div>'+
       '<div class="rack-count-row">'+
@@ -6132,10 +6132,10 @@ function _onIncFileChange(){
   var f = inp.files[0];
   if (/^image\//.test(f.type)){
     var url = URL.createObjectURL(f);
-    prev.innerHTML = '<img src="'+url+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">' +
-      '<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">'+f.name+'</div>';
+    prev.innerHTML = '<img src="'+_escAttr(url)+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">'+_he(f.name)+'</div>';
   } else {
-    prev.innerHTML = '<div style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.8rem">📄 '+f.name+'</div>';
+    prev.innerHTML = '<div style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.8rem">📄 '+_he(f.name)+'</div>';
   }
 }
 
@@ -6412,7 +6412,7 @@ function _loadUsersTable() {
       _renderUsersTable();
     })
     .withFailureHandler(function(err) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);padding:.75rem">' + (err.message || err) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);padding:.75rem">' + _he(err.message || err) + '</td></tr>';
     })
     .processMovement('getUsers', _h({}));
 }
@@ -6431,10 +6431,10 @@ function _renderUsersTable() {
   tbody.innerHTML = _usersData.map(function(u) {
     var isSelf = u.email === userEmail;
     return '<tr class="' + (u.active ? '' : 'user-inactive') + '">' +
-      '<td style="font-size:.8rem;word-break:break-all">' + u.email + (isSelf ? ' <span class="badge badge-blue" style="font-size:.6rem">you</span>' : '') + '</td>' +
-      '<td style="font-size:.82rem">' + (u.name || '—') + '</td>' +
+      '<td style="font-size:.8rem;word-break:break-all">' + _he(u.email) + (isSelf ? ' <span class="badge badge-blue" style="font-size:.6rem">you</span>' : '') + '</td>' +
+      '<td style="font-size:.82rem">' + _he(u.name || '—') + '</td>' +
       '<td>' + _roleBadge(u.role) + '</td>' +
-      '<td style="font-size:.75rem;color:var(--muted)">' + (u.addedBy || '—') + '</td>' +
+      '<td style="font-size:.75rem;color:var(--muted)">' + _he(u.addedBy || '—') + '</td>' +
       '<td style="font-size:.75rem;color:var(--muted);white-space:nowrap">' + (u.addedAt || '—') + '</td>' +
       '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
       '<td style="white-space:nowrap">' +
@@ -6712,14 +6712,14 @@ function loadDataFromGoogle(skipCache){
         try { renderAll();                } catch(e){ console.error('renderAll:', e);
           // Show error so user knows what happened instead of blank page
           var sr = document.getElementById('statsRow');
-          if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Render error: '+e.message+'</p>';
+          if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Render error: '+_he(e.message)+'</p>';
         }
         try { _restoreTab();              } catch(e){ console.error('_restoreTab:', e); }
         try { checkMorningPopup();        } catch(e){ console.error('checkMorningPopup:', e); }
       } catch(outerErr) {
         setConnStatus('offline');
         var sr2 = document.getElementById('statsRow');
-        if (sr2) sr2.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Load handler error: '+outerErr.message+'</p>';
+        if (sr2) sr2.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Load handler error: '+_he(outerErr.message)+'</p>';
         console.error('loadDataFromGoogle success handler:', outerErr);
       }
     })
@@ -6795,6 +6795,17 @@ function _checkVersionMatch(serverVersion) {
 
 // ── Toast Notifications ───────────────────────────────────────────────────────
 var _toastIdSeq = 0;
+// SECURITY: msg is escaped via _he() before it ever touches innerHTML. Many
+// callers pass a server-thrown Error's .message straight through (e.g. "Error:
+// ' + msg"), and several of those messages echo back a value someone typed
+// into a Category/Name/Project field verbatim -- "INSUFFICIENT STOCK for
+// <name>. Available: ..." (Code_v3_fixed.gs). Any signed-in WAREHOUSE user (not
+// just ADMIN) can set that name, so an unescaped showToast was a stored XSS
+// reachable by anyone who ever triggers that validation message -- and since
+// this function is the single shared choke point for ~40 call sites across
+// the app, fixing it here closes all of them at once instead of auditing each
+// call site individually. No caller relies on real HTML inside msg (verified:
+// none embed <br>/<strong>/etc.), so escaping is safe everywhere it's used.
 function showToast(msg, type, duration) {
   type     = type     || 'ok';
   duration = duration || 3500;
@@ -6805,7 +6816,7 @@ function showToast(msg, type, duration) {
   el.id        = id;
   el.innerHTML =
     '<span class="toast-icon">' + (icons[type] || 'ℹ️') + '</span>' +
-    '<span class="toast-msg">'  + msg + '</span>' +
+    '<span class="toast-msg">'  + _he(msg) + '</span>' +
     '<button class="toast-close" onclick="dismissToast(\'' + id + '\')">✕</button>';
   var container = document.getElementById('toastContainer');
   if (container) container.appendChild(el);
@@ -7074,10 +7085,10 @@ function renderActiveUsers(users){
     var display  = (u.name && u.name.trim()) ? u.name : u.email; // fall back to email if no name on file
     return '<div class="presence-user">' +
       '<span class="presence-dot ' + (away ? 'away' : 'active') + '"></span>' +
-      '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '" title="' + u.email + '">' +
-        display + (isYou ? ' (you)' : '') +
+      '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '" title="' + _he(u.email) + '">' +
+        _he(display) + (isYou ? ' (you)' : '') +
       '</span>' +
-      '<span class="presence-role">' + (u.role || '—') + '</span>' +
+      '<span class="presence-role">' + _he(u.role || '—') + '</span>' +
       '<span class="presence-time">' + ageStr + '</span>' +
       '</div>';
   }).join('');
