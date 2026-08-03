@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.6';
+var APP_VERSION = '8.7';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1637,14 +1637,44 @@ function _refreshDerivedSheets(ss) {
   var waste   = _ensureWasteSheet(ss);
   var history = _ensureArchiveHistorySheet(ss);
 
-  var data  = archive.getDataRange().getValues().concat(history.getDataRange().getValues().slice(1));
+  var archiveData = archive.getDataRange().getValues();
+  var historyData = history.getDataRange().getValues();
+  var data  = archiveData.concat(historyData.slice(1));
   var stock = {};
+  // Self-healing MatID: any row whose stored MatID doesn't match what it should
+  // be gets corrected in the sheet as part of this same pass — so a mismatch
+  // introduced once (bad save, manual edit, old code path) doesn't keep causing
+  // this bug forever; every rebuild repairs it going forward automatically.
+  var matIdFixes = []; // { sheet: archive|history, rowNum, correctMatId }
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[AC.CATEGORY]) continue;
     var m   = parseArchiveRow(row, i + 1);
-    var key = m.matId || getMaterialId(m.category, m.name);
+    // ALWAYS recompute the grouping key from category+name — never trust the
+    // stored MatID column. This was the actual root cause of stock "still in
+    // the warehouse" after a real EXIT: two rows for the literal same material
+    // (same category, same name, confirmed identical) can have DIFFERENT
+    // stored MatIDs if they were saved via different code paths/times before
+    // every write went through the same computation — the old retired
+    // _addMovement() vs the current _addMovementsBatch(), or any future drift.
+    // getMaterialId() is a pure function of category+name, so recomputing here
+    // guarantees two rows that are obviously "the same material" always land
+    // in the same bucket, regardless of what got persisted at save time.
+    var key = getMaterialId(m.category, m.name);
+
+    if (row[AC.MAT_ID] !== key) {
+      var isHistoryRow = i >= archiveData.length;
+      // Sheet row number (1-indexed, header = row 1): for archive rows it's just
+      // i+1; for history rows, i has to be re-based off where the history
+      // segment starts in the concatenated `data` array, then +2 to account for
+      // history's own header row (which was sliced out of `data` above).
+      matIdFixes.push({
+        rowNum: isHistoryRow ? (i - archiveData.length + 2) : (i + 1),
+        isHistory: isHistoryRow,
+        correctMatId: key
+      });
+    }
 
     if (!stock[key]) stock[key] = { cat: m.category, name: m.name, project: m.project, unit: m.unit || 'UNIT', locs: {}, siteProjs: {}, wasted: 0 };
     var s   = stock[key];
@@ -1687,6 +1717,17 @@ function _refreshDerivedSheets(ss) {
       s.locs[s2] = (s.locs[s2] || 0) - qty;
       s.wasted  += qty;
     }
+  }
+
+  // Apply the self-healing MatID corrections found above. One setValues call
+  // per affected sheet (archive/history), not per row — same batching
+  // discipline as everything else in this function.
+  if (matIdFixes.length) {
+    var archiveFixes = matIdFixes.filter(function(f){ return !f.isHistory; });
+    var historyFixes = matIdFixes.filter(function(f){ return f.isHistory; });
+    archiveFixes.forEach(function(f){ archive.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
+    historyFixes.forEach(function(f){ history.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
+    _auditLog(ss, 'AUTO_REPAIR_MATID', 'system', matIdFixes.length + ' row(s) had a stale MatID, corrected automatically', '', '');
   }
 
   var now = new Date();
