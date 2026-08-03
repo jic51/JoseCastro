@@ -1676,7 +1676,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.14';
+var APP_VERSION = '8.15';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2187,7 +2187,7 @@ function renderStock(){
             ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
             : '';
           return '<div class="rack-photo-card">' +
-            '<div class="rpc-hdr"><span>📦 '+rack+'</span><span class="rpc-qty">'+s.warehouseLocs[rack]+'</span></div>' +
+            '<div class="rpc-hdr"><span>📦 '+_he(rack)+'</span><span class="rpc-qty">'+s.warehouseLocs[rack]+'</span></div>' +
             img + (action ? '<div class="rpc-actions">'+action+'</div>' : '') +
           '</div>';
         }).join('')
@@ -2769,7 +2769,7 @@ function renderTransferLocPicker(){
       var isUsed = !!usedRacks[rack.toUpperCase()];
       return '<div class="transfer-loc-chip' + (isUsed ? ' used' : '') + '" data-rack="' + safeRack + '" data-qty="' + qty +
              '"' + (isUsed ? '' : ' onmousedown="addTransferRowFromChip(this);return false;"') + '>' +
-             rack + '<span class="tlc-qty">' + qty + '</span></div>';
+             _he(rack) + '<span class="tlc-qty">' + qty + '</span></div>';
     }).join('') +
     '</div>';
   box.style.display = 'block';
@@ -3882,7 +3882,7 @@ function addExitLocRowMat(n, rack, qty, silent){
   var row = document.createElement('div');
   row.className = 'exit-loc-row';
   row.innerHTML =
-    '<input type="text"   class="el-rack" list="rackList" placeholder="Rack / Location" value="'+(rack||'')+'">'+
+    '<input type="text"   class="el-rack" list="rackList" placeholder="Rack / Location" value="'+_escAttr(rack||'')+'">'+
     '<input type="number" class="el-qty"  min="1" placeholder="Qty" value="'+(qty||'')+'">'+
     '<span  class="el-avail neutral">—</span>'+
     '<button type="button" class="el-rm" onclick="removeExitLocRowMat('+n+',this)" title="Remove">×</button>';
