@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.7';
+var APP_VERSION = '8.11';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -44,6 +44,75 @@ function doGet(e) {
     .setTitle('OX Glass Co. — WMS v3.0')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// ─── PRIVATE DOCUMENT ACCESS ──────────────────────────────────────────────
+// Replaces "anyone with the link can view" on uploaded photos/PDFs. Files are
+// created with NO public sharing at all (Drive's default: visible only to the
+// script's own identity, i.e. the app owner). The only way to see one is
+// through this function, which verifies the caller before returning anything.
+//
+// An earlier version of this tried to serve files as a second HTTP GET request
+// (?fileId=...) that the browser made directly — as an <img src> or <iframe
+// src> pointing back at this same web app. That failed in real testing
+// ("google.com refused to connect"): the app already runs inside a Google-
+// managed sandboxed frame, and a raw sub-resource request to a SECOND Apps
+// Script URL from inside that frame doesn't carry Google's session state the
+// way a normal page load does — Google's own login gate kicked in and then
+// refused to render inside the frame.
+//
+// This version sidesteps that entirely by going through google.script.run —
+// the exact same RPC channel every other feature in this app already uses
+// successfully (saving a movement, loading stock, etc.), so there's no new
+// cross-origin or sandboxing behavior to fail. It returns the file as base64;
+// the frontend turns that into a data: URL locally, no second network request
+// to Apps Script at all.
+function getPrivateFileData(fileId, token) {
+  var auth = _setVerifiedAuth(getUserRole(token));
+  if (auth.role === 'NO_SESSION' || auth.role === 'DENIED') {
+    throw new Error('Not authenticated.');
+  }
+
+  var file;
+  try {
+    file = DriveApp.getFileById(fileId);
+  } catch (e) {
+    throw new Error('File not found.');
+  }
+
+  // Without this check, an authenticated WAREHOUSE user could pass ANY Drive
+  // file ID the owner's account can reach — not just this app's own uploads —
+  // turning this into a way to browse the owner's entire personal Drive.
+  if (!_isFileWithinAppFolder(file)) {
+    _logError(SpreadsheetApp.getActiveSpreadsheet(), 'WARN', 'backend', 'getPrivateFileData',
+      auth.email, 'Requested file outside app folder: ' + fileId, null, _newRequestId());
+    throw new Error('File not found.');
+  }
+
+  var blob = file.getBlob();
+  return {
+    mimeType: blob.getContentType(),
+    base64:   Utilities.base64Encode(blob.getBytes())
+  };
+}
+
+// Walks up a file's parent folders looking for the app's own root folder by
+// name. Name-based rather than ID-based because _getOrCreateFolder() caches a
+// separate Script Property per full subfolder path (e.g. one for
+// "OX_WMS_v3_Docs/RackPhotos/A1A"), so there's no single cached ID for the bare
+// root to compare against — walking up and checking the name is simpler and
+// just as safe, since nothing in the upload path lets a caller choose where a
+// file gets created.
+function _isFileWithinAppFolder(file) {
+  var folders = file.getParents();
+  var depth = 0;
+  while (folders.hasNext() && depth < 8) {
+    var folder = folders.next();
+    if (folder.getName() === 'OX_WMS_v3_Docs') return true;
+    folders = folder.getParents();
+    depth++;
+  }
+  return false;
 }
 
 // ─── GOOGLE SIGN-IN (hybrid, for non @ox-glass.com users) ─────────────────────
@@ -161,23 +230,72 @@ function pollLogin(state) {
 //   1. USERS_V3 sheet  (managed via in-app admin panel)
 //   2. CONFIG sheet    (legacy — existing rows still work)
 // Unknown emails → DENIED (admin must register the user first).
-// ── Public user list — kept for reference (identity picker was replaced by login) ─
-function getPublicUsers() {
-  var ss         = SpreadsheetApp.getActiveSpreadsheet();
-  var usersSheet = ss.getSheetByName('USERS_V3');
-  var list       = [];
-  if (usersSheet && usersSheet.getLastRow() > 1) {
-    var uRows = usersSheet.getDataRange().getValues();
-    for (var u = 1; u < uRows.length; u++) {
-      var uEmail  = String(uRows[u][1] || '').toLowerCase().trim();
-      var uName   = String(uRows[u][2] || '').trim();
-      var uRole   = String(uRows[u][3] || 'WAREHOUSE').toUpperCase().trim();
-      var uActive = uRows[u][6];
-      var isActive = (uActive === true || String(uActive).toUpperCase() === 'TRUE' || uActive === '');
-      if (uEmail && isActive) list.push({ email: uEmail, name: uName, role: uRole });
-    }
+// REMOVED: getPublicUsers().
+// Every global function in an Apps Script web app is a callable RPC endpoint, so
+// any signed-in Google account could invoke it straight from the browser console
+// and read back the full staff roster (email, name, role) — it performed no auth
+// check at all. It was dead code: the identity picker it fed was replaced by the
+// login flow below, and nothing in Index_v3_fixed.html referenced it. Deleting
+// the function removes the endpoint entirely, which is stronger than gating it.
+// A roster is still available to admins through getUsers(), which is gated.
+
+// ─── AUTHORIZATION GATE ──────────────────────────────────────────────────────
+// The problem this solves: a privileged function that trusts an `auth` OBJECT
+// handed to it by its caller is not actually protected. Because every global
+// function is directly callable via google.script.run, anyone with a Google
+// account could open the browser console and run
+//
+//     google.script.run.addUser({email:'x@evil.com', role:'ADMIN'}, {role:'ADMIN'})
+//
+// forging the second argument and skipping processMovement's real check
+// entirely. The `_` name prefix does not help either — it is a convention, not
+// an access modifier, so `_`-prefixed functions are equally callable.
+//
+// The fix: identity must come from something the caller cannot fabricate — the
+// HMAC-signed session token (or the Workspace session), verified server-side.
+// _verifiedAuth is set ONLY by the two entry points that actually perform that
+// verification (processMovement and getInitialData). Apps Script starts every
+// execution with a fresh global scope, so a direct call to a privileged
+// function begins with _verifiedAuth === null and is refused before it reads or
+// writes anything.
+var _verifiedAuth = null;
+
+function _setVerifiedAuth(auth) { _verifiedAuth = auth; return auth; }
+
+// Returns the verified identity or throws. minRole:
+//   'ADMIN' → ADMIN only
+//   'WRITE' → ADMIN or WAREHOUSE (blocks VIEWER)
+//   omitted → any registered, signed-in user
+function _requireAuth(minRole) {
+  var a = _verifiedAuth;
+  if (!a || !a.email || a.role === 'NO_SESSION') {
+    throw new Error('Not authenticated. Please sign in and use the app from its own page.');
   }
-  return list;
+  if (a.role === 'DENIED') {
+    throw new Error('Access denied. Your account (' + a.email + ') is not registered in this system.');
+  }
+  if (minRole === 'ADMIN' && a.role !== 'ADMIN') throw new Error('Admin only.');
+  if (minRole === 'WRITE'  && a.role === 'VIEWER') {
+    throw new Error('Read-only access — you can view data but cannot record movements.');
+  }
+  return a;
+}
+
+// Gate for entry points that legitimately have no session token: the daily
+// time-based trigger and the developer diagnostics run from the Apps Script
+// editor. Both of those execute AS THE OWNER, so getEffectiveUser() and
+// getActiveUser() are the same account. Under the web app's "Execute as: Me"
+// deployment they never match for anyone else — getEffectiveUser() is always
+// the owner while getActiveUser() is the caller (or '' for external accounts) —
+// so this refuses every google.script.run call from another user.
+function _requireOwnerContext() {
+  var eff = '', act = '';
+  try { eff = Session.getEffectiveUser().getEmail(); } catch (e) {}
+  try { act = Session.getActiveUser().getEmail();    } catch (e) {}
+  if (!eff || eff !== act) {
+    throw new Error('This function can only be run by the project owner (scheduled trigger or Apps Script editor).');
+  }
+  return eff;
 }
 
 function getUserRole(sessionToken) {
@@ -230,6 +348,11 @@ function getUserRole(sessionToken) {
 
 // ─── CONFIG LOADER ───────────────────────────────────────────────────────────
 function loadConfig() {
+  // Returns the whole CONFIG sheet — including the legacy user list (emails +
+  // roles) and the admin email — so it must never answer an unauthenticated
+  // caller. Trigger and editor entry points establish a system identity via
+  // _setVerifiedAuth before reaching here.
+  _requireAuth();
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) return {};
@@ -291,6 +414,26 @@ function _cleanDisplay(str) {
   return String(str || '').toUpperCase().trim().replace(/\s+/g, ' ');
 }
 
+// Neutralize formula injection before ANY user-supplied text reaches a cell.
+// Sheets evaluates a cell whose text starts with = or + as a live formula, so a
+// value like "=IMPORTXML(...)" typed into a comment or material name would run
+// inside the customer's spreadsheet and can exfiltrate data or poison totals.
+// - and @ are included because the same strings get exported to CSV and Excel
+// evaluates all four. This matters most on the Gmail-scan path, where the text
+// originates in inbound mail from outside the company and is then written into
+// the very same fields.
+//
+// A leading apostrophe is Sheets' "treat as literal text" marker: it is a cell
+// format flag, NOT part of the stored value, so getValues() still returns the
+// original string and existing comparisons — including _addMovementsBatch's
+// write-verify read — behave exactly as before.
+function _sheetSafe(val) {
+  if (val === null || val === undefined) return '';
+  if (val instanceof Date || typeof val === 'number' || typeof val === 'boolean') return val;
+  var s = String(val);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 // Convert a spreadsheet cell value to a plain string.
 // Sheets sometimes auto-converts PO# fields like "01-04-25" to a Date object.
 // This function returns empty string for Date values (better than a timestamp dump).
@@ -311,7 +454,7 @@ function getLegacyMaterialId(cat, name, proj) {
 // ─── INITIAL DATA ────────────────────────────────────────────────────────────
 function getInitialData(sessionToken) {
   try {
-    var auth = getUserRole(sessionToken);
+    var auth = _setVerifiedAuth(getUserRole(sessionToken));
 
     // Not authenticated — return public user list so frontend can show identity picker
     if (auth.role === 'NO_SESSION') {
@@ -330,6 +473,12 @@ function getInitialData(sessionToken) {
     var archive  = ss.getSheetByName(SHEETS.ARCHIVE);
     var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
     var config   = loadConfig();
+    // The CONFIG sheet also holds the legacy user list and the admin email. The
+    // frontend never reads either one, so strip them instead of shipping the
+    // whole staff roster to every browser that logs in. (Admins still get the
+    // real roster through getUsers(), which is role-gated.)
+    delete config.users;
+    delete config.adminEmail;
 
     var movements = [];
     if (archive) {
@@ -675,7 +824,10 @@ function _buildStockFromDerivedSheets(ss) {
 
 // ─── PROCESS MOVEMENT ────────────────────────────────────────────────────────
 function processMovement(action, data) {
-  var auth = getUserRole(data && data._sessionToken);
+  // The ONLY place (besides getInitialData) where an identity becomes trusted:
+  // the token is verified here, then published to _requireAuth via
+  // _setVerifiedAuth so the action handlers below can assert against it.
+  var auth = _setVerifiedAuth(getUserRole(data && data._sessionToken));
   if (auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
   if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
   if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
@@ -873,6 +1025,8 @@ function _processMovementInner(ss, action, data, auth) {
   if (action === 'lockMaterial')          return lockMaterial(data, auth);
   if (action === 'unlockMaterial')        return unlockMaterial(data, auth);
   if (action === 'updateMinStockBulk')    return updateMinStockBulk(data, auth);
+  if (action === 'parseImportFile')       return parseImportFile(data);
+  if (action === 'commitImport')          return commitImport(data, auth);
   // ── User management (ADMIN only) ─────────────────────────────────────────
   if (action === 'getUsers')       return getUsers(auth);
   if (action === 'addUser')        return addUser(data, auth);
@@ -885,7 +1039,7 @@ function _processMovementInner(ss, action, data, auth) {
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
   if (action === 'adminAction') {
-    if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+    _requireAuth('ADMIN');
     return _adminAction(ss, data);
   }
   if (action === 'getErrorLog')     return getErrorLog(auth);
@@ -1010,25 +1164,25 @@ function _addMovementsBatch(ss, archive, movements, auth) {
 
       var row = new Array(20);
       row[AC.TIMESTAMP]   = now;
-      row[AC.CATEGORY]    = _cleanDisplay(d.category);  // stored as typed (keeps , - /)
-      row[AC.NAME]        = _cleanDisplay(d.name);      // matId above still uses normalized form
-      row[AC.GC]          = String(d.gc || '').trim();
-      row[AC.PO]          = String(d.po || '').trim();
+      row[AC.CATEGORY]    = _sheetSafe(_cleanDisplay(d.category));  // stored as typed (keeps , - /)
+      row[AC.NAME]        = _sheetSafe(_cleanDisplay(d.name));      // matId above still uses normalized form
+      row[AC.GC]          = _sheetSafe(String(d.gc || '').trim());
+      row[AC.PO]          = _sheetSafe(String(d.po || '').trim());
       row[AC.QTY]         = qty;
-      row[AC.UNIT]        = String(d.unit || 'UNIT').toUpperCase();
+      row[AC.UNIT]        = _sheetSafe(String(d.unit || 'UNIT').toUpperCase());
       row[AC.DATE_REC]    = d.dateRec || tzDate;
-      row[AC.SRC_LOC]     = src;
-      row[AC.SUPPLIER]    = String(d.supplier || '').trim();
-      row[AC.COMMENTS]    = String(d.comments || '').trim();
+      row[AC.SRC_LOC]     = _sheetSafe(src);
+      row[AC.SUPPLIER]    = _sheetSafe(String(d.supplier || '').trim());
+      row[AC.COMMENTS]    = _sheetSafe(String(d.comments || '').trim());
       row[AC.STATUS]      = statusVal;
-      row[AC.RESPONSIBLE] = String(d.responsible || auth.email).trim();
-      row[AC.PROJECT]     = proj;
-      row[AC.MAT_ID]      = matId;
+      row[AC.RESPONSIBLE] = _sheetSafe(String(d.responsible || auth.email).trim());
+      row[AC.PROJECT]     = _sheetSafe(proj);
+      row[AC.MAT_ID]      = _sheetSafe(matId);
       row[AC.DOC_LINKS]   = '';
       row[AC.USER_EMAIL]  = auth.email;
-      row[AC.DEST_LOC]    = dest;
+      row[AC.DEST_LOC]    = _sheetSafe(dest);
       row[AC.MOVETYPE]    = mt;
-      row[AC.PM]          = String(d.pm || '').trim();
+      row[AC.PM]          = _sheetSafe(String(d.pm || '').trim());
 
       newRows.push(row);
       rowMeta.push({
@@ -1289,6 +1443,7 @@ function _sendBatchNotifyEmail(notify, rowMeta, auth) {
 // docs/notify: shared docs go on first row of first material; per-material docs
 //              not yet supported (all get shared docGroups for now).
 function addMultiEntry(ss, archive, data, auth) {
+  auth = _requireAuth('WRITE');   // ignores any caller-supplied `auth` — see _requireAuth
   if (!Array.isArray(data.materials) || data.materials.length === 0) {
     throw new Error('No materials provided.');
   }
@@ -1362,6 +1517,7 @@ function addMultiEntry(ss, archive, data, auth) {
 // data.materials: [{category, name, locations:[{loc, qty}]}]
 // data.destLoc, data.dateRec, data.responsible, data.comments, data.status
 function addMultiExit(ss, archive, data, auth) {
+  auth = _requireAuth('WRITE');   // ignores any caller-supplied `auth` — see _requireAuth
   if (!Array.isArray(data.materials) || data.materials.length === 0) {
     throw new Error('No materials provided.');
   }
@@ -1594,6 +1750,11 @@ function archiveOldMovements(ss) {
 }
 
 function archiveOldMovementsTrigger() {
+  // Time-based triggers run as the owner, so this passes; a google.script.run
+  // call from any other account does not. Without it, anyone could force a full
+  // archive rewrite on demand and burn the project's execution quota.
+  _requireOwnerContext();
+  _setVerifiedAuth({ role: 'ADMIN', email: 'system@scheduled-trigger', name: 'Scheduled trigger' });
   archiveOldMovements(SpreadsheetApp.getActiveSpreadsheet());
 }
 
@@ -1607,11 +1768,91 @@ function _ensureArchiveTrigger() {
   ScriptApp.newTrigger('archiveOldMovementsTrigger').timeBased().everyDays(1).atHour(3).create();
 }
 
+// ─── AUTOMATIC BACKUP ─────────────────────────────────────────────────────────
+// Answers the objection every prospective customer has about "the spreadsheet
+// IS the database": a full point-in-time copy of the entire spreadsheet — every
+// sheet, not just the archive — made daily and kept for a rolling window. This
+// covers failure modes the app's own write-verify/lock logic can't: someone
+// deletes the live spreadsheet, a manual edit wipes a sheet, Drive corrupts a
+// file. Runs at 2am, one hour before the archive job at 3am, so a backup always
+// reflects pre-archive state — an extra safety margin if the archive job itself
+// ever had a bug.
+//
+// Restoring is intentionally NOT automated. An automated "restore" that can
+// overwrite the live spreadsheet is itself a way to destroy real data with one
+// wrong click. To recover: open the dated copy in the OX_WMS_v3_Backups Drive
+// folder, and either copy the needed rows back by hand, or promote that whole
+// file to be the new live spreadsheet (Extensions → Apps Script in the copy is
+// already bound and ready — just needs deploying).
+var BACKUP_FOLDER_NAME    = 'OX_WMS_v3_Backups';
+var BACKUP_RETENTION_DAYS = 30;   // tune down if Drive storage becomes a concern
+
+function dailyBackupTrigger() {
+  _requireOwnerContext();   // time-based triggers run as the owner; a google.script.run call from anyone else does not
+  _setVerifiedAuth({ role: 'ADMIN', email: 'system@scheduled-trigger', name: 'Scheduled trigger' });
+  runBackupNow();
+}
+
+// Shared by the daily trigger and the "Run Backup Now" menu item, so a manual
+// test run behaves identically to the automated one.
+function runBackupNow() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    var folder   = _getOrCreateFolder(BACKUP_FOLDER_NAME);
+    var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+    var copyName = ss.getName() + ' — Backup ' + stamp;
+    var copyFile = DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
+
+    _pruneOldBackups(folder);
+
+    _auditLog(ss, 'BACKUP_CREATED', 'system', copyName, '', copyFile.getId());
+    return { status: 'success', name: copyName, id: copyFile.getId() };
+  } catch (e) {
+    _logError(ss, 'ERROR', 'backend', 'runBackupNow', 'system', e.message, null, _newRequestId());
+    // Only email on FAILURE, never on success — a daily "it worked" email would
+    // just be more noise against the same recipient quota already flagged as a
+    // thing to watch for the PM/admin notification emails elsewhere.
+    try {
+      var cfg = loadConfig();
+      MailApp.sendEmail(cfg.adminEmail || Session.getEffectiveUser().getEmail(),
+        '⚠ OX WMS — Daily backup failed',
+        'The automatic daily backup did not complete: ' + e.message +
+        '\n\nCheck Settings → Error Log in the app, or the Executions log in the Apps Script editor.');
+    } catch (e2) { /* don't let a failed alert mask the original failure */ }
+    throw e;
+  }
+}
+
+// Deletes backups older than the retention window. Runs every time a new
+// backup is made, so retention stays enforced without a separate trigger.
+function _pruneOldBackups(folder) {
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - BACKUP_RETENTION_DAYS);
+  var files = folder.getFiles();
+  while (files.hasNext()) {
+    var f = files.next();
+    if (f.getDateCreated() < cutoff) f.setTrashed(true);
+  }
+}
+
+// Idempotent — installs the daily trigger once. Bound to the "Enable Daily
+// Backup" menu item rather than onOpen(): onOpen is a SIMPLE trigger under
+// Apps Script's security model and can't call authorized services like
+// ScriptApp.newTrigger() or DriveApp — it would throw on every single open.
+function _ensureBackupTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'dailyBackupTrigger') return;
+  }
+  ScriptApp.newTrigger('dailyBackupTrigger').timeBased().everyDays(1).atHour(2).create();
+}
+
 // ADMIN only. Returns movements older than the cutoff, for on-demand viewing/
 // export ("Load older history"). Read-only in the UI — rowIdx here refers to
 // ARCHIVE_HISTORY's row, not MASTER_ARCHIVE_V3's, so it's tagged `archived: true`
 // and must never be sent to modifyMovement/_updateDocument.
 function loadOlderHistory(auth) {
+  auth = _requireAuth();   // any registered user; unauthenticated callers are refused
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var history = _ensureArchiveHistorySheet(ss);
   var data    = history.getDataRange().getValues();
@@ -1789,7 +2030,7 @@ function _addReservation(ss, data, auth) {
   if (current.availableQty < qty) throw new Error('Cannot reserve. Available: ' + current.availableQty);
 
   var id = 'RES-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
-  sheet.appendRow([id, cat, name, proj, qty, auth.email, new Date(), 'Active', '']);
+  sheet.appendRow([id, _sheetSafe(cat), _sheetSafe(name), _sheetSafe(proj), qty, auth.email, new Date(), 'Active', '']);
 
   _auditLog(ss, 'ADD_RESERVATION', auth.email, id + ' | ' + name + ' x' + qty, '', '');
   return { status: 'success', reservationId: id };
@@ -1839,6 +2080,7 @@ function _ensurePmDirectorySheet(ss) {
 }
 
 function getPmDirectory() {
+  _requireAuth();   // this is an address book of real people — not public data
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = _ensurePmDirectorySheet(ss);
   var rows  = sheet.getDataRange().getValues();
@@ -1853,7 +2095,7 @@ function getPmDirectory() {
 
 // data.op: 'add' | 'rename' | 'delete'. Matches by name, case-insensitive.
 function managePmDirectory(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = _ensurePmDirectorySheet(ss);
   var rows  = sheet.getDataRange().getValues();
@@ -1868,14 +2110,14 @@ function managePmDirectory(data, auth) {
         throw new Error('"' + name + '" is already in the PM directory.');
       }
     }
-    sheet.appendRow([name, email]);
+    sheet.appendRow([_sheetSafe(name), _sheetSafe(email)]);
   } else if (data.op === 'rename') {
     var oldName = String(data.oldName || '').trim();
     if (!oldName) throw new Error('Current PM name is required.');
     var found = false;
     for (var j = 1; j < rows.length; j++) {
       if (String(rows[j][0] || '').trim().toUpperCase() === oldName.toUpperCase()) {
-        sheet.getRange(j + 1, 1, 1, 2).setValues([[name || oldName, email || rows[j][1]]]);
+        sheet.getRange(j + 1, 1, 1, 2).setValues([[_sheetSafe(name || oldName), _sheetSafe(email || rows[j][1])]]);
         found = true;
         break;
       }
@@ -1974,6 +2216,7 @@ function _cacheGet(key, ttlSec, builderFn) {
 }
 
 function getMaterialLocks() {
+  _requireAuth();   // lock reasons name materials, racks and staff — not public
   return _cacheGet('materialLocksV1', 300, _getMaterialLocksUncached);
 }
 
@@ -2048,7 +2291,7 @@ function _enforceMaterialLock(locksMap, mt, matId, srcKey, destKey) {
 // Create or update a lock for one (material, rack) pair. Upsert — locking an
 // already-locked pair just updates the reason/destinations. ADMIN only.
 function lockMaterial(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var cat  = normalizeString(data.category);
   var name = normalizeString(data.name);
   var rack = String(data.rack || '').trim().toUpperCase();
@@ -2077,7 +2320,7 @@ function lockMaterial(data, auth) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
     if (String(rows[i][1] || '') === matId && normalizeString(rows[i][4] || '') === rackKey) {
-      sheet.getRange(i + 1, 6, 1, 4).setValues([[allowedDest.join(', '), reason, auth.email, now]]);
+      sheet.getRange(i + 1, 6, 1, 4).setValues([[_sheetSafe(allowedDest.join(', ')), _sheetSafe(reason), auth.email, now]]);
       _auditLog(ss, 'UPDATE_LOCK', auth.email, data.name + ' @ ' + rack, '', reason);
       CacheService.getScriptCache().remove('materialLocksV1');
       return { status: 'success', lock: { id: String(rows[i][0]), matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
@@ -2085,14 +2328,14 @@ function lockMaterial(data, auth) {
   }
 
   var id = 'LOCK-' + new Date().getTime();
-  sheet.appendRow([id, matId, data.category, data.name, rack, allowedDest.join(', '), reason, auth.email, now, 'Active', '', '']);
+  sheet.appendRow([id, _sheetSafe(matId), _sheetSafe(data.category), _sheetSafe(data.name), _sheetSafe(rack), _sheetSafe(allowedDest.join(', ')), _sheetSafe(reason), auth.email, now, 'Active', '', '']);
   _auditLog(ss, 'LOCK_MATERIAL', auth.email, data.name + ' @ ' + rack, '', reason);
   CacheService.getScriptCache().remove('materialLocksV1');
   return { status: 'success', lock: { id: id, matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
 }
 
 function unlockMaterial(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('MATERIAL_LOCKS');
   if (!sheet) throw new Error('No locks exist.');
@@ -2165,6 +2408,7 @@ function _ensureRackPhotosSheet(ss) {
 
 // Returns { LOCATION_UPPER: { url, uploadedBy, uploadedAt } } for every rack with a photo.
 function getRackPhotos() {
+  _requireAuth();   // maps every rack name to a photo of its contents
   return _cacheGet('rackPhotosV1', 300, _getRackPhotosUncached);
 }
 
@@ -2192,6 +2436,9 @@ function _getRackPhotosUncached() {
 // Uploads/replaces the reference photo for one rack. WAREHOUSE + ADMIN only
 // (VIEWER is already blocked before reaching here — see processMovement's role gate).
 function uploadRackPhoto(data, auth) {
+  // Writes a file into the owner's Drive — must never be reachable without a
+  // verified, write-capable identity.
+  auth = _requireAuth('WRITE');
   var loc = String((data && data.location) || '').trim().toUpperCase();
   if (!loc) throw new Error('Location is required.');
   if (!data.fileData) throw new Error('No photo provided.');
@@ -2201,8 +2448,11 @@ function uploadRackPhoto(data, auth) {
   var bytes  = Utilities.base64Decode(data.fileData);
   var blob   = Utilities.newBlob(bytes, data.fileMimeType || 'image/jpeg', safe + '.jpg');
   var file   = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var url = file.getUrl();
+  // No public sharing — served only through the private doGet proxy (see
+  // _servePrivateFile). getId(), not getUrl(): the frontend now builds the
+  // proxy link itself from the ID, and a getUrl() to a private file is a
+  // dead link nobody but the owner can open anyway.
+  var url = file.getId();
 
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = _ensureRackPhotosSheet(ss);
@@ -2211,12 +2461,12 @@ function uploadRackPhoto(data, auth) {
   var found = false;
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0] || '').trim().toUpperCase() === loc) {
-      sheet.getRange(i + 1, 1, 1, 4).setValues([[loc, url, auth.email, now]]);
+      sheet.getRange(i + 1, 1, 1, 4).setValues([[_sheetSafe(loc), url, auth.email, now]]);
       found = true;
       break;
     }
   }
-  if (!found) sheet.appendRow([loc, url, auth.email, now]);
+  if (!found) sheet.appendRow([_sheetSafe(loc), url, auth.email, now]);
 
   _auditLog(ss, 'UPLOAD_RACK_PHOTO', auth.email, loc, '', url);
   CacheService.getScriptCache().remove('rackPhotosV1');
@@ -2274,8 +2524,9 @@ function _uploadFiles(files, materialName, po) {
     var bytes = Utilities.base64Decode(f.fileData);
     var blob  = Utilities.newBlob(bytes, mimeType, fileName);
     var file  = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    links.push(file.getUrl());
+    // No public sharing — see _servePrivateFile(). Store the file ID; the
+    // frontend resolves it through the private proxy, not a raw Drive URL.
+    links.push(file.getId());
   }
   return links.join('\n');
 }
@@ -2362,8 +2613,8 @@ function _uploadDocGroups(docGroups, materialName) {
       var bytes = Utilities.base64Decode(p.fileData);
       var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg', safeName);
       var imgFile = folder.createFile(blob);
-      imgFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      url = imgFile.getUrl();
+      // No public sharing — see _servePrivateFile().
+      url = imgFile.getId();
     } else {
       // Multiple photos → create Google Doc with one image per page → export PDF
       url = _photosToDocPdf(photos, safeName, folder);
@@ -2438,12 +2689,12 @@ function _photosToDocPdf(photos, docName, targetFolder) {
 
   // Save PDF to target folder
   var pdfFile = targetFolder.createFile(pdfBlob);
-  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  // No public sharing — see _servePrivateFile().
 
   // Trash the temporary Doc
   docFile.setTrashed(true);
 
-  return pdfFile.getUrl();
+  return pdfFile.getId();
 }
 
 function _getOrCreateFolder(path) {
@@ -2485,18 +2736,18 @@ function _updateTruck(ss, data) {
   var values = cfg.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][8] || '') === data.truckName) {
-      cfg.getRange(i + 1, 10).setValue(data.assignedPerson || '');
-      cfg.getRange(i + 1, 11).setValue(data.status || 'ACTIVE');
+      cfg.getRange(i + 1, 10).setValue(_sheetSafe(data.assignedPerson || ''));
+      cfg.getRange(i + 1, 11).setValue(_sheetSafe(data.status || 'ACTIVE'));
       return { status: 'success' };
     }
   }
-  cfg.appendRow(['','','','','','','','',data.truckName, data.assignedPerson || '', data.status || 'ACTIVE','','']);
+  cfg.appendRow(['','','','','','','','',_sheetSafe(data.truckName), _sheetSafe(data.assignedPerson || ''), _sheetSafe(data.status || 'ACTIVE'),'','']);
   return { status: 'success', message: 'Truck added.' };
 }
 
 function _addUser(ss, data) {
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
-  cfg.appendRow(['','','','','',data.email, data.role,'','','','','','']);
+  cfg.appendRow(['','','','','',_sheetSafe(data.email), _sheetSafe(data.role),'','','','','','']);
   return { status: 'success' };
 }
 
@@ -2521,7 +2772,7 @@ function _updateMinStock(ss, data) {
       return { status: 'success' };
     }
   }
-  cfg.appendRow(['','','','','','','','','','','',data.category, Number(data.qty) || 0]);
+  cfg.appendRow(['','','','','','','','','','','',_sheetSafe(data.category), Number(data.qty) || 0]);
   return { status: 'success' };
 }
 
@@ -2531,7 +2782,7 @@ function _updateMinStock(ss, data) {
 // the legacy per-row _updateMinStock (that column stores material NAMEs, despite
 // the older function's parameter being called "category").
 function updateMinStockBulk(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) throw new Error('Config sheet not found.');
@@ -2553,7 +2804,7 @@ function updateMinStockBulk(data, auth) {
     if (rowByName[nm] !== undefined) {
       cfg.getRange(rowByName[nm], 13).setValue(qty);
     } else {
-      appended.push(['','','','','','','','','','','', nm, qty]);
+      appended.push(['','','','','','','','','','','', _sheetSafe(nm), qty]);
     }
   });
   if (appended.length) {
@@ -2561,6 +2812,134 @@ function updateMinStockBulk(data, auth) {
   }
   _auditLog(ss, 'UPDATE_MIN_STOCK_BULK', auth.email, updates.length + ' material(s)', '', '');
   return { status: 'success', updated: updates.length };
+}
+
+// ─── BULK IMPORT (CSV) ────────────────────────────────────────────────────────
+// Lets an admin migrate an existing inventory (from Excel, a competitor's
+// export, a paper count) into the app in one shot instead of typing every line
+// by hand — the single biggest thing that was blocking a new customer from
+// actually starting to use this on day one.
+//
+// Deliberately CSV-only for now, not .xlsx. Reading a real Excel file needs
+// Apps Script's Advanced Drive Service, which has to be turned on by hand in
+// the editor (Services → + → Google Drive API) and can't be verified from
+// here. CSV needs nothing beyond Utilities.parseCsv(), which is built in and
+// always available — every spreadsheet tool (Excel, Sheets, Numbers) exports
+// to CSV in two clicks, so this isn't a real limitation for getting started.
+//
+// Two-step flow, never a blind commit: parseImportFile() only reads and
+// validates, returning a preview for the admin to review row by row.
+// commitImport() is a SEPARATE call that only runs after the frontend re-sends
+// the rows the admin actually saw — and it writes through _addMovementsBatch,
+// the exact same locked, stock-validated, write-verified engine a normal ENTRY
+// goes through, so an imported row can never be less trustworthy than one
+// typed in by hand.
+var IMPORT_REQUIRED_HEADERS = ['category', 'name', 'qty'];
+var IMPORT_ALL_HEADERS      = ['category', 'name', 'qty', 'unit', 'location', 'project', 'supplier', 'po', 'comments'];
+
+function parseImportFile(data) {
+  _requireAuth('ADMIN');
+  var fileName = String(data.fileName || '');
+  if (!/\.csv$/i.test(fileName)) {
+    throw new Error('Please upload a .csv file. If this is an Excel file, use File → Save As → CSV in Excel or Google Sheets first, then upload that file. (Direct .xlsx import is on the roadmap.)');
+  }
+
+  var bytes = Utilities.base64Decode(data.fileData);
+  var text  = Utilities.newBlob(bytes, 'text/csv').getDataAsString();
+  var rows;
+  try {
+    rows = Utilities.parseCsv(text);
+  } catch (e) {
+    throw new Error('Could not read this as a CSV file: ' + e.message);
+  }
+  if (!rows.length) throw new Error('The file appears to be empty.');
+
+  var header = rows[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+  var col    = {};
+  IMPORT_ALL_HEADERS.forEach(function (h) { col[h] = header.indexOf(h); });
+
+  var missing = IMPORT_REQUIRED_HEADERS.filter(function (h) { return col[h] === -1; });
+  if (missing.length) {
+    throw new Error('Missing required column header(s): ' + missing.join(', ') +
+      '. Download the template from this screen to see the exact format expected.');
+  }
+
+  var parsed = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r || r.every(function (c) { return String(c || '').trim() === ''; })) continue;  // skip blank rows
+
+    var item = {
+      rowNum:   i + 1,
+      category: String(r[col.category] || '').trim(),
+      name:     String(r[col.name]     || '').trim(),
+      qty:      Number(r[col.qty]),
+      unit:     col.unit     !== -1 ? (String(r[col.unit]     || '').trim() || 'UNIT') : 'UNIT',
+      location: col.location !== -1 ?  String(r[col.location] || '').trim() : '',
+      project:  col.project  !== -1 ?  String(r[col.project]  || '').trim() : '',
+      supplier: col.supplier !== -1 ?  String(r[col.supplier] || '').trim() : '',
+      po:       col.po       !== -1 ?  String(r[col.po]       || '').trim() : '',
+      comments: col.comments !== -1 ?  String(r[col.comments] || '').trim() : ''
+    };
+
+    var errors = [];
+    if (!item.category) errors.push('Missing Category');
+    if (!item.name)     errors.push('Missing Name');
+    if (!item.qty || item.qty <= 0 || isNaN(item.qty)) errors.push('Qty must be a number greater than 0');
+    item.valid  = errors.length === 0;
+    item.errors = errors;
+    parsed.push(item);
+  }
+
+  if (!parsed.length) throw new Error('No data rows found below the header row.');
+
+  var validCount = parsed.filter(function (p) { return p.valid; }).length;
+  return {
+    status:      'success',
+    totalRows:   parsed.length,
+    validRows:   validCount,
+    invalidRows: parsed.length - validCount,
+    rows:        parsed.slice(0, 500)   // a preview, not a data dump
+  };
+}
+
+// Commits a previously-previewed set of rows as real ENTRY movements. Only
+// ever called with rows the admin has already seen in the preview table.
+function commitImport(data, auth) {
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
+  var rows = Array.isArray(data.rows) ? data.rows : [];
+  if (!rows.length) throw new Error('No rows to import.');
+
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  var tzDate  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  var movements = rows.map(function (r) {
+    return {
+      moveType:    'ENTRY',
+      category:    r.category,
+      name:        r.name,
+      project:     r.project || '',
+      isGeneric:   !r.project,
+      qty:         r.qty,
+      unit:        r.unit || 'UNIT',
+      dateRec:     tzDate,
+      sourceLoc:   '',
+      destLoc:     r.location || '',
+      supplier:    r.supplier || '',
+      po:          r.po || '',
+      comments:    ('Imported from file' + (r.comments ? ' — ' + r.comments : '')).trim(),
+      responsible: auth.email,
+      // A bulk import legitimately contains similar-looking rows (same
+      // category, same rack, different SKUs entered close together); the
+      // duplicate guard exists to catch an accidental double-click, not this.
+      forceSubmit: true
+    };
+  });
+
+  var res = _addMovementsBatch(ss, archive, movements, auth);
+  _auditLog(ss, 'BULK_IMPORT', auth.email, rows.length + ' row(s) imported', '', '');
+  return { status: 'success', rowCount: res.rowCount };
 }
 
 function _runReconciliation(ss) {
@@ -2572,7 +2951,7 @@ function _runReconciliation(ss) {
 function _auditLog(ss, action, user, details, oldVal, newVal) {
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
   if (!sheet) return;
-  sheet.appendRow([new Date(), action, user, details, oldVal, newVal]);
+  sheet.appendRow([new Date(), action, user, _sheetSafe(details), _sheetSafe(oldVal), _sheetSafe(newVal)]);
 }
 
 // ─── ERROR LOG ────────────────────────────────────────────────────────────────
@@ -2630,8 +3009,8 @@ function _logError(ss, severity, source, action, userEmail, message, context, re
   try {
     var sheet = _ensureErrorLogSheet(ss);
     sheet.appendRow([
-      new Date(), severity, userEmail || '', source, action || '',
-      String(message || '').substring(0, 500), _sanitizeErrorContext(context), requestId || ''
+      new Date(), severity, _sheetSafe(userEmail || ''), source, _sheetSafe(action || ''),
+      _sheetSafe(String(message || '').substring(0, 500)), _sheetSafe(_sanitizeErrorContext(context)), requestId || ''
     ]);
   } catch (e) {
     Logger.log('_logError failed: ' + e.message);
@@ -2640,7 +3019,7 @@ function _logError(ss, severity, source, action, userEmail, message, context, re
 
 // ADMIN only. Returns the most recent error log entries, newest first.
 function getErrorLog(auth) {
-  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = _ensureErrorLogSheet(ss);
   var last  = sheet.getLastRow();
@@ -2664,6 +3043,7 @@ function getErrorLog(auth) {
 // a client-side crash so admins see it — routed through the same auth gate as
 // every other action, so NO_SESSION/DENIED/VIEWER users are still blocked upstream.
 function logClientError(data, auth) {
+  auth = _requireAuth();   // otherwise anyone could flood ERROR_LOG with junk rows
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var requestId = _newRequestId();
   _logError(ss, 'ERROR', 'frontend', data.action || '', auth.email,
@@ -2699,31 +3079,12 @@ function _checkNotifications(ss, data, moveType, qty, userEmail) {
 }
 
 // ─── EXPORT ──────────────────────────────────────────────────────────────────
-function exportMovementsCSV(filters) {
-  var ss      = SpreadsheetApp.getActiveSpreadsheet();
-  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-  if (!archive) return '';
-
-  var data = archive.getDataRange().getValues();
-  var rows = [['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Truck','Responsible','Status','Comments'].join(',')];
-
-  for (var i = 1; i < data.length; i++) {
-    var m = parseArchiveRow(data[i], i + 1);
-    if (filters) {
-      if (filters.moveType  && m.moveType !== filters.moveType)                        continue;
-      if (filters.category  && m.category !== filters.category)                        continue;
-      if (filters.project   && m.project.toLowerCase() !== filters.project.toLowerCase()) continue;
-      if (filters.dateFrom  && m.dateRec < filters.dateFrom)                           continue;
-      if (filters.dateTo    && m.dateRec > filters.dateTo)                             continue;
-    }
-    rows.push([
-      m.moveType, m.dateRec, m.category, m.name, m.project, m.qty, m.unit,
-      m.sourceLoc, m.destLoc, m.truck, m.responsible, m.status,
-      '"' + (m.comments || '').replace(/"/g,'""') + '"'
-    ].join(','));
-  }
-  return rows.join('\n');
-}
+// REMOVED: the server-side exportMovementsCSV(filters).
+// It took no session token and checked no role, so as a global function it was a
+// callable RPC endpoint that dumped the ENTIRE movement archive to any signed-in
+// Google account. It was also dead code — the client exports from data it has
+// already been authorized to see (exportMovementsCSV() in Index_v3_fixed.html),
+// which is the only export path the UI ever calls.
 
 // ─── CUSTOM MENU ─────────────────────────────────────────────────────────────
 function onOpen() {
@@ -2731,13 +3092,86 @@ function onOpen() {
     .createMenu('🏭 OX WMS v3')
     .addItem('Run Reconciliation', 'menuReconcile')
     .addItem('Open WMS App',       'menuOpenApp')
+    .addSeparator()
+    .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
+    .addItem('🗄 Enable Daily Backup (run once)', 'menuRunBackupNow')
     .addToUi();
 }
 
+function menuRunBackupNow() {
+  var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
+  _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Spreadsheet menu' });
+  _ensureBackupTrigger();
+  var res = runBackupNow();
+  ui.alert('✓ Backup created: ' + res.name +
+    '\n\nDaily automatic backups are now scheduled for 2am, kept for ' + BACKUP_RETENTION_DAYS + ' days, in a Drive folder called "' + BACKUP_FOLDER_NAME + '".' +
+    '\n\nYou only need to run this menu item again if you want an extra backup right now — the daily schedule is already set.');
+}
+
+// ONE-TIME CLEANUP. Every photo/document uploaded before this version was
+// marked "anyone with the link can view" (see the removed setSharing calls
+// this same release deletes). The code fix only changes what happens to files
+// uploaded FROM NOW ON — it does nothing to the ones already sitting in Drive.
+// This menu item is what actually closes the exposure on those existing files.
+//
+// Safe to run more than once: an already-private file is left alone (a cheap
+// check, not a rewrite), so if a large OX_WMS_v3_Docs folder makes one run hit
+// Apps Script's 6-minute execution cap, just run it again from the menu — it
+// picks up wherever Drive's folder iterator continues, at negligible extra cost
+// for files already fixed.
+function menuRevokePublicSharing() {
+  var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
+  _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Spreadsheet menu' });
+
+  var roots = DriveApp.getFoldersByName('OX_WMS_v3_Docs');
+  if (!roots.hasNext()) {
+    ui.alert('No OX_WMS_v3_Docs folder found in Drive — nothing to clean up.');
+    return;
+  }
+
+  var startTime       = Date.now();
+  var TIME_BUDGET_MS  = 4.5 * 60 * 1000;  // headroom under the 6-minute execution cap
+  var checked = 0, revoked = 0, failed = 0, timedOut = false;
+
+  function walk(folder) {
+    var files = folder.getFiles();
+    while (files.hasNext()) {
+      if (Date.now() - startTime > TIME_BUDGET_MS) { timedOut = true; return; }
+      var file = files.next();
+      checked++;
+      try {
+        var access = file.getSharingAccess();
+        if (access === DriveApp.Access.ANYONE_WITH_LINK || access === DriveApp.Access.ANYONE) {
+          file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+          revoked++;
+        }
+      } catch (e) {
+        failed++;
+        Logger.log('menuRevokePublicSharing: could not update ' + file.getId() + ': ' + e.message);
+      }
+    }
+    var subfolders = folder.getFolders();
+    while (subfolders.hasNext() && !timedOut) walk(subfolders.next());
+  }
+
+  walk(roots.next());
+
+  var msg = 'Checked ' + checked + ' file(s). Made ' + revoked + ' private.' +
+            (failed ? ' ' + failed + ' could not be changed — see Executions log.' : '');
+  msg += timedOut
+    ? '\n\n⏱ Stopped early to stay under the 6-minute limit. Run this menu item again to continue — files already made private are skipped quickly.'
+    : '\n\n✓ Done. Nothing under OX_WMS_v3_Docs is publicly shared anymore.';
+  ui.alert(msg);
+}
+
 function menuReconcile() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  _runReconciliation(ss);
-  SpreadsheetApp.getUi().alert('Reconciliation complete.');
+  // getUi() FIRST, deliberately: it throws outside the Sheets UI, which makes it
+  // the gate. Called the other way round, a google.script.run invocation would
+  // finish the expensive full rebuild and only then hit the error.
+  var ui = SpreadsheetApp.getUi();
+  _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Spreadsheet menu' });
+  _runReconciliation(SpreadsheetApp.getActiveSpreadsheet());
+  ui.alert('Reconciliation complete.');
 }
 
 function menuOpenApp() {
@@ -2802,7 +3236,7 @@ function _ensureUsersSheet(ss) {
 }
 
 function getUsers(auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('USERS_V3');
   if (!sheet || sheet.getLastRow() < 2) return [];
@@ -2827,7 +3261,7 @@ function getUsers(auth) {
 }
 
 function addUser(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var email = String(data.email || '').toLowerCase().trim();
   var name  = String(data.name  || '').trim();
   var role  = String(data.role  || 'WAREHOUSE').toUpperCase().trim();
@@ -2849,13 +3283,13 @@ function addUser(data, auth) {
 
   var now = new Date();
   var id  = 'USR-' + now.getTime();
-  sheet.appendRow([id, email, name, role, auth.email, now, true]);
+  sheet.appendRow([id, _sheetSafe(email), _sheetSafe(name), _sheetSafe(role), auth.email, now, true]);
   _auditLog(ss, 'ADD_USER', auth.email, email + ' as ' + role, '', '');
   return { status: 'success', id: id };
 }
 
 function updateUser(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var email = String(data.email || '').toLowerCase().trim();
   if (!email) throw new Error('Email required.');
 
@@ -2867,8 +3301,8 @@ function updateUser(data, auth) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][1] || '').toLowerCase().trim() === email) {
       var rowNum = i + 1;
-      if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(String(data.name).trim());
-      if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(String(data.role).toUpperCase().trim());
+      if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(_sheetSafe(String(data.name).trim()));
+      if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(_sheetSafe(String(data.role).toUpperCase().trim()));
       if (data.active !== undefined) sheet.getRange(rowNum, 7).setValue(!!data.active);
       _auditLog(ss, 'UPDATE_USER', auth.email, email + ' → ' + (data.role || 'no role change'), '', '');
       return { status: 'success' };
@@ -2878,7 +3312,7 @@ function updateUser(data, auth) {
 }
 
 function removeUser(email, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   email = String(email || '').toLowerCase().trim();
   if (!email) throw new Error('Email required.');
   // Prevent self-removal
@@ -2905,7 +3339,7 @@ function removeUser(email, auth) {
 // suppliers, and locations. Renaming a category also updates MASTER_ARCHIVE_V3.
 
 function getSettings(auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var c = loadConfig();
   return {
     categories: c.categories,
@@ -2921,7 +3355,7 @@ function getSettings(auth) {
 // data.value : current value (required for rename/delete)
 // data.newValue : replacement value (required for rename)
 function updateConfig(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) throw new Error('CONFIG sheet not found.');
@@ -2957,7 +3391,7 @@ function updateConfig(data, auth) {
     for (var i = 1; i < rows.length; i++) {
       if (!rows[i][col]) { targetRow = i + 1; break; }
     }
-    cfg.getRange(targetRow, col + 1).setValue(nv);
+    cfg.getRange(targetRow, col + 1).setValue(_sheetSafe(nv));
 
   } else if (data.op === 'rename') {
     if (!val) throw new Error('Current value required for rename.');
@@ -2965,7 +3399,7 @@ function updateConfig(data, auth) {
     var renamed = 0;
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][col] || '').trim().toUpperCase() === val.toUpperCase()) {
-        cfg.getRange(i + 1, col + 1).setValue(nv);
+        cfg.getRange(i + 1, col + 1).setValue(_sheetSafe(nv));
         renamed++;
       }
     }
@@ -2977,7 +3411,7 @@ function updateConfig(data, auth) {
         var aData = archive.getDataRange().getValues();
         for (var j = 1; j < aData.length; j++) {
           if (String(aData[j][AC.CATEGORY] || '').trim().toUpperCase() === val.toUpperCase()) {
-            archive.getRange(j + 1, AC.CATEGORY + 1).setValue(nv.toUpperCase());
+            archive.getRange(j + 1, AC.CATEGORY + 1).setValue(_sheetSafe(nv.toUpperCase()));
           }
         }
       }
@@ -3003,7 +3437,7 @@ function updateConfig(data, auth) {
 // Admin-only. Rename, merge, change category, or delete individual rows.
 
 function listMaterials(auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var archive = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.ARCHIVE);
   if (!archive) return [];
   var rows = archive.getDataRange().getValues();
@@ -3021,7 +3455,7 @@ function listMaterials(auth) {
 
 // data.op values: 'rename' | 'changeCategory' | 'merge' | 'deleteRow'
 function manageMaterial(data, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   if (!archive) throw new Error('Archive sheet not found.');
@@ -3040,7 +3474,7 @@ function manageMaterial(data, auth) {
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
           String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === oldNm) {
-        archive.getRange(i + 1, AC.NAME + 1).setValue(newNm);
+        archive.getRange(i + 1, AC.NAME + 1).setValue(_sheetSafe(newNm));
         count++;
       }
     }
@@ -3055,7 +3489,7 @@ function manageMaterial(data, auth) {
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
           String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === nm) {
-        archive.getRange(i + 1, AC.CATEGORY + 1).setValue(newCat);
+        archive.getRange(i + 1, AC.CATEGORY + 1).setValue(_sheetSafe(newCat));
         count++;
       }
     }
@@ -3072,7 +3506,7 @@ function manageMaterial(data, auth) {
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
           String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === srcNm) {
-        archive.getRange(i + 1, AC.NAME + 1).setValue(tgtNm);
+        archive.getRange(i + 1, AC.NAME + 1).setValue(_sheetSafe(tgtNm));
         count++;
       }
     }
@@ -3178,17 +3612,17 @@ function addIncoming(data) {
   sheet.appendRow([
     id,
     estDate,
-    String(data.category || '').toUpperCase().trim(),
-    String(data.name     || '').trim(),
+    _sheetSafe(String(data.category || '').toUpperCase().trim()),
+    _sheetSafe(String(data.name     || '').trim()),
     Number(data.qty      || 0),
-    String(data.unit     || 'UNIT'),
-    String(data.supplier || ''),
-    String(data.po       || ''),
-    String(data.notes    || ''),
+    _sheetSafe(String(data.unit     || 'UNIT')),
+    _sheetSafe(String(data.supplier || '')),
+    _sheetSafe(String(data.po       || '')),
+    _sheetSafe(String(data.notes    || '')),
     'Pending',
     auth.email,
     new Date(),
-    String(data.pm       || ''),
+    _sheetSafe(String(data.pm       || '')),
     docLink
   ]);
   return { status: 'success', id: id, docLink: docLink };
@@ -3221,17 +3655,17 @@ function updateIncoming(data) {
       sheet.getRange(i + 1, 1, 1, 14).setValues([[
         data.id,
         estDate,
-        String(data.category || '').toUpperCase().trim(),
-        String(data.name     || '').trim(),
+        _sheetSafe(String(data.category || '').toUpperCase().trim()),
+        _sheetSafe(String(data.name     || '').trim()),
         Number(data.qty      || 0),
-        String(data.unit     || 'UNIT'),
-        String(data.supplier || ''),
-        String(data.po       || ''),
-        String(data.notes    || ''),
-        String(data.status   || 'Pending'),
+        _sheetSafe(String(data.unit     || 'UNIT')),
+        _sheetSafe(String(data.supplier || '')),
+        _sheetSafe(String(data.po       || '')),
+        _sheetSafe(String(data.notes    || '')),
+        _sheetSafe(String(data.status   || 'Pending')),
         values[i][10],          // preserve addedBy
         values[i][11],          // preserve addedAt
-        String(data.pm || ''),  // PM — Project Manager
+        _sheetSafe(String(data.pm || '')),  // PM — Project Manager
         docLink
       ]]);
       return { status: 'success', docLink: docLink };
@@ -3266,7 +3700,7 @@ function deleteIncoming(id, sessionToken) {
 // ─── MODIFY MOVEMENT ────────────────────────────────────────────────────────
 // Admin only. Updates a row in MASTER_ARCHIVE_V3, logs to AUDIT_LOG, emails admin.
 function modifyMovement(data, auth) {
-  if (auth.role !== 'ADMIN') throw new Error('Only admins can modify movement records.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
 
   var rowIdx = parseInt(data.rowIdx || 0);
   if (rowIdx < 2) throw new Error('Invalid row index.');
@@ -3346,7 +3780,7 @@ function modifyMovement(data, auth) {
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
-      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : newStr;
+      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : _sheetSafe(newStr);
     }
   });
 
@@ -3406,6 +3840,8 @@ function modifyMovement(data, auth) {
 // ── Diagnostic — run this in GAS Editor to identify load issues ───────────────
 // Run this function directly from the GAS editor. Check Execution Log for results.
 function _diagnoseApp() {
+  // Editor-only: it dumps config and row counts to the log.
+  _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Diagnostics' });
   Logger.log('=== OX Glass WMS Diagnostic ===');
   try {
     Logger.log('1. getUserRole...');
@@ -3441,6 +3877,8 @@ function _diagnoseApp() {
 
 // ── Quick test — run this directly in GAS Editor to debug Gemini ──────────────
 function _testGemini() {
+  // Editor-only: every call spends the owner's Gemini quota.
+  _requireOwnerContext();
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) { Logger.log('ERROR: GEMINI_API_KEY not set'); return; }
   var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
@@ -3455,7 +3893,7 @@ function _testGemini() {
 }
 
 function scanGmailForDeliveries(data, auth) {
-  if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
 
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error(
@@ -3844,7 +4282,7 @@ function extractDocumentInfo(fileData, mimeType, sessionToken) {
 }
 
 function setMonitoredMaterials(names, auth) {
-  if (!auth || auth.role !== 'ADMIN') throw new Error('Admin only.');
+  auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
   var props = PropertiesService.getScriptProperties();
   if (!names || names.length === 0) {
     props.deleteProperty('WMS_MONITORED_MATERIALS');

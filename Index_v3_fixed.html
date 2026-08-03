@@ -1573,6 +1573,7 @@
         <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
         <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
         <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>Directory</span></button>
+        <button class="settings-tab"        data-tab="import"      onclick="switchSettingsTab('import')">📥 <span>Import</span></button>
         <div class="settings-sidebar-label">Diagnostics</div>
         <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
         <button class="settings-tab"        data-tab="system"      onclick="switchSettingsTab('system')">🗄 <span>System</span></button>
@@ -1674,7 +1675,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.7';
+var APP_VERSION = '8.11';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2179,7 +2180,7 @@ function renderStock(){
       ? racks.map(function(rack){
           var photo = rackPhotos[rack.toUpperCase()];
           var img = photo
-            ? '<img class="rpc-img" src="'+_escAttr(photo.url)+'" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(rack)+'" title="Click to view full size">'
+            ? _privImgTag(photo.url, 'class="rpc-img" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(rack)+'" title="Click to view full size"', rack)
             : '<div class="rpc-empty"><span style="font-size:1.3rem">📷</span><span>No photo yet</span></div>';
           var action = canUpload
             ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
@@ -2196,7 +2197,7 @@ function renderStock(){
       ? '<div class="doc-panel" style="padding:0">' + docs.map(function(d) {
           var fileId  = extractDriveId(d.url);
           var thumb   = fileId
-            ? '<img src="https://drive.google.com/thumbnail?id=' + fileId + '&sz=w120" loading="lazy" alt="' + d.name + '">'
+            ? _privImgTag(d.url, 'loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{innerHTML:\'📄\',style:\'width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem\'}))"', d.name)
             : '<div style="width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.6rem">📄</div>';
           var shortName = d.name.length > 14 ? d.name.substring(0, 13) + '…' : d.name;
           return '<div class="doc-card" data-action="preview-media" data-url="'+_he(d.url)+'" data-label="'+_he(d.name)+'" title="' + d.name + (d.dateRec ? ' · ' + d.dateRec : '') + '">' +
@@ -2284,25 +2285,82 @@ document.addEventListener('click', function(e) {
 });
 
 // ── Feature C: Doc / Photo thumbnail helpers ──────────────────────────────────
+// Handles /file/d/ID/view and ?id=ID (older rows, saved back when documents
+// still got a public Drive URL) AND a bare file ID (current rows — uploads no
+// longer get a public URL at all, just an ID; see getPrivateFileData in
+// Code_v3_fixed.gs). Both shapes resolve to the same thing: an ID to hand to
+// _fetchPrivateFile(), which is the only thing allowed to actually reach the file.
 function extractDriveId(url){
-  // Handles /file/d/ID/view  and  ?id=ID  formats
-  var m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  var s = String(url || '').trim();
+  if (!s) return null;
+  var m = s.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
   if (m) return m[1];
-  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  m = s.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
   if (m) return m[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(s)) return s;
   return null;
 }
 
+// ── Private file access ───────────────────────────────────────────────────
+// Fetches a private document/photo through google.script.run — the same RPC
+// channel every other feature in this app already uses (saving a movement,
+// loading stock, etc.). An earlier version tried a direct HTTP GET to this
+// app's own URL (an <img src="...exec?fileId=...">) and that failed in real
+// testing: the app already runs inside a Google-managed sandboxed frame, and a
+// raw sub-resource request to a SECOND Apps Script URL from inside that frame
+// doesn't carry Google's session state the way a normal page load does —
+// Google's own login gate kicked in and then refused to render inside the
+// frame ("google.com refused to connect"). Going through google.script.run
+// sidesteps that: no second network request to script.google.com happens at
+// all, so there is nothing for Google's sandboxing to interfere with.
+var _fileDataCache = {};   // fileId -> {mimeType, base64} | 'error'
+
+function _fetchPrivateFile(rawUrlOrId, done){
+  var id = extractDriveId(rawUrlOrId);
+  if (!id) { done(null); return; }
+  var cached = _fileDataCache[id];
+  if (cached === 'error') { done(null); return; }
+  if (cached) { done('data:' + cached.mimeType + ';base64,' + cached.base64); return; }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res) { _fileDataCache[id] = 'error'; done(null); return; }
+      _fileDataCache[id] = res;
+      done('data:' + res.mimeType + ';base64,' + res.base64);
+    })
+    .withFailureHandler(function(){ _fileDataCache[id] = 'error'; done(null); })
+    .getPrivateFileData(id, _sessionToken || null);
+}
+
+// Drop-in replacement for a plain <img src="..."> when the source is a private
+// document: renders instantly with a 1x1 transparent placeholder (so page
+// layout doesn't jump), then swaps in the real image once _fetchPrivateFile
+// resolves. If the element has scrolled out of the DOM by then (a fast filter
+// change, a closed modal), the swap is just skipped — nothing to clean up.
+var _privImgSeq = 0;
+function _privImgTag(raw, attrs, altText){
+  var pid = 'privimg-' + (++_privImgSeq);
+  var blankPx = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7";
+  _fetchPrivateFile(raw, function(dataUrl){
+    var el = document.getElementById(pid);
+    if (!el) return;
+    if (dataUrl) { el.src = dataUrl; el.removeAttribute('data-priv-pending'); }
+    else if (el.dataset.privFallback) { el.outerHTML = el.dataset.privFallback; }
+    else { el.style.display = 'none'; }
+  });
+  return '<img id="' + pid + '" src="' + blankPx + '" data-priv-pending="1" ' +
+    (attrs || '') + ' alt="' + _he(altText || '') + '">';
+}
+
 function renderDocLinks(linksStr){
-  if (!linksStr || linksStr.indexOf('http') === -1)
+  if (!linksStr)
     return '<span style="color:var(--muted);font-size:.75rem">—</span>';
 
   var entries = linksStr.split('\n').map(function(l){ return l.trim(); })
-                        .filter(function(l){ return l.indexOf('http') !== -1; });
+                        .filter(function(l){ return l.length > 0; });
   if (!entries.length) return '<span style="color:var(--muted);font-size:.75rem">—</span>';
 
   var thumbs = entries.map(function(entry, i){
-    // Support both "DocName||URL" (new) and plain "URL" (legacy)
+    // Support both "DocName||URL_or_ID" (new) and plain "URL_or_ID" (legacy)
     var docName = 'Doc ' + (i + 1);
     var url     = entry;
     if (entry.indexOf('||') !== -1) {
@@ -2315,12 +2373,13 @@ function renderDocLinks(linksStr){
     var shortLabel = docName.length > 8 ? docName.substring(0, 7) + '…' : docName;
     var fileId = extractDriveId(url);
     if (fileId){
-      var thumb = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w100';
-      return '<a href="' + url + '" target="_blank" title="' + docName + '" ' +
+      var thumbImg = _privImgTag(url,
+        'loading="lazy" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border);display:block;background:#f3f4f6" ' +
+        'onerror="this.src=\'\';this.style.display=\'none\';this.nextSibling&&(this.nextSibling.style.display=\'flex\')"',
+        docName);
+      return '<a href="javascript:void(0)" data-action="preview-media" data-url="' + _he(url) + '" data-label="' + _he(docName) + '" title="' + docName + '" ' +
              'style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;text-decoration:none">' +
-             '<img src="' + thumb + '" loading="lazy" ' +
-             'style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border);display:block;background:#f3f4f6" ' +
-             'onerror="this.src=\'\';this.style.display=\'none\';this.nextSibling&&(this.nextSibling.style.display=\'flex\')">' +
+             thumbImg +
              '<span style="display:none;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;align-items:center;justify-content:center">📄</span>' +
              '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + shortLabel + '</span>' +
              '</a>';
@@ -4377,6 +4436,115 @@ function _renderSystemTab() {
     '</div>';
 }
 
+// ── Bulk Import (CSV) ─────────────────────────────────────────────────────────
+// Two-step: parse+preview first (nothing written yet), then a separate confirm
+// step actually commits — same principle as everywhere else risky in this app
+// (WASTE requires a reason, deleting a movement asks first, etc.). Every
+// imported row becomes a real ENTRY movement through the same engine a normal
+// save uses, so it gets the same lock/validation/write-verify, not a shortcut.
+var _importParsedRows = [];
+
+function _renderImportTab() {
+  var content = document.getElementById('settingsTabContent');
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' +
+      'Bulk-import an existing inventory from a CSV file — useful for the first setup, or catching up after counting on paper. ' +
+      'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Excel/Sheets: File → Save As → CSV first.' +
+    '</p>' +
+    '<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">' +
+      '<button class="btn btn-ghost btn-sm" onclick="_downloadImportTemplate()">⬇ Download CSV Template</button>' +
+      '<input type="file" id="importFileInput" accept=".csv" style="font-size:.82rem">' +
+    '</div>' +
+    '<div id="importPreviewBox"></div>';
+  document.getElementById('importFileInput').addEventListener('change', _onImportFileChange);
+  _importParsedRows = [];
+}
+
+function _downloadImportTemplate() {
+  var headers = ['Category','Name','Qty','Unit','Location','Project','Supplier','PO','Comments'];
+  var example = ['WINDOW','Example Window Model','25','UNIT','A1A','','Example Supplier','',''];
+  var csv = [headers.join(','), example.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',')].join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'OX_WMS_Import_Template.csv';
+  a.click();
+}
+
+function _onImportFileChange(e){
+  var file = e.target.files[0];
+  if (!file) return;
+  var box = document.getElementById('importPreviewBox');
+  box.innerHTML = '<p style="color:var(--muted);font-size:.85rem"><span class="spin-hg">⏳</span> Reading file…</p>';
+  _readFileAsBase64(file, function(b64, mime){
+    if (!b64) { box.innerHTML = '<p style="color:var(--red);font-size:.85rem">Could not read this file.</p>'; return; }
+    google.script.run
+      .withSuccessHandler(function(res){ _importParsedRows = res.rows || []; _renderImportPreview(res); })
+      .withFailureHandler(function(err){
+        box.innerHTML = '<p style="color:var(--red);font-size:.85rem">' + _he((err.message || err).replace(/^Error:\s*/i,'')) + '</p>';
+      })
+      .processMovement('parseImportFile', _h({ fileData: b64, mimeType: mime, fileName: file.name }));
+  });
+}
+
+function _renderImportPreview(res){
+  var box  = document.getElementById('importPreviewBox');
+  var rows = res.rows || [];
+
+  var summary = '<div style="display:flex;gap:.6rem;margin:.5rem 0 .75rem;flex-wrap:wrap">' +
+    '<span class="badge badge-blue">' + res.totalRows + ' row(s) found</span>' +
+    '<span class="badge badge-green">' + res.validRows + ' ready to import</span>' +
+    (res.invalidRows ? '<span class="badge badge-red">' + res.invalidRows + ' need fixing in the file</span>' : '') +
+  '</div>';
+
+  var tableRows = rows.slice(0, 100).map(function(r){
+    var rowBg = r.valid ? '' : 'background:var(--red-bg)';
+    return '<tr style="'+rowBg+'">' +
+      '<td style="padding:.3rem .5rem;color:var(--muted)">' + r.rowNum + '</td>' +
+      '<td style="padding:.3rem .5rem">' + _he(r.category) + '</td>' +
+      '<td style="padding:.3rem .5rem">' + _he(r.name) + '</td>' +
+      '<td style="padding:.3rem .5rem">' + (isNaN(r.qty) ? '' : r.qty) + '</td>' +
+      '<td style="padding:.3rem .5rem">' + _he(r.location || '—') + '</td>' +
+      '<td style="padding:.3rem .5rem;color:var(--red);font-size:.75rem">' + (r.errors.length ? _he(r.errors.join('; ')) : '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  box.innerHTML = summary +
+    '<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
+        '<thead><tr style="position:sticky;top:0;background:var(--bg)">' +
+          '<th style="padding:.3rem .5rem;text-align:left">Row</th><th style="padding:.3rem .5rem;text-align:left">Category</th>' +
+          '<th style="padding:.3rem .5rem;text-align:left">Name</th><th style="padding:.3rem .5rem;text-align:left">Qty</th>' +
+          '<th style="padding:.3rem .5rem;text-align:left">Location</th><th style="padding:.3rem .5rem;text-align:left">Issue</th>' +
+        '</tr></thead>' +
+        '<tbody>' + tableRows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+    (rows.length > 100 ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem">Showing the first 100 of ' + rows.length + ' rows.</p>' : '') +
+    '<button class="btn btn-primary" id="btnCommitImport" ' + (res.validRows ? '' : 'disabled') + ' onclick="_commitImport()">' +
+      '✓ Import ' + res.validRows + ' Valid Row(s)' +
+    '</button>';
+}
+
+function _commitImport(){
+  var validRows = _importParsedRows.filter(function(r){ return r.valid; });
+  if (!validRows.length) return;
+  var btn = document.getElementById('btnCommitImport');
+  btn.disabled = true; btn.innerHTML = 'Importing… <span class="spin-hg">⏳</span>';
+  google.script.run
+    .withSuccessHandler(function(res){
+      showToast('✓ Imported ' + res.rowCount + ' row(s) as new ENTRY movements.', 'ok', 6000);
+      _importParsedRows = [];
+      var box = document.getElementById('importPreviewBox'); if (box) box.innerHTML = '';
+      var fi  = document.getElementById('importFileInput');  if (fi)  fi.value = '';
+      loadDataFromGoogle(true);
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false; btn.innerHTML = '✓ Import ' + validRows.length + ' Valid Row(s)';
+      showToast('Import failed: ' + (err.message || err).replace(/^Error:\s*/i,''), 'err', 8000);
+    })
+    .processMovement('commitImport', _h({ rows: validRows }));
+}
+
 function switchSettingsTab(tab) {
   _settingsTab = tab;
   document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
@@ -4389,6 +4557,7 @@ function _renderSettingsTab(tab) {
   if (tab === 'errorlog')    { _renderErrorLogTab(); return; }
   if (tab === 'system')      { _renderSystemTab(); return; }
   if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
+  if (tab === 'import')      { _renderImportTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -5146,13 +5315,23 @@ function refreshDropdowns(){
 }
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
+// Wrapping a field in quotes stops it from breaking the CSV grid, but it does NOT
+// stop Excel or Sheets from evaluating it: a cell opening with = + - @ is still
+// read as a formula when the downloaded file is opened. Prefix those with an
+// apostrophe so an exported value stays inert text.
+function _csvCell(v){
+  var s = String(v === null || v === undefined ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g,'""') + '"';
+}
+
 function exportMovementsCSV(){
   var headers = ['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Responsible','Comments','User'];
   var srcMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
   var rows = srcMovs.slice().reverse().map(function(m){
     return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.project||'',
             m.qty,m.unit||'',m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' '),m.userEmail||'']
-      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+      .map(_csvCell).join(',');
   });
   var csv = [headers.join(',')].concat(rows).join('\n');
   var a = document.createElement('a');
@@ -5169,7 +5348,7 @@ function exportProjectCSV(){
   var rows = pm.map(function(m){
     return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.qty,m.unit||'',
             m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' ')]
-      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+      .map(_csvCell).join(',');
   });
   var csv = [headers.join(',')].concat(rows).join('\n');
   var a = document.createElement('a');
@@ -5397,7 +5576,7 @@ function _renderRackDrawerPhoto(){
   var canUpload = userRole !== 'VIEWER';
 
   var img = photo
-    ? '<img class="rpc-img" style="border-radius:8px" src="'+_escAttr(photo.url)+'" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size">'
+    ? _privImgTag(photo.url, 'class="rpc-img" style="border-radius:8px" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size"', _openRackName)
     : '<div class="rpc-empty" style="border-radius:8px">' +
         '<span style="font-size:1.3rem">📷</span><span>No photo yet</span>' +
       '</div>';
@@ -5408,17 +5587,35 @@ function _renderRackDrawerPhoto(){
   box.innerHTML = img + (action ? '<div style="text-align:center">'+action+'</div>' : '');
 }
 
-// Large-preview lightbox for a document OR a rack photo. Drive files (either type,
-// since both are uploaded the same way) render via Drive's own /preview embed,
-// which handles PDFs, images, pagination, etc. in one code path.
+// Large-preview lightbox for a document OR a rack photo. Fetches through
+// _fetchPrivateFile (google.script.run — see the comment on that function for
+// why a direct HTTP proxy URL doesn't work here). We don't know the file's
+// type up front, so try the result as an <img> first; if that fails (a PDF
+// won't render in an <img> tag), fall back to an <iframe> — a data: URL with
+// the real PDF mime type renders fine in the browser's native PDF viewer.
 function openMediaPreview(url, label){
   document.getElementById('mediaPreviewLabel').textContent = label || '';
-  var fileId = extractDriveId(url);
   var body = document.getElementById('mediaPreviewBody');
-  body.innerHTML = fileId
-    ? '<iframe src="https://drive.google.com/file/d/'+fileId+'/preview" allow="autoplay"></iframe>'
-    : '<img src="'+_escAttr(url)+'" alt="'+_he(label||'')+'">';
+  body.innerHTML = '<p style="color:#fff;padding:2rem">Loading…</p>';
   document.getElementById('mediaPreviewOverlay').classList.add('show');
+  _fetchPrivateFile(url, function(dataUrl){
+    if (!dataUrl) {
+      body.innerHTML = '<p style="color:#fff;padding:2rem">Could not load this file.</p>';
+      return;
+    }
+    body.innerHTML = '';
+    var img = document.createElement('img');
+    img.alt = label || '';
+    img.onerror = function () {
+      var iframe = document.createElement('iframe');
+      iframe.src   = dataUrl;
+      iframe.allow = 'autoplay';
+      body.innerHTML = '';
+      body.appendChild(iframe);
+    };
+    img.src = dataUrl;
+    body.appendChild(img);
+  });
 }
 
 function closeMediaPreview(){
@@ -5766,7 +5963,7 @@ function renderIncomingWeekGrid() {
             catBadge(item.category) + ' ' +
             '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' +
             '<span>' + _he(item.name) + '</span>' +
-            (item.docLink ? ' <a href="'+_he(_incFirstDocUrl(item.docLink))+'" target="_blank" rel="noopener" title="Attached document" onclick="event.stopPropagation()">📎</a>' : '') +
+            (item.docLink ? ' <a href="javascript:void(0)" data-action="preview-media" data-url="'+_he(_incFirstDocUrl(item.docLink))+'" data-label="'+_he(item.name)+'" title="Attached document" onclick="event.stopPropagation()">📎</a>' : '') +
             (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + _he(item.notes) + '</div>' : '') +
             ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
           '</div>';
@@ -5807,10 +6004,10 @@ function renderIncomingTable() {
       '<td style="font-weight:700">' + item.qty + '</td>' +
       '<td style="color:var(--muted);font-size:.78rem">' + _he(item.unit) + '</td>' +
       '<td>' + (function(){
-        var du = _incFirstDocUrl(item.docLink), th = _incThumbUrl(item.docLink);
+        var du = _incFirstDocUrl(item.docLink);
         if (!du) return '<span style="color:var(--muted)">—</span>';
-        return '<a href="'+_he(du)+'" target="_blank" rel="noopener" title="Open document">' +
-          (th ? '<img src="'+_he(th)+'" style="height:42px;border-radius:4px;border:1px solid var(--border);vertical-align:middle">' : '📎') + '</a>';
+        return '<a href="javascript:void(0)" data-action="preview-media" data-url="'+_he(du)+'" data-label="'+_he(item.name)+'" title="Open document">' +
+          _privImgTag(du, 'style="height:42px;border-radius:4px;border:1px solid var(--border);vertical-align:middle"', item.name) + '</a>';
       })() + '</td>' +
       '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _he(item.notes||'') + '">' + _he(item.notes||'—') + '</td>' +
       (isAdmin ? '<td><button class="btn-icon" data-action="edit-incoming" data-id="' + _he(item.id) + '">✏️</button></td>' : '') +
@@ -5857,10 +6054,10 @@ function openIncomingModal(id) {
   if (prev){
     var dl = (isEdit && item) ? item.docLink : '';
     if (dl){
-      var u = _incFirstDocUrl(dl), th = _incThumbUrl(dl);
-      prev.innerHTML = '<a href="'+u+'" target="_blank" rel="noopener" style="text-decoration:none">' +
-        (th ? '<img src="'+th+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">'
-            : '<span style="font-size:.82rem">📄 View attached document</span>') +
+      var u = _incFirstDocUrl(dl);
+      var docLabel = (isEdit && item && item.name) ? item.name : 'Incoming document';
+      prev.innerHTML = '<a href="javascript:void(0)" data-action="preview-media" data-url="'+_he(u)+'" data-label="'+_he(docLabel)+'" style="text-decoration:none">' +
+        _privImgTag(u, 'style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'📄 View attached document\',style:\'font-size:.82rem\'}))"', docLabel) +
         '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Current document (uploading another replaces it)</div></a>';
     } else { prev.innerHTML = ''; }
   }
@@ -5922,11 +6119,6 @@ function saveIncomingItem() {
 
 // ── Incoming attachment helpers ───────────────────────────────────────────────
 function _incFirstDocUrl(docLink){ return docLink ? String(docLink).split('\n')[0].trim() : ''; }
-function _incThumbUrl(docLink){
-  var u = _incFirstDocUrl(docLink); if (!u) return '';
-  var id = extractDriveId(u);
-  return id ? 'https://drive.google.com/thumbnail?id=' + id + '&sz=w200' : '';
-}
 function _onIncFileChange(){
   var inp  = document.getElementById('incFile');
   var prev = document.getElementById('incDocPreview');
