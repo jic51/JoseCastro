@@ -1675,7 +1675,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.11';
+var APP_VERSION = '8.12';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -4490,7 +4490,12 @@ function _renderImportPreview(res){
   var box  = document.getElementById('importPreviewBox');
   var rows = res.rows || [];
 
-  var summary = '<div style="display:flex;gap:.6rem;margin:.5rem 0 .75rem;flex-wrap:wrap">' +
+  var lineNote = res.rawLineCount
+    ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem">The file itself has ' + res.rawLineCount +
+      ' non-empty line(s), including the header. If that number looks too low, the file you selected doesn\'t have all your rows in it yet — re-save/export it and upload again.</p>'
+    : '';
+
+  var summary = lineNote + '<div style="display:flex;gap:.6rem;margin:.5rem 0 .75rem;flex-wrap:wrap">' +
     '<span class="badge badge-blue">' + res.totalRows + ' row(s) found</span>' +
     '<span class="badge badge-green">' + res.validRows + ' ready to import</span>' +
     (res.invalidRows ? '<span class="badge badge-red">' + res.invalidRows + ' need fixing in the file</span>' : '') +

@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.11';
+var APP_VERSION = '8.12';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2846,12 +2846,39 @@ function parseImportFile(data) {
 
   var bytes = Utilities.base64Decode(data.fileData);
   var text  = Utilities.newBlob(bytes, 'text/csv').getDataAsString();
+
+  // Strip a UTF-8 byte-order-mark. Excel's "CSV UTF-8 (Comma delimited)" export
+  // adds one at the very start of the file; left in place it silently glues
+  // itself onto the first header cell ("Category" becomes "﻿Category"),
+  // which then fails to match anything below — a classic, hard-to-spot Apps
+  // Script CSV gotcha.
+  text = text.replace(/^﻿/, '');
+
+  // Raw line count, independent of how parseCsv interprets the content —
+  // shown in the preview so "why did only 1 row show up" is answerable at a
+  // glance: either the file itself only has 2 lines (nothing to fix here,
+  // the edited version wasn't actually the one uploaded), or it has more and
+  // something below failed to recognize them.
+  var rawLineCount = text.split(/\r\n|\r|\n/).filter(function (l) { return l.trim() !== ''; }).length;
+
   var rows;
   try {
     rows = Utilities.parseCsv(text);
   } catch (e) {
     throw new Error('Could not read this as a CSV file: ' + e.message);
   }
+
+  // Excel's "CSV (Comma delimited)" export actually follows the OS/Excel
+  // locale's list separator — which for Spanish and several other locales is a
+  // SEMICOLON, not a comma, even though the menu item is labeled "comma
+  // delimited". When that happens, no line has a real comma in it, so the
+  // comma-based parse above collapses every row into a single cell. A
+  // one-column header containing semicolons is the unambiguous signature of
+  // that — re-parse with a semicolon delimiter instead.
+  if (rows.length && rows[0].length === 1 && String(rows[0][0]).indexOf(';') !== -1) {
+    rows = Utilities.parseCsv(text, ';');
+  }
+
   if (!rows.length) throw new Error('The file appears to be empty.');
 
   var header = rows[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
@@ -2895,11 +2922,12 @@ function parseImportFile(data) {
 
   var validCount = parsed.filter(function (p) { return p.valid; }).length;
   return {
-    status:      'success',
-    totalRows:   parsed.length,
-    validRows:   validCount,
-    invalidRows: parsed.length - validCount,
-    rows:        parsed.slice(0, 500)   // a preview, not a data dump
+    status:       'success',
+    totalRows:    parsed.length,
+    validRows:    validCount,
+    invalidRows:  parsed.length - validCount,
+    rawLineCount: rawLineCount,
+    rows:         parsed.slice(0, 500)   // a preview, not a data dump
   };
 }
 
