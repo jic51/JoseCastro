@@ -1676,7 +1676,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.15';
+var APP_VERSION = '8.16';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Signed session token for non-org users (issued by the backend after Google
@@ -2378,18 +2378,18 @@ function renderDocLinks(linksStr){
         'loading="lazy" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border);display:block;background:#f3f4f6" ' +
         'onerror="this.src=\'\';this.style.display=\'none\';this.nextSibling&&(this.nextSibling.style.display=\'flex\')"',
         docName);
-      return '<a href="javascript:void(0)" data-action="preview-media" data-url="' + _he(url) + '" data-label="' + _he(docName) + '" title="' + docName + '" ' +
+      return '<a href="javascript:void(0)" data-action="preview-media" data-url="' + _he(url) + '" data-label="' + _he(docName) + '" title="' + _he(docName) + '" ' +
              'style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;text-decoration:none">' +
              thumbImg +
              '<span style="display:none;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;align-items:center;justify-content:center">📄</span>' +
-             '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + shortLabel + '</span>' +
+             '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + _he(shortLabel) + '</span>' +
              '</a>';
     }
     // Non-Drive or PDF icon fallback
-    return '<a href="' + url + '" target="_blank" title="' + docName + '" ' +
+    return '<a href="' + _escAttr(url) + '" target="_blank" title="' + _he(docName) + '" ' +
            'style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;text-decoration:none">' +
            '<span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:#DBEAFE;border-radius:5px;font-size:1rem;border:1px solid #BFDBFE">📄</span>' +
-           '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + shortLabel + '</span>' +
+           '<span style="font-size:.58rem;color:var(--muted);max-width:38px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + _he(shortLabel) + '</span>' +
            '</a>';
   }).join('');
   return '<div style="display:flex;gap:5px;align-items:flex-end;flex-wrap:wrap">' + thumbs + '</div>';
@@ -5850,7 +5850,7 @@ function openMonitorModal() {
             (checked ? ' checked' : '') + '>' +
           '<span class="monitor-item-wh" title="Units currently in the warehouse (wh = warehouse)">' + (s.warehouseQty||0) + ' wh</span>' +
         '</div>' +
-        '<span class="monitor-item-name" title="' + _he(s.name) + '">' + s.name + '</span>' +
+        '<span class="monitor-item-name" title="' + _he(s.name) + '">' + _he(s.name) + '</span>' +
         '<div class="monitor-item-min">' +
           '<label>Min</label>' +
           '<input type="number" class="mon-min-inp" min="0" placeholder="—" data-name="' + upperName.replace(/"/g,'&quot;') + '"' +
