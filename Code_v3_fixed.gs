@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.16';
+var APP_VERSION = '8.19';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -3079,6 +3079,61 @@ function logClientError(data, auth) {
   return { status: 'success', requestId: requestId };
 }
 
+// Floating "Report a Problem" button. Standalone entry point (not routed
+// through processMovement) so a VIEWER can use it too — processMovement()
+// hard-blocks VIEWER before dispatch, but a read-only user is exactly the
+// kind of person who'd spot a display bug worth reporting.
+function reportIssue(data) {
+  var auth = _setVerifiedAuth(getUserRole(data && data._sessionToken));
+  if (auth.role === 'NO_SESSION' || auth.role === 'DENIED') {
+    throw new Error('Not authenticated. Please sign in and use the app from its own page.');
+  }
+  var message = String((data && data.message) || '').trim();
+  if (!message) throw new Error('Please describe what happened.');
+  if (message.length > 4000) message = message.substring(0, 4000);
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var photos = (data && data.photos) || [];
+  var attachments = [];
+  var driveLinks = [];
+
+  if (photos.length) {
+    var stamp  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+    var safeBy = auth.email.replace(/[^a-zA-Z0-9]/g, '_');
+    var folder = _getOrCreateFolder('OX_WMS_v3_Feedback/' + stamp + '_' + safeBy);
+    for (var i = 0; i < photos.length; i++) {
+      var p = photos[i];
+      if (!p || !p.fileData) continue;
+      var bytes = Utilities.base64Decode(p.fileData);
+      var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg', p.fileName || ('photo_' + (i + 1) + '.jpg'));
+      var file  = folder.createFile(blob); // private by default — no public sharing
+      driveLinks.push(file.getId());
+      attachments.push(blob);
+    }
+  }
+
+  var cfg     = loadConfig();
+  var toEmail = cfg.adminEmail || Session.getEffectiveUser().getEmail();
+  var body = 'Reported by: ' + auth.email + ' (' + auth.role + ')\n' +
+    'App version: ' + APP_VERSION + '\n' +
+    'When: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') + '\n' +
+    (data && data.url ? 'Page: ' + data.url + '\n' : '') +
+    '\n' + message +
+    (driveLinks.length
+      ? '\n\nPhoto(s) also saved to Drive:\n' + driveLinks.map(function(id){ return 'https://drive.google.com/file/d/' + id + '/view'; }).join('\n')
+      : '');
+
+  MailApp.sendEmail({
+    to: toEmail,
+    subject: '🐞 OX WMS — problem reported by ' + auth.email,
+    body: body,
+    attachments: attachments
+  });
+
+  _auditLog(ss, 'ISSUE_REPORTED', auth.email, message.substring(0, 200), '', driveLinks.join(','));
+  return { status: 'success' };
+}
+
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
 // Only called automatically for WASTE. ENTRY notifications are user-triggered
 // via the modal checkbox and handled directly in _addMovementsBatch() /
@@ -3118,12 +3173,115 @@ function _checkNotifications(ss, data, moveType, qty, userEmail) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏭 OX WMS v3')
+    .addItem('🚀 Activate My WMS (run once, first time)', 'menuActivateWebApp')
     .addItem('Run Reconciliation', 'menuReconcile')
     .addItem('Open WMS App',       'menuOpenApp')
     .addSeparator()
     .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
     .addItem('🗄 Enable Daily Backup (run once)', 'menuRunBackupNow')
     .addToUi();
+}
+
+// ─── SELF-SERVICE WEB APP ACTIVATION ─────────────────────────────────────────
+// Lets a brand-new copy of this template deploy itself as a web app with ONE
+// menu click — no manual Extensions → Apps Script → Deploy walkthrough for a
+// non-technical customer. Uses the Apps Script API (script.googleapis.com),
+// authenticating as ScriptApp.getOAuthToken() — the copy's own owner token,
+// no external OAuth client or service account involved.
+//
+// Pattern adapted from
+// https://github.com/RomainVialard/programmatically-deploy-a-web-app (Apache 2.0).
+// Requires the script.deployments + script.projects scopes added to
+// appsscript.json's oauthScopes.
+//
+// Re-running this after the first time UPDATES the same deployment (same
+// permanent URL) instead of creating a duplicate — so besides the initial
+// activation, it doubles as a "push the latest code live" button for a
+// customer who's been handed an updated Code.gs/Index.html by hand.
+var _WEBAPP_DEPLOYMENT_MARKER = 'OX WMS Web App';
+
+function menuActivateWebApp() {
+  var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
+  _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Spreadsheet menu' });
+  try {
+    var url = selfActivateWebApp_();
+    ui.alert('✅ Your WMS is live!\n\n' + url +
+      '\n\nBookmark this link — it will not change even if you run this again later.' +
+      ' We also emailed it to you, and it is always available from this same menu → "Open WMS App".');
+  } catch (e) {
+    ui.alert('Could not activate automatically: ' + e.message +
+      '\n\nYou can still do this by hand: Extensions → Apps Script → Deploy → New deployment → Web app.');
+    throw e;
+  }
+}
+
+// Creates (or, on a repeat run, updates) the web app deployment for THIS
+// script project entirely by API. Returns the permanent web app URL.
+function selfActivateWebApp_() {
+  var projectId = ScriptApp.getScriptId();
+
+  var versionNumber = _scriptApiRequest_(projectId, 'versions', 'post',
+    { description: _WEBAPP_DEPLOYMENT_MARKER }).versionNumber;
+
+  var deploymentId = _findWebAppDeploymentId_(projectId);
+  var configBody = { versionNumber: versionNumber, description: _WEBAPP_DEPLOYMENT_MARKER };
+
+  // create takes the config fields directly; update wraps them in
+  // {deploymentConfig: ...} — that asymmetry is the real Apps Script API
+  // shape, not a bug — see the reference implementation linked above.
+  var output = deploymentId
+    ? _scriptApiRequest_(projectId, 'deployments/' + deploymentId, 'put', { deploymentConfig: configBody })
+    : _scriptApiRequest_(projectId, 'deployments', 'post', configBody);
+
+  var entryPoints = output.entryPoints || [];
+  for (var i = 0; i < entryPoints.length; i++) {
+    if (entryPoints[i].webApp) {
+      var url = entryPoints[i].webApp.url;
+      try {
+        MailApp.sendEmail(Session.getActiveUser().getEmail(), '✅ Your OX WMS is ready',
+          'Your warehouse system is live at:\n\n' + url +
+          '\n\nBookmark it — it is also always available from the Google Sheet menu: 🏭 OX WMS v3 → Open WMS App.');
+      } catch (e2) { /* email is a nicety — never block activation on it failing */ }
+      return url;
+    }
+  }
+  throw new Error('Deployment created but no web app URL was returned — check Extensions → Apps Script → Deploy for details.');
+}
+
+// Finds the deploymentId of our managed web-app deployment, if one already
+// exists (so re-running Activate UPDATES it instead of creating a duplicate
+// with a different URL).
+function _findWebAppDeploymentId_(projectId) {
+  var output = _scriptApiRequest_(projectId, 'deployments', 'get');
+  var deployments = output.deployments || [];
+  for (var i = 0; i < deployments.length; i++) {
+    if (deployments[i].deploymentConfig && deployments[i].deploymentConfig.description === _WEBAPP_DEPLOYMENT_MARKER) {
+      return deployments[i].deploymentId;
+    }
+  }
+  return null;
+}
+
+// Thin wrapper around the Apps Script API — authenticates as the script's own
+// owner via ScriptApp.getOAuthToken(), no external credentials involved.
+function _scriptApiRequest_(projectId, resourcePath, method, payload) {
+  var url = 'https://script.googleapis.com/v1/projects/' + projectId + '/' + resourcePath;
+  var options = {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  };
+  if (method && method !== 'get') {
+    options.method = method;
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload || {});
+  }
+  var resp = UrlFetchApp.fetch(url, options);
+  var code = resp.getResponseCode();
+  var body = JSON.parse(resp.getContentText() || '{}');
+  if (code >= 300) {
+    throw new Error((body.error && body.error.message) || ('Apps Script API error ' + code));
+  }
+  return body;
 }
 
 function menuRunBackupNow() {
