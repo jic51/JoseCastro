@@ -1719,9 +1719,13 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.19';
+var APP_VERSION = '8.20';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
+// Paid Gmail-scanner add-on: off unless the backend says this installation
+// bought it. Set from getInitialData; defaults false so a stale/failed load
+// hides the feature rather than showing a button that can only error out.
+var _gmailScanEnabled = false;
 // Signed session token for non-org users (issued by the backend after Google
 // sign-in). Replaces the old spoofable email hint. Company users don't need it —
 // they're detected automatically by Session.getActiveUser() on the backend.
@@ -6869,6 +6873,7 @@ function _applyData(data) {
   monitoredMaterials = data.monitoredMaterials || null;
   rackPhotos         = data.rackPhotos         || {};
   materialLocks      = data.materialLocks      || [];
+  _gmailScanEnabled  = data.gmailScanEnabled === true;
   _rebuildLocksIndex();
   if (data.users && data.users.length) _usersData = data.users;
 }
@@ -7086,8 +7091,11 @@ function applyRoleUI(){
   // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
+  // Gmail scanner is a paid add-on: admin-only AND only when the installation
+  // has it enabled (see isGmailScanEnabled() in Code.gs). Hiding it when it's
+  // off keeps a button that can only fail out of the customer's face.
   var scanGmailBtn = document.getElementById('btnScanGmail');
-  if (scanGmailBtn) scanGmailBtn.style.display = isAdmin ? '' : 'none';
+  if (scanGmailBtn) scanGmailBtn.style.display = (isAdmin && _gmailScanEnabled) ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');

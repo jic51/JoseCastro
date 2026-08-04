@@ -7,7 +7,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.19';
+var APP_VERSION = '8.20';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -125,6 +125,27 @@ function _isFileWithinAppFolder(file) {
 function _oauthCfg() {
   var p = PropertiesService.getScriptProperties();
   return { clientId: p.getProperty('OAUTH_CLIENT_ID') || '', clientSecret: p.getProperty('OAUTH_CLIENT_SECRET') || '' };
+}
+
+// ─── PAID ADD-ON: GMAIL DELIVERY SCANNER ─────────────────────────────────────
+// Off unless the installation explicitly turns it on. It is the ONLY feature
+// that needs https://mail.google.com/ — a scope Google classifies as
+// "restricted", which is what forces a paid third-party CASA security audit
+// (~$500–$4,500/yr, renewed annually) on anything distributed through the
+// Workspace Marketplace. Keeping it out of the base manifest is what lets the
+// base product ship with no restricted scopes at all, and it also shrinks the
+// permission screen a new customer sees from "read all your email" to nothing
+// of the sort.
+//
+// To enable on an installation that paid for it:
+//   1. Add "https://mail.google.com/" back to oauthScopes in appsscript.json
+//      (see appsscript.gmail-addon.json for the ready-made variant).
+//   2. GAS Editor → ⚙ Project Settings → Script Properties →
+//      GMAIL_SCAN_ENABLED = true
+//   3. Re-run any function once so Google re-prompts for the new permission.
+function isGmailScanEnabled() {
+  return String(PropertiesService.getScriptProperties().getProperty('GMAIL_SCAN_ENABLED') || '')
+           .toLowerCase() === 'true';
 }
 
 // Stable secret used to sign session tokens (auto-created once).
@@ -550,7 +571,8 @@ function getInitialData(sessionToken) {
       monitoredMaterials: monitoredMaterials,
       users:              users,
       rackPhotos:         rackPhotos,
-      materialLocks:      materialLocks
+      materialLocks:      materialLocks,
+      gmailScanEnabled:   isGmailScanEnabled()
     };
   } catch (err) {
     try {
@@ -1432,7 +1454,7 @@ function _sendBatchNotifyEmail(notify, rowMeta, auth) {
   var cc  = valid.slice(1).join(',');   // '' if only one recipient
   var opts = { name: 'OX Glass Co. — Warehouse', replyTo: auth.email };
   if (cc) opts.cc = cc;
-  GmailApp.sendEmail(to, subject, msgBody, opts);
+  MailApp.sendEmail(to, subject, msgBody, opts);
   return null;
 }
 
@@ -2174,7 +2196,7 @@ function _sendPmGroupedEmails(rows, auth) {
     var body = 'Hi ' + group.displayName + ',\n\nThe following materials were received today for your project(s):\n\n' +
       lines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
     try {
-      GmailApp.sendEmail(email,
+      MailApp.sendEmail(email,
         'Materials Received' + (group.items.length > 1 ? ' (' + group.items.length + ' items)' : ''),
         body, { name: 'OX Glass Co. — WMS', replyTo: auth.email });
       sent++;
@@ -3145,7 +3167,7 @@ function _checkNotifications(ss, data, moveType, qty, userEmail) {
     var name      = String(data.name || '');
 
     if (moveType === 'WASTE') {
-      GmailApp.sendEmail(
+      MailApp.sendEmail(
         recipient,
         '🗑️ Waste Recorded: ' + name,
         'Item: '     + name +
@@ -3173,31 +3195,44 @@ function _checkNotifications(ss, data, moveType, qty, userEmail) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🏭 OX WMS v3')
-    .addItem('🚀 Activate My WMS (run once, first time)', 'menuActivateWebApp')
     .addItem('Run Reconciliation', 'menuReconcile')
     .addItem('Open WMS App',       'menuOpenApp')
     .addSeparator()
     .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
     .addItem('🗄 Enable Daily Backup (run once)', 'menuRunBackupNow')
+    .addSeparator()
+    .addItem('⚙️ Advanced — Push Update Live (owner only)', 'menuActivateWebApp')
     .addToUi();
 }
 
-// ─── SELF-SERVICE WEB APP ACTIVATION ─────────────────────────────────────────
-// Lets a brand-new copy of this template deploy itself as a web app with ONE
-// menu click — no manual Extensions → Apps Script → Deploy walkthrough for a
-// non-technical customer. Uses the Apps Script API (script.googleapis.com),
-// authenticating as ScriptApp.getOAuthToken() — the copy's own owner token,
-// no external OAuth client or service account involved.
+// ─── PROGRAMMATIC DEPLOYMENT — ADVANCED / OWNER-ONLY ─────────────────────────
+// Publishes a new version of this script as its web app via the Apps Script API
+// (script.googleapis.com), authenticating with ScriptApp.getOAuthToken() — the
+// copy's own owner token, no external OAuth client or service account.
 //
 // Pattern adapted from
 // https://github.com/RomainVialard/programmatically-deploy-a-web-app (Apache 2.0).
-// Requires the script.deployments + script.projects scopes added to
-// appsscript.json's oauthScopes.
+// Requires the script.deployments + script.projects scopes in appsscript.json.
 //
-// Re-running this after the first time UPDATES the same deployment (same
-// permanent URL) instead of creating a duplicate — so besides the initial
-// activation, it doubles as a "push the latest code live" button for a
-// customer who's been handed an updated Code.gs/Index.html by hand.
+// ⚠️ NOT A CUSTOMER-FACING ONBOARDING STEP — tested and ruled out for that.
+// This was originally built as a one-click "activate my WMS" button so a
+// non-technical customer would never have to open Extensions → Apps Script →
+// Deploy. Live testing killed that idea: script.googleapis.com must be enabled
+// in the script's Google Cloud project first, and the project auto-created
+// behind every copy is HIDDEN — per Google's own docs, "most users aren't able
+// to directly locate, view, or update the project in the Google Cloud Platform
+// Console" (developers.google.com/apps-script/guides/cloud-platform-projects).
+// A personal Google account hits "you don't have permission, contact your
+// administrator" and cannot proceed at all. Making it work requires linking a
+// standard Cloud project — an irreversible, multi-step technical task that is
+// strictly HARDER than the single Deploy click it was meant to replace.
+//
+// It is kept because it still works, and is genuinely useful, on a copy whose
+// owner does control a standard Cloud project (i.e. ours): re-running it
+// UPDATES the same deployment rather than creating a duplicate, so the web app
+// URL never changes — making it a "push this update live" button that skips the
+// Deploy dialog. Customer onboarding uses the manual Deploy walkthrough in
+// docs/INSTALL-GUIDE.md instead.
 var _WEBAPP_DEPLOYMENT_MARKER = 'OX WMS Web App';
 
 function menuActivateWebApp() {
@@ -3205,12 +3240,12 @@ function menuActivateWebApp() {
   _setVerifiedAuth({ role: 'ADMIN', email: _requireOwnerContext(), name: 'Spreadsheet menu' });
   try {
     var url = selfActivateWebApp_();
-    ui.alert('✅ Your WMS is live!\n\n' + url +
-      '\n\nBookmark this link — it will not change even if you run this again later.' +
-      ' We also emailed it to you, and it is always available from this same menu → "Open WMS App".');
+    ui.alert('✅ Update published!\n\n' + url +
+      '\n\nThis URL never changes — running this again republishes to the same address.');
   } catch (e) {
-    ui.alert('Could not activate automatically: ' + e.message +
-      '\n\nYou can still do this by hand: Extensions → Apps Script → Deploy → New deployment → Web app.');
+    ui.alert('Could not publish automatically: ' + e.message +
+      '\n\nThis is expected unless this copy is linked to a standard Google Cloud project.' +
+      '\nUse the normal path instead: Extensions → Apps Script → Deploy → Manage deployments → ✏️ → Version: New version → Deploy.');
     throw e;
   }
 }
@@ -4013,7 +4048,7 @@ function modifyMovement(data, auth) {
     'This change is logged in AUDIT_LOG and cannot be auto-reverted from the app.\n' +
     'To revert, go to MASTER_ARCHIVE_V3 row ' + rowIdx + ' and restore the previous values.';
 
-  GmailApp.sendEmail(
+  MailApp.sendEmail(
     recipient,
     '✏️ WMS — Movement Modified: Row #' + rowIdx + ' by ' + auth.email,
     body,
@@ -4080,6 +4115,13 @@ function _testGemini() {
 
 function scanGmailForDeliveries(data, auth) {
   auth = _requireAuth('ADMIN');   // ignores any caller-supplied `auth` — see _requireAuth
+
+  if (!isGmailScanEnabled()) throw new Error(
+    'The Gmail delivery scanner is a paid add-on and is not enabled on this installation.\n\n' +
+    'It needs full Gmail read access — the one permission Google classifies as "restricted", ' +
+    'which is why it ships separately from the base product.\n\n' +
+    'Contact your provider to enable it.'
+  );
 
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error(
