@@ -31,7 +31,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.23';
+var APP_VERSION = '8.24';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1205,8 +1205,7 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       // Mutate snapshot so subsequent rows in this batch see the effect.
       applyMovementToSnapshot_(snap, mt, qty, srcKey, destKey);
 
-      var statusVal = (mt === 'ENTRY' || mt === 'RETURN' || mt === 'TRANSFER') ? 'In Stock'
-                    : (mt === 'EXIT') ? 'Dispatched' : 'Damaged';
+      var statusVal = statusForMoveType_(mt);
 
       var row = new Array(20);
       row[AC.TIMESTAMP]   = now;
@@ -3275,7 +3274,8 @@ function onOpen() {
     .addItem('Open WMS App',       'menuOpenApp')
     .addSeparator()
     .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
-    .addItem('🗄 Enable Daily Backup (run once)', 'menuRunBackupNow')
+    .addItem('🗄 Backup Now / Enable Daily Backup', 'menuRunBackupNow')
+    .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
     .addSeparator()
     .addItem('⚙️ Advanced — Push Update Live (owner only)', 'menuActivateWebApp')
     .addToUi();
@@ -3400,9 +3400,13 @@ function menuRunBackupNow() {
   setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Spreadsheet menu' });
   ensureBackupTrigger_();
   var res = runBackupNow_();
-  ui.alert('✓ Backup created: ' + res.name +
-    '\n\nDaily automatic backups are now scheduled for 2am, kept for ' + BACKUP_RETENTION_DAYS + ' days, in a Drive folder called "' + BACKUP_FOLDER_NAME + '".' +
-    '\n\nYou only need to run this menu item again if you want an extra backup right now — the daily schedule is already set.');
+  ui.alert('✓ Backup created right now: ' + res.name +
+    '\n\nEach click of this menu item makes one extra copy immediately, on top of ' +
+    'the automatic one — so click it before anything risky (a bulk import, a big edit).' +
+    '\n\nSeparately, an automatic backup runs every night at 2am. Copies are kept for ' +
+    BACKUP_RETENTION_DAYS + ' days, then deleted, in a Drive folder called "' +
+    BACKUP_FOLDER_NAME + '". The nightly schedule is already set — you never need to ' +
+    'come back here just to keep it running.');
 }
 
 // ONE-TIME CLEANUP. Every photo/document uploaded before this version was
@@ -3472,6 +3476,83 @@ function menuRevokePublicSharing() {
     ? '\n\n⏱ Stopped early to stay under the 6-minute limit. Run this menu item again to continue — files already made private are skipped quickly.'
     : '\n\n✓ Done. Nothing under OX_WMS_v3_Docs is publicly shared anymore.';
   ui.alert(msg);
+}
+
+// STATUS is fully derived from MoveType — it holds no information of its own.
+// Only five pairings are valid:
+//     ENTRY / RETURN / TRANSFER  →  In Stock
+//     EXIT                       →  Dispatched
+//     WASTE                      →  Damaged
+// Anything else in the sheet ("In Stock" on an EXIT, "Dispatched" on a
+// TRANSFER, …) is legacy data from before the v2→v3 migration, when Status was
+// hand-entered and MoveType did not exist.
+function statusForMoveType_(mt) {
+  if (mt === 'EXIT')  return 'Dispatched';
+  if (mt === 'WASTE') return 'Damaged';
+  return 'In Stock';   // ENTRY, RETURN, TRANSFER
+}
+
+// One-time cleanup for those legacy rows. Rewrites nothing but the Status cell,
+// and only where it disagrees with the row's MoveType.
+//
+// Stock figures are NOT affected by this and never were: every calculation
+// reads the normalized moveType from parseArchiveRow(), not Status. The one
+// case where Status does influence a reading is a row whose MoveType column is
+// empty or literally "IN STOCK" (true v2 rows) — parseArchiveRow() then infers
+// the type from Status and the qty sign. Those rows are left exactly as they
+// are, because their Status is the only evidence of intent that exists and
+// overwriting it would destroy information rather than tidy it.
+function menuNormalizeStatus() {
+  var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
+  setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Spreadsheet menu' });
+
+  var resp = ui.alert('Normalize the Status column?',
+    'This rewrites Status so it always matches MoveType:\n\n' +
+    '   ENTRY / RETURN / TRANSFER  →  In Stock\n' +
+    '   EXIT                       →  Dispatched\n' +
+    '   WASTE                      →  Damaged\n\n' +
+    'Only mismatched cells are touched. Stock quantities are not affected — ' +
+    'they are calculated from MoveType, not Status.\n\n' +
+    'Run 🗄 Enable Daily Backup first if you want a restore point.\n\nContinue?',
+    ui.ButtonSet.YES_NO);
+  if (resp !== ui.Button.YES) return;
+
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (!archive) { ui.alert('Archive sheet not found.'); return; }
+
+  var lastRow = archive.getLastRow();
+  if (lastRow < 2) { ui.alert('No movements to check.'); return; }
+
+  var mtCol     = AC.MOVETYPE + 1;
+  var statusCol = AC.STATUS   + 1;
+  var mtVals     = archive.getRange(2, mtCol,     lastRow - 1, 1).getValues();
+  var statusVals = archive.getRange(2, statusCol, lastRow - 1, 1).getValues();
+
+  var fixed = 0, skippedAmbiguous = 0;
+  for (var i = 0; i < mtVals.length; i++) {
+    var rawMT = String(mtVals[i][0] || '').toUpperCase().trim();
+
+    // Ambiguous row: no MoveType of its own, so Status is load-bearing. Leave it.
+    if (!rawMT || rawMT === 'IN STOCK') { skippedAmbiguous++; continue; }
+
+    var mt = (rawMT === 'DISPATCHED' || rawMT === 'DISPATCH' || rawMT === 'DEL') ? 'EXIT' : rawMT;
+    var want = statusForMoveType_(mt);
+    if (String(statusVals[i][0] || '').trim() !== want) {
+      statusVals[i][0] = want;
+      fixed++;
+    }
+  }
+
+  if (fixed) archive.getRange(2, statusCol, lastRow - 1, 1).setValues(statusVals);
+  auditLog_(ss, 'STATUS_NORMALIZED', 'Spreadsheet menu', fixed + ' row(s)', '', '');
+
+  ui.alert('✓ Done.\n\n' + fixed + ' Status cell(s) corrected.' +
+    (skippedAmbiguous
+      ? '\n\n' + skippedAmbiguous + ' older row(s) left untouched: they have no MoveType of ' +
+        'their own, so their Status is the only record of what the movement was. ' +
+        'Changing it would lose information.'
+      : ''));
 }
 
 function menuReconcile() {
