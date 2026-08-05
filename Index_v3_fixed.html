@@ -1719,7 +1719,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.25';
+var APP_VERSION = '8.26';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2418,7 +2418,7 @@ function extractDriveId(url){
 // frame ("google.com refused to connect"). Going through google.script.run
 // sidesteps that: no second network request to script.google.com happens at
 // all, so there is nothing for Google's sandboxing to interfere with.
-var _fileDataCache = {};   // fileId -> {mimeType, base64} | 'error'
+var _fileDataCache = {};   // fileId -> {mimeType, base64}   (successes only)
 
 // ── Throttled fetching — this is what fixes "too many scripts running" ───────
 //
@@ -2447,23 +2447,33 @@ var _privInflight  = {};   // fileId -> [done, …] callbacks awaiting one open 
 var _privActive    = 0;
 var _PRIV_MAX_INFLIGHT = 3;
 
+// EVERY exit from _fetchPrivateFile goes through here, so a callback is never
+// invoked before the caller has had a chance to put its <img> in the DOM.
+// _privImgTag() registers its callback and only afterwards RETURNS the <img>
+// HTML for the caller to insert — so a callback that runs synchronously does
+// getElementById() on an element that does not exist yet, gives up, and the
+// image stays blank forever. Deferring by a tick costs nothing and makes the
+// ordering impossible to get wrong.
+function _privLater(cb, arg){ setTimeout(function(){ cb(arg); }, 0); }
+
 function _privPump(){
   while (_privActive < _PRIV_MAX_INFLIGHT && _privQueue.length){
     var job = _privQueue.shift();
-    var cached = _fileDataCache[job.id];
-    if (cached !== undefined){          // resolved while it sat in the queue
-      _privDeliver(job.id);
-      continue;
-    }
+    if (_fileDataCache[job.id]) { _privDeliver(job.id); continue; }  // arrived while queued
     _privActive++;
     (function(id){
       google.script.run
         .withSuccessHandler(function(res){
-          _fileDataCache[id] = res || 'error';
+          if (res) _fileDataCache[id] = res;
           _privActive--; _privDeliver(id); _privPump();
         })
         .withFailureHandler(function(){
-          _fileDataCache[id] = 'error';
+          // Deliberately NOT cached as a permanent failure. One transient error
+          // — a hiccup, a momentary execution-quota trip — used to mark the file
+          // dead for the rest of the session, so a thumbnail that failed once
+          // stayed broken until a full page reload even though the file was
+          // fine. A later render simply tries again; the queue above is what
+          // keeps those retries from piling up.
           _privActive--; _privDeliver(id); _privPump();
         })
         .getPrivateFileData(id, _sessionToken || null);
@@ -2473,20 +2483,17 @@ function _privPump(){
 
 function _privDeliver(id){
   var cached = _fileDataCache[id];
-  var url = (cached && cached !== 'error')
-    ? 'data:' + cached.mimeType + ';base64,' + cached.base64
-    : null;
+  var url = cached ? 'data:' + cached.mimeType + ';base64,' + cached.base64 : null;
   var waiting = _privInflight[id] || [];
   delete _privInflight[id];
-  waiting.forEach(function(cb){ try { cb(url); } catch(e) {} });
+  waiting.forEach(function(cb){ _privLater(cb, url); });
 }
 
 function _fetchPrivateFile(rawUrlOrId, done){
   var id = extractDriveId(rawUrlOrId);
-  if (!id) { done(null); return; }
+  if (!id) { _privLater(done, null); return; }
   var cached = _fileDataCache[id];
-  if (cached === 'error') { done(null); return; }
-  if (cached) { done('data:' + cached.mimeType + ';base64,' + cached.base64); return; }
+  if (cached) { _privLater(done, 'data:' + cached.mimeType + ';base64,' + cached.base64); return; }
 
   if (_privInflight[id]) { _privInflight[id].push(done); return; }  // ride along
   _privInflight[id] = [done];
