@@ -31,7 +31,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.22';
+var APP_VERSION = '8.23';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -48,7 +48,7 @@ var SHEETS = {
 // Column map matches the ACTUAL sheet structure (19 columns, 0-indexed):
 //  A=0:Timestamp  B=1:Type(Category)  C=2:Name  D=3:GC  E=4:PO#  F=5:Qty
 //  G=6:Unit  H=7:DateRec  I=8:Loc(SrcLoc)  J=9:Supplier  K=10:Comments
-//  L=11:Status  M=12:Responsible  N=13:Project  O=14:MatID  P=15:DocLinks
+//  L=11:Status  M=12:Received By  N=13:Project  O=14:MatID  P=15:DocLinks
 //  Q=16:UserEmail  R=17:Destination(DestLoc)  S=18:MoveType
 var AC = {
   TIMESTAMP:0,  CATEGORY:1,  NAME:2,     GC:3,        PO:4,
@@ -1221,7 +1221,13 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       row[AC.SUPPLIER]    = sheetSafe_(String(d.supplier || '').trim());
       row[AC.COMMENTS]    = sheetSafe_(String(d.comments || '').trim());
       row[AC.STATUS]      = statusVal;
-      row[AC.RESPONSIBLE] = sheetSafe_(String(d.responsible || auth.email).trim());
+      // "Received By" — who physically took delivery. Left blank when unknown,
+      // NEVER defaulted to the signed-in user: that silently asserted the person
+      // typing the record received the goods, which is false whenever someone
+      // enters a delivery on another person's behalf, and it is unfalsifiable
+      // after the fact. Who entered it is already captured, separately and
+      // truthfully, in USER_EMAIL below.
+      row[AC.RESPONSIBLE] = sheetSafe_(String(d.responsible || '').trim());
       row[AC.PROJECT]     = sheetSafe_(proj);
       row[AC.MAT_ID]      = sheetSafe_(matId);
       row[AC.DOC_LINKS]   = '';
@@ -3047,7 +3053,9 @@ function commitImport(data, auth) {
       supplier:    r.supplier || '',
       po:          r.po || '',
       comments:    ('Imported from file' + (r.comments ? ' — ' + r.comments : '')).trim(),
-      responsible: auth.email,
+      // Blank, not auth.email — a bulk import says nothing about who received
+      // the goods. The importing user is recorded in USER_EMAIL.
+      responsible: '',
       // A bulk import legitimately contains similar-looking rows (same
       // category, same rack, different SKUs entered close together); the
       // duplicate guard exists to catch an accidental double-click, not this.
@@ -4048,7 +4056,7 @@ function modifyMovement(data, auth) {
     sourceLoc:   { col: AC.SRC_LOC,    label: 'Source Loc' },
     supplier:    { col: AC.SUPPLIER,   label: 'Supplier' },
     comments:    { col: AC.COMMENTS,   label: 'Comments' },
-    responsible: { col: AC.RESPONSIBLE,label: 'Responsible' },
+    responsible: { col: AC.RESPONSIBLE,label: 'Received By' },
     project:     { col: AC.PROJECT,    label: 'Project' },
     destLoc:     { col: AC.DEST_LOC,   label: 'Dest Loc' },
     pm:          { col: AC.PM,         label: 'PM' }

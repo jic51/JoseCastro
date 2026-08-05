@@ -945,7 +945,7 @@
           <label class="col-pick-item"><input type="checkbox" id="chkGc"> GC / Contract</label>
           <label class="col-pick-item"><input type="checkbox" id="chkProj" checked> Project</label>
           <label class="col-pick-item"><input type="checkbox" id="chkSup"> Supplier</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkResp" checked> Responsible</label>
+          <label class="col-pick-item"><input type="checkbox" id="chkResp" checked> Received By</label>
           <label class="col-pick-item"><input type="checkbox" id="chkComm" checked> Comments</label>
           <label class="col-pick-item"><input type="checkbox" id="chkSrcDest"> Source → Dest</label>
           <label class="col-pick-item"><input type="checkbox" id="chkPm"> PM</label>
@@ -1239,7 +1239,7 @@
         <input type="date" id="em_dateRec">
       </div>
       <div class="field">
-        <label>Responsible</label>
+        <label>Received By</label>
         <input type="text" id="em_responsible">
       </div>
       <div class="field">
@@ -1497,7 +1497,7 @@
         <datalist id="projList"></datalist>
       </div>
       <div class="field" id="mRespFieldWrap">
-        <label id="respLabel">Responsible</label>
+        <label id="respLabel">Received By</label>
         <input type="text" id="mResp">
       </div>
       <div class="field" id="mPMField" style="display:none">
@@ -1719,7 +1719,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.22';
+var APP_VERSION = '8.23';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2525,7 +2525,7 @@ function renderMovements(){
     (v.gc      ? '<th>GC</th>'       : '')+
     (v.project ? '<th>Project</th>'  : '')+
     (v.supplier? '<th>Supplier</th>' : '')+
-    (v.resp    ? '<th>Responsible</th>':'')+
+    (v.resp    ? '<th>Received By</th>':'')+
     (v.comment ? '<th>Comments</th>' : '')+
     (v.pm      ? '<th>PM</th>'       : '')+
     (v.sysDate ? '<th>Sys Date</th>' : '')+
@@ -5436,7 +5436,7 @@ function _csvCell(v){
 }
 
 function exportMovementsCSV(){
-  var headers = ['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Responsible','Comments','User'];
+  var headers = ['MoveType','Date','Category','Name','Project','Qty','Unit','Source','Destination','Received By','Comments','User'];
   var srcMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
   var rows = srcMovs.slice().reverse().map(function(m){
     return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.project||'',
@@ -5454,7 +5454,7 @@ function exportProjectCSV(){
   var proj = document.getElementById('projectSelector').value;
   if (!proj){ alert('Select a project first'); return; }
   var pm = movements.filter(function(m){ return (m.project||'') === proj; });
-  var headers = ['MoveType','Date','Category','Name','Qty','Unit','Source','Destination','Responsible','Comments'];
+  var headers = ['MoveType','Date','Category','Name','Qty','Unit','Source','Destination','Received By','Comments'];
   var rows = pm.map(function(m){
     return [nt(m.moveType),m.dateRec||m.timestamp,nt(m.category),displayName(m),m.qty,m.unit||'',
             m.sourceLoc||'',m.destLoc||'',m.responsible||'',(m.comments||'').replace(/\n/g,' ')]
@@ -7580,13 +7580,35 @@ function saveGmailDraft(idx) {
     .processMovement('addIncoming', _h(item));
 }
 
-// Heartbeat every 90 s — keeps this user visible, refreshes list
+// Heartbeat — keeps this user visible in the presence list, refreshes it.
+//
+// Every google.script.run call is a server execution, and Google caps how many
+// may run at once per account; past that cap everything fails with "too many
+// scripts running simultaneously". A background tab firing this forever spends
+// that budget for nothing: no one is looking at the presence list, and the user
+// is not meaningfully "present". Several tabs left open across a few devices —
+// normal in a warehouse — is enough to sit near the ceiling all day, which is
+// what surfaced that error during ordinary use.
+//
+// So: skip the tick while the tab is hidden, and send one immediately on return
+// so presence is correct the moment someone actually looks. Interval widened
+// 90s → 150s, still well inside the 5-minute window that decides who counts as
+// active.
 setInterval(function(){
+  if (document.hidden) return;
   google.script.run
     .withSuccessHandler(renderActiveUsers)
     .withFailureHandler(function(){})
     .heartbeat(_sessionToken || null);
-}, 90000);
+}, 150000);
+
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden) return;
+  google.script.run
+    .withSuccessHandler(renderActiveUsers)
+    .withFailureHandler(function(){})
+    .heartbeat(_sessionToken || null);
+});
 
 // ── Version tag — set by JS so we can confirm script is running ───────────────
 (function(){
