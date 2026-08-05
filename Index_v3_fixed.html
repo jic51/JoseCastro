@@ -1719,7 +1719,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.24';
+var APP_VERSION = '8.25';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2420,20 +2420,78 @@ function extractDriveId(url){
 // all, so there is nothing for Google's sandboxing to interfere with.
 var _fileDataCache = {};   // fileId -> {mimeType, base64} | 'error'
 
+// ── Throttled fetching — this is what fixes "too many scripts running" ───────
+//
+// Every thumbnail on screen resolves through here, and each resolution is one
+// google.script.run call, i.e. one server execution. Rendering used to fire all
+// of them at once: the Movements table paints 75 rows per page, each row's Doc
+// column can hold several attachments, and expanding a stock row adds its photos
+// and documents on top. A busy page therefore opened dozens of executions in the
+// same instant.
+//
+// Apps Script caps simultaneous executions per USER — and because this web app
+// runs as USER_DEPLOYING, every visitor's calls are charged to the deploying
+// account's single quota. Two browser tabs were enough to trip it, which is why
+// the failure looked unrelated to how many people were online. It also explains
+// why it only appeared once the app started serving files privately: before
+// that, thumbnails were plain <img src> and cost no executions at all.
+//
+// Two limits below, and the pair matters:
+//   • at most MAX_INFLIGHT calls open at any moment, the rest queued;
+//   • one call per file ID — repeat requests for a file already being fetched
+//     wait on that same request instead of starting another. The same document
+//     commonly appears in several rows, so without this the queue would happily
+//     fetch identical bytes many times over.
+var _privQueue     = [];   // [{id, done}] waiting for a slot
+var _privInflight  = {};   // fileId -> [done, …] callbacks awaiting one open call
+var _privActive    = 0;
+var _PRIV_MAX_INFLIGHT = 3;
+
+function _privPump(){
+  while (_privActive < _PRIV_MAX_INFLIGHT && _privQueue.length){
+    var job = _privQueue.shift();
+    var cached = _fileDataCache[job.id];
+    if (cached !== undefined){          // resolved while it sat in the queue
+      _privDeliver(job.id);
+      continue;
+    }
+    _privActive++;
+    (function(id){
+      google.script.run
+        .withSuccessHandler(function(res){
+          _fileDataCache[id] = res || 'error';
+          _privActive--; _privDeliver(id); _privPump();
+        })
+        .withFailureHandler(function(){
+          _fileDataCache[id] = 'error';
+          _privActive--; _privDeliver(id); _privPump();
+        })
+        .getPrivateFileData(id, _sessionToken || null);
+    })(job.id);
+  }
+}
+
+function _privDeliver(id){
+  var cached = _fileDataCache[id];
+  var url = (cached && cached !== 'error')
+    ? 'data:' + cached.mimeType + ';base64,' + cached.base64
+    : null;
+  var waiting = _privInflight[id] || [];
+  delete _privInflight[id];
+  waiting.forEach(function(cb){ try { cb(url); } catch(e) {} });
+}
+
 function _fetchPrivateFile(rawUrlOrId, done){
   var id = extractDriveId(rawUrlOrId);
   if (!id) { done(null); return; }
   var cached = _fileDataCache[id];
   if (cached === 'error') { done(null); return; }
   if (cached) { done('data:' + cached.mimeType + ';base64,' + cached.base64); return; }
-  google.script.run
-    .withSuccessHandler(function(res){
-      if (!res) { _fileDataCache[id] = 'error'; done(null); return; }
-      _fileDataCache[id] = res;
-      done('data:' + res.mimeType + ';base64,' + res.base64);
-    })
-    .withFailureHandler(function(){ _fileDataCache[id] = 'error'; done(null); })
-    .getPrivateFileData(id, _sessionToken || null);
+
+  if (_privInflight[id]) { _privInflight[id].push(done); return; }  // ride along
+  _privInflight[id] = [done];
+  _privQueue.push({ id: id });
+  _privPump();
 }
 
 // Drop-in replacement for a plain <img src="..."> when the source is a private
