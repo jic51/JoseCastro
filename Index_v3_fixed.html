@@ -449,7 +449,7 @@
     .media-preview-hdr button:hover{background:rgba(255,255,255,.28)}
     .media-preview-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#111}
     .media-preview-body img{max-width:100%;max-height:80vh;object-fit:contain}
-    .media-preview-body iframe{width:100%;height:80vh;border:none}
+    .media-preview-body iframe,.media-preview-body embed{width:100%;height:80vh;border:none}
     /* ── RACK PHOTO GALLERY ── */
     .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem}
     .rack-photo-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
@@ -1627,7 +1627,11 @@
   <div class="media-preview-box">
     <div class="media-preview-hdr">
       <span id="mediaPreviewLabel"></span>
-      <button onclick="closeMediaPreview()" title="Close">✕</button>
+      <span style="display:flex;gap:.4rem;flex-shrink:0">
+        <button id="mediaPreviewOpen" onclick="_mediaPreviewOpenTab()" title="Open in a new tab">↗ Open</button>
+        <button id="mediaPreviewDownload" onclick="_mediaPreviewDownload()" title="Download this file">⬇ Download</button>
+        <button onclick="closeMediaPreview()" title="Close">✕</button>
+      </span>
     </div>
     <div class="media-preview-body" id="mediaPreviewBody"></div>
   </div>
@@ -1719,7 +1723,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.26';
+var APP_VERSION = '8.27';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5768,36 +5772,100 @@ function _renderRackDrawerPhoto(){
 // type up front, so try the result as an <img> first; if that fails (a PDF
 // won't render in an <img> tag), fall back to an <iframe> — a data: URL with
 // the real PDF mime type renders fine in the browser's native PDF viewer.
+// Preview state, kept so the header's Open/Download buttons act on whatever is
+// currently shown. The blob URL must be released on close or every preview
+// leaks its file until the tab is closed.
+var _mediaPreviewBlobUrl = null;
+var _mediaPreviewName    = '';
+
+// base64 → Blob. PDFs cannot be previewed straight from the data: URL that
+// _fetchPrivateFile hands back: Chrome refuses to navigate a frame to a data:
+// URL, so <iframe src="data:application/pdf;…"> renders nothing at all. This is
+// why images opened fine and PDFs never did — an <img> is not a navigation, a
+// frame is. blob: URLs are exempt from that rule, so we rebuild the bytes as a
+// Blob and point the viewer at that instead.
+function _dataUrlToBlob(dataUrl){
+  var comma = dataUrl.indexOf(',');
+  var meta  = dataUrl.substring(5, comma);            // e.g. "application/pdf;base64"
+  var mime  = meta.split(';')[0] || 'application/octet-stream';
+  var bin   = atob(dataUrl.substring(comma + 1));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 function openMediaPreview(url, label){
   document.getElementById('mediaPreviewLabel').textContent = label || '';
   var body = document.getElementById('mediaPreviewBody');
   body.innerHTML = '<p style="color:#fff;padding:2rem">Loading…</p>';
   document.getElementById('mediaPreviewOverlay').classList.add('show');
+  _releaseMediaPreviewBlob();
+  _mediaPreviewName = label || 'document';
+
   _fetchPrivateFile(url, function(dataUrl){
     if (!dataUrl) {
       body.innerHTML = '<p style="color:#fff;padding:2rem">Could not load this file.</p>';
       return;
     }
+    var blob = _dataUrlToBlob(dataUrl);
+    _mediaPreviewBlobUrl = URL.createObjectURL(blob);
     body.innerHTML = '';
-    var img = document.createElement('img');
-    img.alt = label || '';
-    img.onerror = function () {
-      var iframe = document.createElement('iframe');
-      iframe.src   = dataUrl;
-      iframe.allow = 'autoplay';
-      body.innerHTML = '';
-      body.appendChild(iframe);
-    };
-    img.src = dataUrl;
-    body.appendChild(img);
+
+    if (blob.type.indexOf('image/') === 0) {
+      var img = document.createElement('img');
+      img.alt = label || '';
+      img.src = _mediaPreviewBlobUrl;
+      body.appendChild(img);
+      return;
+    }
+
+    if (blob.type === 'application/pdf') {
+      // <embed> hands the file to the browser's built-in PDF plugin, which is
+      // what makes multi-page documents scrollable in place.
+      var emb = document.createElement('embed');
+      emb.type = 'application/pdf';
+      emb.src  = _mediaPreviewBlobUrl;
+      emb.style.cssText = 'width:100%;height:80vh;border:none';
+      body.appendChild(emb);
+      return;
+    }
+
+    // Anything else (.json, .docx, .zip…) has no reliable inline viewer. Say so
+    // and point at the header buttons, rather than showing an empty black box.
+    body.innerHTML =
+      '<div style="color:#fff;padding:2.5rem;text-align:center">' +
+        '<div style="font-size:2.5rem;margin-bottom:.5rem">📄</div>' +
+        '<p style="margin-bottom:.35rem">' + _he(label || 'This file') + '</p>' +
+        '<p style="font-size:.8rem;opacity:.7">No inline preview for this file type — ' +
+        'use ↗ Open or ⬇ Download above.</p>' +
+      '</div>';
   });
+}
+
+function _mediaPreviewOpenTab(){
+  if (_mediaPreviewBlobUrl) window.open(_mediaPreviewBlobUrl, '_blank');
+}
+
+function _mediaPreviewDownload(){
+  if (!_mediaPreviewBlobUrl) return;
+  var a = document.createElement('a');
+  a.href = _mediaPreviewBlobUrl;
+  a.download = _mediaPreviewName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function _releaseMediaPreviewBlob(){
+  if (_mediaPreviewBlobUrl) { URL.revokeObjectURL(_mediaPreviewBlobUrl); _mediaPreviewBlobUrl = null; }
 }
 
 function closeMediaPreview(){
   var ov = document.getElementById('mediaPreviewOverlay');
   if (!ov.classList.contains('show')) return;
   ov.classList.remove('show');
-  document.getElementById('mediaPreviewBody').innerHTML = ''; // stop any iframe playback/loading
+  document.getElementById('mediaPreviewBody').innerHTML = ''; // stop any embed loading
+  _releaseMediaPreviewBlob();
 }
 
 function _triggerRackPhotoUpload(rack){
