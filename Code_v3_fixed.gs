@@ -31,7 +31,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.21';
+var APP_VERSION = '8.22';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1847,7 +1847,22 @@ function runBackupNow_() {
     var folder   = getOrCreateFolder_(BACKUP_FOLDER_NAME);
     var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
     var copyName = ss.getName() + ' — Backup ' + stamp;
-    var copyFile = DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
+
+    // The container spreadsheet is the one file the app did NOT create, so
+    // under drive.file DriveApp can't touch it. Copy through the Spreadsheet
+    // service instead — that goes via the spreadsheets scope, and the copy it
+    // returns IS app-created, so DriveApp may then file it away.
+    // DriveApp.makeCopy stays as the first choice for installations still on
+    // the broad drive scope: it drops the copy straight into the folder in one
+    // call, with no intermediate file briefly sitting in My Drive.
+    var copyFile;
+    try {
+      copyFile = DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
+    } catch (eDrive) {
+      var copied = ss.copy(copyName);            // lands in My Drive root
+      copyFile   = DriveApp.getFileById(copied.getId());
+      copyFile.moveTo(folder);                   // ours now, so this is allowed
+    }
 
     pruneOldBackups_(folder);
 
@@ -2743,26 +2758,55 @@ function photosToDocPdf_(photos, docName, targetFolder) {
   return pdfFile.getId();
 }
 
+// Resolves "A/B/C" to a Drive folder, creating any missing level.
+//
+// Written for the drive.file scope, which grants access ONLY to files and
+// folders this app itself created. Two consequences drive the shape of this:
+//
+//   • DriveApp.getRootFolder() is forbidden — My Drive as a whole is not ours
+//     to read. (This is exactly what broke uploads on the first drive.file
+//     test run: every upload path lands here, and the pre-cache branch called
+//     it.) The top level is created with DriveApp.createFolder(), which lands
+//     in My Drive and is app-owned, so we may keep using it afterwards.
+//   • Below the top level we can browse normally, because every one of those
+//     folders was created by us, so getFoldersByName() on a parent we already
+//     hold is allowed.
+//
+// Each level's ID is cached in Script Properties, so steady-state operation is
+// getFolderById() only — no traversal at all.
 function getOrCreateFolder_(path) {
-  // Cache folder IDs in Script Properties to avoid repeated root traversal
-  // (also avoids DriveApp.getRootFolder permission issues on drive.file scope)
-  var props    = PropertiesService.getScriptProperties();
-  var cacheKey = 'FOLDER_' + path.replace(/\W/g, '_');
-  var folderId = props.getProperty(cacheKey);
+  var props = PropertiesService.getScriptProperties();
+  var parts = path.split('/');
+  var current = null;
+  var walked = [];
 
-  if (folderId) {
-    try { return DriveApp.getFolderById(folderId); } catch(e) { /* stale id, recreate */ }
-  }
-
-  // First time: walk from root and create any missing folders
-  var parts   = path.split('/');
-  var current = DriveApp.getRootFolder();
   for (var i = 0; i < parts.length; i++) {
-    var sub = current.getFoldersByName(parts[i]);
-    current = sub.hasNext() ? sub.next() : current.createFolder(parts[i]);
+    walked.push(parts[i]);
+    var cacheKey = 'FOLDER_' + walked.join('/').replace(/\W/g, '_');
+    var cachedId = props.getProperty(cacheKey);
+
+    var next = null;
+    if (cachedId) {
+      try { next = DriveApp.getFolderById(cachedId); } catch (e) { next = null; /* stale/deleted */ }
+    }
+
+    if (!next) {
+      if (current) {
+        // Inside our own tree: safe to look before creating, so a folder that
+        // exists but wasn't cached (e.g. cache cleared) is reused, not duplicated.
+        var found = current.getFoldersByName(parts[i]);
+        next = found.hasNext() ? found.next() : current.createFolder(parts[i]);
+      } else {
+        // Top level. Under drive.file we cannot search My Drive to find an
+        // existing folder of this name, so a cleared cache means a second
+        // folder gets created rather than the original being found. Caching
+        // every level (above) is what keeps that from happening in practice.
+        next = DriveApp.createFolder(parts[i]);
+      }
+      try { props.setProperty(cacheKey, next.getId()); } catch (e) {}
+    }
+    current = next;
   }
-  // Cache the final folder ID so future calls use getFolderById (works with drive.file)
-  try { props.setProperty(cacheKey, current.getId()); } catch(e) {}
   return current;
 }
 
@@ -3368,7 +3412,20 @@ function menuRevokePublicSharing() {
   var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
   setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Spreadsheet menu' });
 
-  var roots = DriveApp.getFoldersByName('OX_WMS_v3_Docs');
+  // Drive-wide name search needs the broad drive scope. On a drive.file
+  // installation this throws — which is the correct outcome, because such an
+  // installation never had public files to begin with: the setSharing calls
+  // were removed in v8.10, so only spreadsheets that pre-date it have anything
+  // to clean, and those are all on the broad scope.
+  var roots;
+  try {
+    roots = DriveApp.getFoldersByName('OX_WMS_v3_Docs');
+  } catch (e) {
+    ui.alert('Nothing to do.\n\nThis installation uses the restricted Drive permission ' +
+             '(drive.file), which means its files were never publicly shared — there is ' +
+             'no legacy sharing to revoke.');
+    return;
+  }
   if (!roots.hasNext()) {
     ui.alert('No OX_WMS_v3_Docs folder found in Drive — nothing to clean up.');
     return;
