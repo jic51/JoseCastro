@@ -1723,7 +1723,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.27';
+var APP_VERSION = '8.28';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5797,8 +5797,13 @@ function _dataUrlToBlob(dataUrl){
 function openMediaPreview(url, label){
   document.getElementById('mediaPreviewLabel').textContent = label || '';
   var body = document.getElementById('mediaPreviewBody');
+  body.style.flexDirection = '';        // reset — the PDF branch sets it to column
   body.innerHTML = '<p style="color:#fff;padding:2rem">Loading…</p>';
   document.getElementById('mediaPreviewOverlay').classList.add('show');
+  // Freeze the page behind the preview. Without this the wheel scrolls the
+  // Movements table underneath, so closing the preview leaves the user somewhere
+  // other than where they opened it from.
+  document.body.style.overflow = 'hidden';
   _releaseMediaPreviewBlob();
   _mediaPreviewName = label || 'document';
 
@@ -5820,13 +5825,29 @@ function openMediaPreview(url, label){
     }
 
     if (blob.type === 'application/pdf') {
-      // <embed> hands the file to the browser's built-in PDF plugin, which is
-      // what makes multi-page documents scrollable in place.
-      var emb = document.createElement('embed');
-      emb.type = 'application/pdf';
-      emb.src  = _mediaPreviewBlobUrl;
-      emb.style.cssText = 'width:100%;height:80vh;border:none';
-      body.appendChild(emb);
+      // <embed> renders as a black rectangle here. The whole app runs inside the
+      // sandboxed googleusercontent.com iframe Apps Script serves HtmlService
+      // pages in, and Chrome's built-in PDF viewer is a plugin — plugins do not
+      // get instantiated in that sandbox. The blob itself is fine: ↗ Open shows
+      // the same URL correctly, because a top-level tab is not sandboxed.
+      //
+      // <iframe> is a different mechanism and does render in some browsers, so
+      // it's worth attempting — but we cannot detect from script whether it
+      // actually painted (no error fires either way). So the hint below is
+      // always shown rather than only on failure: better a redundant line of
+      // text than a user staring at a black box with no idea what to do.
+      body.style.flexDirection = 'column';
+      var hint = document.createElement('div');
+      hint.style.cssText = 'flex-shrink:0;width:100%;background:#1f2937;color:#e5e7eb;' +
+        'font-size:.78rem;padding:.5rem .9rem;text-align:center';
+      hint.innerHTML = 'PDF not showing below? Google\'s viewer is blocked inside this ' +
+        'window — use <strong>↗ Open</strong> above to see it full size.';
+      body.appendChild(hint);
+
+      var frame = document.createElement('iframe');
+      frame.src = _mediaPreviewBlobUrl;
+      frame.style.cssText = 'width:100%;flex:1;min-height:0;border:none;background:#fff';
+      body.appendChild(frame);
       return;
     }
 
@@ -5864,7 +5885,8 @@ function closeMediaPreview(){
   var ov = document.getElementById('mediaPreviewOverlay');
   if (!ov.classList.contains('show')) return;
   ov.classList.remove('show');
-  document.getElementById('mediaPreviewBody').innerHTML = ''; // stop any embed loading
+  document.getElementById('mediaPreviewBody').innerHTML = ''; // stop any frame loading
+  document.body.style.overflow = '';
   _releaseMediaPreviewBlob();
 }
 
