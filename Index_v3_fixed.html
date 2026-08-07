@@ -1723,7 +1723,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.28';
+var APP_VERSION = '8.29';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2107,14 +2107,22 @@ function renderStats(){
 function buildDocMap() {
   var map = {};
   movements.forEach(function(m) {
-    if (!m.docLinks || m.docLinks.indexOf('http') === -1) return;
+    // NO "does it contain http" test here, deliberately. Until v8.10 documents
+    // were stored as full Drive URLs; since v8.10 they are stored as bare file
+    // IDs (uploads no longer share publicly, so a getUrl() link would be dead
+    // anyway). Those two guards therefore rejected every document saved from
+    // v8.10 onward, and the Dashboard's Documents panel silently reported
+    // "No documents attached" for all of them — while the Movements tab showed
+    // them correctly, because renderDocLinks() resolves through extractDriveId()
+    // and handles both shapes. That mismatch is the whole bug.
+    if (!m.docLinks) return;
     // Show docs from ENTRY movements only (that's where files are uploaded)
     if (m.moveType !== 'ENTRY') return;
     var key = nt(m.category) + '|||' + nt(m.name);
     if (!map[key]) map[key] = [];
     m.docLinks.split('\n').forEach(function(line) {
       line = line.trim();
-      if (!line || line.indexOf('http') === -1) return;
+      if (!line) return;
       var docName = 'Document';
       var url     = line;
       if (line.indexOf('||') !== -1) {
