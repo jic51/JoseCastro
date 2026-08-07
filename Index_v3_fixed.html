@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OX Glass Co. — WMS v3.0</title>
+  <title>Acopio — Warehouse Management</title>
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -144,6 +144,42 @@
     .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
     .alert-banner.show{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
     /* ── OVERLAY / MODAL ── */
+    /* ── SETUP WIZARD ── */
+    .wiz-overlay{display:none;position:fixed;inset:0;background:var(--bg);z-index:2000;overflow-y:auto;padding:2rem 1rem}
+    .wiz-overlay.show{display:block}
+    .wiz-box{background:var(--card);border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,.18);max-width:640px;margin:0 auto;padding:2rem}
+    .wiz-steps{display:flex;gap:6px;margin-bottom:1.5rem}
+    .wiz-steps div{flex:1;height:4px;border-radius:2px;background:var(--border);transition:background .25s}
+    .wiz-steps div.done{background:var(--accent)}
+    .wiz-title{font-size:1.35rem;font-weight:800;color:var(--navy);margin-bottom:.3rem}
+    .wiz-sub{font-size:.85rem;color:var(--muted);margin-bottom:1.4rem;line-height:1.5}
+    .wiz-body .field{margin-bottom:1rem}
+    .wiz-body label{display:block;font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem}
+    .wiz-body input[type=text],.wiz-body input[type=email],.wiz-body select,.wiz-body textarea{
+      width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;background:var(--card);color:var(--text)}
+    .wiz-body input:focus,.wiz-body select:focus,.wiz-body textarea:focus{outline:none;border-color:var(--accent)}
+    .wiz-hint{font-size:.75rem;color:var(--muted);margin-top:.3rem;line-height:1.45}
+    .wiz-nav{display:flex;justify-content:space-between;align-items:center;margin-top:1.75rem;gap:.75rem}
+    .wiz-preset{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
+    .wiz-preset button{flex:1;min-width:150px;padding:.85rem;border:2px solid var(--border);border-radius:10px;background:var(--card);cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;color:var(--text);transition:.15s;text-align:left}
+    .wiz-preset button:hover{border-color:var(--accent);background:#EFF6FF}
+    .wiz-preset button.sel{border-color:var(--accent);background:#EFF6FF}
+    .wiz-preset span{display:block;font-size:.72rem;font-weight:400;color:var(--muted);margin-top:.2rem}
+    .chip-box{display:flex;flex-wrap:wrap;gap:.4rem;padding:.6rem;border:1px solid var(--border);border-radius:8px;min-height:52px;background:var(--bg)}
+    .chip{display:inline-flex;align-items:center;gap:.35rem;background:#DBEAFE;color:var(--accent2);border-radius:16px;padding:3px 8px 3px 11px;font-size:.8rem;font-weight:600}
+    .chip button{border:none;background:none;color:var(--accent2);cursor:pointer;font-size:.9rem;line-height:1;padding:0 2px;opacity:.6}
+    .chip button:hover{opacity:1;color:var(--red)}
+    .wiz-gen{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+    .wiz-userrow{display:grid;grid-template-columns:1fr 130px 34px;gap:.5rem;margin-bottom:.5rem;align-items:center}
+    .wiz-summary{background:var(--bg);border-radius:10px;padding:1rem 1.15rem;font-size:.85rem;line-height:1.9}
+    .wiz-summary b{color:var(--navy)}
+    .wiz-toggle{display:flex;align-items:center;gap:.6rem;padding:.75rem;background:var(--green-bg);border-radius:8px;font-size:.85rem;margin-bottom:1rem}
+    /* Nudge shown after setup when an optional step was skipped */
+    .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:390;background:var(--navy);color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
+    .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:.4rem}
+    .setup-nudge:hover .nudge-act{display:flex}
+    .setup-nudge button{border:none;border-radius:6px;padding:.3rem .6rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit}
+    @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:1.25rem}.wiz-gen{grid-template-columns:1fr}}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:550;align-items:center;justify-content:center;padding:15px}
     /* Floating "report a problem" button — z-index sits well under .overlay (550)
        so any open modal already covers it; no extra show/hide logic needed. */
@@ -726,10 +762,10 @@
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <div class="topbar">
   <div>
-    <h1>WMS — OX Glass Warehouse</h1>
+    <h1 id="appTitle">Warehouse</h1>
     <div class="author-badge">
       <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-      Architected &amp; Engineered by: Jose Castro
+      <span id="poweredByBadge">Acopio</span>
     </div>
     <span id="jsVersionTag" style="font-size:.65rem;color:rgba(255,80,80,.9);font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,0,0,.15)">JS NOT LOADED</span>
   </div>
@@ -1308,8 +1344,8 @@
 </div>
 
 <div class="system-footer">
-  &copy; 2026 OX Glass Co. Proprietary Warehouse Management System.<br>
-  Built and maintained by <strong>Jose Castro</strong>. Unauthorized distribution or modification is prohibited.
+  <span id="footerCompany"></span><br>
+  Powered by <strong>Acopio</strong> — Warehouse Management System. Built by Jose Castro.
 </div>
 
 <!-- ══ MOVEMENT MODAL ═══════════════════════════════════════════════════════ -->
@@ -1667,6 +1703,23 @@
   </div>
 </div>
 
+<!-- ══ SETUP WIZARD ═════════════════════════════════════════════════════════ -->
+<div class="wiz-overlay" id="wizOverlay">
+  <div class="wiz-box">
+    <div class="wiz-steps" id="wizSteps"></div>
+    <div class="wiz-title" id="wizTitle"></div>
+    <div class="wiz-sub"   id="wizSub"></div>
+    <div class="wiz-body"  id="wizBody"></div>
+    <div class="wiz-nav">
+      <button class="btn btn-ghost btn-sm" id="wizBack" onclick="wizGo(-1)">← Back</button>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button class="btn btn-ghost btn-sm" id="wizSkip" onclick="wizGo(1,true)">Skip for now</button>
+        <button class="btn btn-primary btn-sm" id="wizNext" onclick="wizGo(1)">Continue →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Floating "report a problem" button — available from every screen -->
 <button id="reportIssueFab" class="report-issue-fab" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
 
@@ -1723,13 +1776,16 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '8.29';
+var APP_VERSION = '9.0';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
 // bought it. Set from getInitialData; defaults false so a stale/failed load
 // hides the feature rather than showing a button that can only error out.
 var _gmailScanEnabled = false;
+// Company identity, filled from getInitialData on every load (including the
+// unauthenticated paths, so the sign-in screen is branded too).
+var _companyName = '', _companyDomain = '';
 // Signed session token for non-org users (issued by the backend after Google
 // sign-in). Replaces the old spoofable email hint. Company users don't need it —
 // they're detected automatically by Session.getActiveUser() on the backend.
@@ -1860,6 +1916,401 @@ function getBase64(file){
     r.onload = function(){ res(r.result.split(',')[1]); };
     r.onerror = rej;
   });
+}
+
+// ═══ SETUP WIZARD ═══════════════════════════════════════════════════════════
+// Runs once, on a fresh copy, before the app is usable. Only the OWNER of the
+// copy can complete it — the backend enforces that (see getSetupState); this
+// side just renders what it is told.
+var PRODUCT = 'Acopio';
+var _wizStep = 0;
+var _wizSkipped = {};
+var _wiz = {
+  companyName:'', companyDomain:'', adminName:'', adminEmail:'', logo:null,
+  categories:[], locations:[], suppliers:[], projects:[], users:[], enableBackup:true
+};
+
+var CATEGORY_PRESETS = {
+  glass: ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','IGU','FLASHING','HARDWARE'],
+  build: ['LUMBER','DRYWALL','PAINT','PLUMBING','ELECTRICAL','FASTENERS','TOOLS','INSULATION'],
+  blank: []
+};
+
+var WIZ_STEPS = [
+  { key:'company',   title:'Your company',        sub:'This name appears in the app header, on the browser tab and in the emails the system sends.', required:true },
+  { key:'categories',title:'What do you store?',  sub:'Material types. Pick a starting point, then add or remove whatever you like — you can always change these later.', required:false },
+  { key:'locations', title:'Where do you store it?', sub:'Racks, shelves, trucks, yards. This is what the app asks for on every movement, so it matters most.', required:true },
+  { key:'users',     title:'Who works here?',     sub:'Only people on this list can open the system. Everyone else is refused, even inside your company.', required:true },
+  { key:'extras',    title:'Suppliers & projects',sub:'Completely optional. The app will offer to add them as you go, the first time you type one.', required:false },
+  { key:'done',      title:'Ready',               sub:'', required:true }
+];
+
+// The copy is unconfigured. Only its owner may set it up (enforced server-side);
+// anyone else gets told who to ask rather than a bare "access denied", which
+// would be technically true but useless to them.
+function _handleNeedsSetup(state){
+  if (state.isOwner) { wizStart(state); return; }
+  var topbar = document.querySelector('.topbar');
+  if (topbar) topbar.style.display = 'none';
+  var c = document.querySelector('.container');
+  if (!c) return;
+  c.innerHTML =
+    '<div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:1.5rem">' +
+      '<div style="background:var(--card);border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:430px;text-align:center">' +
+        '<div style="font-size:2.5rem;margin-bottom:.75rem">🚧</div>' +
+        '<h2 style="font-size:1.2rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Not set up yet</h2>' +
+        '<p style="color:var(--muted);font-size:.88rem;line-height:1.6">This warehouse system has not been configured. ' +
+        'The person who created it needs to finish the setup first.</p>' +
+        (state.ownerEmail
+          ? '<p style="color:var(--muted);font-size:.82rem;margin-top:.9rem">Ask <b>' + _he(state.ownerEmail) + '</b> to open this page and complete setup.</p>'
+          : '') +
+      '</div></div>';
+}
+
+function wizStart(state){
+  _wizStep = 0;
+  _wiz.adminEmail = state.ownerEmail || '';
+  document.getElementById('wizOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  wizRender();
+}
+
+function wizGo(dir, skip){
+  if (dir > 0 && !skip && !wizValidate()) return;
+  if (skip) _wizSkipped[WIZ_STEPS[_wizStep].key] = true;
+  else if (dir > 0) delete _wizSkipped[WIZ_STEPS[_wizStep].key];
+  wizCollect();
+  _wizStep = Math.max(0, Math.min(WIZ_STEPS.length - 1, _wizStep + dir));
+  wizRender();
+}
+
+// Reads the current step's inputs into _wiz. Called on every move so going Back
+// and forward again never loses what was typed.
+function wizCollect(){
+  var k = WIZ_STEPS[_wizStep].key, v = function(id){ var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  if (k === 'company'){
+    _wiz.companyName   = v('wizCompany');
+    _wiz.companyDomain = v('wizDomain');
+    _wiz.adminName     = v('wizAdminName');
+    _wiz.adminEmail    = v('wizAdminEmail') || _wiz.adminEmail;
+  } else if (k === 'done'){
+    var t = document.getElementById('wizBackupToggle');
+    if (t) _wiz.enableBackup = t.checked;
+  }
+}
+
+function wizValidate(){
+  var k = WIZ_STEPS[_wizStep].key;
+  if (k === 'company' && !(document.getElementById('wizCompany')||{}).value.trim()){
+    showToast('Enter your company name.','warn'); return false;
+  }
+  if (k === 'locations' && !_wiz.locations.length){
+    showToast('Add at least one location — the app cannot record a movement without one.','warn'); return false;
+  }
+  return true;
+}
+
+function wizRender(){
+  var step = WIZ_STEPS[_wizStep];
+  document.getElementById('wizSteps').innerHTML = WIZ_STEPS.map(function(s,i){
+    return '<div class="' + (i <= _wizStep ? 'done' : '') + '"></div>';
+  }).join('');
+  document.getElementById('wizTitle').textContent = step.title;
+  document.getElementById('wizSub').textContent   = step.sub;
+  document.getElementById('wizBack').style.display = _wizStep === 0 ? 'none' : '';
+  document.getElementById('wizSkip').style.display = step.required ? 'none' : '';
+  var next = document.getElementById('wizNext');
+  next.textContent = (step.key === 'done') ? '✓ Start using ' + PRODUCT : 'Continue →';
+  next.onclick = (step.key === 'done') ? wizFinish : function(){ wizGo(1); };
+
+  var b = document.getElementById('wizBody');
+  if (step.key === 'company'){
+    b.innerHTML =
+      '<div class="field"><label>Company name *</label>' +
+        '<input type="text" id="wizCompany" placeholder="e.g. OX Glass Co." value="'+_escAttr(_wiz.companyName)+'"></div>' +
+      '<div class="field"><label>Your name</label>' +
+        '<input type="text" id="wizAdminName" placeholder="e.g. Jose Castro" value="'+_escAttr(_wiz.adminName)+'"></div>' +
+      '<div class="field"><label>Administrator email</label>' +
+        '<input type="email" id="wizAdminEmail" value="'+_escAttr(_wiz.adminEmail)+'">' +
+        '<div class="wiz-hint">This is you — the account that created this copy. You get full access and receive system alerts.</div></div>' +
+      '<div class="field"><label>Company email domain (optional)</label>' +
+        '<input type="text" id="wizDomain" placeholder="your-company.com" value="'+_escAttr(_wiz.companyDomain)+'">' +
+        '<div class="wiz-hint">Used only for the wording on the sign-in screen. It does <b>not</b> grant anyone access — ' +
+        'people still have to be on your user list, even with a company address.</div></div>' +
+      '<div class="field"><label>Logo (optional)</label>' +
+        '<input type="file" id="wizLogo" accept="image/*" onchange="_wizLogoPick(this)">' +
+        '<div id="wizLogoPrev" style="margin-top:.5rem"></div></div>';
+  }
+
+  else if (step.key === 'categories'){
+    b.innerHTML =
+      '<div class="wiz-preset">' +
+        '<button onclick="_wizPreset(\'glass\',this)">🪟 Glass &amp; windows<span>Window, Screen, Mirror, Shower, IGU…</span></button>' +
+        '<button onclick="_wizPreset(\'build\',this)">🏗 Construction<span>Lumber, Drywall, Paint, Electrical…</span></button>' +
+        '<button onclick="_wizPreset(\'blank\',this)">⚪ Start empty<span>I will type my own</span></button>' +
+      '</div>' +
+      '<div class="field"><label>Your categories</label>' +
+        '<div class="chip-box" id="wizCatChips"></div>' +
+        '<input type="text" id="wizCatInput" placeholder="Type a category and press Enter" style="margin-top:.5rem" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddChip(\'categories\',this)}"></div>';
+    _wizDrawChips('categories','wizCatChips');
+  }
+
+  else if (step.key === 'locations'){
+    b.innerHTML =
+      '<div class="field"><label>Generate a rack grid</label>' +
+        '<div class="wiz-gen">' +
+          '<div><input type="text" id="wizRows" placeholder="Rows: A-F" value="A-F"></div>' +
+          '<div><input type="text" id="wizLevels" placeholder="Levels: 1-6" value="1-6"></div>' +
+          '<div><input type="text" id="wizSides" placeholder="Sides: A,B,C" value="A,B,C"></div>' +
+        '</div>' +
+        '<button class="btn btn-ghost btn-sm" style="margin-top:.6rem" onclick="_wizGenerate()">Generate</button>' +
+        '<div class="wiz-hint">Produces names like A1A, A1B, A1C, A2A… Skip this and type your own below if your ' +
+        'warehouse is named differently.</div></div>' +
+      '<div class="field"><label>Locations (<span id="wizLocCount">0</span>)</label>' +
+        '<div class="chip-box" id="wizLocChips" style="max-height:190px;overflow-y:auto"></div>' +
+        '<input type="text" id="wizLocInput" placeholder="Type a location and press Enter" style="margin-top:.5rem" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddLoc(this)}"></div>' +
+      '<div class="field"><label>Trucks / job sites (optional)</label>' +
+        '<input type="text" id="wizSiteInput" placeholder="e.g. TRUCK 1 — press Enter" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddLoc(this,\'SITE\')}">' +
+        '<div class="wiz-hint">These are destinations material leaves to, not storage inside the warehouse.</div></div>';
+    _wizDrawLocs();
+  }
+
+  else if (step.key === 'users'){
+    b.innerHTML =
+      '<div class="wiz-summary" style="margin-bottom:1rem">' +
+        '<b>' + _he(_wiz.adminEmail) + '</b> — Administrator (you)</div>' +
+      '<div id="wizUserRows"></div>' +
+      '<button class="btn btn-ghost btn-sm" onclick="_wizAddUserRow()">+ Add person</button>' +
+      '<div class="wiz-hint" style="margin-top:.75rem"><b>Admin</b> — everything, including settings and users.<br>' +
+      '<b>Warehouse</b> — records movements, uploads photos and documents.<br>' +
+      '<b>View only</b> — can look, cannot change anything.</div>';
+    _wizDrawUsers();
+  }
+
+  else if (step.key === 'extras'){
+    b.innerHTML =
+      '<div class="field"><label>Suppliers</label>' +
+        '<div class="chip-box" id="wizSupChips"></div>' +
+        '<input type="text" id="wizSupInput" placeholder="Type a supplier and press Enter" style="margin-top:.5rem" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddChip(\'suppliers\',this)}"></div>' +
+      '<div class="field"><label>Projects / clients</label>' +
+        '<div class="chip-box" id="wizProjChips"></div>' +
+        '<input type="text" id="wizProjInput" placeholder="Type a project and press Enter" style="margin-top:.5rem" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddChip(\'projects\',this)}"></div>';
+    _wizDrawChips('suppliers','wizSupChips');
+    _wizDrawChips('projects','wizProjChips');
+  }
+
+  else if (step.key === 'done'){
+    b.innerHTML =
+      '<div class="wiz-toggle"><input type="checkbox" id="wizBackupToggle"' + (_wiz.enableBackup ? ' checked':'') + '>' +
+        '<label for="wizBackupToggle" style="margin:0;text-transform:none;letter-spacing:0;font-size:.85rem;color:var(--text);font-weight:600">' +
+        'Back up my data automatically every night<span style="display:block;font-weight:400;color:var(--muted);font-size:.78rem">' +
+        'A dated copy of the whole spreadsheet, kept 30 days in your Drive.</span></label></div>' +
+      '<div class="wiz-summary">' +
+        '🏢 <b>' + _he(_wiz.companyName) + '</b><br>' +
+        '📦 <b>' + _wiz.categories.length + '</b> categories<br>' +
+        '📍 <b>' + _wiz.locations.length + '</b> locations<br>' +
+        '👥 <b>' + (_wiz.users.length + 1) + '</b> people<br>' +
+        '🏭 <b>' + _wiz.suppliers.length + '</b> suppliers · <b>' + _wiz.projects.length + '</b> projects' +
+      '</div>' +
+      '<div class="wiz-hint" style="margin-top:1rem">Already have your inventory in a spreadsheet? After finishing, ' +
+      'go to <b>Settings → Import</b>. Save it as <b>.csv</b> first — an .xlsx file will be rejected.</div>';
+  }
+}
+
+function _wizLogoPick(inp){
+  if (!inp.files || !inp.files[0]) return;
+  var f = inp.files[0];
+  getBase64(f).then(function(b64){
+    _wiz.logo = { fileData:b64, fileMimeType:f.type||'image/png', fileName:f.name };
+    document.getElementById('wizLogoPrev').innerHTML =
+      '<img src="data:'+_escAttr(f.type)+';base64,'+b64+'" style="max-height:52px;border-radius:6px">';
+  }).catch(function(){ showToast('Could not read that image.','err'); });
+}
+
+function _wizPreset(kind, btn){
+  _wiz.categories = CATEGORY_PRESETS[kind].slice();
+  Array.prototype.forEach.call(btn.parentNode.children, function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  _wizDrawChips('categories','wizCatChips');
+}
+
+function _wizAddChip(listName, inp){
+  var v = (inp.value || '').trim().toUpperCase();
+  if (!v) return;
+  if (_wiz[listName].indexOf(v) === -1) _wiz[listName].push(v);
+  inp.value = '';
+  _wizDrawChips(listName, listName === 'categories' ? 'wizCatChips'
+                        : listName === 'suppliers'  ? 'wizSupChips' : 'wizProjChips');
+}
+
+function _wizRemoveChip(listName, i){
+  _wiz[listName].splice(i,1);
+  _wizDrawChips(listName, listName === 'categories' ? 'wizCatChips'
+                        : listName === 'suppliers'  ? 'wizSupChips' : 'wizProjChips');
+}
+
+function _wizDrawChips(listName, boxId){
+  var box = document.getElementById(boxId);
+  if (!box) return;
+  box.innerHTML = _wiz[listName].length
+    ? _wiz[listName].map(function(v,i){
+        return '<span class="chip">'+_he(v)+'<button onclick="_wizRemoveChip(\''+listName+'\','+i+')">×</button></span>';
+      }).join('')
+    : '<span style="color:var(--muted);font-size:.8rem">Nothing yet</span>';
+}
+
+// "A-F" → [A..F];  "1-6" → [1..6];  "A,B,C" → [A,B,C]. Accepts either form for
+// any of the three fields, so a warehouse numbered 1-4 works as well as A-D.
+function _wizExpand(spec){
+  spec = String(spec||'').trim().toUpperCase();
+  if (!spec) return [];
+  if (spec.indexOf(',') !== -1) return spec.split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var m = spec.match(/^([A-Z0-9])\s*-\s*([A-Z0-9])$/);
+  if (!m) return [spec];
+  var a = m[1], z = m[2], out = [];
+  if (/[0-9]/.test(a) && /[0-9]/.test(z)) { for (var n=+a; n<=+z; n++) out.push(String(n)); }
+  else { for (var c=a.charCodeAt(0); c<=z.charCodeAt(0); c++) out.push(String.fromCharCode(c)); }
+  return out;
+}
+
+function _wizGenerate(){
+  var rows = _wizExpand(document.getElementById('wizRows').value);
+  var lvls = _wizExpand(document.getElementById('wizLevels').value);
+  var sides= _wizExpand(document.getElementById('wizSides').value);
+  if (!rows.length || !lvls.length){ showToast('Fill in at least rows and levels.','warn'); return; }
+  if (!sides.length) sides = [''];
+  var made = 0;
+  rows.forEach(function(r){ lvls.forEach(function(l){ sides.forEach(function(s){
+    var name = r + l + s;
+    if (!_wiz.locations.some(function(x){ return x.name === name; })){
+      _wiz.locations.push({ name:name, type:'RACK' }); made++;
+    }
+  }); }); });
+  _wizDrawLocs();
+  showToast(made + ' location(s) generated.','ok');
+}
+
+function _wizAddLoc(inp, type){
+  var v = (inp.value||'').trim().toUpperCase();
+  if (!v) return;
+  if (!_wiz.locations.some(function(x){ return x.name === v; })) _wiz.locations.push({name:v, type:type||'RACK'});
+  inp.value = '';
+  _wizDrawLocs();
+}
+
+function _wizRemoveLoc(i){ _wiz.locations.splice(i,1); _wizDrawLocs(); }
+
+function _wizDrawLocs(){
+  var box = document.getElementById('wizLocChips');
+  if (!box) return;
+  var c = document.getElementById('wizLocCount');
+  if (c) c.textContent = _wiz.locations.length;
+  box.innerHTML = _wiz.locations.length
+    ? _wiz.locations.map(function(l,i){
+        var site = l.type === 'SITE';
+        return '<span class="chip"' + (site ? ' style="background:var(--orange-bg);color:var(--orange)"' : '') + '>' +
+          (site ? '🚚 ' : '') + _he(l.name) + '<button onclick="_wizRemoveLoc('+i+')">×</button></span>';
+      }).join('')
+    : '<span style="color:var(--muted);font-size:.8rem">Nothing yet</span>';
+}
+
+function _wizAddUserRow(){ _wiz.users.push({email:'',name:'',role:'WAREHOUSE'}); _wizDrawUsers(); }
+function _wizRemoveUser(i){ _wizSyncUsers(); _wiz.users.splice(i,1); _wizDrawUsers(); }
+
+function _wizSyncUsers(){
+  _wiz.users.forEach(function(u,i){
+    var e = document.getElementById('wizU'+i), r = document.getElementById('wizR'+i);
+    if (e) u.email = e.value.trim();
+    if (r) u.role  = r.value;
+  });
+}
+
+function _wizDrawUsers(){
+  var box = document.getElementById('wizUserRows');
+  if (!box) return;
+  box.innerHTML = _wiz.users.map(function(u,i){
+    return '<div class="wiz-userrow">' +
+      '<input type="email" id="wizU'+i+'" placeholder="name@company.com" value="'+_escAttr(u.email)+'">' +
+      '<select id="wizR'+i+'">' +
+        '<option value="WAREHOUSE"'+(u.role==='WAREHOUSE'?' selected':'')+'>Warehouse</option>' +
+        '<option value="ADMIN"'+(u.role==='ADMIN'?' selected':'')+'>Admin</option>' +
+        '<option value="VIEWER"'+(u.role==='VIEWER'?' selected':'')+'>View only</option>' +
+      '</select>' +
+      '<button class="btn-icon" onclick="_wizRemoveUser('+i+')" title="Remove">×</button></div>';
+  }).join('');
+}
+
+function wizFinish(){
+  wizCollect();
+  _wizSyncUsers();
+  _wiz.users = _wiz.users.filter(function(u){ return u.email && u.email.indexOf('@') !== -1; });
+  var btn = document.getElementById('wizNext');
+  btn.disabled = true; btn.textContent = 'Setting up…';
+  google.script.run
+    .withSuccessHandler(function(){
+      // Full reload rather than patching state in place: setup rewrote the
+      // config, the user list and the company identity, and every screen reads
+      // from those. A clean load is simpler than re-syncing each one.
+      location.reload();
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false; btn.textContent = '✓ Start using ' + PRODUCT;
+      showToast('Setup failed: ' + ((err && err.message) || err), 'err');
+    })
+    .saveSetupWizard(_wiz);
+}
+
+// Gentle reminder for the optional steps that were skipped. Collapsed to one
+// line; hovering reveals the button. Dismissing it stops it for a week rather
+// than forever — an empty supplier list is worth mentioning again eventually.
+function _showSetupNudge(){
+  var missing = [];
+  if (!config.suppliers || !config.suppliers.length) missing.push('suppliers');
+  if (!config.categories || !config.categories.length) missing.push('categories');
+  if (!config.projects || !config.projects.length) missing.push('projects');
+  if (!missing.length || userRole !== 'ADMIN') return;
+  try {
+    var until = Number(localStorage.getItem('acopio_nudge_until') || 0);
+    if (Date.now() < until) return;
+  } catch(e){}
+  var el = document.createElement('div');
+  el.className = 'setup-nudge';
+  el.id = 'setupNudge';
+  el.innerHTML = '⚙️ You haven\'t set up your <b>' + _he(missing.join(', ')) + '</b> yet.' +
+    '<div class="nudge-act">' +
+      '<button style="background:var(--accent);color:#fff" onclick="openSettingsModal();_dismissNudge()">Set up now</button>' +
+      '<button style="background:rgba(255,255,255,.18);color:#fff" onclick="_dismissNudge()">Later</button>' +
+    '</div>';
+  document.body.appendChild(el);
+}
+
+function _dismissNudge(){
+  var el = document.getElementById('setupNudge');
+  if (el) el.remove();
+  try { localStorage.setItem('acopio_nudge_until', String(Date.now() + 7*24*60*60*1000)); } catch(e){}
+}
+
+// Paints the customer's own identity over the app. Called on every load, and
+// again right after setup, so nothing anywhere says "OX Glass" to someone else.
+function applyCompanyBranding(c){
+  if (!c) return;
+  var name = c.name || '';
+  _companyName = name;
+  if (c.domain) _companyDomain = c.domain;
+  if (name){
+    var t = document.getElementById('appTitle');
+    if (t) t.textContent = name;
+    document.title = name + ' — ' + (c.productName || PRODUCT);
+    var f = document.getElementById('footerCompany');
+    if (f) f.textContent = '© ' + new Date().getFullYear() + ' ' + name;
+  }
+  var badge = document.getElementById('poweredByBadge');
+  if (badge) badge.textContent = c.productName || PRODUCT;
 }
 
 // ── Report a Problem (floating button) ──────────────────────────────────────
@@ -3357,7 +3808,7 @@ function updateNotifyPreview(){
 
   var msg = 'Hi ' + recipName + ',\n\n' +
     'The following materials for ' + project + ' were received today and are now stored in our warehouse:' +
-    matLines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+    matLines + '\n\nLet us know if you need anything.\n\n' + (_companyName || 'Warehouse') + ' — Warehouse Team';
   document.getElementById('mNotifyMsg').value = msg;
 }
 
@@ -6808,14 +7259,14 @@ function _showGoogleSignIn(clientId, redirectUri) {
     '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
     '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:420px;width:100%;text-align:center">' +
       '<div style="font-size:3rem;margin-bottom:.75rem">🔒</div>' +
-      '<h2 style="font-size:1.25rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">OX Glass WMS</h2>' +
+      '<h2 style="font-size:1.25rem;font-weight:700;color:#1a1a2e;margin-bottom:.4rem">' + _he(_companyName || 'Warehouse') + '</h2>' +
       '<p style="color:#6B7280;font-size:.86rem;margin-bottom:1.5rem;line-height:1.5">Sign in with your Google account to continue.</p>' +
       (configured
         ? '<button id="googleSignInBtn" onclick="_startGoogleLogin()" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:.6rem;padding:.75rem 1rem;background:#fff;color:#1f2937;border:1px solid #DADCE0;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.06)" onmouseover="this.style.background=\'#F8FAFC\'" onmouseout="this.style.background=\'#fff\'">' +
             '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.6 2.4 30.1 0 24 0 14.6 0 6.4 5.4 2.5 13.2l7.9 6.1C12.2 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.4c-.3 2.1-1.6 5.2-4.6 7.3l7.1 5.5c4.2-3.9 6.7-9.6 6.7-16.5z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.9-6.1C.9 16.5 0 20.1 0 23.8s.9 7.3 2.5 10.6l7.9-6.1z"/><path fill="#34A853" d="M24 47.5c6.1 0 11.3-2 15-5.5l-7.1-5.5c-2 1.4-4.6 2.3-7.9 2.3-6.4 0-11.8-3.8-13.6-9.8l-7.9 6.1C6.4 42.1 14.6 47.5 24 47.5z"/></svg>' +
             'Sign in with Google</button>' +
           '<p id="signInStatus" style="color:#6B7280;font-size:.78rem;margin-top:1rem;min-height:1.1em"></p>' +
-          '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">@ox-glass.com staff sign in automatically, without this step.</p>'
+          (_companyDomain ? '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">@' + _he(_companyDomain) + ' staff sign in automatically, without this step.</p>' : '')
         : '<p style="color:#EF4444;font-size:.85rem">Sign-in is not configured. The OAuth Client ID is missing on the server. Contact your administrator.</p>'
       ) +
     '</div></div>';
@@ -6916,7 +7367,7 @@ function _showAccessDeniedScreen(status, email) {
       '</p>' +
 
       '<div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #E5E7EB">' +
-        '<p style="font-size:.7rem;color:#9CA3AF">OX Glass Co. — Warehouse Management System v3</p>' +
+        '<p style="font-size:.7rem;color:#9CA3AF">' + _he(_companyName || 'Warehouse') + ' — powered by Acopio</p>' +
       '</div>' +
     '</div>' +
     '</div>';
@@ -6954,14 +7405,26 @@ function loadDataFromGoogle(skipCache){
   google.script.run
     .withSuccessHandler(function(data){
       try {
+        applyCompanyBranding(data.company);
         // ── Access denied / not authenticated ──────────────────────────────
-        if (data.accessStatus === 'DENIED') {
-          _showAccessDeniedScreen('DENIED', data.userEmail || '');
-          return;
-        }
-        if (data.accessStatus === 'NO_SESSION') {
-          // Non-org user not signed in → show the Google sign-in screen.
-          _showGoogleSignIn(data.oauthClientId, data.oauthRedirectUri);
+        // On a brand-new copy nobody is registered yet, so the backend answers
+        // DENIED to everyone — including the owner. Check for "not set up yet"
+        // BEFORE treating that as a refusal, or the owner is locked out of the
+        // system they just created.
+        if (data.accessStatus === 'DENIED' || data.accessStatus === 'NO_SESSION') {
+          var deniedEmail = data.userEmail || '';
+          var wasNoSession = data.accessStatus === 'NO_SESSION';
+          google.script.run
+            .withSuccessHandler(function(setup){
+              if (setup && setup.needsSetup) { _handleNeedsSetup(setup); return; }
+              if (wasNoSession) _showGoogleSignIn(data.oauthClientId, data.oauthRedirectUri);
+              else              _showAccessDeniedScreen('DENIED', deniedEmail);
+            })
+            .withFailureHandler(function(){
+              if (wasNoSession) _showGoogleSignIn(data.oauthClientId, data.oauthRedirectUri);
+              else              _showAccessDeniedScreen('DENIED', deniedEmail);
+            })
+            .getSetupState();
           return;
         }
         // ── Normal load ─────────────────────────────────────────────────────
@@ -6984,6 +7447,7 @@ function loadDataFromGoogle(skipCache){
         }
         try { _restoreTab();              } catch(e){ console.error('_restoreTab:', e); }
         try { checkMorningPopup();        } catch(e){ console.error('checkMorningPopup:', e); }
+        try { _showSetupNudge();          } catch(e){ console.error('_showSetupNudge:', e); }
       } catch(outerErr) {
         setConnStatus('offline');
         var sr2 = document.getElementById('statsRow');

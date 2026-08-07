@@ -31,7 +31,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '8.29';
+var APP_VERSION = '9.0';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -57,6 +57,177 @@ var AC = {
   DOC_LINKS:15, USER_EMAIL:16, DEST_LOC:17,  MOVETYPE:18, PM:19
 };
 
+// ═══ COMPANY IDENTITY ════════════════════════════════════════════════════════
+// Everything that used to say "OX Glass" reads from here instead, so one copy
+// of this template can belong to any company. Values live in Script Properties
+// rather than the CONFIG sheet: they are single values, not lists, and they must
+// be readable before anyone has authenticated (the sign-in screen shows the
+// company name, and getSetupState() runs on a copy with no users at all).
+var PRODUCT_NAME = 'Acopio';
+
+function companySettings_() {
+  var p = PropertiesService.getScriptProperties();
+  return {
+    name:   p.getProperty('COMPANY_NAME')   || '',
+    domain: p.getProperty('COMPANY_DOMAIN') || '',
+    logoId: p.getProperty('COMPANY_LOGO_ID')|| '',
+    // Default is the pre-wizard folder name ON PURPOSE. Installations that
+    // existed before this feature already have OX_WMS_v3_Docs full of files;
+    // changing the default would orphan every one of them. The wizard only sets
+    // a prefix on copies that don't have one yet.
+    folderPrefix:  p.getProperty('FOLDER_PREFIX') || 'OX_WMS_v3',
+    setupComplete: p.getProperty('SETUP_COMPLETE') === 'true'
+  };
+}
+
+// Branding safe to hand an unauthenticated visitor: what the sign-in screen
+// needs to look like the customer's own system, and nothing more. The Drive
+// folder prefix and setup flag stay server-side.
+function publicCompany_() {
+  var cs = companySettings_();
+  return { name: cs.name, domain: cs.domain, logoId: cs.logoId, productName: PRODUCT_NAME };
+}
+
+function docsFolderName_()     { return companySettings_().folderPrefix + '_Docs'; }
+function backupFolderName_()   { return companySettings_().folderPrefix + '_Backups'; }
+function feedbackFolderName_() { return companySettings_().folderPrefix + '_Feedback'; }
+
+// Company name → a name that is safe as a Drive folder and readable in Drive.
+function folderPrefixFor_(companyName) {
+  var slug = String(companyName || '').trim()
+    .replace(/[^\w\s-]/g, '')      // drop punctuation Drive dislikes
+    .replace(/\s+/g, '_')
+    .substring(0, 40);
+  return slug ? (PRODUCT_NAME + '_' + slug) : (PRODUCT_NAME + '_WMS');
+}
+
+// Who receives admin notifications. Falls back to the owner of this copy —
+// never to a hardcoded address, which on a customer's copy would silently mail
+// their inventory alerts to us.
+function adminNotifyEmail_() {
+  try {
+    var cfg = loadConfig();
+    if (cfg.adminEmail) return cfg.adminEmail;
+  } catch (e) {}
+  try { return Session.getEffectiveUser().getEmail(); } catch (e) { return ''; }
+}
+
+// ═══ SETUP WIZARD ════════════════════════════════════════════════════════════
+// Called by the frontend before anything else. On a fresh copy nobody is in
+// USERS_V3 yet, so getUserRole() would answer DENIED and lock the owner out of
+// their own system — this endpoint deliberately runs before that gate.
+//
+// Only the OWNER of the copy may complete setup. requireOwnerContext_() is what
+// enforces it: under "Execute as: Me", getEffectiveUser() is always the owner
+// while getActiveUser() is whoever is visiting, so the two match for the owner
+// and nobody else. That matters because the web app is reachable by anyone with
+// a Google account and the URL — without this check, whoever opened an
+// unconfigured copy first could make themselves its administrator.
+function getSetupState() {
+  var cs = companySettings_();
+  var out = { productName: PRODUCT_NAME, needsSetup: !cs.setupComplete };
+  if (!out.needsSetup) return out;
+
+  var owner = '', visitor = '';
+  try { owner   = Session.getEffectiveUser().getEmail(); } catch (e) {}
+  try { visitor = Session.getActiveUser().getEmail();    } catch (e) {}
+  out.ownerEmail = owner;
+  out.isOwner    = !!owner && owner === visitor;
+  return out;
+}
+
+function saveSetupWizard(data) {
+  data = data || {};
+  var cs = companySettings_();
+  var actor;
+  if (cs.setupComplete) {
+    // Re-run later from Settings — normal admin rules apply.
+    actor = requireAuth_('ADMIN').email;
+  } else {
+    // First run: owner only, and nobody is registered yet, so establish the
+    // identity ourselves rather than reading it from a user list that is empty.
+    actor = requireOwnerContext_();
+    setVerifiedAuth_({ role: 'ADMIN', email: actor, name: 'Setup wizard' });
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var p  = PropertiesService.getScriptProperties();
+
+  var companyName = String(data.companyName || '').trim();
+  if (!companyName) throw new Error('Company name is required.');
+  p.setProperty('COMPANY_NAME', companyName);
+  p.setProperty('COMPANY_DOMAIN', String(data.companyDomain || '').trim().replace(/^@/, ''));
+
+  // Only ever set once. Re-running the wizard must not rename the folders that
+  // already hold this company's documents.
+  if (!p.getProperty('FOLDER_PREFIX')) {
+    p.setProperty('FOLDER_PREFIX', folderPrefixFor_(companyName));
+  }
+
+  if (data.logo && data.logo.fileData) {
+    var bytes = Utilities.base64Decode(data.logo.fileData);
+    var blob  = Utilities.newBlob(bytes, data.logo.fileMimeType || 'image/png', 'logo');
+    var file  = getOrCreateFolder_(docsFolderName_()).createFile(blob);
+    p.setProperty('COMPANY_LOGO_ID', file.getId());
+  }
+
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (cfg) {
+    if (data.categories) writeConfigColumn_(cfg, 1, data.categories);
+    if (data.suppliers)  writeConfigColumn_(cfg, 2, data.suppliers);
+    if (data.projects)   writeConfigColumn_(cfg, 0, data.projects);
+    if (data.locations && data.locations.length) {
+      writeConfigColumn_(cfg, 3, data.locations.map(function(l){ return l.name; }));
+      writeConfigColumn_(cfg, 4, data.locations.map(function(l){ return l.type || 'RACK'; }));
+    }
+    cfg.getRange(2, 8).setValue(sheetSafe_(String(data.adminEmail || actor).trim()));
+  }
+
+  // The owner becomes ADMIN. Written directly rather than through addUser(),
+  // which requires an already-authenticated admin — the very thing that does
+  // not exist yet on a fresh copy.
+  var users = ensureUsersSheet_(ss);
+  var existing = {};
+  if (users.getLastRow() > 1) {
+    users.getDataRange().getValues().slice(1).forEach(function(r){
+      existing[String(r[1] || '').toLowerCase().trim()] = true;
+    });
+  }
+  var toAdd = [{ email: actor, name: String(data.adminName || '').trim(), role: 'ADMIN' }]
+    .concat(data.users || []);
+  var now = new Date();
+  toAdd.forEach(function(u, i){
+    var email = String(u.email || '').toLowerCase().trim();
+    if (!email || email.indexOf('@') === -1 || existing[email]) return;
+    var role = String(u.role || 'WAREHOUSE').toUpperCase().trim();
+    if (['ADMIN','WAREHOUSE','VIEWER'].indexOf(role) === -1) role = 'WAREHOUSE';
+    users.appendRow(['USR-' + (now.getTime() + i), sheetSafe_(email),
+                     sheetSafe_(String(u.name || '').trim()), role, actor, now, true]);
+    existing[email] = true;
+  });
+
+  if (data.enableBackup) { try { ensureBackupTrigger_(); } catch (e) {} }
+
+  p.setProperty('SETUP_COMPLETE', 'true');
+  auditLog_(ss, 'SETUP_COMPLETED', actor, companyName, '', '');
+  return { status: 'success', companyName: companyName };
+}
+
+// Replaces one CONFIG column wholesale, leaving every other column untouched
+// (CONFIG packs unrelated lists side by side, so a whole-sheet write would
+// destroy trucks, min-stock levels and the archive cutoff).
+function writeConfigColumn_(cfg, colIdx, values) {
+  values = (values || []).map(function(v){ return String(v || '').trim(); })
+                         .filter(function(v){ return v; });
+  var lastRow = cfg.getLastRow();
+  if (lastRow > 1) cfg.getRange(2, colIdx + 1, lastRow - 1, 1).clearContent();
+  if (!values.length) return;
+  var needed = values.length + 1;
+  if (cfg.getMaxRows() < needed) cfg.insertRowsAfter(cfg.getMaxRows(), needed - cfg.getMaxRows());
+  cfg.getRange(2, colIdx + 1, values.length, 1)
+     .setValues(values.map(function(v){ return [sheetSafe_(v)]; }));
+}
+
 // ─── ROUTING ─────────────────────────────────────────────────────────────────
 function doGet(e) {
   // OAuth popup callback: Google redirects here with ?code=...&state=... after a
@@ -65,7 +236,7 @@ function doGet(e) {
     return handleOAuthCallback_(e.parameter.code, e.parameter.state);
   }
   return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('OX Glass Co. — WMS v3.0')
+    .setTitle((companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -123,7 +294,7 @@ function getPrivateFileData(fileId, token) {
 // Walks up a file's parent folders looking for the app's own root folder by
 // name. Name-based rather than ID-based because getOrCreateFolder_() caches a
 // separate Script Property per full subfolder path (e.g. one for
-// "OX_WMS_v3_Docs/RackPhotos/A1A"), so there's no single cached ID for the bare
+// "<prefix>_Docs/RackPhotos/A1A"), so there's no single cached ID for the bare
 // root to compare against — walking up and checking the name is simpler and
 // just as safe, since nothing in the upload path lets a caller choose where a
 // file gets created.
@@ -132,14 +303,14 @@ function isFileWithinAppFolder_(file) {
   var depth = 0;
   while (folders.hasNext() && depth < 8) {
     var folder = folders.next();
-    if (folder.getName() === 'OX_WMS_v3_Docs') return true;
+    if (folder.getName() === docsFolderName_()) return true;
     folders = folder.getParents();
     depth++;
   }
   return false;
 }
 
-// ─── GOOGLE SIGN-IN (hybrid, for non @ox-glass.com users) ─────────────────────
+// ─── GOOGLE SIGN-IN (hybrid, for users outside the company's Workspace) ──────
 // Company users are identified automatically via Session.getActiveUser() (same
 // Workspace domain). Everyone else signs in with Google once: the popup runs the
 // OAuth code flow, we exchange the code server-side for a VERIFIED email, then
@@ -267,7 +438,7 @@ function pollLogin(state) {
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 // Deployment REQUIRED: "Execute as: Me (owner)" + "Who has access: Anyone with a
 // Google account". This is essential for the hybrid login:
-//   • Company users (@ox-glass.com) are auto-detected via Session.getActiveUser().
+//   • Company users (same Workspace domain) are auto-detected via getActiveUser().
 //   • Non-org users sign in with Google; the OAuth callback + sheet reads run as
 //     the owner, so those users never need direct access to the spreadsheet.
 //
@@ -345,7 +516,7 @@ function requireOwnerContext_() {
 
 function getUserRole(sessionToken) {
   var email = '';
-  // 1. Company users (@ox-glass.com, same Workspace) → identified automatically.
+  // 1. Company users (same Workspace domain) → identified automatically.
   //    NOTE: do NOT fall back to getEffectiveUser() — under "Execute as: Me" that
   //    always returns the OWNER, so it would mis-identify every external user as
   //    the owner. getActiveUser() correctly returns '' for non-domain accounts.
@@ -428,7 +599,7 @@ function loadConfig() {
     }
     if (row[13] && i === 1) c.archiveCutoffMonths = Number(row[13]) || 12;
   }
-  if (!c.adminEmail) c.adminEmail = 'jose@ox-glass.com';
+  
   if (!c.archiveCutoffMonths) c.archiveCutoffMonths = 12;
   return c;
 }
@@ -505,13 +676,13 @@ function getInitialData(sessionToken) {
     if (auth.role === 'NO_SESSION') {
       var oc = oauthCfg_();
       return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION',
-               serverVersion: APP_VERSION,
+               serverVersion: APP_VERSION, company: publicCompany_(),
                oauthClientId: oc.clientId, oauthRedirectUri: redirectUri_() };
     }
     // Authenticated but not registered in CONFIG
     if (auth.role === 'DENIED') {
       return { accessStatus: 'DENIED', userEmail: auth.email, userRole: 'DENIED',
-               serverVersion: APP_VERSION };
+               serverVersion: APP_VERSION, company: publicCompany_() };
     }
 
     var ss       = SpreadsheetApp.getActiveSpreadsheet();
@@ -583,6 +754,7 @@ function getInitialData(sessionToken) {
 
     return {
       serverVersion:      APP_VERSION,
+      company:            publicCompany_(),
       movements:          movements,
       stock:              stock,
       config:             config,
@@ -1475,13 +1647,13 @@ function sendBatchNotifyEmail_(notify, rowMeta, auth) {
              (m.dest || m.src ? ' → ' + (m.dest || m.src) : '');
     }).join('\n');
     msgBody = 'Hi,\n\nThe following materials were received today and are now in our warehouse:\n' +
-              lines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+              lines + '\n\nLet us know if you need anything.\n\n' + (companySettings_().name || 'Warehouse') + ' — Warehouse Team';
   }
 
   // ── Send: first = TO, rest = CC ──────────────────────────────────────────
   var to  = valid[0];
   var cc  = valid.slice(1).join(',');   // '' if only one recipient
-  var opts = { name: 'OX Glass Co. — Warehouse', replyTo: auth.email };
+  var opts = { name: (companySettings_().name || 'Warehouse') + ' — Warehouse', replyTo: auth.email };
   if (cc) opts.cc = cc;
   MailApp.sendEmail(to, subject, msgBody, opts);
   return null;
@@ -1831,11 +2003,11 @@ function ensureArchiveTrigger_() {
 //
 // Restoring is intentionally NOT automated. An automated "restore" that can
 // overwrite the live spreadsheet is itself a way to destroy real data with one
-// wrong click. To recover: open the dated copy in the OX_WMS_v3_Backups Drive
+// wrong click. To recover: open the dated copy in the backups Drive
 // folder, and either copy the needed rows back by hand, or promote that whole
 // file to be the new live spreadsheet (Extensions → Apps Script in the copy is
 // already bound and ready — just needs deploying).
-var BACKUP_FOLDER_NAME    = 'OX_WMS_v3_Backups';
+
 var BACKUP_RETENTION_DAYS = 30;   // tune down if Drive storage becomes a concern
 
 function dailyBackupTrigger() {
@@ -1849,7 +2021,7 @@ function dailyBackupTrigger() {
 function runBackupNow_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   try {
-    var folder   = getOrCreateFolder_(BACKUP_FOLDER_NAME);
+    var folder   = getOrCreateFolder_(backupFolderName_());
     var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
     var copyName = ss.getName() + ' — Backup ' + stamp;
 
@@ -1880,8 +2052,8 @@ function runBackupNow_() {
     // thing to watch for the PM/admin notification emails elsewhere.
     try {
       var cfg = loadConfig();
-      MailApp.sendEmail(cfg.adminEmail || Session.getEffectiveUser().getEmail(),
-        '⚠ OX WMS — Daily backup failed',
+      MailApp.sendEmail(adminNotifyEmail_(),
+        '⚠ ' + PRODUCT_NAME + ' — Daily backup failed',
         'The automatic daily backup did not complete: ' + e.message +
         '\n\nCheck Settings → Error Log in the app, or the Executions log in the Apps Script editor.');
     } catch (e2) { /* don't let a failed alert mask the original failure */ }
@@ -2238,11 +2410,11 @@ function sendPmGroupedEmails_(rows, auth) {
     if (!email) { unmatched.push(group.displayName); return; }
     var lines = group.items.map(function(it){ return '  • ' + it.qty + ' ' + it.unit + '(s) of ' + it.name; }).join('\n');
     var body = 'Hi ' + group.displayName + ',\n\nThe following materials were received today for your project(s):\n\n' +
-      lines + '\n\nLet us know if you need anything.\n\nOX Glass Co. — Warehouse Team';
+      lines + '\n\nLet us know if you need anything.\n\n' + (companySettings_().name || 'Warehouse') + ' — Warehouse Team';
     try {
       MailApp.sendEmail(email,
         'Materials Received' + (group.items.length > 1 ? ' (' + group.items.length + ' items)' : ''),
-        body, { name: 'OX Glass Co. — WMS', replyTo: auth.email });
+        body, { name: (companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME, replyTo: auth.email });
       sent++;
     } catch (e) {
       unmatched.push(group.displayName + ' (send failed: ' + e.message + ')');
@@ -2510,7 +2682,7 @@ function uploadRackPhoto(data, auth) {
   if (!data.fileData) throw new Error('No photo provided.');
 
   var safe   = loc.replace(/[\/\\?%*:|"<>]/g, '_');
-  var folder = getOrCreateFolder_('OX_WMS_v3_Docs/RackPhotos/' + safe);
+  var folder = getOrCreateFolder_(docsFolderName_() + '/RackPhotos/' + safe);
   var bytes  = Utilities.base64Decode(data.fileData);
   var blob   = Utilities.newBlob(bytes, data.fileMimeType || 'image/jpeg', safe + '.jpg');
   var file   = folder.createFile(blob);
@@ -2580,7 +2752,7 @@ function richTextForDocLinks_(text) {
 function uploadFiles_(files, materialName, po) {
   // NOTE: no try/catch — errors propagate to caller (_addMovement / updateDocument_)
   var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
-  var folder = getOrCreateFolder_('OX_WMS_v3_Docs/' + safe);
+  var folder = getOrCreateFolder_(docsFolderName_() + '/' + safe);
   var links  = [];
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
@@ -2661,7 +2833,7 @@ function checkDuplicateMovement_(archive, mt, cat, name, qty, userEmail) {
 //
 function uploadDocGroups_(docGroups, materialName) {
   var safe   = (materialName || 'General').replace(/[\/\\?%*:|"<>]/g, '_');
-  var folder = getOrCreateFolder_('OX_WMS_v3_Docs/' + safe);
+  var folder = getOrCreateFolder_(docsFolderName_() + '/' + safe);
   var links  = [];
 
   for (var i = 0; i < docGroups.length; i++) {
@@ -3197,7 +3369,7 @@ function reportIssue(data) {
   if (photos.length) {
     var stamp  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
     var safeBy = auth.email.replace(/[^a-zA-Z0-9]/g, '_');
-    var folder = getOrCreateFolder_('OX_WMS_v3_Feedback/' + stamp + '_' + safeBy);
+    var folder = getOrCreateFolder_(feedbackFolderName_() + '/' + stamp + '_' + safeBy);
     for (var i = 0; i < photos.length; i++) {
       var p = photos[i];
       if (!p || !p.fileData) continue;
@@ -3222,7 +3394,7 @@ function reportIssue(data) {
 
   MailApp.sendEmail({
     to: toEmail,
-    subject: '🐞 OX WMS — problem reported by ' + auth.email,
+    subject: '🐞 ' + PRODUCT_NAME + ' — problem reported by ' + auth.email,
     body: body,
     attachments: attachments
   });
@@ -3238,7 +3410,7 @@ function reportIssue(data) {
 function checkNotifications_(ss, data, moveType, qty, userEmail) {
   try {
     var cfg       = loadConfig();
-    var recipient = cfg.adminEmail || 'jose@ox-glass.com';
+    var recipient = adminNotifyEmail_();
     var name      = String(data.name || '');
 
     if (moveType === 'WASTE') {
@@ -3250,7 +3422,7 @@ function checkNotifications_(ss, data, moveType, qty, userEmail) {
         '\nReason: ' + (data.comments  || 'No reason provided') +
         '\nFrom: '   + (data.sourceLoc || 'N/A') +
         '\nBy: '     + userEmail,
-        { name: 'OX Glass Co. — WMS', replyTo: userEmail }
+        { name: (companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME, replyTo: userEmail }
       );
     }
   } catch (e) {
@@ -3269,7 +3441,7 @@ function checkNotifications_(ss, data, moveType, qty, userEmail) {
 // ─── CUSTOM MENU ─────────────────────────────────────────────────────────────
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🏭 OX WMS v3')
+    .createMenu('🏭 ' + PRODUCT_NAME)
     .addItem('Run Reconciliation', 'menuReconcile')
     .addItem('Open WMS App',       'menuOpenApp')
     .addSeparator()
@@ -3309,7 +3481,7 @@ function onOpen() {
 // URL never changes — making it a "push this update live" button that skips the
 // Deploy dialog. Customer onboarding uses the manual Deploy walkthrough in
 // docs/INSTALL-GUIDE.md instead.
-var _WEBAPP_DEPLOYMENT_MARKER = 'OX WMS Web App';
+var _WEBAPP_DEPLOYMENT_MARKER = PRODUCT_NAME + ' Web App';
 
 function menuActivateWebApp() {
   var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
@@ -3349,9 +3521,9 @@ function selfActivateWebApp_() {
     if (entryPoints[i].webApp) {
       var url = entryPoints[i].webApp.url;
       try {
-        MailApp.sendEmail(Session.getActiveUser().getEmail(), '✅ Your OX WMS is ready',
+        MailApp.sendEmail(Session.getActiveUser().getEmail(), '✅ Your ' + PRODUCT_NAME + ' system is ready',
           'Your warehouse system is live at:\n\n' + url +
-          '\n\nBookmark it — it is also always available from the Google Sheet menu: 🏭 OX WMS v3 → Open WMS App.');
+          '\n\nBookmark it — it is also always available from the Google Sheet menu: 🏭 ' + PRODUCT_NAME + ' → Open WMS App.');
       } catch (e2) { /* email is a nicety — never block activation on it failing */ }
       return url;
     }
@@ -3405,7 +3577,7 @@ function menuRunBackupNow() {
     'the automatic one — so click it before anything risky (a bulk import, a big edit).' +
     '\n\nSeparately, an automatic backup runs every night at 2am. Copies are kept for ' +
     BACKUP_RETENTION_DAYS + ' days, then deleted, in a Drive folder called "' +
-    BACKUP_FOLDER_NAME + '". The nightly schedule is already set — you never need to ' +
+    backupFolderName_() + '". The nightly schedule is already set — you never need to ' +
     'come back here just to keep it running.');
 }
 
@@ -3416,7 +3588,7 @@ function menuRunBackupNow() {
 // This menu item is what actually closes the exposure on those existing files.
 //
 // Safe to run more than once: an already-private file is left alone (a cheap
-// check, not a rewrite), so if a large OX_WMS_v3_Docs folder makes one run hit
+// check, not a rewrite), so if a large documents folder makes one run hit
 // Apps Script's 6-minute execution cap, just run it again from the menu — it
 // picks up wherever Drive's folder iterator continues, at negligible extra cost
 // for files already fixed.
@@ -3431,7 +3603,7 @@ function menuRevokePublicSharing() {
   // to clean, and those are all on the broad scope.
   var roots;
   try {
-    roots = DriveApp.getFoldersByName('OX_WMS_v3_Docs');
+    roots = DriveApp.getFoldersByName(docsFolderName_());
   } catch (e) {
     ui.alert('Nothing to do.\n\nThis installation uses the restricted Drive permission ' +
              '(drive.file), which means its files were never publicly shared — there is ' +
@@ -3439,7 +3611,7 @@ function menuRevokePublicSharing() {
     return;
   }
   if (!roots.hasNext()) {
-    ui.alert('No OX_WMS_v3_Docs folder found in Drive — nothing to clean up.');
+    ui.alert('No ' + docsFolderName_() + ' folder found in Drive — nothing to clean up.');
     return;
   }
 
@@ -3474,7 +3646,7 @@ function menuRevokePublicSharing() {
             (failed ? ' ' + failed + ' could not be changed — see Executions log.' : '');
   msg += timedOut
     ? '\n\n⏱ Stopped early to stay under the 6-minute limit. Run this menu item again to continue — files already made private are skipped quickly.'
-    : '\n\n✓ Done. Nothing under OX_WMS_v3_Docs is publicly shared anymore.';
+    : '\n\n✓ Done. Nothing under ' + docsFolderName_() + ' is publicly shared anymore.';
   ui.alert(msg);
 }
 
@@ -4198,13 +4370,13 @@ function modifyMovement(data, auth) {
 
   // Email admin
   var cfg       = loadConfig();
-  var recipient = cfg.adminEmail || 'jose@ox-glass.com';
+  var recipient = adminNotifyEmail_();
   var matLabel  = String(rowVals[AC.CATEGORY] || '') + ' — ' + String(rowVals[AC.NAME] || '');
   var moveType  = String(rowVals[AC.MOVETYPE] || '');
   var now       = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
 
   var body =
-    'A movement record was modified in OX Glass WMS.\n\n' +
+    'A movement record was modified in ' + (companySettings_().name || 'the warehouse system') + '.\n\n' +
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
     'WHO:   ' + auth.email + '\n' +
     'WHEN:  ' + now + '\n' +
@@ -4222,7 +4394,7 @@ function modifyMovement(data, auth) {
     recipient,
     '✏️ WMS — Movement Modified: Row #' + rowIdx + ' by ' + auth.email,
     body,
-    { name: 'OX Glass Co. — WMS' }
+    { name: (companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME }
   );
 
   return { status: 'success', changes: changes.length };
@@ -4233,7 +4405,7 @@ function modifyMovement(data, auth) {
 function diagnoseApp_() {
   // Editor-only: it dumps config and row counts to the log.
   setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Diagnostics' });
-  Logger.log('=== OX Glass WMS Diagnostic ===');
+  Logger.log('=== ' + PRODUCT_NAME + ' Diagnostic ===');
   try {
     Logger.log('1. getUserRole...');
     var auth = getUserRole();
