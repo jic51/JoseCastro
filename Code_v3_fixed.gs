@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.26';
+var APP_VERSION = '9.27';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1504,6 +1504,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'getSettings')    return getSettings(auth);
   if (action === 'updateConfig')   return updateConfig(data, auth);
   if (action === 'mergeConfigValues') return mergeConfigValues(data, auth);
+  if (action === 'saveLocationLayout') return saveLocationLayout(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -4622,8 +4623,55 @@ function getSettings(auth) {
     projects:   c.projects,
     suppliers:  c.suppliers,
     locations:  c.locations.map(function(l){ return l.name; }),
+    // Kept alongside the flat name list rather than replacing it: rename and
+    // delete address locations by name, and the Locations tab needs the type to
+    // group them. Order of `locations` is the order stored in CONFIG, which is
+    // what the drag-to-reorder screen writes back.
+    locationTypes: (function(){
+      var m = {};
+      c.locations.forEach(function(l){ m[l.name] = l.type || 'RACK'; });
+      return m;
+    })(),
     archiveCutoffMonths: c.archiveCutoffMonths
   };
+}
+
+// Writes the Locations column and its Type column back in one go, in the exact
+// order given. Order carries meaning here — it is what the drag-to-reorder
+// screen produces — so both columns are rewritten together rather than patched
+// cell by cell, which is also what compacts the gaps that `delete` leaves
+// behind (it blanks a cell in place rather than closing the row up).
+//
+// Types are free text: a business with carts, offices and a showroom should be
+// able to name those groups itself instead of picking from a list we guessed.
+// Nothing downstream branches on the value — grouping is presentation only, and
+// every location still counts toward stock exactly as before.
+function saveLocationLayout(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var list = data && data.locations;
+  if (!Array.isArray(list)) throw new Error('No locations provided.');
+
+  var names = [], types = [], seen = {};
+  for (var i = 0; i < list.length; i++) {
+    var n = String((list[i] && list[i].name) || '').trim();
+    if (!n) continue;
+    var key = n.toUpperCase();
+    if (seen[key]) continue;                       // never write the same location twice
+    seen[key] = 1;
+    names.push(n);
+    types.push(String((list[i] && list[i].type) || 'RACK').trim().toUpperCase() || 'RACK');
+  }
+  if (!names.length) throw new Error('At least one location is required.');
+
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg) throw new Error('CONFIG sheet not found.');
+
+  writeConfigColumn_(cfg, 3, names);
+  writeConfigColumn_(cfg, 4, types);
+
+  auditLog_(ss, 'UPDATE_CONFIG', auth.email, 'locations', 'reorder', names.length + ' location(s)');
+  return { status: 'success', count: names.length };
 }
 
 // data.type  : 'categories' | 'projects' | 'suppliers' | 'locations'

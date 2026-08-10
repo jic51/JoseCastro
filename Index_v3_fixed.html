@@ -735,6 +735,27 @@
     .cfg-card-add:disabled{opacity:.6;cursor:default}
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
     @media (max-width:640px){.cfg-deck{right:16px;bottom:72px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
+    /* Manual merge picker */
+    .cfg-pick{margin-right:.5rem;flex-shrink:0;cursor:pointer}
+    .cfg-pickbar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:8px;padding:.5rem .7rem;margin-bottom:.75rem}
+    .cfg-pickbar.show{display:flex}
+    .cfg-pick-count{font-size:.78rem;font-weight:700}
+    .cfg-pickbar select{font-size:.8rem;padding:.25rem .4rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:220px}
+    /* Locations grouped by type, drag to reorder */
+    .loc-groups{display:flex;flex-direction:column;gap:.75rem}
+    .loc-group{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+    .loc-group-hdr{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:var(--bg);border-bottom:1px solid var(--border)}
+    .loc-group-name{font-size:.78rem;font-weight:800;color:var(--text);letter-spacing:.03em}
+    .loc-group-count{font-size:.68rem;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0 .45rem}
+    .loc-group-hdr .cfg-btn{margin-left:auto}
+    .loc-list{list-style:none;margin:0;padding:.4rem;min-height:44px;display:flex;flex-wrap:wrap;gap:.35rem}
+    .loc-list.drop-target{background:rgba(59,125,216,.10);outline:2px dashed var(--accent);outline-offset:-4px}
+    .loc-item{display:flex;align-items:center;gap:.35rem;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.3rem .55rem;font-size:.78rem;color:var(--text);cursor:grab}
+    .loc-item.dragging{opacity:.4}
+    .loc-grip{color:var(--muted);font-size:.85rem;line-height:1}
+    .loc-empty{color:var(--muted);font-size:.75rem;padding:.35rem .5rem;font-style:italic}
+    .loc-savebar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem .75rem;margin-top:.75rem;font-size:.8rem}
+    .loc-savebar.show{display:flex}
     /* Possible-duplicate groups in Settings → Projects / Suppliers */
     .sim-box{background:var(--yellow-bg,#FEF9C3);border:1px solid #FDE68A;border-radius:10px;padding:.75rem .85rem;margin-bottom:1rem}
     [data-theme="dark"] .sim-box{background:#3B2F0B;border-color:#6B5B16}
@@ -1909,7 +1930,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.26';
+var APP_VERSION = '9.27';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5268,7 +5289,10 @@ function _loadSettings() {
       // address entries by their INDEX in this array, so sorting a display copy
       // would have them act on the wrong row. Sorting the source keeps the two
       // in step. localeCompare so accented names land where a person expects.
-      ['categories', 'projects', 'suppliers', 'locations'].forEach(function(k){
+      // Locations are deliberately absent: their order is arranged by hand on
+      // the Locations tab and stored in CONFIG, so sorting here would throw
+      // that away on every load. That tab offers "Sort A–Z" per group instead.
+      ['categories', 'projects', 'suppliers'].forEach(function(k){
         if (Array.isArray(_settingsData[k])) {
           _settingsData[k].sort(function(a, b){
             return String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
@@ -5535,12 +5559,21 @@ function _renderSettingsTab(tab) {
   if (tab === 'system')      { _renderSystemTab(); return; }
   if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
   if (tab === 'import')      { _renderImportTab(); return; }
+  if (tab === 'locations')   { _renderLocationsTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
 
+  var mergeable = (tab === 'projects' || tab === 'suppliers');
+
   var rows = items.map(function(v, i) {
     return '<li class="cfg-item" data-idx="'+i+'" data-val="'+_he(v)+'">' +
+      // Manual pairing for the duplicates the detector deliberately won't
+      // guess at — abbreviations like "CLIFTONBUILDING H" vs
+      // "CLIFTONPLACEBLDNGH". Catching those automatically would need matching
+      // loose enough to also group genuinely different jobs, and a wrong merge
+      // rewrites history, so the judgement stays with a person.
+      (mergeable ? '<input type="checkbox" class="cfg-pick" data-val="'+_he(v)+'" title="Select to merge">' : '') +
       '<span class="cfg-item-name" id="cfgName-'+tab+'-'+i+'">'+v+'</span>' +
       '<div id="cfgEdit-'+tab+'-'+i+'" style="display:none;flex:1;display:none;gap:.35rem;align-items:center">' +
         '<input class="cfg-item-input" id="cfgInp-'+tab+'-'+i+'" value="'+_he(v)+'">' +
@@ -5553,14 +5586,273 @@ function _renderSettingsTab(tab) {
   }).join('');
 
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. Renaming a category updates all existing movements automatically.</p>' +
-    (tab === 'projects' || tab === 'suppliers' ? _renderSimilarGroups(tab, items, label) : '') +
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. Renaming a category updates all existing movements automatically.' +
+      (mergeable ? ' Tick two or more to merge them by hand.' : '') + '</p>' +
+    (mergeable ? _renderSimilarGroups(tab, items, label) : '') +
+    (mergeable ? '<div class="cfg-pickbar" id="cfgPickBar"></div>' : '') +
     '<ul class="cfg-list">'+rows+'</ul>' +
     '<div class="cfg-add-row">' +
       '<input type="text" id="cfgNewVal" placeholder="New '+label+' name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\''+tab+'\')">' +
       '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\''+tab+'\')">+ Add</button>' +
     '</div>';
-  if (tab === 'projects' || tab === 'suppliers') _wireSimilarGroups(tab);
+  if (mergeable) { _wireSimilarGroups(tab); _wireManualMerge(tab, label); }
+}
+
+// ── Locations, grouped by type ───────────────────────────────────────────────
+// A vertical rack, a whole warehouse room, an office and a rolling cart are not
+// the same kind of place, and they were all in one flat list. Types are free
+// text so a business names its own groups; grouping is presentation only —
+// nothing branches on the type and every location still counts toward stock
+// exactly as before.
+//
+// Order is meaningful here and is stored as the row order in CONFIG, so this
+// tab is NOT alphabetised at load the way the other catalogs are. "Sort A–Z"
+// per group is offered instead, since a suggested order is useful but should
+// not overwrite one somebody arranged on purpose.
+var _locLayout = [];        // [{name, type}] in display order
+var _locDragFrom = null;
+
+function _locTypesInOrder(){
+  var seen = {}, out = [];
+  _locLayout.forEach(function(l){
+    var t = l.type || 'RACK';
+    if (!seen[t]) { seen[t] = 1; out.push(t); }
+  });
+  return out;
+}
+
+function _renderLocationsTab(){
+  var content = document.getElementById('settingsTabContent');
+  var names = _settingsData.locations || [];
+  var types = _settingsData.locationTypes || {};
+  _locLayout = names.map(function(n){ return { name: n, type: (types[n] || 'RACK') }; });
+
+  var groups = _locTypesInOrder();
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' +
+      'Group your locations by kind — racks, carts, offices, whatever fits your building — and drag to reorder. ' +
+      'Dragging a location into another group changes its kind. Grouping is for organising only: every location still counts toward stock.' +
+      '<br><b>Drag and drop needs a mouse</b> — on a phone this list is read-only for now.' +
+    '</p>' +
+    '<div class="loc-groups" id="locGroups">' +
+      groups.map(_renderLocGroup).join('') +
+    '</div>' +
+    '<div class="cfg-add-row" style="margin-top:.75rem">' +
+      '<input type="text" id="locNewGroup" placeholder="New group name (e.g. CARTS)" ' +
+        'onkeydown="if(event.key===\'Enter\')_locAddGroup()">' +
+      '<button class="btn btn-ghost btn-sm" onclick="_locAddGroup()">+ Add group</button>' +
+    '</div>' +
+    '<div class="cfg-add-row">' +
+      '<input type="text" id="cfgNewVal" placeholder="New Location name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\'locations\')">' +
+      '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\'locations\')">+ Add</button>' +
+    '</div>' +
+    '<div id="locSaveBar" class="loc-savebar"></div>';
+  _wireLocDnD();
+}
+
+function _renderLocGroup(type){
+  var items = _locLayout.filter(function(l){ return (l.type || 'RACK') === type; });
+  return '<div class="loc-group" data-type="' + _he(type) + '">' +
+    '<div class="loc-group-hdr">' +
+      '<span class="loc-group-name">' + _he(type) + '</span>' +
+      '<span class="loc-group-count">' + items.length + '</span>' +
+      '<button class="cfg-btn" title="Sort this group A–Z" onclick="_locSortGroup(\'' + _he(type) + '\')">A–Z</button>' +
+    '</div>' +
+    '<ul class="loc-list" data-type="' + _he(type) + '">' +
+      (items.length
+        ? items.map(function(l){
+            return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
+              '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span></li>';
+          }).join('')
+        : '<li class="loc-empty">Drop a location here</li>') +
+    '</ul></div>';
+}
+
+function _locAddGroup(){
+  var inp = document.getElementById('locNewGroup');
+  var v = (inp ? inp.value : '').trim().toUpperCase();
+  if (!v) { if (inp) inp.focus(); return; }
+  if (_locTypesInOrder().indexOf(v) !== -1) { showToast('That group already exists.', 'warn'); return; }
+  // An empty group has nothing to store — CONFIG holds a type per LOCATION, not
+  // a list of types — so it is kept on screen until something is dragged in.
+  var box = document.getElementById('locGroups');
+  if (box) box.insertAdjacentHTML('beforeend', _renderLocGroup(v));
+  if (inp) inp.value = '';
+  _wireLocDnD();
+}
+
+function _locSortGroup(type){
+  var rest = _locLayout.filter(function(l){ return (l.type || 'RACK') !== type; });
+  var mine = _locLayout.filter(function(l){ return (l.type || 'RACK') === type; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name, undefined, { sensitivity:'base', numeric:true }); });
+  // Rebuilt in group order so the other groups keep their positions.
+  var order = _locTypesInOrder(), out = [];
+  order.forEach(function(t){
+    (t === type ? mine : rest.filter(function(l){ return (l.type || 'RACK') === t; }))
+      .forEach(function(l){ out.push(l); });
+  });
+  _locLayout = out;
+  _redrawLocGroups();
+  _locMarkDirty();
+}
+
+function _redrawLocGroups(){
+  var box = document.getElementById('locGroups');
+  if (!box) return;
+  // Keeps groups the user just created but has not filled yet.
+  var onScreen = Array.prototype.map.call(box.querySelectorAll('.loc-group'),
+    function(g){ return g.getAttribute('data-type'); });
+  var types = _locTypesInOrder();
+  onScreen.forEach(function(t){ if (types.indexOf(t) === -1) types.push(t); });
+  box.innerHTML = types.map(_renderLocGroup).join('');
+  _wireLocDnD();
+}
+
+function _wireLocDnD(){
+  document.querySelectorAll('.loc-item').forEach(function(li){
+    li.addEventListener('dragstart', function(e){
+      _locDragFrom = li.getAttribute('data-name');
+      li.classList.add('dragging');
+      try { e.dataTransfer.setData('text/plain', _locDragFrom); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+    });
+    li.addEventListener('dragend', function(){ li.classList.remove('dragging'); });
+  });
+
+  document.querySelectorAll('.loc-list').forEach(function(ul){
+    ul.addEventListener('dragover', function(e){
+      e.preventDefault();
+      ul.classList.add('drop-target');
+    });
+    ul.addEventListener('dragleave', function(){ ul.classList.remove('drop-target'); });
+    ul.addEventListener('drop', function(e){
+      e.preventDefault();
+      ul.classList.remove('drop-target');
+      if (!_locDragFrom) return;
+      var newType = ul.getAttribute('data-type');
+
+      // Where in the list it landed, so dropping between two items keeps the
+      // position the pointer showed rather than always appending.
+      var after = null;
+      var overItem = e.target.closest ? e.target.closest('.loc-item') : null;
+      if (overItem) after = overItem.getAttribute('data-name');
+
+      var moving = null;
+      _locLayout = _locLayout.filter(function(l){
+        if (l.name === _locDragFrom) { moving = l; return false; }
+        return true;
+      });
+      if (!moving) { _locDragFrom = null; return; }
+      moving.type = newType;
+
+      if (after){
+        var idx = -1;
+        for (var i = 0; i < _locLayout.length; i++) if (_locLayout[i].name === after) { idx = i; break; }
+        if (idx === -1) _locLayout.push(moving); else _locLayout.splice(idx, 0, moving);
+      } else {
+        // Dropped on empty space: put it at the end of that group.
+        var lastIdx = -1;
+        for (var j = 0; j < _locLayout.length; j++) if ((_locLayout[j].type || 'RACK') === newType) lastIdx = j;
+        if (lastIdx === -1) _locLayout.push(moving); else _locLayout.splice(lastIdx + 1, 0, moving);
+      }
+      _locDragFrom = null;
+      _redrawLocGroups();
+      _locMarkDirty();
+    });
+  });
+}
+
+// Saved on an explicit click, not on every drop: reordering is fiddly, and
+// writing the whole column after each nudge would be both slow and impossible
+// to back out of mid-arrangement.
+function _locMarkDirty(){
+  var bar = document.getElementById('locSaveBar');
+  if (!bar || bar.dataset.dirty === '1') return;
+  bar.dataset.dirty = '1';
+  bar.innerHTML =
+    '<span>Layout changed — not saved yet.</span>' +
+    '<button class="btn btn-primary btn-sm" id="locSaveBtn">Save layout</button>' +
+    '<button class="btn btn-ghost btn-sm" onclick="_loadSettings()">Discard</button>';
+  bar.classList.add('show');
+  document.getElementById('locSaveBtn').addEventListener('click', function(){
+    var btn = this;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(){
+        showToast('Location layout saved ✓', 'ok');
+        bar.classList.remove('show'); bar.innerHTML = ''; bar.dataset.dirty = '0';
+        // Local mirror so other screens see the new types without a full reload.
+        _settingsData.locations     = _locLayout.map(function(l){ return l.name; });
+        _settingsData.locationTypes = {};
+        _locLayout.forEach(function(l){ _settingsData.locationTypes[l.name] = l.type; });
+        config.locations = _locLayout.map(function(l){ return { name: l.name, type: l.type }; });
+        refreshDropdowns();
+      })
+      .withFailureHandler(function(e){
+        btn.disabled = false; btn.textContent = 'Save layout';
+        showToast('Could not save: ' + (e.message || e), 'err', 6000);
+      })
+      .processMovement('saveLocationLayout', _h({ locations: _locLayout }));
+  });
+}
+
+// ── Manual merge ─────────────────────────────────────────────────────────────
+function _wireManualMerge(tab, label){
+  var bar = document.getElementById('cfgPickBar');
+  if (!bar) return;
+
+  function selected(){
+    return Array.prototype.map.call(
+      document.querySelectorAll('.cfg-pick:checked'),
+      function(cb){ return cb.getAttribute('data-val'); });
+  }
+
+  function draw(){
+    var sel = selected();
+    if (sel.length < 2){ bar.innerHTML = ''; bar.classList.remove('show'); return; }
+    bar.classList.add('show');
+    bar.innerHTML =
+      '<span class="cfg-pick-count">' + sel.length + ' selected — keep which name?</span>' +
+      '<select id="cfgPickKeep">' +
+        sel.map(function(v){ return '<option value="' + _he(v) + '">' + _he(v) + '</option>'; }).join('') +
+      '</select>' +
+      '<button class="btn btn-primary btn-sm" id="cfgPickMerge">Merge</button>' +
+      '<button class="btn btn-ghost btn-sm" id="cfgPickClear">Clear</button>';
+
+    document.getElementById('cfgPickClear').addEventListener('click', function(){
+      document.querySelectorAll('.cfg-pick:checked').forEach(function(cb){ cb.checked = false; });
+      draw();
+    });
+
+    document.getElementById('cfgPickMerge').addEventListener('click', function(){
+      var into = document.getElementById('cfgPickKeep').value;
+      var from = sel.filter(function(v){ return v !== into; });
+      var btn  = document.getElementById('cfgPickMerge');
+      _showConfirm({
+        icon: '🔀', title: 'Merge into "' + into + '"?',
+        message: from.join('\n') + '\n\nwill become "' + into + '" on every movement. ' +
+                 'This rewrites history and cannot be undone automatically.',
+        confirmText: 'Merge',
+        onConfirm: function(){
+          btn.disabled = true; btn.textContent = 'Merging…';
+          google.script.run
+            .withSuccessHandler(function(res){
+              showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
+              _applyMergeLocally(tab, from, into);
+              bar.innerHTML = ''; bar.classList.remove('show');
+            })
+            .withFailureHandler(function(e){
+              btn.disabled = false; btn.textContent = 'Merge';
+              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
+            })
+            .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll('.cfg-pick').forEach(function(cb){
+    cb.addEventListener('change', draw);
+  });
 }
 
 // ── Near-duplicate detection ─────────────────────────────────────────────────
