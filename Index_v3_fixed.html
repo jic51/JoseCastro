@@ -742,6 +742,21 @@
     .cfg-pick-count{font-size:.78rem;font-weight:700}
     .cfg-pickbar select{font-size:.8rem;padding:.25rem .4rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:220px}
     /* Locations grouped by type, drag to reorder */
+    .loc-toolbar{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem}
+    .loc-plus-wrap{position:relative;flex-shrink:0}
+    .loc-plus{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;font-family:inherit}
+    .loc-plus:hover{filter:brightness(1.1)}
+    .loc-plus-menu{display:none;position:absolute;right:0;top:100%;padding-top:4px;z-index:30;min-width:170px}
+    /* Opened on hover of the whole wrapper, and kept open while the pointer is
+       on the menu itself - hovering the button alone would close it the moment
+       the pointer travelled down toward a choice. */
+    .loc-plus-wrap:hover .loc-plus-menu,.loc-plus-menu:hover{display:block}
+    .loc-plus-menu button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:.8rem;font-family:inherit;padding:.5rem .7rem;cursor:pointer}
+    .loc-plus-menu button:first-child{border-radius:8px 8px 0 0}
+    .loc-plus-menu button:last-child{border-radius:0 0 8px 8px;border-top:none}
+    .loc-plus-menu button:hover{background:var(--bg)}
+    .loc-group-default .loc-group-hdr{background:#DBEAFE}
+    [data-theme="dark"] .loc-group-default .loc-group-hdr{background:#1E3A5F}
     .loc-groups{display:flex;flex-direction:column;gap:.75rem}
     .loc-group{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
     .loc-group-hdr{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:var(--bg);border-bottom:1px solid var(--border)}
@@ -754,6 +769,13 @@
     .loc-item.dragging{opacity:.4}
     .loc-grip{color:var(--muted);font-size:.85rem;line-height:1}
     .loc-empty{color:var(--muted);font-size:.75rem;padding:.35rem .5rem;font-style:italic}
+    .loc-group-archived{opacity:.85}
+    .loc-group-archived .loc-group-hdr{background:var(--bg)}
+    .loc-group-archived .loc-item{background:transparent;border-style:dashed;color:var(--muted)}
+    .loc-arch-note{font-size:.66rem;color:var(--muted);margin-left:.4rem}
+    .loc-arch-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 0 0 .2rem;line-height:1}
+    .loc-arch-btn:hover{color:var(--accent)}
+    .loc-pick{margin-right:.15rem;cursor:pointer}
     .loc-savebar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem .75rem;margin-top:.75rem;font-size:.8rem}
     .loc-savebar.show{display:flex}
     /* Possible-duplicate groups in Settings → Projects / Suppliers */
@@ -1930,7 +1952,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.27';
+var APP_VERSION = '9.29';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5611,13 +5633,29 @@ function _renderSettingsTab(tab) {
 // not overwrite one somebody arranged on purpose.
 var _locLayout = [];        // [{name, type}] in display order
 var _locDragFrom = null;
+var _locExtraGroups = [];   // groups created on screen but still empty
+// Every location belongs to a group; this is the one it belongs to when nobody
+// has said otherwise. It always exists, always sits first, and cannot be
+// renamed or deleted — deleting any other group empties into it, so a location
+// can never end up with nowhere to be.
+var LOC_DEFAULT_GROUP = 'ALL LOCATIONS';
+// Archiving instead of deleting: every movement that ever went into or out of a
+// location names it, so removing it would leave that history pointing at
+// nothing. An archived location keeps all its history and simply stops being
+// offered when recording new movements. Stored as a reserved group name, which
+// needs no schema change and makes restoring it a drag back out.
+var LOC_ARCHIVED_GROUP = 'ARCHIVED';
 
 function _locTypesInOrder(){
-  var seen = {}, out = [];
+  var seen = {}, out = [LOC_DEFAULT_GROUP];
+  seen[LOC_DEFAULT_GROUP] = 1;
+  seen[LOC_ARCHIVED_GROUP] = 1;          // pinned to the end below, never inline
   _locLayout.forEach(function(l){
-    var t = l.type || 'RACK';
+    var t = l.type || LOC_DEFAULT_GROUP;
     if (!seen[t]) { seen[t] = 1; out.push(t); }
   });
+  _locExtraGroups.forEach(function(t){ if (!seen[t]) { seen[t] = 1; out.push(t); } });
+  out.push(LOC_ARCHIVED_GROUP);
   return out;
 }
 
@@ -5625,70 +5663,157 @@ function _renderLocationsTab(){
   var content = document.getElementById('settingsTabContent');
   var names = _settingsData.locations || [];
   var types = _settingsData.locationTypes || {};
-  _locLayout = names.map(function(n){ return { name: n, type: (types[n] || 'RACK') }; });
+  _locLayout = names.map(function(n){ return { name: n, type: (types[n] || LOC_DEFAULT_GROUP) }; });
+  _locExtraGroups = [];
 
-  var groups = _locTypesInOrder();
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' +
-      'Group your locations by kind — racks, carts, offices, whatever fits your building — and drag to reorder. ' +
-      'Dragging a location into another group changes its kind. Grouping is for organising only: every location still counts toward stock.' +
-      '<br><b>Drag and drop needs a mouse</b> — on a phone this list is read-only for now.' +
-    '</p>' +
-    '<div class="loc-groups" id="locGroups">' +
-      groups.map(_renderLocGroup).join('') +
+    '<div class="loc-toolbar">' +
+      '<p style="font-size:.8rem;color:var(--muted);margin:0;flex:1">' +
+        'Drag a location into a group to file it there. Grouping is for organising only — every location still counts toward stock, ' +
+        'and the Warehouse Map shows these same groups.' +
+        '<br><b>Dragging needs a mouse</b> — on a phone this list is read-only for now.' +
+      '</p>' +
+      '<div class="loc-plus-wrap">' +
+        '<button class="loc-plus" id="locPlusBtn" title="Add">+</button>' +
+        '<div class="loc-plus-menu">' +
+          '<button onclick="_locShowNew(\'location\')">📍 Create location</button>' +
+          '<button onclick="_locShowNew(\'group\')">🗂 Create group</button>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
-    '<div class="cfg-add-row" style="margin-top:.75rem">' +
-      '<input type="text" id="locNewGroup" placeholder="New group name (e.g. CARTS)" ' +
-        'onkeydown="if(event.key===\'Enter\')_locAddGroup()">' +
-      '<button class="btn btn-ghost btn-sm" onclick="_locAddGroup()">+ Add group</button>' +
+    '<div id="locNewRow" class="cfg-add-row" style="display:none">' +
+      '<input type="text" id="locNewVal" placeholder="Name…" onkeydown="if(event.key===\'Enter\')_locCreate()">' +
+      '<button class="btn btn-primary btn-sm" onclick="_locCreate()">Create</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'locNewRow\').style.display=\'none\'">Cancel</button>' +
     '</div>' +
-    '<div class="cfg-add-row">' +
-      '<input type="text" id="cfgNewVal" placeholder="New Location name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\'locations\')">' +
-      '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\'locations\')">+ Add</button>' +
-    '</div>' +
+    '<div id="locMergeBar" class="cfg-pickbar"></div>' +
+    '<div class="loc-groups" id="locGroups"></div>' +
     '<div id="locSaveBar" class="loc-savebar"></div>';
-  _wireLocDnD();
+  _redrawLocGroups();
 }
 
 function _renderLocGroup(type){
-  var items = _locLayout.filter(function(l){ return (l.type || 'RACK') === type; });
-  return '<div class="loc-group" data-type="' + _he(type) + '">' +
+  var items = _locLayout.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) === type; });
+  var isDefault  = (type === LOC_DEFAULT_GROUP);
+  var isArchived = (type === LOC_ARCHIVED_GROUP);
+  var fixed = isDefault || isArchived;   // neither can be renamed or removed
+  if (isArchived && !items.length) return '';   // no empty archive box in the way
+
+  return '<div class="loc-group' + (isDefault ? ' loc-group-default' : '') +
+      (isArchived ? ' loc-group-archived' : '') + '" data-type="' + _he(type) + '">' +
     '<div class="loc-group-hdr">' +
-      '<span class="loc-group-name">' + _he(type) + '</span>' +
+      '<span class="loc-group-name">' + (isArchived ? '🗄 ' : '') + _he(type) + '</span>' +
       '<span class="loc-group-count">' + items.length + '</span>' +
-      '<button class="cfg-btn" title="Sort this group A–Z" onclick="_locSortGroup(\'' + _he(type) + '\')">A–Z</button>' +
+      (isArchived
+        ? '<span class="loc-arch-note">Kept for history — not offered on new movements. Drag out to restore.</span>'
+        : '<button class="cfg-btn" title="Sort this group A–Z" onclick="_locSortGroup(\'' + _he(type) + '\')">A–Z</button>') +
+      (fixed ? '' :
+        '<button class="cfg-btn" title="Rename group" onclick="_locRenameGroup(\'' + _he(type) + '\')">✏️</button>' +
+        '<button class="cfg-btn cfg-btn-danger" title="Delete group" onclick="_locDeleteGroup(\'' + _he(type) + '\')">🗑</button>') +
     '</div>' +
     '<ul class="loc-list" data-type="' + _he(type) + '">' +
       (items.length
         ? items.map(function(l){
             return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
-              '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span></li>';
+              '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to merge">' +
+              '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span>' +
+              '<button class="loc-arch-btn" title="' + (isArchived ? 'Restore' : 'Archive') + '" ' +
+                'onclick="_locToggleArchive(\'' + _he(l.name) + '\')">' + (isArchived ? '↩' : '🗄') + '</button>' +
+            '</li>';
           }).join('')
-        : '<li class="loc-empty">Drop a location here</li>') +
+        : '<li class="loc-empty">' + (isDefault ? 'Nothing unfiled' : 'Drop a location here') + '</li>') +
     '</ul></div>';
 }
 
-function _locAddGroup(){
-  var inp = document.getElementById('locNewGroup');
+// Archive / restore is a group move, so it goes through the same save as
+// everything else on this screen.
+function _locToggleArchive(name){
+  var entry = null;
+  _locLayout.forEach(function(l){ if (l.name === name) entry = l; });
+  if (!entry) return;
+  entry.type = (entry.type === LOC_ARCHIVED_GROUP) ? LOC_DEFAULT_GROUP : LOC_ARCHIVED_GROUP;
+  _redrawLocGroups();
+  _locMarkDirty();
+}
+
+var _locNewKind = 'location';
+function _locShowNew(kind){
+  _locNewKind = kind;
+  var row = document.getElementById('locNewRow');
+  var inp = document.getElementById('locNewVal');
+  if (!row || !inp) return;
+  row.style.display = 'flex';
+  inp.placeholder = (kind === 'group') ? 'Group name (e.g. CARTS)' : 'Location name (e.g. A1A)';
+  inp.value = '';
+  inp.focus();
+}
+
+function _locCreate(){
+  var inp = document.getElementById('locNewVal');
   var v = (inp ? inp.value : '').trim().toUpperCase();
   if (!v) { if (inp) inp.focus(); return; }
-  if (_locTypesInOrder().indexOf(v) !== -1) { showToast('That group already exists.', 'warn'); return; }
-  // An empty group has nothing to store — CONFIG holds a type per LOCATION, not
-  // a list of types — so it is kept on screen until something is dragged in.
-  var box = document.getElementById('locGroups');
-  if (box) box.insertAdjacentHTML('beforeend', _renderLocGroup(v));
-  if (inp) inp.value = '';
-  _wireLocDnD();
+
+  if (_locNewKind === 'group'){
+    if (v === LOC_ARCHIVED_GROUP) { showToast('That name is reserved for archived locations.', 'warn'); return; }
+    if (_locTypesInOrder().indexOf(v) !== -1) { showToast('That group already exists.', 'warn'); return; }
+    // A group with no members has nothing to store — CONFIG keeps a type per
+    // LOCATION, not a list of groups — so it lives on screen until something
+    // lands in it.
+    _locExtraGroups.push(v);
+  } else {
+    if (_locLayout.some(function(l){ return l.name.toUpperCase() === v; })) {
+      showToast('That location already exists.', 'warn'); return;
+    }
+    // New locations always start unfiled, then get dragged where they belong.
+    _locLayout.push({ name: v, type: LOC_DEFAULT_GROUP });
+    _locMarkDirty();
+  }
+  document.getElementById('locNewRow').style.display = 'none';
+  _redrawLocGroups();
+}
+
+function _locRenameGroup(type){
+  var next = prompt('Rename group "' + type + '" to:', type);
+  if (next === null) return;
+  next = String(next).trim().toUpperCase();
+  if (!next || next === type) return;
+  if (next === LOC_DEFAULT_GROUP || next === LOC_ARCHIVED_GROUP) { showToast('That name is reserved.', 'warn'); return; }
+  if (_locTypesInOrder().indexOf(next) !== -1) { showToast('That group already exists.', 'warn'); return; }
+  _locLayout.forEach(function(l){ if ((l.type || LOC_DEFAULT_GROUP) === type) l.type = next; });
+  _locExtraGroups = _locExtraGroups.map(function(t){ return t === type ? next : t; });
+  _redrawLocGroups();
+  _locMarkDirty();
+}
+
+function _locDeleteGroup(type){
+  var members = _locLayout.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) === type; });
+  _showConfirm({
+    icon: '🗂', title: 'Delete group "' + type + '"?',
+    message: members.length
+      ? members.length + ' location(s) will move back to ' + LOC_DEFAULT_GROUP + '. No location is deleted.'
+      : 'This group is empty.',
+    confirmText: 'Delete group',
+    danger: true,
+    onConfirm: function(){
+      // Only the grouping goes — the locations themselves are never touched,
+      // because a location is referenced by movement history and deleting one
+      // is a different decision entirely.
+      _locLayout.forEach(function(l){ if ((l.type || LOC_DEFAULT_GROUP) === type) l.type = LOC_DEFAULT_GROUP; });
+      _locExtraGroups = _locExtraGroups.filter(function(t){ return t !== type; });
+      _redrawLocGroups();
+      _locMarkDirty();
+    }
+  });
 }
 
 function _locSortGroup(type){
-  var rest = _locLayout.filter(function(l){ return (l.type || 'RACK') !== type; });
-  var mine = _locLayout.filter(function(l){ return (l.type || 'RACK') === type; })
+  var rest = _locLayout.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) !== type; });
+  var mine = _locLayout.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) === type; })
     .sort(function(a, b){ return a.name.localeCompare(b.name, undefined, { sensitivity:'base', numeric:true }); });
   // Rebuilt in group order so the other groups keep their positions.
   var order = _locTypesInOrder(), out = [];
   order.forEach(function(t){
-    (t === type ? mine : rest.filter(function(l){ return (l.type || 'RACK') === t; }))
+    (t === type ? mine : rest.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) === t; }))
       .forEach(function(l){ out.push(l); });
   });
   _locLayout = out;
@@ -5699,13 +5824,77 @@ function _locSortGroup(type){
 function _redrawLocGroups(){
   var box = document.getElementById('locGroups');
   if (!box) return;
-  // Keeps groups the user just created but has not filled yet.
-  var onScreen = Array.prototype.map.call(box.querySelectorAll('.loc-group'),
-    function(g){ return g.getAttribute('data-type'); });
-  var types = _locTypesInOrder();
-  onScreen.forEach(function(t){ if (types.indexOf(t) === -1) types.push(t); });
-  box.innerHTML = types.map(_renderLocGroup).join('');
+  box.innerHTML = _locTypesInOrder().map(_renderLocGroup).join('');
   _wireLocDnD();
+  _wireLocMerge();
+}
+
+// Merging locations, for the case archiving doesn't cover: the same shelf
+// entered under two spellings. Rewrites both the source and destination columns
+// of every movement, so nothing is left pointing at the name that goes away.
+function _wireLocMerge(){
+  var bar = document.getElementById('locMergeBar');
+  if (!bar) return;
+
+  function picked(){
+    return Array.prototype.map.call(document.querySelectorAll('.loc-pick:checked'),
+      function(cb){ return cb.getAttribute('data-name'); });
+  }
+
+  function draw(){
+    var sel = picked();
+    if (sel.length < 2){ bar.innerHTML = ''; bar.classList.remove('show'); return; }
+    bar.classList.add('show');
+    bar.innerHTML =
+      '<span class="cfg-pick-count">' + sel.length + ' selected — keep which one?</span>' +
+      '<select id="locMergeKeep">' +
+        sel.map(function(v){ return '<option value="' + _he(v) + '">' + _he(v) + '</option>'; }).join('') +
+      '</select>' +
+      '<button class="btn btn-primary btn-sm" id="locMergeBtn">Merge</button>' +
+      '<button class="btn btn-ghost btn-sm" id="locMergeClear">Clear</button>';
+
+    document.getElementById('locMergeClear').addEventListener('click', function(){
+      document.querySelectorAll('.loc-pick:checked').forEach(function(cb){ cb.checked = false; });
+      draw();
+    });
+
+    document.getElementById('locMergeBtn').addEventListener('click', function(){
+      var into = document.getElementById('locMergeKeep').value;
+      var from = sel.filter(function(v){ return v !== into; });
+      var btn  = document.getElementById('locMergeBtn');
+      _showConfirm({
+        icon: '🔀', title: 'Merge into "' + into + '"?',
+        message: from.join('\n') + '\n\nwill become "' + into + '" on every movement, both as a ' +
+                 'source and as a destination. This rewrites history and cannot be undone automatically.',
+        confirmText: 'Merge',
+        onConfirm: function(){
+          btn.disabled = true; btn.textContent = 'Merging…';
+          google.script.run
+            .withSuccessHandler(function(res){
+              showToast('Merged ✓ — ' + res.rowsChanged + ' entr(ies) updated.', 'ok', 5000);
+              var gone = {};
+              from.forEach(function(v){ gone[v.toUpperCase()] = 1; });
+              _locLayout = _locLayout.filter(function(l){ return !gone[l.name.toUpperCase()]; });
+              movements.forEach(function(m){
+                if (m.sourceLoc && gone[String(m.sourceLoc).toUpperCase()]) m.sourceLoc = into;
+                if (m.destLoc   && gone[String(m.destLoc).toUpperCase()])   m.destLoc   = into;
+              });
+              config.locations = (config.locations || []).filter(function(l){ return !gone[String(l.name).toUpperCase()]; });
+              bar.innerHTML = ''; bar.classList.remove('show');
+              _redrawLocGroups();
+              refreshDropdowns();
+            })
+            .withFailureHandler(function(e){
+              btn.disabled = false; btn.textContent = 'Merge';
+              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
+            })
+            .processMovement('mergeLocations', _h({ from: from, into: into }));
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll('.loc-pick').forEach(function(cb){ cb.addEventListener('change', draw); });
 }
 
 function _wireLocDnD(){
@@ -5751,7 +5940,7 @@ function _wireLocDnD(){
       } else {
         // Dropped on empty space: put it at the end of that group.
         var lastIdx = -1;
-        for (var j = 0; j < _locLayout.length; j++) if ((_locLayout[j].type || 'RACK') === newType) lastIdx = j;
+        for (var j = 0; j < _locLayout.length; j++) if ((_locLayout[j].type || LOC_DEFAULT_GROUP) === newType) lastIdx = j;
         if (lastIdx === -1) _locLayout.push(moving); else _locLayout.splice(lastIdx + 1, 0, moving);
       }
       _locDragFrom = null;
@@ -7394,7 +7583,11 @@ function refreshDropdowns(){
 
   var rd1 = document.getElementById('rackList'); rd1.innerHTML = '';
   var rd2 = document.getElementById('rackListDest'); rd2.innerHTML = '';
-  var rackNames = config.locations.map(function(l){ return l.name; });
+  // Archived locations keep all their history but stop being offered for NEW
+  // movements — that is the whole point of archiving rather than deleting.
+  var rackNames = config.locations
+    .filter(function(l){ return String(l.type || '').toUpperCase() !== 'ARCHIVED'; })
+    .map(function(l){ return l.name; });
   var rackSet   = Array.from(new Set(
     rackNames.concat(
       movements.map(function(m){ return m.sourceLoc; }).filter(Boolean),
@@ -7581,41 +7774,71 @@ function renderWarehouseMap(){
     '</div>';
   }
 
-  // Split into racks (grouped by letter → row) and special areas (by section)
-  var rackGroups = {};   // letter → { rowNum → [classified cells] }
-  var special    = { WAREHOUSES:[], BAYS:[], CARTS:[], OFFICE:[], OTHER:[] };
+  // Sections come from the groups the user built in Settings -> Locations,
+  // in the order they arranged them, instead of the app guessing from the name.
+  // Guessing produced sections nobody chose ("BAYS", "OTHER") and could not
+  // know that "IGU CART" belongs with the carts while "PM OFFICE" does not.
+  // Inside a section the existing layout logic is unchanged: rack-shaped names
+  // still fall into letter columns and numbered rows, everything else lands in
+  // a plain grid below them.
+  var groupOf = {}, groupOrder = [], seenGroup = {};
+  (config.locations || []).forEach(function(l){
+    var g = String(l.type || '').trim().toUpperCase() || 'ALL LOCATIONS';
+    groupOf[String(l.name || '').toUpperCase().trim()] = g;
+    if (!seenGroup[g]) { seenGroup[g] = 1; groupOrder.push(g); }
+  });
+  // Locations seen in stock but absent from CONFIG still have to appear.
+  var UNGROUPED = 'ALL LOCATIONS';
+  locs.forEach(function(n){ if (!groupOf[n]) groupOf[n] = UNGROUPED; });
+  if (!seenGroup[UNGROUPED] && locs.some(function(n){ return groupOf[n] === UNGROUPED; })) {
+    groupOrder.unshift(UNGROUPED);
+  }
+
+  var buckets = {};
   locs.forEach(function(n){
-    var c = _classifyLocation(n);
-    if (c.type === 'rack'){
-      (rackGroups[c.letter] = rackGroups[c.letter] || {});
-      (rackGroups[c.letter][c.row] = rackGroups[c.letter][c.row] || []).push(c);
-    } else {
-      (special[c.section] || special.OTHER).push(c);
-    }
+    var g = groupOf[n] || UNGROUPED;
+    (buckets[g] = buckets[g] || []).push(n);
   });
 
-  var html = '';
-
-  // Rack aisles (A, B, C…) rendered as side-by-side columns
-  var lettersHtml = Object.keys(rackGroups).sort(_letterSort).map(function(L){
-    var rowsHtml = Object.keys(rackGroups[L]).map(Number).sort(function(a,b){ return a-b; }).map(function(rn){
-      var rowCells = rackGroups[L][rn].sort(function(a,b){ return a.col < b.col ? -1 : 1; });
-      return '<div class="map-rack-row" style="grid-template-columns:repeat(' + rowCells.length + ',minmax(0,1fr))">' +
-        rowCells.map(function(c){ return cell(c.name); }).join('') + '</div>';
-    }).join('');
-    return '<div class="map-letter-col"><div class="map-letter-hdr">' + L + '</div>' + rowsHtml + '</div>';
-  }).join('');
-  html += '<div class="map-letters">' + lettersHtml + '</div>';
-
-  // Special areas, in fixed order with friendly titles
-  [['WAREHOUSES','Warehouses'], ['BAYS','Bays'], ['CARTS','Carts'], ['OFFICE','Office'], ['OTHER','Other Areas']]
-    .forEach(function(sec){
-      var arr = special[sec[0]];
-      if (!arr || !arr.length) return;
-      arr.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
-      html += '<div class="map-section-hdr">'+sec[1]+'</div>';
-      html += '<div class="map-special-grid">' + arr.map(function(c){ return cell(c.name); }).join('') + '</div>';
+  function sectionBody(names){
+    var rackGroups = {}, loose = [];
+    names.forEach(function(n){
+      var c = _classifyLocation(n);
+      if (c.type === 'rack'){
+        (rackGroups[c.letter] = rackGroups[c.letter] || {});
+        (rackGroups[c.letter][c.row] = rackGroups[c.letter][c.row] || []).push(c);
+      } else {
+        loose.push(c);
+      }
     });
+
+    var out = '';
+    var letters = Object.keys(rackGroups).sort(_letterSort);
+    if (letters.length){
+      out += '<div class="map-letters">' + letters.map(function(L){
+        var rowsHtml = Object.keys(rackGroups[L]).map(Number).sort(function(a,b){ return a-b; }).map(function(rn){
+          var rowCells = rackGroups[L][rn].sort(function(a,b){ return a.col < b.col ? -1 : 1; });
+          return '<div class="map-rack-row" style="grid-template-columns:repeat(' + rowCells.length + ',minmax(0,1fr))">' +
+            rowCells.map(function(c){ return cell(c.name); }).join('') + '</div>';
+        }).join('');
+        return '<div class="map-letter-col"><div class="map-letter-hdr">' + L + '</div>' + rowsHtml + '</div>';
+      }).join('') + '</div>';
+    }
+    if (loose.length){
+      loose.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
+      out += '<div class="map-special-grid">' + loose.map(function(c){ return cell(c.name); }).join('') + '</div>';
+    }
+    return out;
+  }
+
+  var html = '';
+  groupOrder.forEach(function(g){
+    var names = buckets[g];
+    if (!names || !names.length) return;
+    // A single unnamed bucket needs no heading; several groups do.
+    if (groupOrder.length > 1 || g !== UNGROUPED) html += '<div class="map-section-hdr">' + _he(g) + '</div>';
+    html += sectionBody(names);
+  });
 
   container.innerHTML = '<div class="wh-map">' + html + '</div>';
 }

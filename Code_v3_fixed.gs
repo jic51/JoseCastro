@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.27';
+var APP_VERSION = '9.29';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1505,6 +1505,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'updateConfig')   return updateConfig(data, auth);
   if (action === 'mergeConfigValues') return mergeConfigValues(data, auth);
   if (action === 'saveLocationLayout') return saveLocationLayout(data, auth);
+  if (action === 'mergeLocations')     return mergeLocations(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -4634,6 +4635,70 @@ function getSettings(auth) {
     })(),
     archiveCutoffMonths: c.archiveCutoffMonths
   };
+}
+
+// Folds one or more locations into another, everywhere they appear.
+//
+// A location cannot simply be deleted: every movement that ever went into or
+// out of it names it, so removing the row would leave that history pointing at
+// something that no longer exists. Two safe outcomes exist instead — archive
+// (stop offering it, keep the history readable) and merge, which is this. Use
+// it when a place was renamed or two spellings turned out to be one shelf.
+//
+// Rewrites BOTH location columns: a movement records where stock came FROM and
+// where it went TO, and a location can appear in either.
+//
+// data = { from: ['A1A','A1 A'], into: 'A1A' }
+function mergeLocations(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var into = String(data.into || '').trim();
+  if (!into) throw new Error('Pick the location to keep.');
+  var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
+                              .filter(function (v) { return v && v.toUpperCase() !== into.toUpperCase(); });
+  if (!from.length) throw new Error('Pick at least one other location to merge in.');
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var wanted = {};
+  from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
+
+  var rowsChanged = 0;
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (archive && archive.getLastRow() > 1) {
+    var n = archive.getLastRow() - 1;
+    [AC.SRC_LOC, AC.DEST_LOC].forEach(function (col) {
+      var range = archive.getRange(2, col + 1, n, 1);
+      var vals  = range.getValues();
+      var hit = 0;
+      for (var i = 0; i < vals.length; i++) {
+        var cur = String(vals[i][0] || '').trim();
+        if (cur && wanted[cur.toUpperCase()]) { vals[i][0] = sheetSafe_(into); hit++; }
+      }
+      if (hit) { range.setValues(vals); rowsChanged += hit; }
+    });
+  }
+
+  // Drop the merged-away names from CONFIG, keeping each surviving location
+  // with the group it was already filed under.
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (cfg) {
+    var rows = cfg.getDataRange().getValues();
+    var names = [], types = [], sawInto = false;
+    for (var r = 1; r < rows.length; r++) {
+      var nm = String(rows[r][3] || '').trim();
+      if (!nm) continue;
+      if (wanted[nm.toUpperCase()]) continue;
+      if (nm.toUpperCase() === into.toUpperCase()) sawInto = true;
+      names.push(nm);
+      types.push(String(rows[r][4] || 'RACK').trim().toUpperCase() || 'RACK');
+    }
+    if (!sawInto) { names.push(into); types.push('RACK'); }
+    writeConfigColumn_(cfg, 3, names);
+    writeConfigColumn_(cfg, 4, types);
+  }
+
+  refreshDerivedSheets_(ss);
+  auditLog_(ss, 'MERGE_LOCATIONS', auth.email, from.join(' + ') + ' → ' + into, String(rowsChanged) + ' cells', '');
+  return { status: 'success', rowsChanged: rowsChanged, into: into };
 }
 
 // Writes the Locations column and its Type column back in one go, in the exact
