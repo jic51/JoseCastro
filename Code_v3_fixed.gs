@@ -25,13 +25,15 @@
 // When adding a helper: end it with `_`. Only these are meant to be reachable
 // from the browser, and each authenticates for itself —
 //   doGet, getInitialData, processMovement, getPrivateFileData,
-//   heartbeat, pollLogin, reportIssue, extractDocumentInfo
+//   getPrivateFileThumbnail, heartbeat, pollLogin, reportIssue,
+//   extractDocumentInfo, getSetupState, saveSetupWizard, checkDeploymentReady,
+//   saveWebAppUrl
 // — plus the menu/trigger entry points, gated by getUi() / requireOwnerContext_().
 
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.1';
+var APP_VERSION = '9.23';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -225,6 +227,17 @@ function saveSetupWizard(data) {
   p.setProperty('COMPANY_NAME', companyName);
   p.setProperty('COMPANY_DOMAIN', String(data.companyDomain || '').trim().replace(/^@/, ''));
 
+  // The spreadsheet file itself still said "Untitled spreadsheet" or whatever
+  // the customer typed before running setup — fix that too, not just the data
+  // inside it. This does NOT change the Apps Script project's own name (the one
+  // shown on Google's "trust this app" screen) — that lives on the hidden
+  // per-copy Cloud project and can only be changed by hand in the Apps Script
+  // editor, which is why the publish step also tells them to do it there.
+  try {
+    var wanted = companyName + ' — ' + PRODUCT_NAME;
+    if (ss.getName() !== wanted) ss.rename(wanted);
+  } catch (e) {}
+
   // Only ever set once. Re-running the wizard must not rename the folders that
   // already hold this company's documents.
   if (!p.getProperty('FOLDER_PREFIX')) {
@@ -240,9 +253,14 @@ function saveSetupWizard(data) {
 
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (cfg) {
-    if (data.categories) writeConfigColumn_(cfg, 1, data.categories);
-    if (data.suppliers)  writeConfigColumn_(cfg, 2, data.suppliers);
-    if (data.projects)   writeConfigColumn_(cfg, 0, data.projects);
+    // Guarded on .length, not just truthiness — an empty array [] is truthy in
+    // JS. Re-running the wizard (e.g. after a browser refresh mid-flow, or just
+    // to reconfigure one thing) with a step the customer clicked through
+    // without re-entering anything must NOT wipe out what they configured the
+    // first time.
+    if (data.categories && data.categories.length) writeConfigColumn_(cfg, 1, data.categories);
+    if (data.suppliers  && data.suppliers.length)  writeConfigColumn_(cfg, 2, data.suppliers);
+    if (data.projects   && data.projects.length)   writeConfigColumn_(cfg, 0, data.projects);
     if (data.locations && data.locations.length) {
       writeConfigColumn_(cfg, 3, data.locations.map(function(l){ return l.name; }));
       writeConfigColumn_(cfg, 4, data.locations.map(function(l){ return l.type || 'RACK'; }));
@@ -335,10 +353,102 @@ function doGet(e) {
 // the frontend turns that into a data: URL locally, no second network request
 // to Apps Script at all.
 function getPrivateFileData(fileId, token) {
+  var file = resolveOwnFile_(fileId, token, 'getPrivateFileData');
+  // Checked before getBlob(), which is what actually fails on a large file —
+  // with an untranslated Apps Script message ("… supera el tamaño de archivo
+  // máximo permitido") that says nothing about what to do next.
+  var size = 0;
+  try { size = file.getSize(); } catch (e) {}
+  if (size > MAX_ATTACH_BYTES) {
+    throw new Error('This file is ' + (size / 1048576).toFixed(1) + ' MB. Files over ' +
+      (MAX_ATTACH_BYTES / 1048576) + ' MB cannot be opened inside the app — open it from Drive instead.');
+  }
+  var blob = file.getBlob();
+  return {
+    mimeType: blob.getContentType(),
+    base64:   Utilities.base64Encode(blob.getBytes())
+  };
+}
+
+// Same file, DriveApp's small pre-rendered thumbnail instead of the full blob
+// — for the many small (~30-50px) previews on screen at once (the Movements
+// Doc column, the Dashboard's photo/document grid, rack photos): those never
+// needed the full file, so fetching it was pure waste, and on a slow
+// connection or an underpowered computer that waste is what "the app feels
+// slow" actually was. A grid of 20 rows with a document each used to pull 20
+// full files just to paint them at 34px.
+//
+// Bonus this makes possible almost for free: getThumbnail() works for PDFs
+// too (Drive renders one from page 1), so a PDF's grid preview stops being a
+// generic 📄 icon and becomes an actual look at the document — inline PDF
+// preview is still blocked by Apps Script's sandbox (see the media-preview
+// code), but the grid never hit that wall to begin with.
+//
+// Returns null (not an error) when Drive has no thumbnail for this file yet —
+// happens on a very recently uploaded file, or a type Drive doesn't render.
+// The frontend already has an icon fallback for exactly this case.
+// size (optional): requested pixel size for the long edge. DriveApp's own
+// getThumbnail() only ever returns Drive's small fixed-size render, which is
+// right for a 34px grid cell but useless as an actual preview — so when a size
+// is asked for we go through the Drive REST API's thumbnailLink instead, which
+// accepts a size suffix. This is what makes a readable page-1 preview of a PDF
+// possible inside the app, where Chrome's PDF plugin is blocked by Apps
+// Script's sandbox. Falls back to the small thumbnail if the REST path fails.
+function getPrivateFileThumbnail(fileId, token, size) {
+  var file = resolveOwnFile_(fileId, token, 'getPrivateFileThumbnail');
+  var px = parseInt(size, 10);
+  if (px > 0) {
+    var big = driveThumbnailAtSize_(fileId, px);
+    if (big) return big;
+  }
+  var blob = file.getThumbnail();
+  if (!blob) return null;
+  return {
+    mimeType: blob.getContentType(),
+    base64:   Utilities.base64Encode(blob.getBytes())
+  };
+}
+
+// Drive hands back a thumbnailLink ending in a size suffix like "=s220"; swapping
+// that for a bigger value is the documented way to get a larger render. Both
+// calls carry the script's own OAuth token — thumbnailLink is NOT a public URL,
+// and the caller has already passed resolveOwnFile_'s ownership check.
+// Returns null on any failure so the caller can fall back rather than error out.
+function driveThumbnailAtSize_(fileId, px) {
+  try {
+    var auth = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
+    var meta = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) + '?fields=thumbnailLink', auth);
+    if (meta.getResponseCode() !== 200) return null;
+    var link = JSON.parse(meta.getContentText()).thumbnailLink;
+    if (!link) return null;
+    link = link.replace(/=s\d+(-[a-z]+)?$/, '=s' + px);
+    var img = UrlFetchApp.fetch(link, auth);
+    if (img.getResponseCode() !== 200) return null;
+    var b = img.getBlob();
+    return { mimeType: b.getContentType(), base64: Utilities.base64Encode(b.getBytes()) };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Shared by getPrivateFileData/getPrivateFileThumbnail: authenticates the
+// caller and confirms the requested file is actually one this app manages.
+// Without the folder check, an authenticated WAREHOUSE user could pass ANY
+// Drive file ID the owner's account can reach — not just this app's own
+// uploads — turning either endpoint into a way to browse the owner's entire
+// personal Drive.
+function resolveOwnFile_(fileId, token, callerName) {
   var auth = setVerifiedAuth_(getUserRole(token));
   if (auth.role === 'NO_SESSION' || auth.role === 'DENIED') {
     throw new Error('Not authenticated.');
   }
+
+  // Highest ceiling of the lot: one page of the Movements table can legitimately
+  // ask for dozens of thumbnails, and expanding stock rows adds more. The
+  // frontend already caps itself at 3 concurrent and caches per file — this is
+  // the backstop for a client that ignores both.
+  requireQuota_('file', auth.email, 600, 300);
 
   var file;
   try {
@@ -347,35 +457,57 @@ function getPrivateFileData(fileId, token) {
     throw new Error('File not found.');
   }
 
-  // Without this check, an authenticated WAREHOUSE user could pass ANY Drive
-  // file ID the owner's account can reach — not just this app's own uploads —
-  // turning this into a way to browse the owner's entire personal Drive.
   if (!isFileWithinAppFolder_(file)) {
-    logError_(SpreadsheetApp.getActiveSpreadsheet(), 'WARN', 'backend', 'getPrivateFileData',
+    logError_(SpreadsheetApp.getActiveSpreadsheet(), 'WARN', 'backend', callerName,
       auth.email, 'Requested file outside app folder: ' + fileId, null, newRequestId_());
     throw new Error('File not found.');
   }
-
-  var blob = file.getBlob();
-  return {
-    mimeType: blob.getContentType(),
-    base64:   Utilities.base64Encode(blob.getBytes())
-  };
+  return file;
 }
 
-// Walks up a file's parent folders looking for the app's own root folder by
-// name. Name-based rather than ID-based because getOrCreateFolder_() caches a
-// separate Script Property per full subfolder path (e.g. one for
+// Every root folder name this installation is allowed to serve files from.
+//
+// It is a LIST, not just the current name, because the current name can change
+// out from under files that were already uploaded. Concretely, the bug this
+// fixes: Script Properties do NOT survive "Make a copy" of a Sheet, but the
+// sheet DATA does. So on a copy, FOLDER_PREFIX comes back empty, the wizard
+// sets it fresh from the company name (e.g. Acopio_OX_Glass_LLC), and
+// docsFolderName_() starts returning Acopio_OX_Glass_LLC_Docs — while every
+// DOC_LINKS value copied along with the rows still points at files sitting in
+// the OLD folder (OX_WMS_v3_Docs). The boundary check then rejected literally
+// every existing document and photo as "outside app folder", which is exactly
+// what the logs showed. Keeping the previous names accepted is what makes an
+// upgrade/copy stop orphaning its own history.
+function acceptedDocFolderNames_() {
+  var names = [docsFolderName_()];
+  // The pre-wizard default, hardcoded for the same reason companySettings_()
+  // defaults to it: installations older than the wizard have all their files
+  // under this name and nothing recorded in history to find them by.
+  if (names.indexOf('OX_WMS_v3_Docs') === -1) names.push('OX_WMS_v3_Docs');
+  var hist = PropertiesService.getScriptProperties().getProperty('FOLDER_PREFIX_HISTORY') || '';
+  hist.split(',').forEach(function(p){
+    p = String(p || '').trim();
+    if (!p) return;
+    var n = p + '_Docs';
+    if (names.indexOf(n) === -1) names.push(n);
+  });
+  return names;
+}
+
+// Walks up a file's parent folders looking for one of this app's own root
+// folders by name. Name-based rather than ID-based because getOrCreateFolder_()
+// caches a separate Script Property per full subfolder path (e.g. one for
 // "<prefix>_Docs/RackPhotos/A1A"), so there's no single cached ID for the bare
 // root to compare against — walking up and checking the name is simpler and
 // just as safe, since nothing in the upload path lets a caller choose where a
 // file gets created.
 function isFileWithinAppFolder_(file) {
+  var accepted = acceptedDocFolderNames_();
   var folders = file.getParents();
   var depth = 0;
   while (folders.hasNext() && depth < 8) {
     var folder = folders.next();
-    if (folder.getName() === docsFolderName_()) return true;
+    if (accepted.indexOf(folder.getName()) !== -1) return true;
     folders = folder.getParents();
     depth++;
   }
@@ -497,9 +629,46 @@ function handleOAuthCallback_(code, state) {
   return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+// ─── RATE LIMITING ───────────────────────────────────────────────────────────
+// The web app is published as "Anyone with a Google account", so the URL alone
+// is enough to reach these endpoints — authentication decides what you get
+// back, not whether the script runs. That means anyone with the link can make
+// the owner's account burn Apps Script execution quota, and quota is per-owner
+// and shared by every real user: exhausting it takes the warehouse offline for
+// everybody. That is the failure this guards against, not data theft.
+//
+// CacheService, not Properties: these counters are throwaway, and Properties
+// has a hard quota of its own that a flood would then consume too.
+//
+// Limits are deliberately generous — several times what heavy normal use
+// looks like — because locking out a real warehouse mid-shift is far worse
+// than letting an abuser through a little longer.
+function throttle_(bucket, id, limit, windowSec) {
+  var key = 'rl_' + bucket + '_' + Utilities.base64EncodeWebSafe(String(id || 'anon')).substring(0, 40);
+  var cache = CacheService.getScriptCache();
+  var raw = cache.get(key);
+  var n = raw ? (parseInt(raw, 10) || 0) : 0;
+  if (n >= limit) return false;
+  // Not atomic — Apps Script has no atomic increment, and two calls landing in
+  // the same instant can both read the same n. That undercounts slightly under
+  // a burst, which is acceptable: this is a flood ceiling, not a precise meter.
+  cache.put(key, String(n + 1), windowSec);
+  return true;
+}
+
+function requireQuota_(bucket, id, limit, windowSec) {
+  if (!throttle_(bucket, id, limit, windowSec)) {
+    throw new Error('Too many requests — please wait a moment and try again.');
+  }
+}
+
 // Main window polls this until the popup callback has stored the verified email.
 // Returns a signed session token the browser will send on every later call.
 function pollLogin(state) {
+  // Keyed by the state value the caller supplied: this runs BEFORE any identity
+  // exists, so there is nothing else to key on. A tight limit here also blunts
+  // guessing at other people's login states.
+  requireQuota_('poll', state, 120, 300);
   var cache = CacheService.getScriptCache();
   var email = cache.get('login_' + state);
   if (!email) return { ready: false };
@@ -743,6 +912,11 @@ function getLegacyMaterialId(cat, name, proj) {
 function getInitialData(sessionToken) {
   try {
     var auth = setVerifiedAuth_(getUserRole(sessionToken));
+
+    // Applied only to identified callers: an anonymous visitor gets the small
+    // public sign-in payload below, and throttling by a key everyone shares
+    // ('anon') would let one abuser lock the sign-in screen for all of them.
+    if (auth.email) requireQuota_('init', auth.email, 180, 300);
 
     // Not authenticated — return public user list so frontend can show identity picker
     if (auth.role === 'NO_SESSION') {
@@ -1121,6 +1295,10 @@ function processMovement(action, data) {
   if (auth.role === 'NO_SESSION') throw new Error('Not authenticated. Please sign in with your Google account.');
   if (auth.role === 'DENIED')     throw new Error('Access denied. Your account (' + auth.email + ') is not registered in this system. Contact your administrator to request access.');
   if (auth.role === 'VIEWER')     throw new Error('Read-only access — you can view data but cannot record movements. Contact an admin.');
+
+  // 240/minute per user. A busy operator saving movements, editing config and
+  // running searches lands nowhere near this; a runaway loop or a script does.
+  requireQuota_('pm', auth.email, 240, 60);
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   try {
@@ -2665,7 +2843,13 @@ function unlockMaterial(data, auth) {
 function updateDocument_(ss, archive, data, auth) {
   var hasDocGroups = data.docGroups && data.docGroups.length > 0;
   var hasFiles     = data.files     && data.files.length     > 0;
-  if (!hasDocGroups && !hasFiles) throw new Error('No documents provided.');
+  // keepLinks: the surviving subset of DOC_LINKS lines after the user removed
+  // some in the "Manage Documents" UI. When the caller sends it (even an empty
+  // array, i.e. "remove everything"), DOC_LINKS is REPLACED with keepLinks
+  // plus any new uploads, instead of appended to whatever's currently in the
+  // sheet. Legacy callers that never send it keep the old append-only behavior.
+  var hasKeepLinks = Array.isArray(data.keepLinks);
+  if (!hasDocGroups && !hasFiles && !hasKeepLinks) throw new Error('No documents provided.');
 
   // Get material name from the row for folder naming
   var matName = 'attachment';
@@ -2687,14 +2871,21 @@ function updateDocument_(ss, archive, data, auth) {
     } catch(e) { if (/reorganized/.test(e.message)) throw e; }
   }
 
-  var links = hasDocGroups
-    ? uploadDocGroups_(data.docGroups, matName)          // named, multi-photo groups → PDF
-    : uploadFiles_(data.files, matName, 'row-' + data.rowIdx); // legacy single-file
+  var links = '';
+  if (hasDocGroups) links = uploadDocGroups_(data.docGroups, matName);          // named, multi-photo groups → PDF
+  else if (hasFiles) links = uploadFiles_(data.files, matName, 'row-' + data.rowIdx); // legacy single-file
 
-  if (links && data.rowIdx) {
-    var existing  = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).getValue();
-    var finalText = existing ? existing + '\n' + links : links;
-    archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).setRichTextValue(richTextForDocLinks_(finalText));
+  if (data.rowIdx && (links || hasKeepLinks)) {
+    var finalText;
+    if (hasKeepLinks) {
+      finalText = data.keepLinks.concat(links ? [links] : []).join('\n');
+    } else {
+      var existing = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1).getValue();
+      finalText = existing ? existing + '\n' + links : links;
+    }
+    var docLinksCell = archive.getRange(data.rowIdx, AC.DOC_LINKS + 1);
+    if (finalText) docLinksCell.setRichTextValue(richTextForDocLinks_(finalText));
+    else docLinksCell.setValue(''); // all documents removed, nothing to replace with
   }
   return { status: 'success' };
 }
@@ -2896,6 +3087,88 @@ function checkDuplicateMovement_(archive, mt, cat, name, qty, userEmail) {
   return null;
 }
 
+// ─── ATTACH AN EXISTING DRIVE FILE ───────────────────────────────────────────
+// Copies a file the user already has in Drive into the app's docs folder, so it
+// can be attached without downloading and re-uploading it.
+//
+// SECURITY — the reason this is not a two-line DriveApp.getFileById().makeCopy():
+// the web app runs as USER_DEPLOYING, so the server's Drive access is the
+// OWNER'S Drive, not the caller's. Without a check, any signed-in warehouse user
+// could paste any file ID the owner's account happens to be able to read and
+// have the server copy it somewhere they can then read it back through
+// getPrivateFileData — turning "attach from Drive" into a way to pull private
+// files out of the owner's Drive. So we verify the CALLER can genuinely reach
+// the file before copying it, and refuse otherwise.
+function importDriveFileIntoFolder_(fileId, docName, folder) {
+  var auth = requireAuth_('WRITE');
+  var id = String(fileId || '').trim();
+  if (!id) return null;
+
+  var file;
+  try {
+    file = DriveApp.getFileById(id);
+  } catch (e) {
+    throw new Error('That Drive file could not be opened. Check the link, or that it is shared with ' +
+      (Session.getEffectiveUser().getEmail() || 'this system') + '.');
+  }
+
+  // Refused here rather than after copying: a file this big can be stored but
+  // never opened from inside the app, so attaching it would hand the user
+  // something unreadable and only reveal that when they clicked it.
+  var dsize = 0;
+  try { dsize = file.getSize(); } catch (e) {}
+  if (dsize > MAX_ATTACH_BYTES) {
+    throw new Error('“' + file.getName() + '” is ' + (dsize / 1048576).toFixed(1) + ' MB. Files over ' +
+      (MAX_ATTACH_BYTES / 1048576) + ' MB cannot be opened inside the app, so they cannot be attached. ' +
+      'Link to it from the comments instead, or attach a smaller version.');
+  }
+
+  if (!callerCanReadDriveFile_(file, id, auth.email)) {
+    logError_(SpreadsheetApp.getActiveSpreadsheet(), 'WARN', 'backend', 'importDriveFileIntoFolder_',
+      auth.email, 'Attempted to attach a Drive file they cannot access: ' + id, null, newRequestId_());
+    throw new Error('You do not have access to that file in Drive, so it cannot be attached. ' +
+      'Ask whoever owns it to share it with you, or upload the file directly.');
+  }
+
+  var copy = file.makeCopy(docName || file.getName(), folder);
+  return copy.getId();
+}
+
+// True when `email` can read the file in their own right — as its owner, via a
+// permission granted to them, to their whole domain, or because it is shared
+// with anyone who has the link. Read through the Drive REST API because
+// DriveApp exposes no "can this OTHER person read it" question; permissions
+// are readable here because the script runs as the file's owner/editor.
+// Fails CLOSED: any error means "not verified", so a copy never happens on a
+// permissions call we could not complete.
+function callerCanReadDriveFile_(file, fileId, email) {
+  var who = String(email || '').toLowerCase().trim();
+  if (!who) return false;
+
+  try {
+    var owner = file.getOwner();
+    if (owner && String(owner.getEmail() || '').toLowerCase() === who) return true;
+  } catch (e) {}
+
+  try {
+    var res = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+        '/permissions?fields=permissions(type,role,emailAddress,domain)&supportsAllDrives=true',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return false;
+
+    var perms = (JSON.parse(res.getContentText()).permissions) || [];
+    var callerDomain = who.split('@')[1] || '';
+    for (var i = 0; i < perms.length; i++) {
+      var p = perms[i];
+      if (p.type === 'anyone') return true;
+      if (p.type === 'domain' && callerDomain && String(p.domain || '').toLowerCase() === callerDomain) return true;
+      if (String(p.emailAddress || '').toLowerCase() === who) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
 // ─── MULTI-PHOTO NAMED DOCUMENT GROUPS ───────────────────────────────────────
 // docGroups = [ { name: "Invoice", photos: [ {fileData, fileMimeType} ] }, … ]
 // Returns newline-separated "DocName||DriveURL" strings for storage in DOC_LINKS.
@@ -2911,15 +3184,50 @@ function uploadDocGroups_(docGroups, materialName) {
   for (var i = 0; i < docGroups.length; i++) {
     var group  = docGroups[i];
     var photos = group.photos || [];
-    if (!photos.length) continue;
+    var driveIds = group.driveIds || [];
+    if (!photos.length && !driveIds.length) continue;
 
     var rawName  = (group.name || ('Document ' + (i + 1))).trim();
     var safeName = rawName.replace(/[\/\\?%*:|"<>]/g, '_');
     var url;
 
-    if (photos.length === 1) {
+    // Files the user picked out of Drive instead of uploading. Copied into the
+    // app's own folder rather than linked in place: a link would break the
+    // moment the original is moved, renamed or unshared, and the whole
+    // private-file pipeline (getPrivateFileData / the folder boundary check)
+    // only serves what lives under the app's folder.
+    for (var d = 0; d < driveIds.length; d++) {
+      var copiedId = importDriveFileIntoFolder_(
+        driveIds[d], safeName + (driveIds.length > 1 ? ' ' + (d + 1) : ''), folder);
+      if (copiedId) links.push(rawName + '||' + copiedId);
+    }
+    if (!photos.length) continue;
+
+    // Only real images can be stitched into the multi-page PDF — that path
+    // inserts each one into a Google Doc as an image. A PDF or a video in the
+    // same group used to be handed to it too, which threw "Invalid image data"
+    // and lost the WHOLE group, documents and photos alike, leaving the
+    // movement saved with no attachments and only a warning in the toast.
+    // Non-images are stored as their own files instead of poisoning the batch.
+    var images = [], others = [];
+    photos.forEach(function (p) {
+      var mt = String(p.fileMimeType || '');
+      (mt.indexOf('image/') === 0 ? images : others).push(p);
+    });
+
+    others.forEach(function (p, k) {
+      var oname = safeName + (others.length > 1 ? ' ' + (k + 1) : '');
+      var ofile = folder.createFile(
+        Utilities.newBlob(Utilities.base64Decode(p.fileData),
+          p.fileMimeType || 'application/octet-stream', oname));
+      links.push(rawName + '||' + ofile.getId());
+    });
+
+    if (!images.length) continue;
+
+    if (images.length === 1) {
       // Single photo → store as image directly (faster)
-      var p    = photos[0];
+      var p    = images[0];
       var bytes = Utilities.base64Decode(p.fileData);
       var blob  = Utilities.newBlob(bytes, p.fileMimeType || 'image/jpeg', safeName);
       var imgFile = folder.createFile(blob);
@@ -2927,7 +3235,7 @@ function uploadDocGroups_(docGroups, materialName) {
       url = imgFile.getId();
     } else {
       // Multiple photos → create Google Doc with one image per page → export PDF
-      url = photosToDocPdf_(photos, safeName, folder);
+      url = photosToDocPdf_(images, safeName, folder);
     }
 
     if (url) links.push(rawName + '||' + url);
@@ -3173,18 +3481,145 @@ function updateMinStockBulk(data, auth) {
 // the exact same locked, stock-validated, write-verified engine a normal ENTRY
 // goes through, so an imported row can never be less trustworthy than one
 // typed in by hand.
+// Excel → CSV, via Drive's own converter.
+//
+// Apps Script cannot read .xlsx bytes directly — there is no XLSX parser in the
+// runtime, and hand-rolling one (it's a ZIP of XML parts) is a lot of code to
+// maintain for something Drive already does correctly. So: upload the file
+// asking Drive to convert it to a Google Sheet, export that Sheet as CSV, and
+// bin the temporary file.
+//
+// Deliberately NOT SpreadsheetApp.openById() on the converted file, which would
+// be the obvious way to read it: this app declares spreadsheets.currentonly,
+// which grants access to its OWN spreadsheet and nothing else, so opening the
+// temp file would fail on scope. Exporting through the Drive API needs only the
+// drive scope the app already has — no new permission on the consent screen.
+//
+// Returns EVERY tab: [{name, text}]. The first version of this exported
+// text/csv, which silently gives back only the first sheet — so a workbook
+// with the inventory on tab 3 imported as whatever happened to be on tab 1,
+// with nothing to tell the user why. Exporting format=zip yields one CSV per
+// tab, which Utilities.unzip can open, so the caller can pick the right one.
+function excelToSheets_(base64Data, fileName) {
+  var token    = ScriptApp.getOAuthToken();
+  var bytes    = Utilities.base64Decode(base64Data);
+  var boundary = '----acopioImport' + Date.now();
+  var metadata = { name: 'Acopio import (temporary) — ' + fileName,
+                   mimeType: 'application/vnd.google-apps.spreadsheet' };
+
+  var head = '--' + boundary + '\r\n' +
+             'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+             JSON.stringify(metadata) + '\r\n' +
+             '--' + boundary + '\r\n' +
+             'Content-Type: application/octet-stream\r\n\r\n';
+  var tail = '\r\n--' + boundary + '--';
+  var payload = Utilities.newBlob(head).getBytes()
+                  .concat(bytes)
+                  .concat(Utilities.newBlob(tail).getBytes());
+
+  var up = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+      method: 'post',
+      contentType: 'multipart/related; boundary=' + boundary,
+      payload: payload,
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+  if (up.getResponseCode() !== 200) {
+    throw new Error('Could not read that Excel file. If it is password-protected or an old .xls, ' +
+      'open it in Excel and use File → Save As → CSV, then upload that instead.');
+  }
+
+  var tempId = JSON.parse(up.getContentText()).id;
+  try {
+    var auth = { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true };
+
+    // One CSV per tab, zipped. Each entry is named "<workbook> - <tab>.csv".
+    var zip = UrlFetchApp.fetch(
+      'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(tempId) + '/export?format=zip', auth);
+    if (zip.getResponseCode() === 200) {
+      try {
+        var parts = Utilities.unzip(zip.getBlob().setContentType('application/zip'));
+        var sheets = parts.filter(function (b) { return /\.csv$/i.test(b.getName() || ''); })
+          .map(function (b) {
+            var n = String(b.getName() || '').replace(/\.csv$/i, '');
+            var dash = n.indexOf(' - ');            // strip the workbook-name prefix
+            return { name: dash !== -1 ? n.substring(dash + 3) : n, text: b.getDataAsString() };
+          });
+        if (sheets.length) return sheets;
+      } catch (e) {
+        // Not a zip after all (a single-tab workbook can come back as plain
+        // CSV) — fall through to the single-sheet path rather than failing.
+      }
+    }
+
+    var exp = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(tempId) + '/export?mimeType=text/csv', auth);
+    if (exp.getResponseCode() !== 200) {
+      throw new Error('Could not read the contents of that Excel file.');
+    }
+    return [{ name: 'Sheet1', text: exp.getContentText() }];
+  } finally {
+    // Always cleaned up, including when the export above threw — otherwise a
+    // failed import would quietly litter the owner's Drive with temp copies.
+    try { DriveApp.getFileById(tempId).setTrashed(true); } catch (e) {}
+  }
+}
+
+// Picks which tab to import from a multi-tab workbook: the one the caller asked
+// for, else the first whose header row actually carries the required columns.
+// Without that second rule a workbook whose first tab is a cover sheet or a
+// summary would import as "0 valid rows" and look broken.
+function chooseImportSheet_(sheets, wanted) {
+  if (wanted) {
+    for (var i = 0; i < sheets.length; i++) if (sheets[i].name === wanted) return sheets[i];
+  }
+  for (var j = 0; j < sheets.length; j++) {
+    var head;
+    try { head = Utilities.parseCsv(String(sheets[j].text || '').replace(/^﻿/, ''))[0] || []; }
+    catch (e) { continue; }
+    var lower = head.map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var hasAll = IMPORT_REQUIRED_HEADERS.every(function (h) { return lower.indexOf(h) !== -1; });
+    if (hasAll) return sheets[j];
+  }
+  return sheets[0];
+}
+
+// Ceiling for anything the app has to serve back to a browser. Everything the
+// preview shows travels base64-encoded inside one google.script.run reply, and
+// Apps Script will not build a blob past its own limit — so a file bigger than
+// this can be stored, but never opened from inside the app. Attaching one would
+// be handing the user something they cannot read, so the attach paths refuse it
+// up front instead. Kept in step with MAX_ATTACH_BYTES in Index.html.
+var MAX_ATTACH_BYTES = 25 * 1024 * 1024;   // 25 MB
+
 var IMPORT_REQUIRED_HEADERS = ['category', 'name', 'qty'];
 var IMPORT_ALL_HEADERS      = ['category', 'name', 'qty', 'unit', 'location', 'project', 'supplier', 'po', 'comments'];
 
 function parseImportFile(data) {
   requireAuth_('ADMIN');
   var fileName = String(data.fileName || '');
-  if (!/\.csv$/i.test(fileName)) {
-    throw new Error('Please upload a .csv file. If this is an Excel file, use File → Save As → CSV in Excel or Google Sheets first, then upload that file. (Direct .xlsx import is on the roadmap.)');
+  var isExcel  = /\.xlsx?$/i.test(fileName);
+  if (!isExcel && !/\.csv$/i.test(fileName)) {
+    throw new Error('Please upload a .csv or .xlsx file.');
   }
 
-  var bytes = Utilities.base64Decode(data.fileData);
-  var text  = Utilities.newBlob(bytes, 'text/csv').getDataAsString();
+  var text;
+  var sheetNames = [];   // tabs found in an Excel workbook (empty for a .csv)
+  var usedSheet  = '';
+  if (isExcel) {
+    // Excel files are converted to CSV by Drive and then run through the exact
+    // same parser below — one code path for reading rows, so an .xlsx import
+    // can't drift away from the .csv one that is already well tested.
+    var sheets = excelToSheets_(data.fileData, fileName);
+    sheetNames = sheets.map(function (s) { return s.name; });
+    var chosen = chooseImportSheet_(sheets, String(data.sheetName || '').trim());
+    usedSheet  = chosen.name;
+    text       = chosen.text;
+  } else {
+    var bytes = Utilities.base64Decode(data.fileData);
+    text = Utilities.newBlob(bytes, 'text/csv').getDataAsString();
+  }
 
   // Strip a UTF-8 byte-order-mark. Excel's "CSV UTF-8 (Comma delimited)" export
   // adds one at the very start of the file; left in place it silently glues
@@ -3226,8 +3661,15 @@ function parseImportFile(data) {
 
   var missing = IMPORT_REQUIRED_HEADERS.filter(function (h) { return col[h] === -1; });
   if (missing.length) {
-    throw new Error('Missing required column header(s): ' + missing.join(', ') +
-      '. Download the template from this screen to see the exact format expected.');
+    throw new Error('Missing required column header(s) on ' +
+      (usedSheet ? 'sheet "' + usedSheet + '"' : 'this file') + ': ' + missing.join(', ') + '.' +
+      // Naming the other tabs matters: otherwise a workbook whose data sits on
+      // a later tab just reads as "your file is wrong", with no hint that the
+      // right data is in the same file one tab over.
+      (sheetNames.length > 1
+        ? ' This workbook also has: ' + sheetNames.filter(function (n) { return n !== usedSheet; }).join(', ') +
+          ' — pick the right one from the Sheet list on this screen.'
+        : ' Download the template from this screen to see the exact format expected.'));
   }
 
   var parsed = [];
@@ -3266,6 +3708,8 @@ function parseImportFile(data) {
     validRows:    validCount,
     invalidRows:  parsed.length - validCount,
     rawLineCount: rawLineCount,
+    sheetNames:   sheetNames,            // tabs found (Excel only) — lets the UI offer a picker
+    usedSheet:    usedSheet,
     rows:         parsed.slice(0, 500)   // a preview, not a data dump
   };
 }
@@ -3384,6 +3828,82 @@ function logError_(ss, severity, source, action, userEmail, message, context, re
   } catch (e) {
     Logger.log('logError_ failed: ' + e.message);
   }
+  // Separate try: a failure to notify must never swallow the log write above,
+  // and vice versa.
+  try {
+    if (String(severity || '').toUpperCase() === 'ERROR') {
+      notifyAdminOfError_(action, userEmail, message, requestId);
+    }
+  } catch (e2) {
+    Logger.log('notifyAdminOfError_ failed: ' + e2.message);
+  }
+}
+
+// Emails the admin when something breaks badly enough to be logged as ERROR.
+//
+// ERROR_LOG has always recorded these, but it is a sheet nobody opens until
+// they already suspect a problem — so a nightly backup that silently stopped
+// working, or stock totals that quietly failed to rebuild, could go unnoticed
+// for weeks. The whole point of this product is that the numbers can be
+// trusted, so the admin has to be told when they might not be.
+//
+// Throttled hard, by design: an error that fires on every save would otherwise
+// mail the admin hundreds of times in an afternoon and get the alerts filtered
+// out as noise — which is worse than not sending them. One message per distinct
+// action per hour, and a daily ceiling so a storm can never turn into a mailbox
+// full of near-identical warnings.
+var ERROR_MAIL_PER_ACTION_SEC = 3600;
+var ERROR_MAIL_DAILY_CAP      = 12;
+
+function notifyAdminOfError_(action, userEmail, message, requestId) {
+  var p = PropertiesService.getScriptProperties();
+  if (p.getProperty('ERROR_ALERTS_ENABLED') === 'false') return;   // opt-out
+
+  var to = adminNotifyEmail_();
+  if (!to) return;
+
+  var cache = CacheService.getScriptCache();
+  var actKey = 'errmail_' + Utilities.base64EncodeWebSafe(String(action || 'general')).substring(0, 60);
+  if (cache.get(actKey)) return;                       // already mailed for this action recently
+
+  var today   = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'UTC', 'yyyy-MM-dd');
+  var capKey  = 'errmailcount_' + today;
+  var sentRaw = cache.get(capKey);
+  var sent    = sentRaw ? (parseInt(sentRaw, 10) || 0) : 0;
+  if (sent >= ERROR_MAIL_DAILY_CAP) return;
+
+  cache.put(actKey, '1', ERROR_MAIL_PER_ACTION_SEC);
+  cache.put(capKey, String(sent + 1), 86400);
+
+  var cs = companySettings_();
+  var who = cs.name || PRODUCT_NAME;
+  var url = '';
+  try { url = String(p.getProperty('WEB_APP_URL') || ScriptApp.getService().getUrl() || ''); } catch (e) {}
+
+  MailApp.sendEmail({
+    to: to,
+    subject: '⚠️ ' + who + ' — system error in ' + (action || 'the app'),
+    htmlBody:
+      '<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">' +
+      '<p>An error was recorded in <b>' + escHtml_(who) + '</b>.</p>' +
+      '<table cellpadding="6" style="border-collapse:collapse;font-size:13px">' +
+        '<tr><td style="color:#666">Where</td><td><b>' + escHtml_(action || '—') + '</b></td></tr>' +
+        '<tr><td style="color:#666">Message</td><td>' + escHtml_(String(message || '').substring(0, 400)) + '</td></tr>' +
+        '<tr><td style="color:#666">User</td><td>' + escHtml_(userEmail || '—') + '</td></tr>' +
+        '<tr><td style="color:#666">When</td><td>' + new Date().toLocaleString() + '</td></tr>' +
+        '<tr><td style="color:#666">Ref</td><td>' + escHtml_(requestId || '—') + '</td></tr>' +
+      '</table>' +
+      '<p style="font-size:12px;color:#666">Full history: <b>Settings → System → Error Log</b>' +
+        (url ? ' — <a href="' + escHtml_(url) + '">open ' + escHtml_(who) + '</a>' : '') + '</p>' +
+      '<p style="font-size:12px;color:#666">Repeats of this same error are suppressed for an hour so this ' +
+        'stays useful. To turn these off: Apps Script → Project Settings → Script Properties → ' +
+        'ERROR_ALERTS_ENABLED = false</p></div>'
+  });
+}
+
+function escHtml_(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ADMIN only. Returns the most recent error log entries, newest first.
@@ -3429,6 +3949,10 @@ function reportIssue(data) {
   if (auth.role === 'NO_SESSION' || auth.role === 'DENIED') {
     throw new Error('Not authenticated. Please sign in and use the app from its own page.');
   }
+  // Tighter than the rest: every report writes to Drive and sends mail, so a
+  // flood here costs far more per call than a normal RPC.
+  requireQuota_('issue', auth.email, 10, 600);
+
   var message = String((data && data.message) || '').trim();
   if (!message) throw new Error('Please describe what happened.');
   if (message.length > 4000) message = message.substring(0, 4000);
@@ -3512,17 +4036,97 @@ function checkNotifications_(ss, data, moveType, qty, userEmail) {
 
 // ─── CUSTOM MENU ─────────────────────────────────────────────────────────────
 function onOpen() {
+  var cs = companySettings_();
+
+  // "Advanced" groups tools a brand-new customer never needs: two are one-time
+  // migration cleanups for data that only exists on installations that predate
+  // the fix each one addresses (a fresh copy has nothing for either to do —
+  // see their own "nothing to clean up" messages), and the third only works at
+  // all on a standard Google Cloud project, which is us, not a typical
+  // customer. Kept reachable rather than deleted, since OX Glass's own
+  // installation still needs them.
+  var advanced = SpreadsheetApp.getUi().createMenu('🔧 Advanced')
+    .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
+    .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
+    .addItem('Push Update Live (owner, standard Cloud project only)', 'menuActivateWebApp');
+
   SpreadsheetApp.getUi()
     .createMenu('🏭 ' + PRODUCT_NAME)
-    .addItem('Run Reconciliation', 'menuReconcile')
+    .addItem(cs.setupComplete ? '⚙️ Company Settings' : '🚀 Set Up ' + PRODUCT_NAME + ' (start here)', 'showSetupWizardDialog')
+    .addSeparator()
     .addItem('Open WMS App',       'menuOpenApp')
-    .addSeparator()
-    .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
     .addItem('🗄 Backup Now / Enable Daily Backup', 'menuRunBackupNow')
-    .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
+    .addItem('Run Reconciliation', 'menuReconcile')
     .addSeparator()
-    .addItem('⚙️ Advanced — Push Update Live (owner only)', 'menuActivateWebApp')
+    .addSubMenu(advanced)
     .addToUi();
+
+  // Fresh copy: open the wizard automatically instead of waiting for the owner
+  // to find the menu item. Every OTHER viewer (or the owner's own second tab
+  // after they already dismissed it once) also runs onOpen(), so this must
+  // never throw — inline, non-throwing owner check rather than
+  // requireOwnerContext_(), which is written to throw on purpose everywhere
+  // else it's used.
+  if (!cs.setupComplete) {
+    var eff = '', act = '';
+    try { eff = Session.getEffectiveUser().getEmail(); } catch (e) {}
+    try { act = Session.getActiveUser().getEmail();    } catch (e) {}
+    if (eff && eff === act) {
+      try { showSetupWizardDialog(); } catch (e) {}
+    }
+  }
+}
+
+// Opens the setup wizard as a dialog OVER the spreadsheet — no web app
+// deployment required, so this works the very first time the owner opens their
+// brand-new copy, before anything has been published. Owner-only, same
+// reasoning as every other setup-time gate: the sheet could be shared with
+// someone else before setup finishes, and only the actual owner should be able
+// to claim admin on a fresh copy.
+function showSetupWizardDialog() {
+  requireOwnerContext_();
+  var html = HtmlService.createHtmlOutputFromFile('SetupWizard')
+    .setWidth(720).setHeight(680);
+  SpreadsheetApp.getUi().showModalDialog(html, PRODUCT_NAME + ' Setup');
+}
+
+// Called by the wizard's last step once the owner says they've published the
+// web app by hand. Returns the live URL if a deployment exists, or '' if not —
+// the dialog uses that to tell them plainly whether it worked instead of
+// guessing.
+//
+// A URL the owner saved by hand WINS over ScriptApp.getService().getUrl().
+// That ordering is deliberate, not a preference: on a Sheet copied from an
+// already-deployed one, getUrl() has been observed returning a URL carrying the
+// ORIGINAL script's deployment ID — a link that 404s, on a copy whose own Apps
+// Script project has no deployment at all. There is no API to ask "is this URL
+// actually live", so the owner (who can see the real one in the Deploy dialog)
+// is the more reliable source, and 'saved' tells the wizard to say so.
+function checkDeploymentReady() {
+  requireOwnerContext_();
+  var p = PropertiesService.getScriptProperties();
+  var saved = String(p.getProperty('WEB_APP_URL') || '').trim();
+  if (saved) return { url: saved, saved: true };
+  try { return { url: ScriptApp.getService().getUrl() || '', saved: false }; }
+  catch (e) { return { url: '', saved: false }; }
+}
+
+// Persists the URL the owner pasted from Google's Deploy dialog, so it survives
+// closing and reopening the wizard. Previously the override lived only in the
+// dialog's DOM, which meant reopening setup showed the same dead link again —
+// the correction was thrown away the moment the window closed.
+function saveWebAppUrl(url) {
+  requireOwnerContext_();
+  var u = String(url || '').trim();
+  if (!u) {
+    PropertiesService.getScriptProperties().deleteProperty('WEB_APP_URL');
+    return { url: '', saved: false };
+  }
+  if (!/^https:\/\/script\.google\.com\/.*\/exec(\?.*)?$/.test(u)) {
+    throw new Error('That does not look like a web app link. It should start with https://script.google.com/ and end in /exec');
+  }
+  PropertiesService.getScriptProperties().setProperty('WEB_APP_URL', u);
+  return { url: u, saved: true };
 }
 
 // ─── PROGRAMMATIC DEPLOYMENT — ADVANCED / OWNER-ONLY ─────────────────────────
@@ -3822,6 +4426,12 @@ function heartbeat(sessionToken) {
   // getUserRole() returns NO_SESSION and would register a ghost empty user.
   var auth = getUserRole(sessionToken);
   if (!auth || auth.role === 'DENIED' || auth.role === 'NO_SESSION' || !auth.email) return [];
+
+  // Returns empty instead of throwing: presence is decoration, and a thrown
+  // error here would pop a failure toast in a perfectly healthy session. Each
+  // call rewrites the sessions property, so it is worth capping — the client
+  // polls about once a minute, making 60/5min ~12x normal.
+  if (!throttle_('hb', auth.email, 60, 300)) return [];
 
   var props    = PropertiesService.getScriptProperties();
   var raw      = props.getProperty('WMS_SESSIONS');

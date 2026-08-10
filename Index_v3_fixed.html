@@ -23,6 +23,8 @@
     /* ── TOPBAR ── */
     .topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:3px solid var(--accent);flex-wrap:wrap;gap:10px}
     .topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+    .topbar-brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .app-logo{height:30px;max-width:150px;object-fit:contain;border-radius:4px;flex-shrink:0}
     .topbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
     .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap}
     .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
@@ -181,6 +183,10 @@
     .wiz-summary{background:#F8FAFC;border-radius:10px;padding:1rem 1.15rem;font-size:.85rem;line-height:1.9;color:#111827}
     .wiz-summary b{color:#1B2A4A}
     .wiz-toggle{display:flex;align-items:flex-start;gap:.6rem;padding:.75rem;background:#D1FAE5;border-radius:8px;font-size:.85rem;margin-bottom:1rem;color:#111827}
+    .wiz-progress{margin-top:1.1rem}
+    .wiz-progress-track{height:8px;border-radius:4px;background:#E5E7EB;overflow:hidden}
+    .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
+    .wiz-progress-label{font-size:.78rem;color:#6B7280;margin-top:.45rem;text-align:center}
     /* Nudge shown after setup when an optional step was skipped */
     .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:390;background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
     .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:.4rem}
@@ -473,6 +479,13 @@
     .doc-card img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6}
     .doc-card .doc-label{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
     .doc-card .doc-date{font-size:.58rem;color:var(--muted);text-align:center}
+    .attach-doc-chip{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:72px;flex-shrink:0;transition:.15s}
+    .attach-doc-chip:not(.removed){cursor:pointer}
+    .attach-doc-chip.removed{opacity:.4}
+    .attach-doc-chip img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6}
+    .attach-doc-chip .adc-label{font-size:.6rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .attach-doc-chip .adc-rm{position:absolute;top:-6px;right:-6px;width:19px;height:19px;border-radius:50%;background:var(--red);color:#fff;border:2px solid var(--card);font-size:.68rem;cursor:pointer;line-height:1;padding:0}
+    .attach-doc-chip .adc-undo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);border-radius:8px;color:#fff;font-size:.62rem;font-weight:700;cursor:pointer}
     .stock-doc-summary{font-size:.72rem;color:var(--muted);white-space:nowrap}
     .doc-more-hint{font-size:.67rem;color:var(--accent);opacity:.8;margin-left:.3rem;white-space:nowrap}
     /* ── STOCK ROW DETAIL (Photos | Documents split panel) ── */
@@ -495,14 +508,25 @@
     .media-preview-body iframe,.media-preview-body embed{width:100%;height:80vh;border:none}
     /* ── RACK PHOTO GALLERY ── */
     .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem}
-    .rack-photo-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
-    .rack-photo-card .rpc-hdr{display:flex;justify-content:space-between;align-items:center;padding:.4rem .6rem;font-size:.78rem;font-weight:700;color:var(--navy)}
-    .rack-photo-card .rpc-qty{font-size:.7rem;font-weight:600;color:var(--accent2);background:#DBEAFE;border-radius:10px;padding:1px 8px}
-    .rack-photo-card .rpc-img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer;background:#F3F4F6}
-    .rack-photo-card .rpc-empty{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.75rem;background:#F3F4F6;flex-direction:column;gap:.3rem}
-    .rack-photo-card .rpc-actions{padding:.4rem .6rem;display:flex;justify-content:center}
-    .rack-photo-card .rpc-btn{font-size:.72rem;background:var(--border);color:var(--text);border:none;border-radius:6px;padding:.3rem .6rem;cursor:pointer;transition:.15s}
-    .rack-photo-card .rpc-btn:hover{background:var(--accent);color:#fff}
+    /* Compact rack photo chips — same footprint and rhythm as .doc-card, so the
+       two columns of the expanded stock row read as one panel instead of a big
+       4:3 photo box on the left and small chips on the right. */
+    .rack-photo-card{position:relative;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.15s}
+    .rack-photo-card:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .rack-photo-card .rpc-img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6;display:block;cursor:pointer}
+    .rack-photo-card .rpc-empty{width:52px;height:52px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.4rem;background:#f3f4f6;border:1px dashed var(--border);border-radius:5px}
+    .rack-photo-card .rpc-name{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
+    .rack-photo-card .rpc-qty{font-size:.58rem;font-weight:600;color:var(--accent2)}
+    .rack-photo-card .rpc-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.6rem;cursor:pointer;line-height:1;padding:0;opacity:0;transition:.15s}
+    .rack-photo-card:hover .rpc-btn,.rack-photo-card .rpc-btn:focus{opacity:1}
+    .rack-photo-card .rpc-btn:hover{background:var(--accent)}
+    @media (hover:none){.rack-photo-card .rpc-btn{opacity:1}}
+    [data-theme="dark"] .rack-photo-card{background:#0F172A}
+    /* Rack drawer keeps the large photo — it's a panel about one rack. */
+    .rdp-img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer;background:#F3F4F6;border-radius:8px}
+    .rdp-empty{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.75rem;background:#F3F4F6;flex-direction:column;gap:.3rem;border-radius:8px}
+    .rdp-btn{font-size:.72rem;background:var(--border);color:var(--text);border:none;border-radius:6px;padding:.3rem .6rem;cursor:pointer;transition:.15s;margin-top:.4rem}
+    .rdp-btn:hover{background:var(--accent);color:#fff}
     /* ── SETTINGS MODAL — vertical sidebar layout ──
        .settings-tab keeps its base look (used by JS toggling .active) but now
        lays out as a full-width sidebar row instead of an inline pill, so a long
@@ -647,6 +671,79 @@
     .doc-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
     .doc-photo-thumb .remove-photo{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
     .doc-group-actions{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+    /* Floating deck of "you typed something new — register it?" suggestions,
+       for the ones the inline prompt under the field didn't get used on.
+       Sits above the 🐞 report button, same corner. Collapsed it is a deck:
+       the cards overlap so it stays small; on hover they fan out into a
+       readable column. Touch has no hover, so tapping toggles .open — without
+       that, anything behind the front card would be unreachable on a phone. */
+    /* Collapsed it is a tilted deck of cards; hovering fans it into a readable
+       column and un-hovering drops it back. Cards are a FIXED height so the
+       collapse can be pure margin+transform — those animate, height does not,
+       and a staircase of mismatched heights would not read as a deck. Newest is
+       last in the DOM so it paints on top without fighting z-index. */
+    /* At most DECK_VISIBLE cards are ever in the DOM (see _renderCfgDeck), so
+       the pile is a real hand of cards, not a 300-card staircase — as one is
+       dealt with, the next flows in. Padding on the container leaves room for
+       the rotated corners and the count badge to sit OUTSIDE the top card. */
+    .cfg-deck{position:fixed;right:22px;bottom:86px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(300px,calc(100vw - 44px));padding:14px 12px 0 14px}
+    .cfg-deck:empty{display:none}
+    /* Closing is deliberately slower than opening — a pile snapping shut the
+       instant the pointer leaves reads as the app swatting you away. */
+    .cfg-card{position:relative;background:var(--navy);color:#fff;border-radius:10px;padding:.55rem .7rem;font-size:.76rem;box-shadow:0 6px 20px rgba(0,0,0,.25);width:250px;max-width:100%;height:88px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,opacity .45s ease;cursor:default}
+    .cfg-deck:hover .cfg-card,.cfg-deck.open .cfg-card{transition:margin .22s ease,transform .22s ease,opacity .2s ease}
+    /* Resting state is nearly see-through so the deck never competes with the
+       app behind it; hovering brings it back to full strength. */
+    .cfg-deck.dim:not(:hover):not(.open) .cfg-card{opacity:.25}
+    .cfg-card + .cfg-card{margin-top:.45rem}
+    /* Piled: each card pulled fully up under the next, offset a few px so the
+       edges show. Rotation alternates for a hand-stacked look. */
+    .cfg-deck:not(:hover):not(.open) .cfg-card{margin-top:-82px;transform:rotate(-2.4deg)}
+    .cfg-deck:not(:hover):not(.open) .cfg-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
+    .cfg-deck:not(:hover):not(.open) .cfg-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
+    .cfg-deck:not(:hover):not(.open) .cfg-card:first-child{margin-top:0}
+    /* The visible one sits square on top of the pile. */
+    .cfg-deck:not(:hover):not(.open) .cfg-card:last-child{transform:rotate(0deg)}
+    /* Only the top card takes clicks while piled — the rest are decoration
+       until the deck is fanned out. */
+    .cfg-deck:not(:hover):not(.open) .cfg-card:not(:last-child){pointer-events:none}
+    /* Badge lives on the top card but must not be clipped by it, so no
+       overflow:hidden anywhere on the card — the value ellipsizes instead. */
+    .cfg-count{position:absolute;top:-9px;right:-9px;min-width:24px;height:24px;border-radius:12px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--card);box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
+    .cfg-deck:hover .cfg-count,.cfg-deck.open .cfg-count{display:none}
+
+    /* ── Phone/tablet: bell in the topbar instead of the hover deck ── */
+    .cfg-bell{display:none;position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:38px;height:34px;font-size:1rem;cursor:pointer;align-items:center;justify-content:center}
+    .cfg-bell-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--navy)}
+    .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);z-index:420;max-height:70vh;overflow-y:auto}
+    .cfg-bell-panel.show{display:block}
+    .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
+    .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer}
+    .cfg-bell-row{padding:.6rem .8rem;border-bottom:1px solid var(--border)}
+    .cfg-bell-row:last-child{border-bottom:none}
+    .cfg-bell-row .cfg-card-lbl{color:var(--muted)}
+    .cfg-bell-row .cfg-card-val{color:var(--text)}
+    @media (max-width:900px){
+      .cfg-deck{display:none!important}
+      .cfg-bell{display:inline-flex}
+    }
+    .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
+    .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
+    .cfg-card-acts button{border:none;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-card-add{background:var(--accent);color:#fff}
+    .cfg-card-add:disabled{opacity:.6;cursor:default}
+    .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
+    @media (max-width:640px){.cfg-deck{right:16px;bottom:72px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
+    .cfg-new-hint{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.3rem;font-size:.72rem;color:var(--muted)}
+    .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem .5rem;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-new-add:hover{filter:brightness(1.1)}
+    .cfg-new-add:disabled{opacity:.6;cursor:default}
+    .cfg-new-ok{color:var(--green);font-weight:700}
+    .doc-photo-bad{border:1.5px solid var(--red)!important;background:#FEF2F2!important}
+    .doc-drive-row{display:flex;gap:.4rem;align-items:center;margin-top:.45rem}
+    .doc-drive-row input{flex:1;min-width:0;padding:.38rem .6rem;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;background:var(--card);color:var(--text);min-height:36px}
+    .doc-drive-row input:focus{outline:none;border-color:var(--accent)}
     .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:.38rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:36px}
     .btn-camera:hover{filter:brightness(1.15)}
     .btn-camera:active{transform:scale(.97)}
@@ -768,7 +865,8 @@
 
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <div class="topbar">
-  <div>
+  <div class="topbar-brand">
+    <img id="appLogo" class="app-logo" alt="" style="display:none">
     <h1 id="appTitle">Warehouse</h1>
     <div class="author-badge">
       <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -818,9 +916,23 @@
         </div>
       </div>
     </div>
+    <!-- Unregistered suppliers/projects — phone/tablet entry point. The corner
+         deck relies on hover, which touch devices do not have, so on small
+         screens the deck is hidden and this opens the same list as a panel. -->
+    <button class="cfg-bell" id="cfgBellBtn" onclick="toggleCfgBell(event)" title="Unregistered suppliers / projects">
+      🔔<span class="cfg-bell-count" id="cfgBellCount">0</span>
+    </button>
     <!-- Dark mode toggle -->
     <button class="dark-toggle" id="btnDarkMode" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   </div>
+</div>
+
+<div class="cfg-bell-panel" id="cfgBellPanel">
+  <div class="cfg-bell-hdr">
+    <span>Not on your lists yet</span>
+    <button onclick="toggleCfgBell(event)" title="Close">✕</button>
+  </div>
+  <div id="cfgBellList"></div>
 </div>
 
 <!-- ══ TOAST CONTAINER ═══════════════════════════════════════════════════════ -->
@@ -1137,7 +1249,7 @@
       </div>
       <div class="field">
         <label>Supplier</label>
-        <input type="text" id="incSupplier" list="supplierList" placeholder="Supplier name">
+        <input type="text" id="incSupplier" list="supplierList" data-cfg-new="suppliers" placeholder="Supplier name">
       </div>
       <div class="field">
         <label>PO #</label>
@@ -1154,7 +1266,7 @@
     </div>
     <div class="field" style="margin-top:.5rem">
       <label>📎 Attach PDF / Photo <span style="font-weight:400;color:var(--muted)">(load sheet, delivery doc — replaces entering each material)</span></label>
-      <input type="file" id="incFile" class="incFile" accept="image/*,.pdf" onchange="_onIncFileChange()"
+      <input type="file" id="incFile" class="incFile" accept="image/*,.pdf,video/*" onchange="_onIncFileChange()"
         style="font-size:.82rem">
       <div id="incDocPreview" style="margin-top:.55rem"></div>
     </div>
@@ -1295,7 +1407,7 @@
       </div>
       <div class="field">
         <label>Project</label>
-        <input type="text" id="em_project" list="projList">
+        <input type="text" id="em_project" list="projList" data-cfg-new="projects">
       </div>
       <div class="field">
         <label>GC (General Contractor)</label>
@@ -1303,7 +1415,7 @@
       </div>
       <div class="field">
         <label>Supplier</label>
-        <input type="text" id="em_supplier" list="supplierList">
+        <input type="text" id="em_supplier" list="supplierList" data-cfg-new="suppliers">
       </div>
       <div class="field">
         <label>PO #</label>
@@ -1529,14 +1641,14 @@
     <div class="form-grid" style="margin-top:.75rem">
       <div class="field" id="mSupField">
         <label>Supplier</label>
-        <input type="text" id="mSup" list="supplierList">
+        <input type="text" id="mSup" list="supplierList" data-cfg-new="suppliers">
         <datalist id="supplierList"></datalist>
       </div>
       <div class="field" id="mGCField"><label>GC</label><input type="text" id="mGC"></div>
       <div class="field" id="mPOField"><label>PO#</label><input type="text" id="mPO"></div>
       <div class="field" id="mProjField">
         <label>Project / Client</label>
-        <input type="text" id="mProj" list="projList">
+        <input type="text" id="mProj" list="projList" data-cfg-new="projects">
         <datalist id="projList"></datalist>
       </div>
       <div class="field" id="mRespFieldWrap">
@@ -1581,7 +1693,7 @@
       <button class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
       <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
       <!-- Hidden file input (kept for AI extract compatibility) -->
-      <input type="file" id="legacyFileInput" class="mFile" accept="image/*,.pdf" style="display:none">
+      <input type="file" id="legacyFileInput" class="mFile" accept="image/*,.pdf,video/*" style="display:none">
     </div>
 
     <!-- ── Notification Section (ENTRY only) ── -->
@@ -1647,10 +1759,14 @@
 <div class="overlay" id="attachOverlay">
   <div class="modal modal-sm">
     <div class="mhdr">
-      <h3>📎 Attach Document</h3>
+      <h3>📎 Manage Documents</h3>
       <button class="modal-x" onclick="closeModal('attachOverlay')" title="Close">✕</button>
     </div>
-    <p style="font-size:.8rem;color:var(--muted);margin:.25rem 0 1rem">Name your document, then take photos or pick files. Multiple photos become one PDF. Will be linked to the selected record.</p>
+    <div class="field" style="margin-bottom:1rem">
+      <label style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.4rem">Already attached</label>
+      <div id="aExistingDocs" style="display:flex;flex-wrap:wrap;gap:.5rem"></div>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin:.25rem 0 1rem">Name a new document, then take photos or pick files. Multiple photos become one PDF.</p>
     <input type="hidden" id="aRowIdx">
     <input type="hidden" id="aFolderName">
     <!-- Doc groups rendered here by JS -->
@@ -1658,7 +1774,7 @@
     <button class="btn btn-ghost btn-sm" onclick="addDocGroup(null,'aDocGroupsContainer','a')" style="margin-top:.4rem;font-size:.8rem">+ Add Document</button>
     <div class="modal-actions" style="margin-top:1.25rem">
       <button id="btnCancelAttach" class="btn btn-ghost">Cancel</button>
-      <button class="btn btn-primary" id="attachSubmit">Upload &amp; Attach</button>
+      <button class="btn btn-primary" id="attachSubmit">Save Changes</button>
     </div>
   </div>
 </div>
@@ -1728,6 +1844,7 @@
 </div>
 
 <!-- Floating "report a problem" button — available from every screen -->
+<div class="cfg-deck" id="cfgDeck" onclick="this.classList.toggle('open')"></div>
 <button id="reportIssueFab" class="report-issue-fab" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
 
 <div class="overlay" id="reportIssueOverlay">
@@ -1783,7 +1900,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.1';
+var APP_VERSION = '9.23';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2147,7 +2264,11 @@ function wizRender(){
         '🏭 <b>' + _wiz.suppliers.length + '</b> suppliers · <b>' + _wiz.projects.length + '</b> projects' +
       '</div>' +
       '<div class="wiz-hint" style="margin-top:1rem">Already have your inventory in a spreadsheet? After finishing, ' +
-      'go to <b>Settings → Import</b>. Save it as <b>.csv</b> first — an .xlsx file will be rejected.</div>';
+      'go to <b>Settings → Import</b>. Excel (.xlsx) and .csv both work.</div>' +
+      '<div class="wiz-progress" id="wizProgressWrap" style="display:none">' +
+        '<div class="wiz-progress-track"><div class="wiz-progress-fill" id="wizProgressBar"></div></div>' +
+        '<div class="wiz-progress-label"><span id="wizProgressPct">0%</span> — setting up your system…</div>' +
+      '</div>';
   }
 }
 
@@ -2272,7 +2393,17 @@ function _wizDrawLocs(){
     : '<span style="color:#6B7280;font-size:.8rem">Nothing yet</span>';
 }
 
-function _wizAddUserRow(){ _wiz.users.push({email:'',name:'',role:'WAREHOUSE'}); _wizDrawUsers(); }
+function _wizAddUserRow(){
+  // Sync existing rows' DOM values into _wiz.users BEFORE pushing+redrawing —
+  // _wizDrawUsers() rebuilds every row from _wiz.users, and without this an
+  // email someone just typed (never synced anywhere but the DOM) gets wiped
+  // the moment they click "+ Add person" for a second row.
+  _wizSyncUsers();
+  _wiz.users.push({email:'',name:'',role:'WAREHOUSE'});
+  _wizDrawUsers();
+  var last = document.getElementById('wizU' + (_wiz.users.length - 1));
+  if (last) last.focus();
+}
 function _wizRemoveUser(i){ _wizSyncUsers(); _wiz.users.splice(i,1); _wizDrawUsers(); }
 
 function _wizSyncUsers(){
@@ -2288,7 +2419,8 @@ function _wizDrawUsers(){
   if (!box) return;
   box.innerHTML = _wiz.users.map(function(u,i){
     return '<div class="wiz-userrow">' +
-      '<input type="email" id="wizU'+i+'" placeholder="name@company.com" value="'+_escAttr(u.email)+'">' +
+      '<input type="email" id="wizU'+i+'" placeholder="name@company.com" value="'+_escAttr(u.email)+'" ' +
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_wizAddUserRow()}">' +
       '<select id="wizR'+i+'">' +
         '<option value="WAREHOUSE"'+(u.role==='WAREHOUSE'?' selected':'')+'>Warehouse</option>' +
         '<option value="ADMIN"'+(u.role==='ADMIN'?' selected':'')+'>Admin</option>' +
@@ -2304,8 +2436,27 @@ function wizFinish(){
   _wiz.users = _wiz.users.filter(function(u){ return u.email && u.email.indexOf('@') !== -1; });
   var btn = document.getElementById('wizNext');
   btn.disabled = true; btn.textContent = 'Setting up…';
+
+  // Same honest-approximation progress bar as the Sheet-side wizard (see
+  // SetupWizard.html's saveSetup): one synchronous Apps Script call has no
+  // real incremental progress to report, so this eases toward 90% and only
+  // claims done once the call actually returns.
+  var wrap = document.getElementById('wizProgressWrap');
+  var bar  = document.getElementById('wizProgressBar');
+  var pct  = document.getElementById('wizProgressPct');
+  if (wrap) wrap.style.display = '';
+  var progress = 0;
+  var ticker = setInterval(function(){
+    progress = Math.min(90, progress + (90 - progress) * 0.15 + 1);
+    if (bar) bar.style.width = progress + '%';
+    if (pct) pct.textContent = Math.round(progress) + '%';
+  }, 300);
+
   google.script.run
     .withSuccessHandler(function(){
+      clearInterval(ticker);
+      if (bar) bar.style.width = '100%';
+      if (pct) pct.textContent = '100%';
       // NOT location.reload(). The app is served inside Apps Script's sandboxed
       // googleusercontent.com iframe, and reloading that frame's own URL lands
       // on a blank page instead of the app — the URL only serves content as a
@@ -2320,6 +2471,8 @@ function wizFinish(){
       showToast('Setup complete — welcome to ' + PRODUCT + '.', 'ok');
     })
     .withFailureHandler(function(err){
+      clearInterval(ticker);
+      if (wrap) wrap.style.display = 'none';
       btn.disabled = false; btn.textContent = '✓ Start using ' + PRODUCT;
       showToast('Setup failed: ' + ((err && err.message) || err), 'err');
     })
@@ -2372,6 +2525,25 @@ function applyCompanyBranding(c){
   }
   var badge = document.getElementById('poweredByBadge');
   if (badge) badge.textContent = c.productName || PRODUCT;
+
+  // The logo was being uploaded, stored and even sent to the browser as
+  // c.logoId — and then nothing ever rendered it, which is why setting one in
+  // the wizard appeared to do nothing at all. It's a private Drive file inside
+  // the app's own folder, so it resolves through the same throttled fetch as
+  // every other private image rather than a public <img src>.
+  var logo = document.getElementById('appLogo');
+  if (logo && c.logoId && logo.dataset.loadedId !== c.logoId){
+    logo.dataset.loadedId = c.logoId;
+    _fetchPrivateFile(c.logoId, function(dataUrl){
+      if (!dataUrl) return;               // leave it hidden rather than show a broken image
+      logo.src = dataUrl;
+      logo.alt = name || '';
+      logo.style.display = '';
+    }, 'full');                            // full file: a logo is already tiny, and the
+                                           // thumbnail would drop its transparency
+  } else if (logo && !c.logoId){
+    logo.style.display = 'none';
+  }
 }
 
 // ── Report a Problem (floating button) ──────────────────────────────────────
@@ -2806,19 +2978,24 @@ function renderStock(){
 
     // Left column: one card per rack holding this material (photo or "+ Add Photo")
     var photosHtml = racks.length
-      ? racks.map(function(rack){
+      ? '<div class="doc-panel" style="padding:0">' + racks.map(function(rack){
           var photo = rackPhotos[rack.toUpperCase()];
           var img = photo
             ? _privImgTag(photo.url, 'class="rpc-img" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(rack)+'" title="Click to view full size"', rack)
-            : '<div class="rpc-empty"><span style="font-size:1.3rem">📷</span><span>No photo yet</span></div>';
+            : '<div class="rpc-empty" title="No photo yet">📷</div>';
+          // Upload moved onto a hover badge: the full-width "+ Add Photo" bar was
+          // most of each card's height, and there is one card per rack.
           var action = canUpload
-            ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'">' + (photo ? '🔄 Replace' : '+ Add Photo') + '</button>'
+            ? '<button class="rpc-btn" data-action="rack-photo-upload" data-rack="'+_he(rack)+'" title="' +
+              (photo ? 'Replace photo' : 'Add photo') + '">' + (photo ? '🔄' : '+') + '</button>'
             : '';
-          return '<div class="rack-photo-card">' +
-            '<div class="rpc-hdr"><span>📦 '+_he(rack)+'</span><span class="rpc-qty">'+s.warehouseLocs[rack]+'</span></div>' +
-            img + (action ? '<div class="rpc-actions">'+action+'</div>' : '') +
+          return '<div class="rack-photo-card" title="' + _he(rack) + ' — ' + s.warehouseLocs[rack] + ' unit(s)">' +
+            img +
+            '<span class="rpc-name">' + _he(rack) + '</span>' +
+            '<span class="rpc-qty">' + s.warehouseLocs[rack] + '</span>' +
+            action +
           '</div>';
-        }).join('')
+        }).join('') + '</div>'
       : '<p style="color:var(--muted);font-size:.8rem;padding:.25rem 0">No warehouse stock right now.</p>';
 
     // Right column: attached documents (invoices, delivery photos, etc.)
@@ -2942,7 +3119,7 @@ function extractDriveId(url){
 // frame ("google.com refused to connect"). Going through google.script.run
 // sidesteps that: no second network request to script.google.com happens at
 // all, so there is nothing for Google's sandboxing to interfere with.
-var _fileDataCache = {};   // fileId -> {mimeType, base64}   (successes only)
+var _fileDataCache = {};   // "<kind>:<fileId>" -> {mimeType, base64}   (successes only)
 
 // ── Throttled fetching — this is what fixes "too many scripts running" ───────
 //
@@ -2962,12 +3139,18 @@ var _fileDataCache = {};   // fileId -> {mimeType, base64}   (successes only)
 //
 // Two limits below, and the pair matters:
 //   • at most MAX_INFLIGHT calls open at any moment, the rest queued;
-//   • one call per file ID — repeat requests for a file already being fetched
-//     wait on that same request instead of starting another. The same document
-//     commonly appears in several rows, so without this the queue would happily
-//     fetch identical bytes many times over.
-var _privQueue     = [];   // [{id, done}] waiting for a slot
-var _privInflight  = {};   // fileId -> [done, …] callbacks awaiting one open call
+//   • one call per (kind, file ID) — repeat requests for something already
+//     being fetched wait on that same request instead of starting another.
+//     The same document commonly appears in several rows, so without this the
+//     queue would happily fetch identical bytes many times over.
+//
+// "kind" is 'thumb' or 'full', kept as separate cache/inflight entries under
+// separate keys — the same file is legitimately fetched both ways (a small
+// grid preview, then the full file when someone clicks to actually view it),
+// and they must not collide or overwrite one another.
+var _privQueue     = [];   // [{key, id, kind}] waiting for a slot
+var _privInflight  = {};   // key -> [done, …] callbacks awaiting one open call
+var _privLastErr   = {};   // key -> the actual server error text for the most recent failure
 var _privActive    = 0;
 var _PRIV_MAX_INFLIGHT = 3;
 
@@ -2978,50 +3161,78 @@ var _PRIV_MAX_INFLIGHT = 3;
 // getElementById() on an element that does not exist yet, gives up, and the
 // image stays blank forever. Deferring by a tick costs nothing and makes the
 // ordering impossible to get wrong.
-function _privLater(cb, arg){ setTimeout(function(){ cb(arg); }, 0); }
+function _privLater(cb, arg, arg2){ setTimeout(function(){ cb(arg, arg2); }, 0); }
 
 function _privPump(){
   while (_privActive < _PRIV_MAX_INFLIGHT && _privQueue.length){
     var job = _privQueue.shift();
-    if (_fileDataCache[job.id]) { _privDeliver(job.id); continue; }  // arrived while queued
+    if (_fileDataCache[job.key]) { _privDeliver(job.key); continue; }  // arrived while queued
     _privActive++;
-    (function(id){
+    (function(job){
       google.script.run
         .withSuccessHandler(function(res){
-          if (res) _fileDataCache[id] = res;
-          _privActive--; _privDeliver(id); _privPump();
+          _privActive--;
+          if (res) {
+            _fileDataCache[job.key] = res;
+            _privDeliver(job.key);
+          } else if (job.kind === 'thumb' || job.kind === 'big') {
+            // Drive has no thumbnail for this file (yet) — most often a file
+            // uploaded moments ago, before Drive finished generating one, or a
+            // type it doesn't render a thumbnail for at all. Fall back to the
+            // full file for just this request rather than showing it broken;
+            // this goes back through _fetchPrivateFile so it still shares a
+            // cache/inflight entry with anyone else already fetching the full
+            // version of the same file.
+            var waiting = _privInflight[job.key] || [];
+            delete _privInflight[job.key];
+            waiting.forEach(function(cb){ _fetchPrivateFile(job.id, cb, 'full'); });
+          } else {
+            _privLastErr[job.key] = 'File not found or no longer accessible.';
+            _privDeliver(job.key);
+          }
+          _privPump();
         })
-        .withFailureHandler(function(){
+        .withFailureHandler(function(err){
           // Deliberately NOT cached as a permanent failure. One transient error
           // — a hiccup, a momentary execution-quota trip — used to mark the file
           // dead for the rest of the session, so a thumbnail that failed once
           // stayed broken until a full page reload even though the file was
           // fine. A later render simply tries again; the queue above is what
           // keeps those retries from piling up.
-          _privActive--; _privDeliver(id); _privPump();
+          _privLastErr[job.key] = (err && err.message) ? err.message : String(err || 'Unknown error');
+          _privActive--; _privDeliver(job.key); _privPump();
         })
-        .getPrivateFileData(id, _sessionToken || null);
-    })(job.id);
+        // 'thumb' = Drive's own small render (grid cells). 'big' = the same
+        // render asked for at preview size — the only way to show a PDF's page 1
+        // inside this app, since the browser's PDF plugin can't run in Apps
+        // Script's sandboxed frame. 'full' = the actual file bytes.
+        [job.kind === 'full' ? 'getPrivateFileData' : 'getPrivateFileThumbnail'](
+          job.id, _sessionToken || null, job.kind === 'big' ? 1600 : 0);
+    })(job);
   }
 }
 
-function _privDeliver(id){
-  var cached = _fileDataCache[id];
+function _privDeliver(key){
+  var cached = _fileDataCache[key];
   var url = cached ? 'data:' + cached.mimeType + ';base64,' + cached.base64 : null;
-  var waiting = _privInflight[id] || [];
-  delete _privInflight[id];
-  waiting.forEach(function(cb){ _privLater(cb, url); });
+  var err = cached ? null : (_privLastErr[key] || null);
+  delete _privLastErr[key];
+  var waiting = _privInflight[key] || [];
+  delete _privInflight[key];
+  waiting.forEach(function(cb){ _privLater(cb, url, err); });
 }
 
-function _fetchPrivateFile(rawUrlOrId, done){
+function _fetchPrivateFile(rawUrlOrId, done, kind){
+  kind = (kind === 'thumb' || kind === 'big') ? kind : 'full';
   var id = extractDriveId(rawUrlOrId);
-  if (!id) { _privLater(done, null); return; }
-  var cached = _fileDataCache[id];
+  if (!id) { _privLater(done, null, 'Invalid file reference.'); return; }
+  var key = kind + ':' + id;
+  var cached = _fileDataCache[key];
   if (cached) { _privLater(done, 'data:' + cached.mimeType + ';base64,' + cached.base64); return; }
 
-  if (_privInflight[id]) { _privInflight[id].push(done); return; }  // ride along
-  _privInflight[id] = [done];
-  _privQueue.push({ id: id });
+  if (_privInflight[key]) { _privInflight[key].push(done); return; }  // ride along
+  _privInflight[key] = [done];
+  _privQueue.push({ key: key, id: id, kind: kind });
   _privPump();
 }
 
@@ -3030,6 +3241,11 @@ function _fetchPrivateFile(rawUrlOrId, done){
 // layout doesn't jump), then swaps in the real image once _fetchPrivateFile
 // resolves. If the element has scrolled out of the DOM by then (a fast filter
 // change, a closed modal), the swap is just skipped — nothing to clean up.
+//
+// Always requests the THUMBNAIL, not the full file — every use of this
+// function is a small grid preview (document chips, rack photos), which never
+// needed full resolution. openMediaPreview() fetches the full file separately
+// when someone actually clicks to view one.
 var _privImgSeq = 0;
 function _privImgTag(raw, attrs, altText){
   var pid = 'privimg-' + (++_privImgSeq);
@@ -3040,7 +3256,7 @@ function _privImgTag(raw, attrs, altText){
     if (dataUrl) { el.src = dataUrl; el.removeAttribute('data-priv-pending'); }
     else if (el.dataset.privFallback) { el.outerHTML = el.dataset.privFallback; }
     else { el.style.display = 'none'; }
-  });
+  }, 'thumb');
   return '<img id="' + pid + '" src="' + blankPx + '" data-priv-pending="1" ' +
     (attrs || '') + ' alt="' + _he(altText || '') + '">';
 }
@@ -4176,10 +4392,10 @@ function _matLineTpl(n){
     // when "All materials share the same..." is unchecked (toggleEntrySameInfo()).
     '<div class="mat-per-info" id="mat-perinfo-' + n + '" style="display:none;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--border)">' +
       '<div class="mat-line-grid">' +
-        '<div class="field"><label class="mat-line-lbl-sm">Supplier</label><input type="text" id="mat-sup-' + n + '" list="supplierList"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">Supplier</label><input type="text" id="mat-sup-' + n + '" list="supplierList" data-cfg-new="suppliers"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">GC</label><input type="text" id="mat-gc-' + n + '"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">PO#</label><input type="text" id="mat-po-' + n + '"></div>' +
-        '<div class="field"><label class="mat-line-lbl-sm">Project / Client</label><input type="text" id="mat-proj-' + n + '" list="projList"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">Project / Client</label><input type="text" id="mat-proj-' + n + '" list="projList" data-cfg-new="projects"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">PM</label><input type="text" id="mat-pm-' + n + '" list="pmNameList" placeholder="Name of project manager"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">Received By</label><input type="text" id="mat-resp-' + n + '"></div>' +
       '</div>' +
@@ -5142,12 +5358,12 @@ function _renderImportTab() {
   var content = document.getElementById('settingsTabContent');
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' +
-      'Bulk-import an existing inventory from a CSV file — useful for the first setup, or catching up after counting on paper. ' +
-      'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Excel/Sheets: File → Save As → CSV first.' +
+      'Bulk-import an existing inventory from an Excel (.xlsx) or CSV file — useful for the first setup, or catching up after counting on paper. ' +
+      'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Multi-sheet workbooks: the right sheet is detected automatically, and you can switch sheets after loading.' +
     '</p>' +
     '<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">' +
       '<button class="btn btn-ghost btn-sm" onclick="_downloadImportTemplate()">⬇ Download CSV Template</button>' +
-      '<input type="file" id="importFileInput" accept=".csv" style="font-size:.82rem">' +
+      '<input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="font-size:.82rem">' +
     '</div>' +
     '<div id="importPreviewBox"></div>';
   document.getElementById('importFileInput').addEventListener('change', _onImportFileChange);
@@ -5164,6 +5380,10 @@ function _downloadImportTemplate() {
   a.click();
 }
 
+// Kept so a different tab of the SAME workbook can be re-parsed without making
+// the user pick the file again.
+var _importFileB64 = '', _importFileName = '', _importFileMime = '';
+
 function _onImportFileChange(e){
   var file = e.target.files[0];
   if (!file) return;
@@ -5171,25 +5391,62 @@ function _onImportFileChange(e){
   box.innerHTML = '<p style="color:var(--muted);font-size:.85rem"><span class="spin-hg">⏳</span> Reading file…</p>';
   _readFileAsBase64(file, function(b64, mime){
     if (!b64) { box.innerHTML = '<p style="color:var(--red);font-size:.85rem">Could not read this file.</p>'; return; }
-    google.script.run
-      .withSuccessHandler(function(res){ _importParsedRows = res.rows || []; _renderImportPreview(res); })
-      .withFailureHandler(function(err){
-        box.innerHTML = '<p style="color:var(--red);font-size:.85rem">' + _he((err.message || err).replace(/^Error:\s*/i,'')) + '</p>';
-      })
-      .processMovement('parseImportFile', _h({ fileData: b64, mimeType: mime, fileName: file.name }));
+    _importFileB64 = b64; _importFileName = file.name; _importFileMime = mime;
+    _parseImportSheet('');
   });
+}
+
+function _parseImportSheet(sheetName){
+  var box = document.getElementById('importPreviewBox');
+  box.innerHTML = '<p style="color:var(--muted);font-size:.85rem"><span class="spin-hg">⏳</span> Reading' +
+    (sheetName ? ' sheet “' + _he(sheetName) + '”' : ' file') + '…</p>';
+  google.script.run
+    .withSuccessHandler(function(res){ _importParsedRows = res.rows || []; _renderImportPreview(res); })
+    .withFailureHandler(function(err){
+      box.innerHTML = '<p style="color:var(--red);font-size:.85rem">' +
+        _he((err.message || err).replace(/^Error:\s*/i,'')) + '</p>' + _importSheetPickerHtml();
+      _wireImportSheetPicker();
+    })
+    .processMovement('parseImportFile', _h({
+      fileData: _importFileB64, mimeType: _importFileMime,
+      fileName: _importFileName, sheetName: sheetName || ''
+    }));
+}
+
+// Rendered under both the preview and any error, so a workbook whose data sits
+// on a later tab is recoverable without re-picking the file.
+var _importSheetNames = [], _importUsedSheet = '';
+function _importSheetPickerHtml(){
+  if (!_importSheetNames || _importSheetNames.length < 2) return '';
+  return '<div style="margin-top:.6rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">' +
+    '<label style="font-size:.78rem;color:var(--muted);font-weight:600">Sheet:</label>' +
+    '<select id="importSheetPick" style="font-size:.82rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)">' +
+      _importSheetNames.map(function(n){
+        return '<option value="'+_he(n)+'"'+(n===_importUsedSheet?' selected':'')+'>'+_he(n)+'</option>';
+      }).join('') +
+    '</select>' +
+    '<span style="font-size:.72rem;color:var(--muted)">This workbook has ' + _importSheetNames.length + ' sheets.</span>' +
+  '</div>';
+}
+function _wireImportSheetPicker(){
+  var sel = document.getElementById('importSheetPick');
+  if (sel) sel.addEventListener('change', function(){ _parseImportSheet(sel.value); });
 }
 
 function _renderImportPreview(res){
   var box  = document.getElementById('importPreviewBox');
   var rows = res.rows || [];
 
+  _importSheetNames = res.sheetNames || [];
+  _importUsedSheet  = res.usedSheet  || '';
+  var sheetNote = _importSheetPickerHtml();
+
   var lineNote = res.rawLineCount
     ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem">The file itself has ' + res.rawLineCount +
       ' non-empty line(s), including the header. If that number looks too low, the file you selected doesn\'t have all your rows in it yet — re-save/export it and upload again.</p>'
     : '';
 
-  var summary = lineNote + '<div style="display:flex;gap:.6rem;margin:.5rem 0 .75rem;flex-wrap:wrap">' +
+  var summary = sheetNote + lineNote + '<div style="display:flex;gap:.6rem;margin:.5rem 0 .75rem;flex-wrap:wrap">' +
     '<span class="badge badge-blue">' + res.totalRows + ' row(s) found</span>' +
     '<span class="badge badge-green">' + res.validRows + ' ready to import</span>' +
     (res.invalidRows ? '<span class="badge badge-red">' + res.invalidRows + ' need fixing in the file</span>' : '') +
@@ -5222,6 +5479,7 @@ function _renderImportPreview(res){
     '<button class="btn btn-primary" id="btnCommitImport" ' + (res.validRows ? '' : 'disabled') + ' onclick="_commitImport()">' +
       '✓ Import ' + res.validRows + ' Valid Row(s)' +
     '</button>';
+  _wireImportSheetPicker();
 }
 
 function _commitImport(){
@@ -5621,28 +5879,32 @@ function _settingMsg(txt, type) {
 function submitAttachment() {
   var btn  = document.getElementById('attachSubmit');
   var docs = _collectDocGroups('aDocGroupsContainer');
-  if (!docs.length) {
-    showToast('Add at least one photo or file before uploading.', 'warn');
+  var keepLinks = _attachExistingDocs.filter(function(d,i){ return !_attachRemovedIdx[i]; }).map(function(d){ return d.raw; });
+
+  if (!docs.length && keepLinks.length === _attachExistingDocs.length) {
+    showToast(_attachExistingDocs.length ? 'Nothing changed.' : 'Add at least one photo or file.', 'warn');
     return;
   }
-  btn.innerHTML = 'Uploading… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+
+  btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
   _setModalBusy('attachOverlay', true);
   google.script.run
     .withSuccessHandler(function() {
       _setModalBusy('attachOverlay', false);
       closeModal('attachOverlay');
-      showToast('Document attached ✓', 'ok');
+      showToast('Documents updated ✓', 'ok');
       loadDataFromGoogle(false);
     })
     .withFailureHandler(function(err) {
-      showToast('Upload failed: ' + (err.message || err), 'err', 6000);
-      btn.textContent = 'Upload & Attach'; btn.disabled = false;
+      showToast('Save failed: ' + (err.message || err), 'err', 6000);
+      btn.textContent = 'Save Changes'; btn.disabled = false;
       _setModalBusy('attachOverlay', false);
     })
     .processMovement('updateDocument', _h({
       rowIdx:    parseInt(document.getElementById('aRowIdx').value),
       expectedCategory: _attachOrigCategory,
       expectedName:     _attachOrigName,
+      keepLinks: keepLinks,
       docGroups: docs,
       files:     []
     }));
@@ -5654,7 +5916,7 @@ function closeModal(id){
   var bm = document.getElementById('moveSubmit');
   var ba = document.getElementById('attachSubmit');
   if (bm){ bm.textContent = 'Save to System'; bm.disabled = false; }
-  if (ba){ ba.textContent = 'Upload & Attach'; ba.disabled = false; }
+  if (ba){ ba.textContent = 'Save Changes'; ba.disabled = false; }
   // Reset attach builder when the attach modal closes
   if (id === 'attachOverlay') resetAttachDocBuilder();
 }
@@ -5703,12 +5965,65 @@ function _moveModalHasData(){
 
 var _attachOrigCategory = '';
 var _attachOrigName = '';
+var _attachExistingDocs = [];
+var _attachRemovedIdx = {};
+
+function _parseDocLinksList(linksStr){
+  if (!linksStr) return [];
+  return linksStr.split('\n').map(function(l){ return l.trim(); }).filter(Boolean).map(function(line){
+    var name = 'Document', url = line;
+    if (line.indexOf('||') !== -1) {
+      var parts = line.split('||');
+      name = (parts[0]||'').trim() || name;
+      url  = (parts[1]||'').trim();
+    }
+    return { name: name, url: url, raw: line };
+  });
+}
+
+function _renderAttachExistingDocs(){
+  var box = document.getElementById('aExistingDocs');
+  if (!box) return;
+  if (!_attachExistingDocs.length){
+    box.innerHTML = '<span style="color:var(--muted);font-size:.8rem">No documents attached yet.</span>';
+    return;
+  }
+  box.innerHTML = _attachExistingDocs.map(function(d, i){
+    var removed = !!_attachRemovedIdx[i];
+    var fileId = extractDriveId(d.url);
+    // Not on the outer chip div — the remove/undo button lives inside it with
+    // its own onclick, and the delegated click handler walks up via closest(),
+    // so a data-action on the container would fire preview-media on every
+    // click in the chip, including "Remove". Attaching it only to the
+    // thumb/label keeps the two actions separate.
+    var previewAttrs = removed ? '' : ' data-action="preview-media" data-url="'+_he(d.url)+'" data-label="'+_he(d.name)+'"';
+    var thumb = fileId
+      ? _privImgTag(d.url, 'loading="lazy" onerror="this.style.display=\'none\'"' + previewAttrs, d.name)
+      : '<div'+previewAttrs+' style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.3rem">📄</div>';
+    return '<div class="attach-doc-chip'+(removed?' removed':'')+'" title="'+_he(d.name)+'">' +
+      thumb +
+      '<span class="adc-label"'+previewAttrs+'>'+_he(d.name)+'</span>' +
+      (removed
+        ? '<div class="adc-undo" onclick="_toggleAttachRemove('+i+')">Undo</div>'
+        : '<button class="adc-rm" onclick="_toggleAttachRemove('+i+')" title="Remove">×</button>') +
+    '</div>';
+  }).join('');
+}
+
+function _toggleAttachRemove(i){
+  if (_attachRemovedIdx[i]) delete _attachRemovedIdx[i]; else _attachRemovedIdx[i] = true;
+  _renderAttachExistingDocs();
+}
+
 function openAttachModal(rowIdx, folderName){
   document.getElementById('aRowIdx').value     = rowIdx;
   document.getElementById('aFolderName').value = folderName;
   var mov = movements.find(function(m){ return m.rowIdx === rowIdx; });
   _attachOrigCategory = mov ? (mov.category || '') : '';
   _attachOrigName     = mov ? (mov.name     || '') : '';
+  _attachExistingDocs = _parseDocLinksList(mov ? mov.docLinks : '');
+  _attachRemovedIdx = {};
+  _renderAttachExistingDocs();
   resetAttachDocBuilder();  // fresh doc builder each time
   document.getElementById('attachOverlay').classList.add('show');
 }
@@ -5752,13 +6067,19 @@ function addDocGroup(suggestedName, containerId, idPrefix) {
     '<div class="doc-group-actions">' +
       '<button class="btn-camera" onclick="triggerCameraCapture(\'' + uid + '\')">📸 Camera</button>' +
       '<button class="btn-gallery" onclick="triggerGalleryPick(\'' + uid + '\')">📁 Files</button>' +
+      '<button class="btn-gallery" onclick="toggleDriveAttach(\'' + uid + '\')">☁️ Drive</button>' +
       '<span class="doc-photo-count" id="pcount-' + uid + '">No photos yet</span>' +
       '<span class="doc-more-hint" id="hint-' + uid + '" style="display:none">— 📸 tap again to add a page</span>' +
+    '</div>' +
+    '<div class="doc-drive-row" id="driveRow-' + uid + '" style="display:none">' +
+      '<input type="text" id="driveInput-' + uid + '" placeholder="Paste a Google Drive link" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addDriveRef(\'' + uid + '\')}">' +
+      '<button class="btn-gallery" onclick="addDriveRef(\'' + uid + '\')">Add</button>' +
     '</div>' +
     /* Camera: one shot at a time, opens native camera on mobile */
     '<input type="file" class="doc-cam-input"  id="docCamInput-'  + uid + '" accept="image/*" capture="environment" style="display:none">' +
     /* Gallery: multiple files, no forced camera */
-    '<input type="file" class="doc-file-input" id="docFileInput-' + uid + '" accept="image/*,.pdf" style="display:none" multiple>';
+    '<input type="file" class="doc-file-input" id="docFileInput-' + uid + '" accept="image/*,.pdf,video/*" style="display:none" multiple>';
 
   container.appendChild(group);
   document.getElementById('docCamInput-'  + uid).addEventListener('change', function(e) {
@@ -5780,11 +6101,68 @@ function triggerGalleryPick(uid) {
 }
 
 // Compress + add photos to a group's strip
+// Anything this app has to hand back to the browser travels base64-encoded
+// through a single google.script.run reply, and Apps Script refuses to build a
+// blob past its own ceiling — which is where "El archivo … supera el tamaño de
+// archivo máximo permitido" came from. That error used to appear only when
+// someone later tried to VIEW the file: it uploaded happily, then turned out to
+// be unopenable. Checking at pick time is the whole point — the moment to say
+// a file is too big is before it is attached, not days later.
+var MAX_ATTACH_BYTES = 25 * 1024 * 1024;   // 25 MB
+function _fmtMB(bytes){ return (bytes / (1024 * 1024)).toFixed(1) + ' MB'; }
+
+// A rejected file stays on screen as a red chip instead of silently vanishing.
+// Dropping it without a trace looked like the app had simply ignored the click,
+// and the toast is gone in seconds — this keeps the reason attached to the file
+// it is about, and blocks saving until it is removed.
+function _addRejectedFileChip(strip, fileName, reason){
+  var chip = document.createElement('div');
+  chip.className = 'doc-photo-thumb doc-photo-bad';
+  chip.dataset.bad = '1';
+  chip.title = fileName + ' — ' + reason;
+  chip.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;' +
+      'flex-direction:column;gap:1px;font-size:1.1rem">⚠️' +
+      '<span style="font-size:.46rem;color:#B91C1C;padding:0 2px;text-align:center;line-height:1.1">Too big</span></div>' +
+    '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>';
+  strip.appendChild(chip);
+  _updateDocPhotoCount();
+}
+
+// True when any document builder currently holds a rejected file. Save buttons
+// consult this so an invalid attachment is caught before the movement is
+// written, rather than surfacing as "Saved ✓ — 📎 File: ..." afterwards, with
+// the row already in the sheet and the document lost.
+function _hasRejectedFiles(containerId){
+  var c = document.getElementById(containerId || 'docGroupsContainer');
+  return !!(c && c.querySelector('[data-bad="1"]'));
+}
+
+// Keeps the save button in step with whether a rejected file is present.
+function _syncSaveDisabledForBadFiles(containerId, buttonId){
+  var btn = document.getElementById(buttonId);
+  if (!btn) return;
+  var bad = _hasRejectedFiles(containerId);
+  btn.disabled = bad;
+  btn.title = bad ? 'Remove the oversized file before saving' : '';
+}
+
 function _handlePhotoFiles(uid, files) {
   var strip = document.getElementById('strip-' + uid);
   if (!strip) return;
   files.forEach(function(file) {
     if (!file) return;
+    // Images are compressed below, so only non-images are judged on raw size;
+    // a 30 MB photo is fine because it leaves the canvas a few hundred KB.
+    var isImg = file.type && file.type.indexOf('image') === 0;
+    if (!isImg && file.size > MAX_ATTACH_BYTES) {
+      _addRejectedFileChip(strip, file.name,
+        _fmtMB(file.size) + ' — over the ' + _fmtMB(MAX_ATTACH_BYTES) + ' limit');
+      showToast('“' + file.name + '” is ' + _fmtMB(file.size) + ' — too large to attach (limit ' +
+        _fmtMB(MAX_ATTACH_BYTES) + '). A file this size can be stored but never opened from inside ' +
+        'the app, so it is refused here. Remove it to continue saving.', 'err', 9000);
+      return;
+    }
     _compressImage(file, 1200, 0.82, function(b64, mime) {
       var thumb = document.createElement('div');
       thumb.className   = 'doc-photo-thumb';
@@ -5803,16 +6181,79 @@ function _handlePhotoFiles(uid, files) {
   });
 }
 
+// Reveal/hide the "paste a Drive link" row for one document group.
+//
+// This is a link box rather than Google's own file-picker dialog on purpose.
+// The Picker needs an API key from a STANDARD Cloud project, and every customer
+// copy runs on the hidden default project Apps Script creates — the same wall
+// that blocks self-deploy (see docs/BACKLOG.md). A link box needs no Cloud
+// configuration at all, so it works on every copy.
+function toggleDriveAttach(uid){
+  var row = document.getElementById('driveRow-' + uid);
+  if (!row) return;
+  var showing = row.style.display === '';
+  row.style.display = showing ? 'none' : '';
+  if (!showing) {
+    var inp = document.getElementById('driveInput-' + uid);
+    if (inp) inp.focus();
+  }
+}
+
+function addDriveRef(uid){
+  var inp = document.getElementById('driveInput-' + uid);
+  if (!inp) return;
+  var raw = (inp.value || '').trim();
+  if (!raw) return;
+  var id = extractDriveId(raw);
+  if (!id) {
+    showToast('That does not look like a Google Drive link.', 'warn');
+    return;
+  }
+  var strip = document.getElementById('strip-' + uid);
+  if (!strip) return;
+  if (strip.querySelector('[data-drive-id="' + id + '"]')) {
+    showToast('That file is already attached to this document.', 'warn');
+    inp.value = '';
+    return;
+  }
+  var chip = document.createElement('div');
+  chip.className = 'doc-photo-thumb';
+  chip.dataset.driveId = id;
+  chip.title = 'From Drive — copied into the system when you save';
+  chip.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;' +
+      'font-size:1.3rem;flex-direction:column;gap:2px">☁️' +
+      '<span style="font-size:.5rem;color:#555">Drive</span></div>' +
+    '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>';
+  strip.appendChild(chip);
+  inp.value = '';
+  document.getElementById('driveRow-' + uid).style.display = 'none';
+  _updateDocPhotoCount();
+}
+
 function _updateDocPhotoCount() {
+  // Every add/remove funnels through here, so it is the one place that can keep
+  // the save buttons honest about rejected files.
+  _syncSaveDisabledForBadFiles('docGroupsContainer', 'moveSubmit');
+  _syncSaveDisabledForBadFiles('aDocGroupsContainer', 'attachSubmit');
+
   document.querySelectorAll('.doc-group').forEach(function(group) {
     var uid   = group.dataset.gid;
-    var count = group.querySelectorAll('.doc-photo-thumb').length;
+    var photos = group.querySelectorAll('.doc-photo-thumb:not([data-drive-id]):not([data-bad])').length;
+    var drives = group.querySelectorAll('.doc-photo-thumb[data-drive-id]').length;
+    var count  = photos + drives;
     var pcEl  = document.getElementById('pcount-' + uid);
     var htEl  = document.getElementById('hint-'   + uid);
     // Update count label
-    if (pcEl) pcEl.textContent = count === 0 ? 'No photos yet' : count + ' photo' + (count !== 1 ? 's' : '');
+    if (pcEl) {
+      pcEl.textContent = count === 0
+        ? 'No photos yet'
+        : (photos ? photos + ' photo' + (photos !== 1 ? 's' : '') : '') +
+          (photos && drives ? ' · ' : '') +
+          (drives ? drives + ' from Drive' : '');
+    }
     // Show "tap Camera again" hint only after exactly 1 photo so user knows multi-page is possible
-    if (htEl) htEl.style.display = count === 1 ? 'inline' : 'none';
+    if (htEl) htEl.style.display = photos === 1 ? 'inline' : 'none';
   });
 }
 
@@ -5859,12 +6300,17 @@ function _collectDocGroups(containerId) {
   container.querySelectorAll('.doc-group').forEach(function(groupEl) {
     var name   = (groupEl.querySelector('.doc-group-name').value || '').trim() || 'Document';
     var photos = [];
+    var driveIds = [];
     groupEl.querySelectorAll('.doc-photo-thumb').forEach(function(thumb) {
-      if (thumb.dataset.b64) {
+      if (thumb.dataset.bad) {
+        return;   // rejected file — never sent; the save button is blocked anyway
+      } else if (thumb.dataset.driveId) {
+        driveIds.push(thumb.dataset.driveId);
+      } else if (thumb.dataset.b64) {
         photos.push({ fileData: thumb.dataset.b64, fileMimeType: thumb.dataset.mime || 'image/jpeg' });
       }
     });
-    if (photos.length) groups.push({ name: name, photos: photos });
+    if (photos.length || driveIds.length) groups.push({ name: name, photos: photos, driveIds: driveIds });
   });
   return groups;
 }
@@ -5978,11 +6424,408 @@ function updateMatList(){
   if (dl2) dl2.innerHTML = dl.innerHTML;
 }
 
+// ── "That supplier/project isn't on your list — add it?" ─────────────────────
+// Typing a value that isn't registered has always been allowed, and the
+// movement saves fine either way — the value is just free text on that row.
+// What was missing is that it never made it onto the master list, so the next
+// person typing the same supplier got no suggestion and could easily spell it
+// differently. This offers to register it right there instead of making
+// someone stop, go to Settings, add it, and come back.
+//
+// Only offered to ADMINs, because updateConfig is ADMIN-gated server-side —
+// showing the prompt to a warehouse user would just produce a permission error
+// after they clicked it.
+// "Known" means REGISTERED IN CONFIG — the master list — and nothing else.
+//
+// This used to also count values appearing in movement rows, which quietly
+// defeated the whole feature: the moment a movement was saved, its brand-new
+// project became "known" because it was now in the history, so the suggestion
+// deleted itself on the next data refresh — right when the value most needed
+// registering. It also meant a supplier free-typed fifty times was never
+// offered, because its own history counted as proof it was on the list.
+function _cfgKnownValues(type){
+  var set = {};
+  ((type === 'suppliers' ? config.suppliers : config.projects) || []).forEach(function(v){
+    var k = String(v || '').trim().toUpperCase();
+    if (k) set[k] = true;
+  });
+  return set;
+}
+
+function _cfgHintFor(input){
+  var next = input.nextElementSibling;
+  return (next && next.classList && next.classList.contains('cfg-new-hint')) ? next : null;
+}
+
+function _clearCfgHint(input){
+  var h = _cfgHintFor(input);
+  if (h) h.remove();
+}
+
+function _maybeOfferCfgAdd(input){
+  var type = input.getAttribute('data-cfg-new');
+  if (!type) return;
+  _clearCfgHint(input);
+  if (userRole !== 'ADMIN') return;
+
+  var val = (input.value || '').trim();
+  if (!val) { _clearTypedCfgValue(input); return; }
+  if (_cfgKnownValues(type)[val.toUpperCase()]) { _clearTypedCfgValue(input); return; }
+
+  var label = type === 'suppliers' ? 'supplier' : 'project';
+  var hint = document.createElement('div');
+  hint.className = 'cfg-new-hint';
+  hint.innerHTML =
+    '<span>New ' + label + ' — not on your list yet.</span>' +
+    '<button type="button" class="cfg-new-add">+ Add it</button>';
+  hint.querySelector('.cfg-new-add').addEventListener('click', function(){
+    _cfgAddInline(type, val, hint);
+  });
+  input.insertAdjacentElement('afterend', hint);
+
+  // Surface it in the deck straight away rather than waiting for the movement
+  // to be saved. Typed values are held separately from the ones derived from
+  // saved rows (see _typedCfgAdds) so that changing your mind can retract them.
+  _noteTypedCfgValue(input, type, val);
+}
+
+// ── Values typed but not yet saved ───────────────────────────────────────────
+// The deck is built from saved movements, which is what makes it survive a
+// reload — but waiting for a save meant the suggestion only showed up after the
+// fact. These fill that gap: added the moment an unknown value is typed, and
+// retracted if that same field is then changed to something else, so picking an
+// existing project after typing a new one doesn't leave a card behind for a
+// value that was never used.
+var _typedCfgAdds = [];      // [{type, value}] pending, this session only
+var _typedByField = {};      // field id -> the key it last contributed
+
+function _noteTypedCfgValue(input, type, val){
+  var fieldId = input.id || (input.id = 'cfgfld-' + Math.random().toString(36).slice(2));
+  var key = _cfgKey(type, val);
+  var prev = _typedByField[fieldId];
+  if (prev === key) return;
+
+  if (prev) _typedCfgAdds = _typedCfgAdds.filter(function(t){ return _cfgKey(t.type, t.value) !== prev; });
+  _typedByField[fieldId] = key;
+  if (!_typedCfgAdds.some(function(t){ return _cfgKey(t.type, t.value) === key; })){
+    _typedCfgAdds.push({ type: type, value: val });
+  }
+  _recomputeCfgDeck();
+}
+
+// Called when a field settles on a value that IS already registered — the card
+// it previously contributed has to go, or the deck keeps offering a value the
+// user visibly abandoned.
+function _clearTypedCfgValue(input){
+  var fieldId = input.id;
+  if (!fieldId || !_typedByField[fieldId]) return;
+  var prev = _typedByField[fieldId];
+  delete _typedByField[fieldId];
+  _typedCfgAdds = _typedCfgAdds.filter(function(t){ return _cfgKey(t.type, t.value) !== prev; });
+  _recomputeCfgDeck();
+}
+
+// ── Floating deck of unregistered suppliers/projects ─────────────────────────
+//
+// DERIVED from the data, not remembered from typing. The first version pushed a
+// card the moment an unknown value was typed, which got both ends wrong: typing
+// a new project and then picking an existing one instead left a card for a value
+// that was never used, and reloading the page wiped every card because the queue
+// only lived in memory.
+//
+// Reading it off the saved movements instead makes both cases fall out for free:
+// a value abandoned before saving never appears, and one that WAS saved survives
+// reloads because it is recomputed from the same rows every time. "Unregistered"
+// means used in a movement but absent from CONFIG — exactly what the deck is for.
+var _pendingCfgAdds = [];
+var _DISMISS_KEY = 'acopio_cfg_dismissed';
+var _DECK_VISIBLE = 5;   // cards in the pile at once; the rest wait their turn
+
+function _cfgKey(type, value){ return type + '|' + String(value).toUpperCase(); }
+
+// Dismissals persist: waving a card off used to last only until reload, so a
+// value the admin had already decided against came back on every visit.
+function _loadDismissed(){
+  try { return JSON.parse(localStorage.getItem(_DISMISS_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function _dismissCfgAdd(type, value){
+  var d = _loadDismissed();
+  d[_cfgKey(type, value)] = 1;
+  try { localStorage.setItem(_DISMISS_KEY, JSON.stringify(d)); } catch (e) {}
+}
+
+function _recomputeCfgDeck(){
+  _pendingCfgAdds = [];
+  if (userRole !== 'ADMIN') { _renderCfgDeck(); return; }
+
+  var dismissed = _loadDismissed();
+  var seen = {};
+  var found = [];
+
+  // Typed-but-unsaved first: they are the most recent thing that happened, and
+  // the whole point of tracking them is immediate feedback.
+  _typedCfgAdds.forEach(function(t){
+    var key = _cfgKey(t.type, t.value);
+    if (seen[key] || dismissed[key]) return;
+    if (_cfgKnownValues(t.type)[String(t.value).toUpperCase()]) return;
+    seen[key] = 1;
+    found.push({ type: t.type, value: t.value });
+  });
+
+  // Newest first, so what someone is working on right now surfaces ahead of
+  // whatever is oldest in the loaded window.
+  for (var i = movements.length - 1; i >= 0; i--){
+    var m = movements[i];
+    [['projects', m.project], ['suppliers', m.supplier]].forEach(function(pair){
+      var type = pair[0], val = String(pair[1] || '').trim();
+      if (!val) return;
+      var key = _cfgKey(type, val);
+      if (seen[key] || dismissed[key]) return;
+      if (_cfgKnownValues(type)[val.toUpperCase()]) return;
+      seen[key] = 1;
+      found.push({ type: type, value: val });
+    });
+  }
+  // All of them — no cap. The pile stays one card tall however many there are,
+  // and the count badge says how deep it goes, so a long tail of legacy values
+  // costs no screen space until someone actually opens the deck.
+  _pendingCfgAdds = found;
+  _renderCfgDeck();
+}
+
+function _unqueueCfgAdd(type, value){
+  var key = _cfgKey(type, value);
+  _pendingCfgAdds = _pendingCfgAdds.filter(function(p){ return _cfgKey(p.type, p.value) !== key; });
+  _renderCfgDeck();
+}
+
+// All of them — no cap here. The pile only ever shows _DECK_VISIBLE at a time,
+// and the badge reports the true total, so a long tail of legacy values costs
+// no screen space until someone opens the deck.
+
+function _renderCfgDeck(){
+  var deck = document.getElementById('cfgDeck');
+  if (!deck) return;
+  // Drop anything that got registered by other means (Settings, the inline
+  // prompt, another tab) before painting.
+  _pendingCfgAdds = _pendingCfgAdds.filter(function(p){
+    return !_cfgKnownValues(p.type)[String(p.value).toUpperCase()];
+  });
+
+  var total = _pendingCfgAdds.length;
+  _syncCfgBell(total);
+  if (!total){ deck.innerHTML = ''; deck.classList.remove('open'); return; }
+
+  // Only a handful are ever in the DOM. Rendering all of them produced a
+  // staircase reaching off the top of the screen and a fan nobody could use;
+  // dealing with one simply lets the next take its place.
+  var hand = _pendingCfgAdds.slice(0, _DECK_VISIBLE);
+
+  // hand is newest-first; painted in reverse so the newest lands LAST in the
+  // DOM and therefore on top of the pile.
+  deck.innerHTML = hand.slice().reverse().map(function(p, revIdx){
+    var isTop = revIdx === hand.length - 1;
+    // Keyed by type|value, never by array position: indices shift the moment a
+    // card is removed, which had later clicks acting on the wrong entry.
+    var k = _he(_cfgKey(p.type, p.value));
+    return '<div class="cfg-card" data-key="' + k + '">' +
+      (isTop && total > 1 ? '<span class="cfg-count" title="' + total + ' unregistered">' + total + '</span>' : '') +
+      '<div class="cfg-card-lbl">New ' + (p.type === 'suppliers' ? 'supplier' : 'project') + '</div>' +
+      '<div class="cfg-card-val" title="' + _he(p.value) + '">' + _he(p.value) + '</div>' +
+      '<div class="cfg-card-acts">' +
+        '<button type="button" class="cfg-card-add" data-act="add" data-key="' + k + '">+ Add to list</button>' +
+        '<button type="button" class="cfg-card-skip" data-act="skip" data-key="' + k + '">Not now</button>' +
+      '</div></div>';
+  }).join('');
+
+  deck.querySelectorAll('button[data-act]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();   // don't toggle the deck's own open/closed state
+      _cfgCardAction(btn.getAttribute('data-act'), btn.getAttribute('data-key'), btn);
+    });
+  });
+
+  // Solid on arrival, then fades — unless the pointer is already on the deck,
+  // in which case re-rendering after an action must not yank it dim underneath.
+  if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
+  else { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
+}
+
+// One handler for both the desktop deck and the phone panel.
+function _cfgCardAction(act, key, btn){
+  var p = null;
+  for (var i = 0; i < _pendingCfgAdds.length; i++){
+    if (_cfgKey(_pendingCfgAdds[i].type, _pendingCfgAdds[i].value) === key){ p = _pendingCfgAdds[i]; break; }
+  }
+  if (!p) return;
+
+  if (act === 'skip'){
+    _dismissCfgAdd(p.type, p.value);
+    // Also drop it from the typed set, or the next keystroke in that field
+    // would re-add what was just waved off.
+    _typedCfgAdds = _typedCfgAdds.filter(function(t){ return _cfgKey(t.type, t.value) !== key; });
+    // Recompute rather than just splice: with only a handful rendered, the next
+    // unregistered value has to take the freed slot. Splicing alone emptied the
+    // deck after a few dismissals and nothing returned until a page reload.
+    _recomputeCfgDeck();
+    return;
+  }
+
+  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  _cfgAddValue(p.type, p.value, function(ok, err){
+    if (ok){
+      showToast('Added to your ' + (p.type === 'suppliers' ? 'suppliers' : 'projects') + ' ✓', 'ok');
+    } else {
+      if (btn){ btn.disabled = false; btn.textContent = '+ Add to list'; }
+      showToast('Could not add: ' + err, 'err', 5000);
+      return;
+    }
+    _recomputeCfgDeck();
+  });
+}
+
+// ── Phone/tablet panel ───────────────────────────────────────────────────────
+function _syncCfgBell(total){
+  var btn = document.getElementById('cfgBellBtn');
+  var cnt = document.getElementById('cfgBellCount');
+  if (!btn || !cnt) return;
+  cnt.textContent = total;
+  btn.style.visibility = total ? '' : 'hidden';
+  if (!total){
+    var panel = document.getElementById('cfgBellPanel');
+    if (panel) panel.classList.remove('show');
+    return;
+  }
+  var list = document.getElementById('cfgBellList');
+  if (!list) return;
+  // The panel lists ALL of them — it scrolls, so there is no reason to ration
+  // them the way the pile does.
+  list.innerHTML = _pendingCfgAdds.map(function(p){
+    var k = _he(_cfgKey(p.type, p.value));
+    return '<div class="cfg-bell-row">' +
+      '<div class="cfg-card-lbl">New ' + (p.type === 'suppliers' ? 'supplier' : 'project') + '</div>' +
+      '<div class="cfg-card-val" title="' + _he(p.value) + '">' + _he(p.value) + '</div>' +
+      '<div class="cfg-card-acts">' +
+        '<button type="button" class="cfg-card-add" data-act="add" data-key="' + k + '">+ Add to list</button>' +
+        '<button type="button" class="cfg-card-skip" data-act="skip" data-key="' + k + '">Not now</button>' +
+      '</div></div>';
+  }).join('');
+  list.querySelectorAll('button[data-act]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      _cfgCardAction(b.getAttribute('data-act'), b.getAttribute('data-key'), b);
+    });
+  });
+}
+
+// ── Deck fade timing ─────────────────────────────────────────────────────────
+// A new card arrives at full strength and stays readable for a few seconds
+// (long enough to notice without having to chase it), then fades back to a
+// whisper so it stops competing with the app. Hovering restores it instantly;
+// leaving waits a beat before fading again, so brushing past the deck on the
+// way somewhere else doesn't make it vanish mid-glance.
+var _CFG_SOLID_MS = 3500;   // how long a freshly rendered deck stays solid
+var _CFG_REDIM_MS = 2000;   // pause after the pointer leaves before fading
+var _cfgDimTimer = null;
+
+function _cfgScheduleDim(delay){
+  clearTimeout(_cfgDimTimer);
+  var deck = document.getElementById('cfgDeck');
+  if (!deck) return;
+  _cfgDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, delay);
+}
+
+function _cfgWake(){
+  clearTimeout(_cfgDimTimer);
+  var deck = document.getElementById('cfgDeck');
+  if (deck) deck.classList.remove('dim');
+}
+
+(function _wireCfgDeckFade(){
+  var deck = document.getElementById('cfgDeck');
+  if (!deck) return;
+  deck.addEventListener('mouseenter', _cfgWake);
+  deck.addEventListener('mouseleave', function(){ _cfgScheduleDim(_CFG_REDIM_MS); });
+})();
+
+function toggleCfgBell(e){
+  if (e) e.stopPropagation();
+  var panel = document.getElementById('cfgBellPanel');
+  if (panel) panel.classList.toggle('show');
+}
+
+document.addEventListener('click', function(e){
+  var panel = document.getElementById('cfgBellPanel');
+  if (!panel || !panel.classList.contains('show')) return;
+  if (panel.contains(e.target) || (e.target.closest && e.target.closest('#cfgBellBtn'))) return;
+  panel.classList.remove('show');
+});
+
+// Shared by the inline prompt and the deck — one place that actually saves.
+function _cfgAddValue(type, value, done){
+  function accept(){
+    var list = type === 'suppliers'
+      ? (config.suppliers = config.suppliers || [])
+      : (config.projects  = config.projects  || []);
+    if (list.indexOf(value) === -1) list.push(value);
+    refreshDropdowns();
+    done(true);
+  }
+  google.script.run
+    .withSuccessHandler(accept)
+    .withFailureHandler(function(e){
+      var msg = (e && e.message) || String(e);
+      // "already exists" is not a failure — the goal was for this value to be on
+      // the list, and it is. It happens when the browser's copy of CONFIG has
+      // gone stale (something else added it: Settings in another tab, an import,
+      // the wizard), so the deck kept offering a value the sheet already had and
+      // the click surfaced a red error for a no-op. Treat it as done and let the
+      // local copy catch up.
+      if (/already exists/i.test(msg)) { accept(); return; }
+      done(false, msg);
+    })
+    .processMovement('updateConfig', _h({ type: type, op: 'add', newValue: value }));
+}
+
+function _cfgAddInline(type, value, hintEl){
+  var btn = hintEl.querySelector('.cfg-new-add');
+  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  _cfgAddValue(type, value, function(ok, err){
+    if (!ok){
+      if (btn){ btn.disabled = false; btn.textContent = '+ Add it'; }
+      showToast('Could not add: ' + err, 'err', 5000);
+      return;
+    }
+    // Registered — so the deck must not keep offering the same thing.
+    _unqueueCfgAdd(type, value);
+    hintEl.innerHTML = '<span class="cfg-new-ok">✓ Added to your ' +
+      (type === 'suppliers' ? 'suppliers' : 'projects') + '</span>';
+    setTimeout(function(){ if (hintEl.parentNode) hintEl.remove(); }, 2500);
+  });
+}
+
+// 'change' rather than 'input': it fires on blur and on picking a datalist
+// suggestion, so the prompt appears once the value is settled instead of
+// flickering on every keystroke.
+document.addEventListener('change', function(e){
+  var el = e.target;
+  if (el && el.getAttribute && el.getAttribute('data-cfg-new')) _maybeOfferCfgAdd(el);
+});
+document.addEventListener('focusin', function(e){
+  var el = e.target;
+  if (el && el.getAttribute && el.getAttribute('data-cfg-new')) _clearCfgHint(el);
+});
+
 function refreshDropdowns(){
   updateMatList();
 
   var pd = document.getElementById('projList'); pd.innerHTML = '';
-  Array.from(new Set(movements.map(function(m){ return m.project; }).filter(Boolean))).sort()
+  // config.projects included deliberately: a project configured in Settings but
+  // not yet used in any movement was missing from this list entirely, so the
+  // suggestions only ever showed projects that already had history.
+  Array.from(new Set((config.projects || []).concat(
+    movements.map(function(m){ return m.project; }).filter(Boolean)))).sort()
     .forEach(function(p){ var o = document.createElement('option'); o.value = p; pd.appendChild(o); });
 
   var rd1 = document.getElementById('rackList'); rd1.innerHTML = '';
@@ -6003,6 +6846,10 @@ function refreshDropdowns(){
   var sd = document.getElementById('supplierList'); sd.innerHTML = '';
   var supSet = Array.from(new Set(config.suppliers.concat(movements.map(function(m){ return m.supplier; }).filter(Boolean)))).sort();
   supSet.forEach(function(s){ var o = document.createElement('option'); o.value = s; sd.appendChild(o); });
+
+  // Recomputed from the freshly loaded movements + config, so the deck reflects
+  // what is actually unregistered right now — including after a page reload.
+  _recomputeCfgDeck();
 
   var td = document.getElementById('mTruck');
   td.innerHTML = '<option value="">— None —</option>';
@@ -6274,13 +7121,16 @@ function _renderRackDrawerPhoto(){
   var photo = rackPhotos[String(_openRackName || '').toUpperCase()];
   var canUpload = userRole !== 'VIEWER';
 
+  // Own classes, not .rpc-* — those are now the compact 52px chips used in the
+  // expanded stock row. The drawer is the one place a big photo still belongs:
+  // it's a whole panel about a single rack, not one cell in a grid of them.
   var img = photo
-    ? _privImgTag(photo.url, 'class="rpc-img" style="border-radius:8px" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size"', _openRackName)
-    : '<div class="rpc-empty" style="border-radius:8px">' +
+    ? _privImgTag(photo.url, 'class="rdp-img" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size"', _openRackName)
+    : '<div class="rdp-empty">' +
         '<span style="font-size:1.3rem">📷</span><span>No photo yet</span>' +
       '</div>';
   var action = canUpload
-    ? '<button class="rpc-btn" style="margin-top:.4rem" data-action="rack-photo-upload" data-rack="'+_he(_openRackName)+'">' + (photo ? '🔄 Replace Photo' : '+ Add Photo') + '</button>'
+    ? '<button class="rdp-btn" data-action="rack-photo-upload" data-rack="'+_he(_openRackName)+'">' + (photo ? '🔄 Replace Photo' : '+ Add Photo') + '</button>'
     : '';
 
   box.innerHTML = img + (action ? '<div style="text-align:center">'+action+'</div>' : '');
@@ -6327,9 +7177,10 @@ function openMediaPreview(url, label){
   _releaseMediaPreviewBlob();
   _mediaPreviewName = label || 'document';
 
-  _fetchPrivateFile(url, function(dataUrl){
+  _fetchPrivateFile(url, function(dataUrl, errMsg){
     if (!dataUrl) {
-      body.innerHTML = '<p style="color:#fff;padding:2rem">Could not load this file.</p>';
+      body.innerHTML = '<p style="color:#fff;padding:2rem">Could not load this file.' +
+        (errMsg ? '<br><span style="opacity:.7;font-size:.8rem">' + _he(errMsg) + '</span>' : '') + '</p>';
       return;
     }
     var blob = _dataUrlToBlob(dataUrl);
@@ -6344,30 +7195,57 @@ function openMediaPreview(url, label){
       return;
     }
 
+    // Video plays inline: <video> is a native element, not a plugin, so the
+    // sandbox restriction that blocks the PDF viewer below doesn't apply.
+    if (blob.type.indexOf('video/') === 0) {
+      var vid = document.createElement('video');
+      vid.src = _mediaPreviewBlobUrl;
+      vid.controls = true;
+      vid.playsInline = true;
+      vid.style.cssText = 'max-width:100%;max-height:100%;background:#000';
+      body.appendChild(vid);
+      return;
+    }
+
     if (blob.type === 'application/pdf') {
-      // <embed> renders as a black rectangle here. The whole app runs inside the
-      // sandboxed googleusercontent.com iframe Apps Script serves HtmlService
-      // pages in, and Chrome's built-in PDF viewer is a plugin — plugins do not
-      // get instantiated in that sandbox. The blob itself is fine: ↗ Open shows
-      // the same URL correctly, because a top-level tab is not sandboxed.
+      // Chrome's built-in PDF viewer is a plugin, and plugins are not
+      // instantiated inside the sandboxed googleusercontent.com frame Apps
+      // Script serves this page in — so <embed> painted black and <iframe>
+      // painted the broken-file icon. Neither can be fixed from here.
       //
-      // <iframe> is a different mechanism and does render in some browsers, so
-      // it's worth attempting — but we cannot detect from script whether it
-      // actually painted (no error fires either way). So the hint below is
-      // always shown rather than only on failure: better a redundant line of
-      // text than a user staring at a black box with no idea what to do.
+      // What DOES work is the same mechanism the grid thumbnails already use:
+      // Drive renders page 1 server-side, so we ask for that render at preview
+      // size and show it as a plain <img>. It's page 1 only, not the whole
+      // document — hence the hint pointing at ↗ Open for the rest — but it
+      // beats a broken box, and it's a real look at the actual page.
       body.style.flexDirection = 'column';
       var hint = document.createElement('div');
       hint.style.cssText = 'flex-shrink:0;width:100%;background:#1f2937;color:#e5e7eb;' +
         'font-size:.78rem;padding:.5rem .9rem;text-align:center';
-      hint.innerHTML = 'PDF not showing below? Google\'s viewer is blocked inside this ' +
-        'window — use <strong>↗ Open</strong> above to see it full size.';
+      hint.innerHTML = 'Preview of page 1 — use <strong>↗ Open</strong> above for the full document.';
       body.appendChild(hint);
 
-      var frame = document.createElement('iframe');
-      frame.src = _mediaPreviewBlobUrl;
-      frame.style.cssText = 'width:100%;flex:1;min-height:0;border:none;background:#fff';
-      body.appendChild(frame);
+      var holder = document.createElement('div');
+      holder.style.cssText = 'flex:1;min-height:0;width:100%;display:flex;align-items:center;' +
+        'justify-content:center;overflow:auto;padding:.75rem';
+      holder.innerHTML = '<p style="color:#fff">Rendering preview…</p>';
+      body.appendChild(holder);
+
+      _fetchPrivateFile(url, function(bigUrl){
+        if (bigUrl) {
+          holder.innerHTML = '';
+          var pimg = document.createElement('img');
+          pimg.src = bigUrl;
+          pimg.alt = label || '';
+          pimg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;' +
+            'background:#fff;border-radius:4px';
+          holder.appendChild(pimg);
+        } else {
+          holder.innerHTML = '<p style="color:#fff;text-align:center;padding:1.5rem">' +
+            'No preview available for this PDF.<br>' +
+            '<span style="opacity:.7;font-size:.8rem">Use ↗ Open or ⬇ Download above.</span></p>';
+        }
+      }, 'big');
       return;
     }
 
