@@ -1909,7 +1909,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.24';
+var APP_VERSION = '9.25';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5585,9 +5585,28 @@ function _cfgSimilar(a, b){
   return ratio >= 0.6;
 }
 
+// "Not duplicates" has to be remembered. Removing the group from the DOM alone
+// meant it was rebuilt from the same list the next time the tab was drawn, so a
+// group the admin had already ruled on came straight back — and would have kept
+// coming back forever.
+var _SIM_DISMISS_KEY = 'acopio_sim_dismissed';
+function _simGroupKey(tab, group){
+  return tab + '|' + group.map(_cfgNorm).sort().join('~');
+}
+function _loadSimDismissed(){
+  try { return JSON.parse(localStorage.getItem(_SIM_DISMISS_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function _dismissSimGroup(tab, group){
+  var d = _loadSimDismissed();
+  d[_simGroupKey(tab, group)] = 1;
+  try { localStorage.setItem(_SIM_DISMISS_KEY, JSON.stringify(d)); } catch (e) {}
+}
+
 var _similarGroups = [];
 function _renderSimilarGroups(tab, items, label){
   _similarGroups = [];
+  var dismissed = _loadSimDismissed();
   var used = {};
   items.forEach(function(a, i){
     if (used[i]) return;
@@ -5596,7 +5615,9 @@ function _renderSimilarGroups(tab, items, label){
       if (j <= i || used[j]) return;
       if (_cfgSimilar(a, b)) { group.push(b); used[j] = 1; }
     });
-    if (group.length > 1) { used[i] = 1; _similarGroups.push(group); }
+    if (group.length > 1 && !dismissed[_simGroupKey(tab, group)]) {
+      used[i] = 1; _similarGroups.push(group);
+    }
   });
   if (!_similarGroups.length) return '';
 
@@ -5638,9 +5659,15 @@ function _wireSimilarGroups(tab){
           btn.disabled = true; btn.textContent = 'Merging…';
           google.script.run
             .withSuccessHandler(function(res){
-              showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 6000);
-              _loadSettings();
-              loadDataFromGoogle(false);
+              showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
+              // Deliberately NOT _loadSettings() + loadDataFromGoogle(): both
+              // re-read and repaint everything, which took seconds and made
+              // working through a list of duplicates painful. The server has
+              // already done the real work; the browser only has to mirror it,
+              // which is exact and instant.
+              _applyMergeLocally(tab, from, into);
+              var g = btn.closest('.sim-group');
+              if (g) g.remove();
             })
             .withFailureHandler(function(e){
               btn.disabled = false; btn.textContent = 'Merge into selected';
@@ -5653,10 +5680,46 @@ function _wireSimilarGroups(tab){
   });
   document.querySelectorAll('[data-sim-skip]').forEach(function(btn){
     btn.addEventListener('click', function(){
+      var gi = parseInt(btn.getAttribute('data-sim-skip'), 10);
+      var group = _similarGroups[gi];
+      if (group) _dismissSimGroup(tab, group);   // remembered, so it stays gone
       var g = btn.closest('.sim-group');
-      if (g) g.remove();   // dismissed for this viewing only — nothing is written
+      if (g) g.remove();
     });
   });
+}
+
+// Mirrors server-side merge in the data the page already holds, so nothing has
+// to be re-fetched. Everything here is a rename the backend just performed.
+function _applyMergeLocally(tab, from, into){
+  var gone = {};
+  from.forEach(function(v){ gone[String(v).toUpperCase()] = 1; });
+
+  function fold(list){
+    if (!list) return list;
+    var out = list.filter(function(v){ return !gone[String(v).toUpperCase()]; });
+    if (!out.some(function(v){ return String(v).toUpperCase() === into.toUpperCase(); })) out.push(into);
+    return out.sort();
+  }
+
+  if (_settingsData) _settingsData[tab] = fold(_settingsData[tab]);
+  if (tab === 'projects')  config.projects  = fold(config.projects);
+  if (tab === 'suppliers') config.suppliers = fold(config.suppliers);
+
+  // The loaded movement rows carry the old spelling until they are re-fetched;
+  // renaming them here keeps Movements, the dashboard and the suggestion deck
+  // consistent with what the sheet now says.
+  var field = (tab === 'projects') ? 'project' : 'supplier';
+  movements.forEach(function(m){
+    if (m[field] && gone[String(m[field]).toUpperCase()]) m[field] = into;
+  });
+
+  // Drop the merged-away names from the list below without redrawing it.
+  document.querySelectorAll('.cfg-item').forEach(function(li){
+    if (gone[String(li.getAttribute('data-val') || '').toUpperCase()]) li.remove();
+  });
+
+  refreshDropdowns();
 }
 
 var _errorLogData = [];
@@ -6768,10 +6831,19 @@ function _renderCfgDeck(){
     });
   });
 
-  // Solid on arrival, then fades — unless the pointer is already on the deck,
-  // in which case re-rendering after an action must not yank it dim underneath.
+  // Full strength ONLY for a genuinely new suggestion — or while the pointer is
+  // on the deck. Every render used to flash it solid, so any background refresh
+  // (a save elsewhere, a data reload, an edit in the Sheet) lit up the corner
+  // for no reason the user could connect to anything they had done.
+  var isNew = false;
+  _pendingCfgAdds.forEach(function(p){
+    var k = _cfgKey(p.type, p.value);
+    if (!_cfgSeenKeys[k]) { _cfgSeenKeys[k] = 1; isNew = true; }
+  });
+
   if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
-  else { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
+  else if (isNew) { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
+  else deck.classList.add('dim');   // a re-render on its own never wakes it
 }
 
 // Registering a backlog of legacy values one card at a time meant dozens of
@@ -6882,9 +6954,10 @@ function _syncCfgBell(total){
 // whisper so it stops competing with the app. Hovering restores it instantly;
 // leaving waits a beat before fading again, so brushing past the deck on the
 // way somewhere else doesn't make it vanish mid-glance.
-var _CFG_SOLID_MS = 3500;   // how long a freshly rendered deck stays solid
+var _CFG_SOLID_MS = 3500;   // how long a genuinely new suggestion stays solid
 var _CFG_REDIM_MS = 2000;   // pause after the pointer leaves before fading
 var _cfgDimTimer = null;
+var _cfgSeenKeys = {};      // keys already shown, so a re-render isn't "new"
 
 function _cfgScheduleDim(delay){
   clearTimeout(_cfgDimTimer);
