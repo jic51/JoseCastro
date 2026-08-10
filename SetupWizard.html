@@ -1,0 +1,555 @@
+<!--
+  Setup wizard shown as a dialog OVER the Google Sheet (SpreadsheetApp.getUi().
+  showModalDialog), not inside the web app. This is what lets setup happen
+  before any web app deployment exists — a brand-new copy has no URL to open
+  yet, so the wizard has to live somewhere reachable without one, and the
+  Sheet itself is the only thing guaranteed to be open already.
+
+  Self-contained on purpose: this file duplicates the wizard step logic that
+  also lives in Index.html (used when someone deploys by hand first and hits
+  setup from the web app instead — see wizStart() there). Sharing the code
+  across both would need Apps Script's HtmlService templating + an include()
+  helper, which means an extra file for a developer to keep straight during
+  manual copy-paste deployment, for logic that is a few hundred lines and
+  changes rarely. Duplication was the deliberate tradeoff. If you change a
+  step here, check whether Index.html's copy needs the same change.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;padding:1.5rem;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:#fff;color:#111827}
+  .wiz-steps{display:flex;gap:6px;margin-bottom:1.25rem}
+  .wiz-steps div{flex:1;height:4px;border-radius:2px;background:#E5E7EB;transition:background .25s}
+  .wiz-steps div.done{background:#3B7DD8}
+  .wiz-title{font-size:1.25rem;font-weight:800;color:#1B2A4A;margin-bottom:.3rem}
+  .wiz-sub{font-size:.83rem;color:#6B7280;margin-bottom:1.25rem;line-height:1.5}
+  .field{margin-bottom:1rem}
+  label{display:block;font-size:.72rem;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem}
+  input[type=text],input[type=email],input[type=file],select{
+    width:100%;padding:.55rem .7rem;border:1px solid #E5E7EB;border-radius:8px;font-size:.87rem;font-family:inherit;background:#fff;color:#111827}
+  input:focus,select:focus{outline:none;border-color:#3B7DD8}
+  .hint{font-size:.73rem;color:#6B7280;margin-top:.3rem;line-height:1.45}
+  .nav{display:flex;justify-content:space-between;align-items:center;margin-top:1.5rem;gap:.6rem}
+  .btn{border-radius:8px;padding:.55rem 1rem;font-size:.85rem;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid #E5E7EB;background:#fff;color:#374151}
+  .btn:hover{background:#F8FAFC}
+  .btn-primary{background:#3B7DD8;border-color:#3B7DD8;color:#fff}
+  .btn-primary:hover{background:#2F6BC0}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn-sm{padding:.4rem .7rem;font-size:.78rem}
+  .preset{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+  .preset button{flex:1;min-width:130px;padding:.75rem;border:2px solid #E5E7EB;border-radius:10px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:600;color:#111827;text-align:left}
+  .preset button:hover,.preset button.sel{border-color:#3B7DD8;background:#EFF6FF}
+  .preset span{display:block;font-size:.68rem;font-weight:400;color:#6B7280;margin-top:.2rem}
+  .chip-box{display:flex;flex-wrap:wrap;gap:.35rem;padding:.55rem;border:1px solid #E5E7EB;border-radius:8px;min-height:46px;background:#F8FAFC}
+  .chip{display:inline-flex;align-items:center;gap:.3rem;background:#DBEAFE;color:#2563EB;border-radius:14px;padding:2px 6px 2px 10px;font-size:.76rem;font-weight:600}
+  .chip button{border:none;background:none;color:#2563EB;cursor:pointer;font-size:.85rem;line-height:1;padding:0 2px;opacity:.6}
+  .chip button:hover{opacity:1;color:#EF4444}
+  .gen{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+  .userrow{display:grid;grid-template-columns:1fr 115px 30px;gap:.4rem;margin-bottom:.45rem;align-items:center}
+  .userrow .rm{border:none;background:none;color:#EF4444;cursor:pointer;font-size:1rem}
+  .summary{background:#F8FAFC;border-radius:10px;padding:.9rem 1.05rem;font-size:.83rem;line-height:1.85}
+  .summary b{color:#1B2A4A}
+  .toggle{display:flex;align-items:flex-start;gap:.55rem;padding:.7rem;background:#D1FAE5;border-radius:8px;font-size:.83rem;margin-bottom:1rem}
+  .err{color:#EF4444;font-size:.8rem;margin-top:.5rem;min-height:1.1em}
+  .steps-list{font-size:.83rem;line-height:1.9;background:#F8FAFC;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1rem}
+  .steps-list b{color:#1B2A4A}
+  .steps-list code{background:#E5E7EB;border-radius:4px;padding:1px 5px;font-size:.78rem}
+  .link-box{display:flex;gap:.5rem;align-items:center;background:#D1FAE5;border-radius:8px;padding:.7rem .9rem;margin-top:.75rem}
+  .link-box input{flex:1;border:none;background:transparent;font-size:.82rem;color:#065F46;font-family:monospace}
+  .btn-copy{transition:background-color .25s ease,color .25s ease,border-color .25s ease}
+  .btn-copy.copied{background:#059669;border-color:#059669;color:#fff}
+  .wiz-progress{margin-top:1.1rem}
+  .wiz-progress-track{height:8px;border-radius:4px;background:#E5E7EB;overflow:hidden}
+  .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
+  .wiz-progress-label{font-size:.76rem;color:#6B7280;margin-top:.45rem;text-align:center}
+</style>
+</head>
+<body>
+  <div class="wiz-steps" id="wSteps"></div>
+  <div class="wiz-title" id="wTitle"></div>
+  <div class="wiz-sub" id="wSub"></div>
+  <div id="wBody"></div>
+  <div class="err" id="wErr"></div>
+  <div class="nav">
+    <button class="btn btn-sm" id="wBack" onclick="wGo(-1)">← Back</button>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn btn-sm" id="wSkip" onclick="wGo(1,true)">Skip for now</button>
+      <button class="btn btn-primary btn-sm" id="wNext" onclick="wGo(1)">Continue →</button>
+    </div>
+  </div>
+
+<script>
+function _he(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function _err(msg){ document.getElementById('wErr').textContent = msg || ''; }
+function getBase64(file){
+  return new Promise(function(res,rej){
+    var r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = function(){ res(r.result.split(',')[1]); };
+    r.onerror = rej;
+  });
+}
+
+var CATEGORY_PRESETS = {
+  glass: ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','IGU','FLASHING','HARDWARE'],
+  build: ['LUMBER','DRYWALL','PAINT','PLUMBING','ELECTRICAL','FASTENERS','TOOLS','INSULATION'],
+  blank: []
+};
+
+var STEPS = [
+  { key:'company',   title:'Your company',           sub:'This name appears in the app header, the browser tab, and the emails the system sends.', required:true },
+  { key:'categories',title:'What do you store?',     sub:'Material types. Pick a starting point, then add or remove — you can change these later.', required:false },
+  { key:'locations', title:'Where do you store it?', sub:'Racks, shelves, trucks, yards. This matters most: it is what every movement asks for.', required:true },
+  { key:'users',     title:'Who works here?',        sub:'Only people on this list can open the system.', required:true },
+  { key:'extras',    title:'Suppliers & projects',   sub:'Optional. The app will offer to add these the first time you type one.', required:false },
+  { key:'publish',   title:'One last step',          sub:'', required:true }
+];
+
+var step = 0;
+var skipped = {};
+var W = { companyName:'', companyDomain:'', adminName:'', adminEmail:'', logo:null,
+  categories:[], locations:[], suppliers:[], projects:[], users:[], enableBackup:true };
+var savedOk = false;
+
+function go(dir, skip){
+  _err('');
+  if (dir > 0 && !skip && !validate()) return;
+  if (skip) skipped[STEPS[step].key] = true; else if (dir > 0) delete skipped[STEPS[step].key];
+  collect();
+  step = Math.max(0, Math.min(STEPS.length - 1, step + dir));
+  render();
+}
+function wGo(dir, skip){ go(dir, skip); }
+
+function collect(){
+  var k = STEPS[step].key, v = function(id){ var e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  if (k === 'company'){
+    W.companyName = v('wCompany'); W.companyDomain = v('wDomain');
+    W.adminName = v('wAdminName'); W.adminEmail = v('wAdminEmail') || W.adminEmail;
+  }
+  if (k === 'publish'){
+    var t = document.getElementById('wBackupToggle');
+    if (t) W.enableBackup = t.checked;
+  }
+}
+
+function validate(){
+  var k = STEPS[step].key;
+  if (k === 'company' && !(document.getElementById('wCompany')||{}).value.trim()){ _err('Enter your company name.'); return false; }
+  if (k === 'locations' && !W.locations.length){ _err('Add at least one location.'); return false; }
+  return true;
+}
+
+function render(){
+  var s = STEPS[step];
+  document.getElementById('wSteps').innerHTML = STEPS.map(function(x,i){ return '<div class="'+(i<=step?'done':'')+'"></div>'; }).join('');
+  document.getElementById('wTitle').textContent = s.title;
+  document.getElementById('wSub').textContent = s.sub;
+  document.getElementById('wBack').style.display = step === 0 ? 'none' : '';
+  document.getElementById('wSkip').style.display = (s.required || savedOk) ? 'none' : '';
+  var next = document.getElementById('wNext');
+
+  var b = document.getElementById('wBody');
+
+  if (s.key === 'company'){
+    next.textContent = 'Continue →'; next.onclick = function(){ go(1); };
+    b.innerHTML =
+      '<div class="field"><label>Company name *</label>'+
+        '<input type="text" id="wCompany" placeholder="e.g. OX Glass Co." value="'+_escAttr(W.companyName)+'"></div>'+
+      '<div class="field"><label>Your name</label>'+
+        '<input type="text" id="wAdminName" placeholder="e.g. Jose Castro" value="'+_escAttr(W.adminName)+'"></div>'+
+      '<div class="field"><label>Administrator email</label>'+
+        '<input type="email" id="wAdminEmail" value="'+_escAttr(W.adminEmail)+'">'+
+        '<div class="hint">This is you — the account that owns this copy. You get full access and system alerts.</div></div>'+
+      '<div class="field"><label>Company email domain (optional)</label>'+
+        '<input type="text" id="wDomain" placeholder="your-company.com" value="'+_escAttr(W.companyDomain)+'">'+
+        '<div class="hint">Only affects the wording on the sign-in screen. It does <b>not</b> grant access — people still need to be on your user list.</div></div>'+
+      '<div class="field"><label>Logo (optional)</label>'+
+        '<input type="file" id="wLogo" accept="image/*" onchange="pickLogo(this)">'+
+        '<div class="hint">Any size or shape — resized automatically.</div>'+
+        '<div id="wLogoPrev" style="margin-top:.4rem"></div></div>';
+  }
+
+  else if (s.key === 'categories'){
+    next.textContent = 'Continue →'; next.onclick = function(){ go(1); };
+    b.innerHTML =
+      '<div class="preset">'+
+        '<button onclick="preset(\'glass\',this)">🪟 Glass &amp; windows<span>Window, Screen, Mirror, Shower, IGU…</span></button>'+
+        '<button onclick="preset(\'build\',this)">🏗 Construction<span>Lumber, Drywall, Paint, Electrical…</span></button>'+
+        '<button onclick="preset(\'blank\',this)">⚪ Start empty<span>I will type my own</span></button>'+
+      '</div>'+
+      '<div class="field"><label>Your categories</label>'+
+        '<div class="chip-box" id="wCatChips"></div>'+
+        '<input type="text" id="wCatInput" placeholder="Type a category and press Enter" style="margin-top:.5rem" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addChip(\'categories\',this)}"></div>';
+    drawChips('categories','wCatChips');
+  }
+
+  else if (s.key === 'locations'){
+    next.textContent = 'Continue →'; next.onclick = function(){ go(1); };
+    b.innerHTML =
+      '<div class="field"><label>Generate a rack grid</label>'+
+        '<div class="gen">'+
+          '<input type="text" id="wRows" placeholder="Rows: A-F" value="A-F">'+
+          '<input type="text" id="wLevels" placeholder="Levels: 1-6" value="1-6">'+
+          '<input type="text" id="wSides" placeholder="Sides: A,B,C" value="A,B,C">'+
+        '</div>'+
+        '<button class="btn btn-sm" style="margin-top:.55rem" onclick="genLocs()">Generate</button>'+
+        '<div class="hint">Produces names like A1A, A1B, A1C, A2A… Or just type your own below.</div></div>'+
+      '<div class="field"><label>Locations (<span id="wLocCount">0</span>)</label>'+
+        '<div class="chip-box" id="wLocChips" style="max-height:160px;overflow-y:auto"></div>'+
+        '<input type="text" id="wLocInput" placeholder="Type a location and press Enter" style="margin-top:.5rem" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addLoc(this)}"></div>'+
+      '<div class="field"><label>Trucks / job sites (optional)</label>'+
+        '<input type="text" id="wSiteInput" placeholder="e.g. TRUCK 1 — press Enter" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addLoc(this,\'SITE\')}"></div>';
+    drawLocs();
+  }
+
+  else if (s.key === 'users'){
+    next.textContent = 'Continue →'; next.onclick = function(){ go(1); };
+    b.innerHTML =
+      '<div class="summary" style="margin-bottom:.9rem"><b>'+_he(W.adminEmail)+'</b> — Administrator (you)</div>'+
+      '<div id="wUserRows"></div>'+
+      '<button class="btn btn-sm" onclick="addUserRow()">+ Add person</button>'+
+      '<div class="hint" style="margin-top:.6rem"><b>Admin</b> — everything.<br><b>Warehouse</b> — records movements.<br><b>View only</b> — cannot change anything.</div>';
+    drawUsers();
+  }
+
+  else if (s.key === 'extras'){
+    next.textContent = 'Continue →'; next.onclick = function(){ go(1); };
+    b.innerHTML =
+      '<div class="field"><label>Suppliers</label><div class="chip-box" id="wSupChips"></div>'+
+        '<input type="text" id="wSupInput" placeholder="Type a supplier and press Enter" style="margin-top:.5rem" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addChip(\'suppliers\',this)}"></div>'+
+      '<div class="field"><label>Projects / clients</label><div class="chip-box" id="wProjChips"></div>'+
+        '<input type="text" id="wProjInput" placeholder="Type a project and press Enter" style="margin-top:.5rem" '+
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addChip(\'projects\',this)}"></div>';
+    drawChips('suppliers','wSupChips'); drawChips('projects','wProjChips');
+  }
+
+  else if (s.key === 'publish'){
+    document.getElementById('wSkip').style.display = 'none';
+    if (!savedOk){
+      next.textContent = 'Save & continue →'; next.onclick = saveSetup;
+      b.innerHTML =
+        '<div class="toggle"><input type="checkbox" id="wBackupToggle"'+(W.enableBackup?' checked':'')+'>'+
+          '<label style="margin:0;font-size:.83rem;color:#111827;font-weight:600">Back up my data automatically every night'+
+          '<span style="display:block;font-weight:400;color:#6B7280;font-size:.76rem">A dated copy kept 30 days in your Drive.</span></label></div>'+
+        '<div class="summary">'+
+          '🏢 <b>'+_he(W.companyName)+'</b><br>📦 <b>'+W.categories.length+'</b> categories<br>'+
+          '📍 <b>'+W.locations.length+'</b> locations<br>👥 <b>'+(W.users.length+1)+'</b> people<br>'+
+          '🏭 <b>'+W.suppliers.length+'</b> suppliers · <b>'+W.projects.length+'</b> projects</div>'+
+        '<div class="wiz-progress" id="wProgressWrap" style="display:none">'+
+          '<div class="wiz-progress-track"><div class="wiz-progress-fill" id="wProgressBar"></div></div>'+
+          '<div class="wiz-progress-label"><span id="wProgressPct">0%</span> — setting up your system…</div>'+
+        '</div>';
+    } else {
+      renderPublishStep();
+    }
+  }
+}
+
+function pickLogo(inp){
+  if (!inp.files || !inp.files[0]) return;
+  var f = inp.files[0];
+  if (f.size > 8*1024*1024){ _err('That image is very large — pick one under 8 MB.'); return; }
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var MAXW=320, MAXH=120, scale = Math.min(1, MAXW/img.width, MAXH/img.height);
+      var w = Math.max(1, Math.round(img.width*scale)), h = Math.max(1, Math.round(img.height*scale));
+      var cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      var dataUrl = cv.toDataURL('image/png');
+      W.logo = { fileData: dataUrl.split(',')[1], fileMimeType:'image/png', fileName:'logo.png' };
+      document.getElementById('wLogoPrev').innerHTML = '<img src="'+dataUrl+'" style="max-height:48px;border-radius:6px;background:#F3F4F6;padding:4px">';
+    };
+    img.onerror = function(){ _err('That file is not a readable image.'); };
+    img.src = reader.result;
+  };
+  reader.onerror = function(){ _err('Could not read that image.'); };
+  reader.readAsDataURL(f);
+}
+
+function preset(kind, btn){
+  W.categories = CATEGORY_PRESETS[kind].slice();
+  Array.prototype.forEach.call(btn.parentNode.children, function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  drawChips('categories','wCatChips');
+}
+function addChip(list, inp){
+  var v = (inp.value||'').trim().toUpperCase(); if (!v) return;
+  if (W[list].indexOf(v) === -1) W[list].push(v);
+  inp.value = '';
+  drawChips(list, list==='categories'?'wCatChips':list==='suppliers'?'wSupChips':'wProjChips');
+}
+function rmChip(list, i){
+  W[list].splice(i,1);
+  drawChips(list, list==='categories'?'wCatChips':list==='suppliers'?'wSupChips':'wProjChips');
+}
+function drawChips(list, boxId){
+  var box = document.getElementById(boxId); if (!box) return;
+  box.innerHTML = W[list].length
+    ? W[list].map(function(v,i){ return '<span class="chip">'+_he(v)+'<button onclick="rmChip(\''+list+'\','+i+')">×</button></span>'; }).join('')
+    : '<span style="color:#6B7280;font-size:.78rem">Nothing yet</span>';
+}
+
+function expand(spec){
+  spec = String(spec||'').trim().toUpperCase(); if (!spec) return [];
+  if (spec.indexOf(',') !== -1) return spec.split(',').map(function(s){return s.trim();}).filter(Boolean);
+  var m = spec.match(/^([A-Z0-9])\s*-\s*([A-Z0-9])$/);
+  if (!m) return [spec];
+  var a=m[1], z=m[2], out=[];
+  if (/[0-9]/.test(a) && /[0-9]/.test(z)) { for (var n=+a;n<=+z;n++) out.push(String(n)); }
+  else { for (var c=a.charCodeAt(0);c<=z.charCodeAt(0);c++) out.push(String.fromCharCode(c)); }
+  return out;
+}
+function genLocs(){
+  var rows = expand(document.getElementById('wRows').value);
+  var lvls = expand(document.getElementById('wLevels').value);
+  var sides = expand(document.getElementById('wSides').value);
+  if (!rows.length || !lvls.length){ _err('Fill in at least rows and levels.'); return; }
+  if (!sides.length) sides = [''];
+  rows.forEach(function(r){ lvls.forEach(function(l){ sides.forEach(function(s){
+    var name = r+l+s;
+    if (!W.locations.some(function(x){return x.name===name;})) W.locations.push({name:name,type:'RACK'});
+  }); }); });
+  drawLocs();
+}
+function addLoc(inp, type){
+  var v = (inp.value||'').trim().toUpperCase(); if (!v) return;
+  if (!W.locations.some(function(x){return x.name===v;})) W.locations.push({name:v, type:type||'RACK'});
+  inp.value = ''; drawLocs();
+}
+function rmLoc(i){ W.locations.splice(i,1); drawLocs(); }
+function drawLocs(){
+  var box = document.getElementById('wLocChips'); if (!box) return;
+  var c = document.getElementById('wLocCount'); if (c) c.textContent = W.locations.length;
+  box.innerHTML = W.locations.length
+    ? W.locations.map(function(l,i){
+        var site = l.type==='SITE';
+        return '<span class="chip"'+(site?' style="background:#FED7AA;color:#C2410C"':'')+'>'+(site?'🚚 ':'')+_he(l.name)+'<button onclick="rmLoc('+i+')">×</button></span>';
+      }).join('')
+    : '<span style="color:#6B7280;font-size:.78rem">Nothing yet</span>';
+}
+
+function addUserRow(){
+  // Sync whatever's already typed in existing rows BEFORE pushing+redrawing —
+  // drawUsers() rebuilds every row's HTML from W.users, and without this the
+  // email someone just typed (never synced anywhere but the DOM) gets wiped
+  // the moment they click "+ Add person" for a second row.
+  syncUsers();
+  W.users.push({email:'',name:'',role:'WAREHOUSE'});
+  drawUsers();
+  var last = document.getElementById('wU' + (W.users.length - 1));
+  if (last) last.focus();
+}
+function rmUser(i){ syncUsers(); W.users.splice(i,1); drawUsers(); }
+function syncUsers(){
+  W.users.forEach(function(u,i){
+    var e = document.getElementById('wU'+i), r = document.getElementById('wR'+i);
+    if (e) u.email = e.value.trim(); if (r) u.role = r.value;
+  });
+}
+function drawUsers(){
+  var box = document.getElementById('wUserRows'); if (!box) return;
+  box.innerHTML = W.users.map(function(u,i){
+    return '<div class="userrow">'+
+      '<input type="email" id="wU'+i+'" placeholder="name@company.com" value="'+_escAttr(u.email)+'" '+
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addUserRow()}">'+
+      '<select id="wR'+i+'">'+
+        '<option value="WAREHOUSE"'+(u.role==='WAREHOUSE'?' selected':'')+'>Warehouse</option>'+
+        '<option value="ADMIN"'+(u.role==='ADMIN'?' selected':'')+'>Admin</option>'+
+        '<option value="VIEWER"'+(u.role==='VIEWER'?' selected':'')+'>View only</option>'+
+      '</select>'+
+      '<button class="rm" onclick="rmUser('+i+')" title="Remove">×</button></div>';
+  }).join('');
+}
+
+function saveSetup(){
+  collect();
+  syncUsers();
+  W.users = W.users.filter(function(u){ return u.email && u.email.indexOf('@') !== -1; });
+  var next = document.getElementById('wNext');
+  next.disabled = true; next.textContent = 'Setting up…';
+  document.getElementById('wSkip').style.display = 'none';
+  document.getElementById('wBack').style.display = 'none';
+
+  // There's no way to get real incremental progress out of a single Apps
+  // Script call (it's one synchronous round trip, all-or-nothing) — so this
+  // is a deliberately-honest approximation, not a lie dressed up as real
+  // progress: it eases toward 90% and never claims done until the call
+  // actually returns, then snaps straight to 100%.
+  var wrap = document.getElementById('wProgressWrap');
+  var bar  = document.getElementById('wProgressBar');
+  var pct  = document.getElementById('wProgressPct');
+  if (wrap) wrap.style.display = '';
+  var progress = 0;
+  var ticker = setInterval(function(){
+    progress = Math.min(90, progress + (90 - progress) * 0.15 + 1);
+    if (bar) bar.style.width = progress + '%';
+    if (pct) pct.textContent = Math.round(progress) + '%';
+  }, 300);
+
+  google.script.run
+    .withSuccessHandler(function(){
+      clearInterval(ticker);
+      if (bar) bar.style.width = '100%';
+      if (pct) pct.textContent = '100%';
+      savedOk = true;
+      next.disabled = false;
+      setTimeout(render, 300); // let the 100% fill paint before switching screens
+    })
+    .withFailureHandler(function(err){
+      clearInterval(ticker);
+      if (wrap) wrap.style.display = 'none';
+      document.getElementById('wSkip').style.display = '';
+      document.getElementById('wBack').style.display = '';
+      next.disabled = false; next.textContent = 'Save & continue →';
+      _err('Setup failed: ' + ((err && err.message) || err));
+    })
+    .saveSetupWizard(W);
+}
+
+function renderPublishStep(){
+  document.getElementById('wSteps').innerHTML = STEPS.map(function(x,i){ return '<div class="done"></div>'; }).join('');
+  document.getElementById('wTitle').textContent = 'One last step — publish your app';
+  document.getElementById('wSub').textContent = 'This is the only technical step, and only the owner (you) does it, once.';
+  var next = document.getElementById('wNext');
+  next.textContent = "✓ I did it — show my link"; next.onclick = checkLink;
+  document.getElementById('wBack').style.display = 'none';
+  document.getElementById('wSkip').style.display = 'none';
+  document.getElementById('wBody').innerHTML =
+    '<div class="steps-list">'+
+      '<b>1.</b> First, name your project: top-left of the Apps Script editor, click <b>"Untitled project"</b> and type your company name — this is what your team sees on the permission screen.<br>'+
+      '<b>2.</b> Menu bar above: <b>Extensions → Apps Script</b> (opens in a new tab — this tab stays open, come back to it later)<br>'+
+      '<b>3.</b> Top right, blue button: <b>Deploy → New deployment</b><br>'+
+      '<b>4.</b> Click the ⚙️ gear next to "Select type" → choose <b>Web app</b><br>'+
+      '<b>5.</b> Set <b>Execute as: Me</b>, and <b>Who has access: Anyone with a Google account</b><br>'+
+      '<b>6.</b> Click <b>Deploy</b>, then <b>Authorize access</b> and approve the permissions<br>'+
+      '<b>7.</b> Come back to this tab and click the button below'+
+    '</div>'+
+    '<div class="hint">You may see "Google hasn\'t verified this app" — that is expected for software you just installed for yourself. Click <b>Advanced</b>, then <b>Go to (your project name)</b> to continue. You may also see a note about a missing Privacy Policy link — also expected, and not something you need to fix.</div>'+
+    '<div id="wLinkResult"></div>'+
+    '<div style="margin-top:1.1rem;text-align:center"><a href="#" onclick="reconfigure();return false;" style="font-size:.78rem;color:#6B7280">Need to change something you already entered? Reconfigure</a></div>';
+}
+
+// Reached this dialog after setup was already saved — either earlier in this
+// same session (just finished all 5 steps) or on reopening the dialog later
+// (which used to restart the whole wizard from a blank slate, discarding
+// nothing on the SHEET but making it look like everything had to be re-typed,
+// and risking a genuine wipe if the customer clicked through without
+// re-entering categories/locations — see the guards in saveSetupWizard).
+// Skips straight to the one step that can still be pending: publishing.
+function showAlreadyConfigured(){
+  savedOk = true;
+  step = STEPS.length - 1;
+  renderPublishStep();
+}
+
+function reconfigure(){
+  savedOk = false;
+  step = 0;
+  render();
+}
+
+function checkLink(){
+  var next = document.getElementById('wNext');
+  next.disabled = true; next.textContent = 'Checking…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      next.disabled = false; next.textContent = "✓ I did it — show my link";
+      var box = document.getElementById('wLinkResult');
+      if (res && res.url){
+        box.innerHTML =
+          '<div class="link-box"><input type="text" id="wLinkUrl" readonly value="'+_escAttr(res.url)+'" onclick="this.select()">'+
+          '<button class="btn btn-sm btn-copy" onclick="copyLink(document.getElementById(\'wLinkUrl\').value,this)">Copy</button></div>'+
+          '<div class="hint">'+
+            (res.saved
+              ? '✓ This is the link you saved — it is stored and will be here next time you open setup.<br>'
+              : 'Bookmark this — it is your system’s permanent address. Share it with your team.<br>')+
+            'Doesn\'t open? <a href="#" onclick="checkLink();return false;" style="color:#3B7DD8">🔄 Check again</a>'+
+            ' · <a href="#" onclick="showLinkOverride();return false;" style="color:#3B7DD8">✏️ Paste the correct link</a></div>'+
+          '<div id="wLinkOverride" style="display:none;margin-top:.6rem">'+
+            '<input type="text" id="wLinkOverrideInput" placeholder="https://script.google.com/…/exec">'+
+            '<button class="btn btn-sm" style="margin-top:.4rem" id="wLinkOverrideBtn" onclick="applyLinkOverride()">Save this link</button>'+
+          '</div>'+
+          '<button class="btn btn-primary" style="margin-top:.9rem;width:100%" onclick="google.script.host.close()">Done — close this window</button>';
+      } else {
+        box.innerHTML = '<div class="err" style="margin-top:.6rem">Not published yet — follow the steps above, then click the button again.</div>';
+      }
+    })
+    .withFailureHandler(function(){
+      next.disabled = false; next.textContent = "✓ I did it — show my link";
+      _err('Could not check — try again.');
+    })
+    .checkDeploymentReady();
+}
+// On a Sheet copied from an already-deployed one, ScriptApp.getService().getUrl()
+// can hand back a URL built from the ORIGINAL script's deployment — a dead link,
+// on a copy that has no deployment of its own. The owner can see the real URL in
+// Google's Deploy dialog, so let them correct it, and PERSIST that correction
+// server-side (Script Properties) so it survives closing the wizard. An earlier
+// version only patched the textbox, which is why reopening setup showed the same
+// dead link all over again.
+function showLinkOverride(){
+  var el = document.getElementById('wLinkOverride');
+  if (el) el.style.display = '';
+}
+function applyLinkOverride(){
+  var v = (document.getElementById('wLinkOverrideInput').value||'').trim();
+  if (!v) return;
+  var btn = document.getElementById('wLinkOverrideBtn');
+  if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  _err('');
+  google.script.run
+    .withSuccessHandler(function(){
+      // Re-read from the server rather than trusting the local value, so the
+      // screen shows exactly what was stored.
+      checkLink();
+    })
+    .withFailureHandler(function(e){
+      if (btn){ btn.disabled = false; btn.textContent = 'Save this link'; }
+      _err((e && e.message) || 'Could not save that link.');
+    })
+    .saveWebAppUrl(v);
+}
+
+var _copyResetTimer = null;
+function copyLink(url, btn){
+  var inp = document.createElement('input'); inp.value = url;
+  document.body.appendChild(inp); inp.select(); document.execCommand('copy'); document.body.removeChild(inp);
+  if (!btn) return;
+  // Swap to a checkmark for 2s, then fade back — the CSS transition on
+  // .btn-copy (background/color) is what makes both the in and the out feel
+  // smooth instead of an instant flip in either direction.
+  clearTimeout(_copyResetTimer);
+  var original = btn.dataset.label || btn.textContent;
+  btn.dataset.label = original;
+  btn.textContent = '✓ Copied';
+  btn.classList.add('copied');
+  _copyResetTimer = setTimeout(function(){
+    btn.textContent = original;
+    btn.classList.remove('copied');
+  }, 2000);
+}
+
+// Bootstrap. Two jobs: pre-fill the admin email with whoever this dialog is
+// running as, and — the important one — check whether setup was already
+// completed (possibly in an earlier opening of this same dialog) so reopening
+// resumes at publishing instead of silently restarting data entry from zero.
+google.script.run.withSuccessHandler(function(state){
+  if (state && state.ownerEmail) W.adminEmail = state.ownerEmail;
+  if (state && state.needsSetup === false) { showAlreadyConfigured(); return; }
+  render();
+}).withFailureHandler(function(){ render(); }).getSetupState();
+</script>
+</body>
+</html>
