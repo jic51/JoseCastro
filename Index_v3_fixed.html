@@ -735,6 +735,15 @@
     .cfg-card-add:disabled{opacity:.6;cursor:default}
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
     @media (max-width:640px){.cfg-deck{right:16px;bottom:72px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
+    /* Possible-duplicate groups in Settings → Projects / Suppliers */
+    .sim-box{background:var(--yellow-bg,#FEF9C3);border:1px solid #FDE68A;border-radius:10px;padding:.75rem .85rem;margin-bottom:1rem}
+    [data-theme="dark"] .sim-box{background:#3B2F0B;border-color:#6B5B16}
+    .sim-hdr{font-size:.82rem;font-weight:800;color:var(--text);margin-bottom:.25rem}
+    .sim-sub{font-size:.74rem;color:var(--muted);margin-bottom:.6rem;line-height:1.45}
+    .sim-group{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.55rem .65rem;margin-bottom:.5rem}
+    .sim-group:last-child{margin-bottom:0}
+    .sim-opt{display:flex;align-items:center;gap:.45rem;font-size:.8rem;color:var(--text);padding:.15rem 0;cursor:pointer}
+    .sim-acts{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
     .cfg-new-hint{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.3rem;font-size:.72rem;color:var(--muted)}
     .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem .5rem;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-new-add:hover{filter:brightness(1.1)}
@@ -1900,7 +1909,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.23';
+var APP_VERSION = '9.24';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5534,11 +5543,120 @@ function _renderSettingsTab(tab) {
 
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. Renaming a category updates all existing movements automatically.</p>' +
+    (tab === 'projects' || tab === 'suppliers' ? _renderSimilarGroups(tab, items, label) : '') +
     '<ul class="cfg-list">'+rows+'</ul>' +
     '<div class="cfg-add-row">' +
       '<input type="text" id="cfgNewVal" placeholder="New '+label+' name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\''+tab+'\')">' +
       '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\''+tab+'\')">+ Add</button>' +
     '</div>';
+  if (tab === 'projects' || tab === 'suppliers') _wireSimilarGroups(tab);
+}
+
+// ── Near-duplicate detection ─────────────────────────────────────────────────
+// The same job gets typed a dozen ways over months — "PAT BME2", "PAT BME 2",
+// "BME2 TRACIE DOOR_MAIN" — and each spelling then counts as its own project in
+// every report, so one job's real totals sit split across entries nobody
+// realises are the same thing. This groups the look-alikes and offers to fold
+// them into one, rewriting the movement rows so history reads as one project.
+//
+// Suggestions only — never automatic. Two projects CAN legitimately look almost
+// identical ("LGI DE 042" and "LGI DE 043" are different houses), so a human
+// confirms every merge and picks which spelling survives.
+function _cfgNorm(s){
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Token-overlap similarity, with a guard: entries whose DIGITS differ are never
+// called similar. Numbers in these names are almost always the thing that makes
+// them distinct — unit 104 vs unit 106 — so ignoring them would suggest merging
+// two genuinely separate jobs, which is the one mistake here that destroys data.
+function _cfgSimilar(a, b){
+  var na = _cfgNorm(a), nb = _cfgNorm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+
+  var da = (na.match(/\d+/g) || []).join(','), db = (nb.match(/\d+/g) || []).join(',');
+  if (da !== db) return false;
+
+  var ta = na.split(' ').filter(Boolean), tb = nb.split(' ').filter(Boolean);
+  var setB = {}; tb.forEach(function(t){ setB[t] = 1; });
+  var shared = ta.filter(function(t){ return setB[t]; }).length;
+  var ratio = shared / Math.max(ta.length, tb.length);
+  return ratio >= 0.6;
+}
+
+var _similarGroups = [];
+function _renderSimilarGroups(tab, items, label){
+  _similarGroups = [];
+  var used = {};
+  items.forEach(function(a, i){
+    if (used[i]) return;
+    var group = [a];
+    items.forEach(function(b, j){
+      if (j <= i || used[j]) return;
+      if (_cfgSimilar(a, b)) { group.push(b); used[j] = 1; }
+    });
+    if (group.length > 1) { used[i] = 1; _similarGroups.push(group); }
+  });
+  if (!_similarGroups.length) return '';
+
+  return '<div class="sim-box">' +
+    '<div class="sim-hdr">🔍 ' + _similarGroups.length + ' possible duplicate ' +
+      label.toLowerCase() + (_similarGroups.length === 1 ? '' : 's') + ' found</div>' +
+    '<p class="sim-sub">These look like the same ' + label.toLowerCase() +
+      ' spelled differently. Merging rewrites every movement so history reads as one. ' +
+      'Check each group first — similar names are not always the same thing.</p>' +
+    _similarGroups.map(function(g, gi){
+      return '<div class="sim-group" data-g="' + gi + '">' +
+        g.map(function(v, vi){
+          return '<label class="sim-opt">' +
+            '<input type="radio" name="simKeep' + gi + '" value="' + _he(v) + '"' + (vi === 0 ? ' checked' : '') + '>' +
+            '<span>' + _he(v) + '</span></label>';
+        }).join('') +
+        '<div class="sim-acts">' +
+          '<button class="btn btn-primary btn-sm" data-sim-merge="' + gi + '">Merge into selected</button>' +
+          '<button class="btn btn-ghost btn-sm" data-sim-skip="' + gi + '">Not duplicates</button>' +
+        '</div></div>';
+    }).join('') +
+  '</div>';
+}
+
+function _wireSimilarGroups(tab){
+  document.querySelectorAll('[data-sim-merge]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var gi = parseInt(btn.getAttribute('data-sim-merge'), 10);
+      var group = _similarGroups[gi]; if (!group) return;
+      var picked = document.querySelector('input[name="simKeep' + gi + '"]:checked');
+      var into = picked ? picked.value : group[0];
+      var from = group.filter(function(v){ return v !== into; });
+      _showConfirm({
+        icon: '🔀', title: 'Merge into "' + into + '"?',
+        message: from.join('\n') + '\n\nwill become "' + into + '" on every movement. ' +
+                 'This rewrites history and cannot be undone automatically.',
+        confirmText: 'Merge',
+        onConfirm: function(){
+          btn.disabled = true; btn.textContent = 'Merging…';
+          google.script.run
+            .withSuccessHandler(function(res){
+              showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 6000);
+              _loadSettings();
+              loadDataFromGoogle(false);
+            })
+            .withFailureHandler(function(e){
+              btn.disabled = false; btn.textContent = 'Merge into selected';
+              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
+            })
+            .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
+        }
+      });
+    });
+  });
+  document.querySelectorAll('[data-sim-skip]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var g = btn.closest('.sim-group');
+      if (g) g.remove();   // dismissed for this viewing only — nothing is written
+    });
+  });
 }
 
 var _errorLogData = [];
@@ -6636,12 +6754,16 @@ function _renderCfgDeck(){
       '<div class="cfg-card-acts">' +
         '<button type="button" class="cfg-card-add" data-act="add" data-key="' + k + '">+ Add to list</button>' +
         '<button type="button" class="cfg-card-skip" data-act="skip" data-key="' + k + '">Not now</button>' +
+        (isTop && total > 1
+          ? '<button type="button" class="cfg-card-skip" data-act="addall" title="Register all ' + total + '">All ' + total + '</button>'
+          : '') +
       '</div></div>';
   }).join('');
 
   deck.querySelectorAll('button[data-act]').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();   // don't toggle the deck's own open/closed state
+      if (btn.getAttribute('data-act') === 'addall') { _cfgAddAll(); return; }
       _cfgCardAction(btn.getAttribute('data-act'), btn.getAttribute('data-key'), btn);
     });
   });
@@ -6650,6 +6772,41 @@ function _renderCfgDeck(){
   // in which case re-rendering after an action must not yank it dim underneath.
   if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
   else { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
+}
+
+// Registering a backlog of legacy values one card at a time meant dozens of
+// clicks and dozens of separate calls — enough to trip the per-minute rate
+// limit and turn a routine cleanup into "Too many requests". This walks the
+// list sequentially, one call at a time, so it stays well inside the limit and
+// reports once at the end instead of toasting on every value.
+var _cfgAddAllRunning = false;
+function _cfgAddAll(){
+  if (_cfgAddAllRunning) return;
+  var queue = _pendingCfgAdds.slice();
+  if (!queue.length) return;
+  _showConfirm({
+    icon: '➕', title: 'Add all ' + queue.length + ' to your lists?',
+    message: 'Every supplier and project below will be registered. Nothing in your movement history changes.',
+    confirmText: 'Add all',
+    onConfirm: function(){
+      _cfgAddAllRunning = true;
+      var ok = 0, failed = 0;
+      (function next(){
+        if (!queue.length){
+          _cfgAddAllRunning = false;
+          showToast('Added ' + ok + ' to your lists' + (failed ? ' · ' + failed + ' failed' : '') + ' ✓',
+            failed ? 'warn' : 'ok', 6000);
+          _recomputeCfgDeck();
+          return;
+        }
+        var p = queue.shift();
+        _cfgAddValue(p.type, p.value, function(good){
+          if (good) ok++; else failed++;
+          setTimeout(next, 120);   // paced, not hammered
+        });
+      })();
+    }
+  });
 }
 
 // One handler for both the desktop deck and the phone panel.

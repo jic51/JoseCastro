@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.23';
+var APP_VERSION = '9.24';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1503,6 +1503,7 @@ function processMovementInner_(ss, action, data, auth) {
   // ── Settings / Config management (ADMIN only) ─────────────────────────────
   if (action === 'getSettings')    return getSettings(auth);
   if (action === 'updateConfig')   return updateConfig(data, auth);
+  if (action === 'mergeConfigValues') return mergeConfigValues(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -3793,10 +3794,40 @@ var _KNOWN_VALIDATION_PREFIXES = [
   'A reason is required', 'Rack is required', 'Cannot reserve',
   'Reservation not found', 'Lock not found', 'WASTE movements require'
 ];
+// Messages that are the app CORRECTLY refusing something, rather than the app
+// breaking. Matched anywhere in the text, not just as a prefix, because many of
+// them lead with the offending value — 'projects "KUNA 104/106" already
+// exists.' is the clearest case, and it was being filed as a system ERROR.
+//
+// That mattered a lot more once ERROR started emailing the admin: registering a
+// batch of already-known projects filed ~60 ERROR rows and set off the alert
+// mail, for an app doing exactly what it should. Alerts that cry wolf get
+// ignored, which costs the real ones their value.
+var VALIDATION_MESSAGE_PATTERNS = [
+  /already exists/i,
+  /too many requests/i,
+  /reorganized/i,
+  /does not look like/i,
+  /cannot be attached/i,
+  /too large|maximum file size|supera el tama/i,
+  /value required/i,
+  /missing required column/i,
+  /no data rows found/i,
+  /appears to be empty/i,
+  /please upload/i,
+  /do not have access/i,
+  /not found in/i,
+  /no documents provided/i,
+  /required\.?$/i
+];
+
 function classifyErrorSeverity_(msg) {
   msg = String(msg || '');
   for (var i = 0; i < _KNOWN_VALIDATION_PREFIXES.length; i++) {
     if (msg.indexOf(_KNOWN_VALIDATION_PREFIXES[i]) === 0) return 'WARN';
+  }
+  for (var j = 0; j < VALIDATION_MESSAGE_PATTERNS.length; j++) {
+    if (VALIDATION_MESSAGE_PATTERNS[j].test(msg)) return 'WARN';
   }
   return 'ERROR';
 }
@@ -4599,6 +4630,72 @@ function getSettings(auth) {
 // data.op    : 'add' | 'rename' | 'delete'
 // data.value : current value (required for rename/delete)
 // data.newValue : replacement value (required for rename)
+// Folds several spellings of the same project (or supplier) into one.
+//
+// The same job gets typed a dozen ways over months — "PAT BME2", "PAT BME 2",
+// "BME2 TRACIE DOOR_MAIN" — and each variant then counts as its own project in
+// every report, so a job's real totals are split across entries nobody realises
+// are the same thing. Renaming in CONFIG alone would not fix that: the archive
+// rows keep the old text, so this rewrites the movement rows too.
+//
+// data = { type: 'projects'|'suppliers', from: ['A','B'], into: 'C' }
+function mergeConfigValues(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var type = String(data.type || '');
+  if (type !== 'projects' && type !== 'suppliers') throw new Error('Unknown merge type: ' + type);
+
+  var into = String(data.into || '').trim();
+  if (!into) throw new Error('Pick the name to keep.');
+  var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
+                              .filter(function (v) { return v && v.toUpperCase() !== into.toUpperCase(); });
+  if (!from.length) throw new Error('Pick at least one other name to merge in.');
+
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var col = (type === 'projects') ? AC.PROJECT : AC.SUPPLIER;
+
+  var wanted = {};
+  from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
+
+  // 1. Rewrite the archive so history reads as one project.
+  var rowsChanged = 0;
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (archive && archive.getLastRow() > 1) {
+    var range  = archive.getRange(2, col + 1, archive.getLastRow() - 1, 1);
+    var values = range.getValues();
+    for (var i = 0; i < values.length; i++) {
+      var cur = String(values[i][0] || '').trim();
+      if (cur && wanted[cur.toUpperCase()]) { values[i][0] = sheetSafe_(into); rowsChanged++; }
+    }
+    if (rowsChanged) range.setValues(values);
+  }
+
+  // 2. Drop the merged-away spellings from CONFIG, and make sure the survivor
+  //    is actually on the list — it may only ever have existed as free text.
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  var removed = 0;
+  if (cfg) {
+    var cfgCol  = (type === 'projects') ? 0 : 2;
+    var cfgVals = cfg.getDataRange().getValues();
+    var keep = [], sawInto = false;
+    for (var r = 1; r < cfgVals.length; r++) {
+      var v = String(cfgVals[r][cfgCol] || '').trim();
+      if (!v) continue;
+      if (wanted[v.toUpperCase()]) { removed++; continue; }
+      if (v.toUpperCase() === into.toUpperCase()) sawInto = true;
+      keep.push(v);
+    }
+    if (!sawInto) keep.push(into);
+    keep.sort();
+    writeConfigColumn_(cfg, cfgCol, keep);
+  }
+
+  refreshDerivedSheets_(ss);
+  auditLog_(ss, 'MERGE_CONFIG', auth.email,
+    type + ': ' + from.join(' + ') + ' → ' + into, String(rowsChanged) + ' rows', '');
+
+  return { status: 'success', rowsChanged: rowsChanged, removed: removed, into: into };
+}
+
 function updateConfig(data, auth) {
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
