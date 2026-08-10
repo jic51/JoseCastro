@@ -1909,7 +1909,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.25';
+var APP_VERSION = '9.26';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -5264,6 +5264,17 @@ function _loadSettings() {
   google.script.run
     .withSuccessHandler(function(d) {
       _settingsData = d;
+      // Sorted once, here, rather than per render: the edit/rename handlers
+      // address entries by their INDEX in this array, so sorting a display copy
+      // would have them act on the wrong row. Sorting the source keeps the two
+      // in step. localeCompare so accented names land where a person expects.
+      ['categories', 'projects', 'suppliers', 'locations'].forEach(function(k){
+        if (Array.isArray(_settingsData[k])) {
+          _settingsData[k].sort(function(a, b){
+            return String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
+          });
+        }
+      });
       _renderSettingsTab(_settingsTab);
     })
     .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
@@ -5578,6 +5589,21 @@ function _cfgSimilar(a, b){
   var da = (na.match(/\d+/g) || []).join(','), db = (nb.match(/\d+/g) || []).join(',');
   if (da !== db) return false;
 
+  // Spacing is the commonest way one name gets typed two ways — "CNT WESTLAKE"
+  // vs "CNT WEST LAKE GLASS" — and token comparison never sees it, because
+  // WESTLAKE shares no token at all with WEST or LAKE.
+  var ca = na.replace(/ /g, ''), cb = nb.replace(/ /g, '');
+  if (ca === cb) return true;
+
+  // One name being the other plus a trailing word. The extra part must be at
+  // least 3 characters, and that threshold is doing real work: it is what keeps
+  // "CLOUDVEIL" and "CLOUDVEIL A" apart, along with every other A/B/C/D
+  // building suffix — those are genuinely different places and must never be
+  // offered as duplicates.
+  var shortStr = ca.length < cb.length ? ca : cb;
+  var longStr  = ca.length < cb.length ? cb : ca;
+  if (longStr.indexOf(shortStr) === 0 && (longStr.length - shortStr.length) >= 3) return true;
+
   var ta = na.split(' ').filter(Boolean), tb = nb.split(' ').filter(Boolean);
   var setB = {}; tb.forEach(function(t){ setB[t] = 1; });
   var shared = ta.filter(function(t){ return setB[t]; }).length;
@@ -5621,8 +5647,8 @@ function _renderSimilarGroups(tab, items, label){
   });
   if (!_similarGroups.length) return '';
 
-  return '<div class="sim-box">' +
-    '<div class="sim-hdr">🔍 ' + _similarGroups.length + ' possible duplicate ' +
+  return '<div class="sim-box" id="simBox" data-label="' + _he(label.toLowerCase()) + '">' +
+    '<div class="sim-hdr" id="simHdr">🔍 ' + _similarGroups.length + ' possible duplicate ' +
       label.toLowerCase() + (_similarGroups.length === 1 ? '' : 's') + ' found</div>' +
     '<p class="sim-sub">These look like the same ' + label.toLowerCase() +
       ' spelled differently. Merging rewrites every movement so history reads as one. ' +
@@ -5640,6 +5666,20 @@ function _renderSimilarGroups(tab, items, label){
         '</div></div>';
     }).join('') +
   '</div>';
+}
+
+// The heading counted what was rendered and then never changed, so after
+// merging or dismissing a group it still claimed "2 possible duplicates found"
+// over an empty box — only a tab switch corrected it. Recounted from the DOM
+// after every removal, and the whole box goes when the last one does.
+function _refreshSimHeader(){
+  var box = document.getElementById('simBox');
+  if (!box) return;
+  var left = box.querySelectorAll('.sim-group').length;
+  if (!left) { box.remove(); return; }
+  var hdr = document.getElementById('simHdr');
+  var label = box.getAttribute('data-label') || 'item';
+  if (hdr) hdr.textContent = '🔍 ' + left + ' possible duplicate ' + label + (left === 1 ? '' : 's') + ' found';
 }
 
 function _wireSimilarGroups(tab){
@@ -5668,6 +5708,7 @@ function _wireSimilarGroups(tab){
               _applyMergeLocally(tab, from, into);
               var g = btn.closest('.sim-group');
               if (g) g.remove();
+              _refreshSimHeader();
             })
             .withFailureHandler(function(e){
               btn.disabled = false; btn.textContent = 'Merge into selected';
@@ -5685,6 +5726,7 @@ function _wireSimilarGroups(tab){
       if (group) _dismissSimGroup(tab, group);   // remembered, so it stays gone
       var g = btn.closest('.sim-group');
       if (g) g.remove();
+      _refreshSimHeader();
     });
   });
 }
