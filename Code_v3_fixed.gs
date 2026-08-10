@@ -31,7 +31,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.0';
+var APP_VERSION = '9.1';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -136,6 +136,69 @@ function getSetupState() {
   return out;
 }
 
+// Creates every sheet the app needs, so setup can start from a BLANK Google
+// Sheet the customer made themselves. Before this, the app assumed
+// MASTER_ARCHIVE_V3, CONFIG and friends already existed — true only for a copy
+// of an existing installation, which meant shipping the product as "here is my
+// spreadsheet, copy it". Nobody wants to run their business on a duplicate of
+// someone else's file, and it made the first-run experience "Archive sheet not
+// found" instead of a working system.
+//
+// Existing sheets are never touched: this only fills in what is missing, so it
+// is safe on an installation that already has data.
+function ensureCoreSheets_(ss) {
+  var SPEC = [
+    { name: SHEETS.ARCHIVE, header: [
+        'System Date','Type','Name','GC','PO#','Qty','Unit','Date Received','Source Location',
+        'Supplier','Comments','Status','Received By','Project','Mat ID','Doc Links','User Email',
+        'Destination Location','MoveType','PM'] },
+    { name: SHEETS.CONFIG, header: [
+        'Projects','Categories','Suppliers','Locations','Location Type','User Email','User Role',
+        'Admin Email','Truck','Truck Person','Truck Status','Min Stock Material','Min Stock Qty',
+        'Archive Cutoff Months'] },
+    { name: SHEETS.RESERVATIONS, header: [
+        'ID','Category','Name','Project','Qty','Reserved By','Date','Status','Release Date'] },
+    { name: SHEETS.AUDIT, header: ['Timestamp','Action','User','Details','Old Value','New Value'] },
+    // Rebuilt wholesale (headers included) by refreshDerivedSheets_ — they only
+    // need to exist.
+    { name: SHEETS.LIVE, header: null },
+    { name: SHEETS.SITE, header: null }
+  ];
+
+  var created = [];
+  SPEC.forEach(function(spec){
+    if (ss.getSheetByName(spec.name)) return;
+    var sheet;
+    // A brand-new spreadsheet arrives with one empty default tab ("Sheet1" /
+    // "Hoja 1"). Reuse it for the first sheet we need rather than leaving a
+    // stray empty tab next to the real ones.
+    var sheets = ss.getSheets();
+    if (sheets.length === 1 && sheets[0].getLastRow() === 0 && sheets[0].getLastColumn() === 0) {
+      sheet = sheets[0].setName(spec.name);
+    } else {
+      sheet = ss.insertSheet(spec.name);
+    }
+    if (spec.header) {
+      sheet.getRange(1, 1, 1, spec.header.length).setValues([spec.header]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, spec.header.length).setFontWeight('bold');
+    }
+    created.push(spec.name);
+  });
+
+  // These already had their own ensure* helpers; call them so a fresh copy ends
+  // up with the complete set in one pass.
+  try { ensureUsersSheet_(ss);          } catch (e) {}
+  try { ensureIncomingSheet_(ss);       } catch (e) {}
+  try { ensureRackPhotosSheet_(ss);     } catch (e) {}
+  try { ensureMaterialLocksSheet_(ss);  } catch (e) {}
+  try { ensurePmDirectorySheet_(ss);    } catch (e) {}
+  try { ensureErrorLogSheet_(ss);       } catch (e) {}
+  try { ensureWasteSheet_(ss);          } catch (e) {}
+  try { ensureArchiveHistorySheet_(ss); } catch (e) {}
+  return created;
+}
+
 function saveSetupWizard(data) {
   data = data || {};
   var cs = companySettings_();
@@ -152,6 +215,10 @@ function saveSetupWizard(data) {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var p  = PropertiesService.getScriptProperties();
+
+  // Before anything else — a blank spreadsheet has none of the sheets the rest
+  // of this function (and the whole app) writes to.
+  ensureCoreSheets_(ss);
 
   var companyName = String(data.companyName || '').trim();
   if (!companyName) throw new Error('Company name is required.');
@@ -207,6 +274,11 @@ function saveSetupWizard(data) {
   });
 
   if (data.enableBackup) { try { ensureBackupTrigger_(); } catch (e) {} }
+
+  // Populates LIVE_STOCK / SITE_STOCK / WASTED_STOCK with their headers (and
+  // any stock, on a copy that already has movements) so the first load reads a
+  // valid, if empty, set of derived sheets instead of failing.
+  try { refreshDerivedSheets_(ss); } catch (e) {}
 
   p.setProperty('SETUP_COMPLETE', 'true');
   auditLog_(ss, 'SETUP_COMPLETED', actor, companyName, '', '');
