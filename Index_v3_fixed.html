@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acopio — Warehouse Management</title>
-  A<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
@@ -686,7 +686,28 @@
        the pile is a real hand of cards, not a 300-card staircase — as one is
        dealt with, the next flows in. Padding on the container leaves room for
        the rotated corners and the count badge to sit OUTSIDE the top card. */
-    .cfg-deck{position:fixed;right:22px;bottom:86px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(300px,calc(100vw - 44px));padding:14px 12px 0 14px}
+    .corner-decks{position:fixed;right:22px;bottom:86px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+    .cfg-deck{display:flex;flex-direction:column;align-items:flex-end;max-width:min(300px,calc(100vw - 44px));padding:14px 12px 0 14px}
+    /* Notifications: same pile behaviour as the suggestion deck, but bigger and
+       with nothing to decide — just an ✕ where the count badge sits. They are
+       reports of things already done, not questions. */
+    .sys-deck{display:flex;flex-direction:column;align-items:flex-end;max-width:min(320px,calc(100vw - 44px));padding:14px 12px 0 14px}
+    .sys-deck:empty{display:none}
+    .sys-card{position:relative;background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green);border-radius:10px;padding:.6rem .75rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);width:270px;max-width:100%;height:96px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,opacity .45s ease;overflow:hidden}
+    .sys-deck:hover .sys-card,.sys-deck.open .sys-card{transition:margin .22s ease,transform .22s ease,opacity .2s ease}
+    .sys-deck.dim:not(:hover):not(.open) .sys-card{opacity:.25}
+    .sys-card + .sys-card{margin-top:.45rem}
+    .sys-deck:not(:hover):not(.open) .sys-card{margin-top:-90px;transform:rotate(-2.4deg)}
+    .sys-deck:not(:hover):not(.open) .sys-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
+    .sys-deck:not(:hover):not(.open) .sys-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
+    .sys-deck:not(:hover):not(.open) .sys-card:first-child{margin-top:0}
+    .sys-deck:not(:hover):not(.open) .sys-card:last-child{transform:rotate(0deg)}
+    .sys-deck:not(:hover):not(.open) .sys-card:not(:last-child){pointer-events:none}
+    .sys-card-x{position:absolute;top:-9px;right:-9px;width:24px;height:24px;border-radius:12px;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
+    .sys-card-x:hover{background:var(--red)}
+    .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
+    .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
+    .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cfg-deck:empty{display:none}
     /* Closing is deliberately slower than opening — a pile snapping shut the
        instant the pointer leaves reads as the app swatting you away. */
@@ -1101,10 +1122,10 @@
             <th style="width:30px"></th>
             <th>Category</th><th>Name / Description</th>
             <th title="Units in warehouse">In Warehouse</th>
-            <th title="Units dispatched to site">At Site</th>
+            <th title="Units dispatched to a job — used or delivered">Used / Del</th>
             <th title="Warehouse minus reservations">Available</th>
             <th title="Units recorded as waste/damaged">Wasted</th>
-            <th>Reserved</th><th>Rack(s)</th><th>Status</th><th title="Date Received from the most recent ENTRY of this material">Date Received</th><th>Last Note</th><th>Docs</th>
+            <th>Reserved</th><th title="Where this material is stored">Location</th><th>Status</th><th title="Date Received from the most recent ENTRY of this material">Date Received</th><th>Last Note</th><th>Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -1902,7 +1923,10 @@
 </div>
 
 <!-- Floating "report a problem" button — available from every screen -->
-<div class="cfg-deck" id="cfgDeck" onclick="this.classList.toggle('open')"></div>
+<div class="corner-decks">
+  <div class="sys-deck" id="sysDeck" onclick="this.classList.toggle('open')"></div>
+  <div class="cfg-deck" id="cfgDeck" onclick="this.classList.toggle('open')"></div>
+</div>
 <button id="reportIssueFab" class="report-issue-fab" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
 
 <div class="overlay" id="reportIssueOverlay">
@@ -1958,7 +1982,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.33';
+var APP_VERSION = '9.34';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2068,11 +2092,25 @@ function _normKey(v){
 }
 
 // ── Populate all category <select> elements from config (called after data load / settings save)
-var _DEFAULT_CATS = ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT',
-                     'TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+// There is NO fallback category list, deliberately.
+//
+// This used to fall back to OX Glass's own categories (WINDOW, SCREEN, IGU,
+// FLASHING…) whenever none were configured. On a fresh customer copy that meant
+// the dropdowns quietly filled with another company's glass-industry
+// categories, and a movement saved before setup was finished got filed under
+// "WINDOW" — a category that customer had never created and could not explain.
+// An empty catalog must look empty; guessing is how one company's data ends up
+// inside another's system.
+var _NO_CATS_OPTION = '<option value="">— no categories yet — add them in Settings —</option>';
+
+function _catOptions(){
+  var cats = (config.categories && config.categories.length) ? config.categories : null;
+  if (!cats) return _NO_CATS_OPTION;
+  return cats.map(function(c){ return '<option value="'+_he(c)+'">'+_he(c)+'</option>'; }).join('');
+}
+
 function refreshCategoryDropdowns() {
-  var cats = (config.categories && config.categories.length) ? config.categories : _DEFAULT_CATS;
-  var opts      = cats.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+  var opts = _catOptions();
   var optsBlank = '<option value="">All Categories</option>' + opts;
   ['stockFilter','movCatFilter','mapCatFilter'].forEach(function(id){
     var s = document.getElementById(id);
@@ -4785,10 +4823,7 @@ function addExitMatLine(){
   var container = document.getElementById('multiExitContainer');
   if (!container) return;
 
-  var CATS = (config && config.categories && config.categories.length)
-    ? config.categories
-    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
-  var catOpts = CATS.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+  var catOpts = _catOptions();
 
   var wrap = document.createElement('div');
   wrap.innerHTML =
@@ -9325,34 +9360,99 @@ function _fmtWhen(iso){
   return sameDay ? 'today at ' + time : d.toLocaleDateString() + ' at ' + time;
 }
 
+var _SYSACT_DISMISS_KEY = 'acopio_sysact_dismissed';
+var _sysCards = [];
+
+function _loadSysDismissed(){
+  try { return JSON.parse(localStorage.getItem(_SYSACT_DISMISS_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function _dismissSysCard(id){
+  var d = _loadSysDismissed();
+  d[id] = 1;
+  // Only the recent ones are ever shown, so this map cannot grow unbounded in
+  // any way that matters, but trim it anyway rather than letting it creep.
+  var keys = Object.keys(d);
+  if (keys.length > 200) keys.slice(0, keys.length - 200).forEach(function(k){ delete d[k]; });
+  try { localStorage.setItem(_SYSACT_DISMISS_KEY, JSON.stringify(d)); } catch (e) {}
+  _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
+  _renderSysDeck();
+}
+
 function _announceSystemActivity(){
-  if (!systemActivity || !systemActivity.length) return;
+  if (!systemActivity || !systemActivity.length) { _sysCards = []; _renderSysDeck(); return; }
+
   var seen = 0;
   try { seen = parseInt(localStorage.getItem(_SYSACT_KEY) || '0', 10) || 0; } catch (e) {}
 
-  var fresh = systemActivity.filter(function(a){
-    var t = a.at ? new Date(a.at).getTime() : 0;
-    return t && t > seen;
-  });
-  if (!fresh.length) return;
-
   var newest = 0;
-  fresh.forEach(function(a){
-    var t = new Date(a.at).getTime();
+  systemActivity.forEach(function(a){
+    var t = a.at ? new Date(a.at).getTime() : 0;
     if (t > newest) newest = t;
   });
-  try { localStorage.setItem(_SYSACT_KEY, String(newest)); } catch (e) {}
 
-  // First run on an installation with months of history would otherwise fire a
-  // burst of notices for things that happened long before anyone was watching.
-  if (!seen) return;
+  // First run on an installation with months of history: record where we are
+  // and show nothing, rather than opening with a pile of notices about things
+  // nobody was waiting on.
+  if (!seen) {
+    try { localStorage.setItem(_SYSACT_KEY, String(newest)); } catch (e) {}
+    _sysCards = []; _renderSysDeck();
+    return;
+  }
 
-  fresh.slice(0, 3).forEach(function(a, i){
-    setTimeout(function(){
-      showToast('✓ ' + a.label + ' — ' + _fmtWhen(a.at) + (a.detail ? ' · ' + a.detail : ''), 'ok', 7000);
-    }, i * 600);
+  var dismissed = _loadSysDismissed();
+  _sysCards = systemActivity.filter(function(a){
+    var t = a.at ? new Date(a.at).getTime() : 0;
+    if (!t || t <= seen) return false;
+    return !dismissed[a.at + '|' + a.action];
+  }).map(function(a){
+    return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
+
+  // The "seen" mark only moves once the cards have been built from it —
+  // otherwise a reload before dismissing would silently drop them.
+  try { localStorage.setItem(_SYSACT_KEY, String(newest)); } catch (e) {}
+  _renderSysDeck();
 }
+
+function _renderSysDeck(){
+  var deck = document.getElementById('sysDeck');
+  if (!deck) return;
+  if (!_sysCards.length){ deck.innerHTML = ''; deck.classList.remove('open'); return; }
+
+  // Newest painted last so it sits on top of the pile, same as the other deck.
+  deck.innerHTML = _sysCards.slice(0, 5).reverse().map(function(c){
+    return '<div class="sys-card">' +
+      '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
+      '<div class="sys-card-title">✓ ' + _he(c.label) + '</div>' +
+      '<div class="sys-card-when">' + _he(_fmtWhen(c.at)) + '</div>' +
+      (c.detail ? '<div class="sys-card-detail">' + _he(c.detail) + (c.extra ? ' · ' + _he(c.extra) : '') + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  deck.querySelectorAll('[data-sys-x]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      _dismissSysCard(btn.getAttribute('data-sys-x'));
+    });
+  });
+
+  // Same fade rules as the suggestion deck: solid on arrival, then out of the
+  // way; hovering brings it back.
+  if (deck.matches(':hover') || deck.classList.contains('open')) { clearTimeout(_sysDimTimer); deck.classList.remove('dim'); }
+  else { deck.classList.remove('dim'); clearTimeout(_sysDimTimer); _sysDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, _CFG_SOLID_MS); }
+}
+
+var _sysDimTimer = null;
+(function _wireSysDeckFade(){
+  var deck = document.getElementById('sysDeck');
+  if (!deck) return;
+  deck.addEventListener('mouseenter', function(){ clearTimeout(_sysDimTimer); deck.classList.remove('dim'); });
+  deck.addEventListener('mouseleave', function(){
+    clearTimeout(_sysDimTimer);
+    _sysDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, _CFG_REDIM_MS);
+  });
+})();
 
 function showToast(msg, type, duration) {
   type     = type     || 'ok';
@@ -9695,11 +9795,9 @@ function openEditMovModal(rowIdx) {
     (mov.moveType || 'UNKNOWN') + '</span>';
 
   // Populate category dropdown from config
-  var CATS = (config && config.categories && config.categories.length)
-    ? config.categories
-    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+  var CATS = (config && config.categories && config.categories.length) ? config.categories : [];
   var catSel = document.getElementById('em_category');
-  catSel.innerHTML = CATS.map(function(c){
+  catSel.innerHTML = !CATS.length ? _NO_CATS_OPTION : CATS.map(function(c){
     return '<option value="'+c+'"'+(nt(c)===nt(mov.category)?' selected':'')+'>'+c+'</option>';
   }).join('');
 
@@ -9846,9 +9944,7 @@ function renderGmailScanResults(emails) {
     return;
   }
 
-  var CATS = (config && config.categories && config.categories.length)
-    ? config.categories
-    : ['WINDOW','SCREEN','WINDOW_PARTS','SHOWER','MIRROR','STOREFRONT','TOOLS','BONEYARD','FLASHING','SCREWS','IGU'];
+  var CATS = (config && config.categories && config.categories.length) ? config.categories : [];
   var UNITS = ['UNIT','SQ FT','LN FT','PIECE','BOX','PALLET'];
 
   container.innerHTML = '';
