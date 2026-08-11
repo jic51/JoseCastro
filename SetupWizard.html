@@ -62,6 +62,10 @@
   .link-box input{flex:1;border:none;background:transparent;font-size:.82rem;color:#065F46;font-family:monospace}
   .btn-copy{transition:background-color .25s ease,color .25s ease,border-color .25s ease}
   .btn-copy.copied{background:#059669;border-color:#059669;color:#fff}
+  .warn-box{background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:.7rem .85rem;font-size:.82rem;color:#111827;line-height:1.5;margin-top:.75rem}
+  .warn-box code{background:#FDE68A;border-radius:4px;padding:0 4px}
+  .guess{margin-top:.5rem;font-size:.75rem;color:#6B7280}
+  .guess-url{font-family:monospace;font-size:.72rem;word-break:break-all;color:#374151}
   .wiz-progress{margin-top:1.1rem}
   .wiz-progress-track{height:8px;border-radius:4px;background:#E5E7EB;overflow:hidden}
   .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
@@ -434,7 +438,8 @@ function renderPublishStep(){
       '<b>4.</b> Click the ⚙️ gear next to "Select type" → choose <b>Web app</b><br>'+
       '<b>5.</b> Set <b>Execute as: Me</b>, and <b>Who has access: Anyone with a Google account</b><br>'+
       '<b>6.</b> Click <b>Deploy</b>, then <b>Authorize access</b> and approve the permissions<br>'+
-      '<b>7.</b> Come back to this tab and click the button below'+
+      '<b>7.</b> Google now shows a <b>Web app URL</b> ending in <code>/exec</code>. <b>Copy it</b> before closing that box — it is the address of your system.<br>'+
+      '<b>8.</b> Come back to this tab and click the button below'+
     '</div>'+
     '<div class="hint">You may see "Google hasn\'t verified this app" — that is expected for software you just installed for yourself. Click <b>Advanced</b>, then <b>Go to (your project name)</b> to continue. You may also see a note about a missing Privacy Policy link — also expected, and not something you need to fix.</div>'+
     '<div id="wLinkResult"></div>'+
@@ -467,23 +472,38 @@ function checkLink(){
     .withSuccessHandler(function(res){
       next.disabled = false; next.textContent = "✓ I did it — show my link";
       var box = document.getElementById('wLinkResult');
-      if (res && res.url){
+      // A SAVED link is the owner's own answer and is simply correct.
+      // A DETECTED one is not: Apps Script's getUrl() is known to report a
+      // deployment that was never published, so the URL it hands back 404s
+      // (Google issue 170799249). Showing that as "your link" is what sent the
+      // last round chasing a dead address, so it is now presented as a guess to
+      // be checked against what Google actually displayed, with the paste box
+      // already open rather than hidden behind a link.
+      if (res && res.url && res.saved){
         box.innerHTML =
           '<div class="link-box"><input type="text" id="wLinkUrl" readonly value="'+_escAttr(res.url)+'" onclick="this.select()">'+
           '<button class="btn btn-sm btn-copy" onclick="copyLink(document.getElementById(\'wLinkUrl\').value,this)">Copy</button></div>'+
-          '<div class="hint">'+
-            (res.saved
-              ? '✓ This is the link you saved — it is stored and will be here next time you open setup.<br>'
-              : 'Bookmark this — it is your system’s permanent address. Share it with your team.<br>')+
-            'Doesn\'t open? <a href="#" onclick="checkLink();return false;" style="color:#3B7DD8">🔄 Check again</a>'+
-            ' · <a href="#" onclick="showLinkOverride();return false;" style="color:#3B7DD8">✏️ Paste the correct link</a></div>'+
+          '<div class="hint">✓ Saved. This is your system’s permanent address — bookmark it and share it with your team.<br>'+
+            'Wrong one? <a href="#" onclick="showLinkOverride();return false;" style="color:#3B7DD8">✏️ Paste a different link</a></div>'+
           '<div id="wLinkOverride" style="display:none;margin-top:.6rem">'+
             '<input type="text" id="wLinkOverrideInput" placeholder="https://script.google.com/…/exec">'+
             '<button class="btn btn-sm" style="margin-top:.4rem" id="wLinkOverrideBtn" onclick="applyLinkOverride()">Save this link</button>'+
           '</div>'+
           '<button class="btn btn-primary" style="margin-top:.9rem;width:100%" onclick="google.script.host.close()">Done — close this window</button>';
       } else {
-        box.innerHTML = '<div class="err" style="margin-top:.6rem">Not published yet — follow the steps above, then click the button again.</div>';
+        box.innerHTML =
+          '<div class="warn-box">' +
+            '<b>Paste the link Google gave you</b><br>' +
+            'The Web app URL from step 7, ending in <code>/exec</code>.' +
+            (res && res.url
+              ? '<div class="guess">Apps Script reports this one, but it is often the wrong deployment — compare it before using it:<br>' +
+                '<span class="guess-url">' + _he(res.url) + '</span></div>'
+              : '') +
+          '</div>' +
+          '<div id="wLinkOverride" style="margin-top:.6rem">'+
+            '<input type="text" id="wLinkOverrideInput" placeholder="https://script.google.com/…/exec">'+
+            '<button class="btn btn-primary btn-sm" style="margin-top:.4rem" id="wLinkOverrideBtn" onclick="applyLinkOverride()">Save this link</button>'+
+          '</div>';
       }
     })
     .withFailureHandler(function(){

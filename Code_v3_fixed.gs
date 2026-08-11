@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.29';
+var APP_VERSION = '9.32';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -4081,7 +4081,10 @@ function onOpen() {
   var advanced = SpreadsheetApp.getUi().createMenu('🔧 Advanced')
     .addItem('🔒 Revoke Public Sharing on Existing Files (run once)', 'menuRevokePublicSharing')
     .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
-    .addItem('Push Update Live (owner, standard Cloud project only)', 'menuActivateWebApp');
+    .addItem('Push Update Live (owner, standard Cloud project only)', 'menuActivateWebApp')
+    .addSeparator()
+    .addItem('🔎 Check if this copy is a clean template', 'menuVerifyMasterTemplate')
+    .addItem('💣 Erase everything — make this a blank template', 'menuPrepareMasterTemplate');
 
   SpreadsheetApp.getUi()
     .createMenu('🏭 ' + PRODUCT_NAME)
@@ -4357,6 +4360,159 @@ function menuRevokePublicSharing() {
     ? '\n\n⏱ Stopped early to stay under the 6-minute limit. Run this menu item again to continue — files already made private are skipped quickly.'
     : '\n\n✓ Done. Nothing under ' + docsFolderName_() + ' is publicly shared anymore.';
   ui.alert(msg);
+}
+
+// ═══ MASTER TEMPLATE ═════════════════════════════════════════════════════════
+// Customers get their copy by copying one master spreadsheet, and a copy brings
+// the SHEET DATA with it — movements, the user list, everything. (Script
+// Properties do not copy, which is why company identity resets but the rows do
+// not.) So a master built from a working installation would hand every customer
+// OX Glass's own inventory, and put OX Glass's email in their USERS_V3 as an
+// admin of THEIR system. This wipes it properly instead of leaving that to a
+// checklist and a good memory.
+//
+// Every sheet the app ever writes to is listed here explicitly rather than
+// "clear everything that isn't CONFIG": a sheet added later and forgotten would
+// otherwise ship full of real data, and silence is exactly the wrong failure
+// for this.
+var TEMPLATE_DATA_SHEETS = [
+  'MASTER_ARCHIVE_V3', 'LIVE_STOCK', 'SITE_STOCK', 'WASTED_STOCK', 'RESERVATIONS',
+  'AUDIT_LOG', 'ERROR_LOG', 'ARCHIVE_HISTORY', 'USERS_V3', 'INCOMING_V3',
+  'RACK_PHOTOS', 'PM_DIRECTORY', 'MATERIAL_LOCKS'
+];
+
+// Properties that carry one installation's identity or secrets. SESSION_SECRET
+// is included deliberately: sharing it across copies would mean a session token
+// minted on one customer's system verifies on another's.
+var TEMPLATE_WIPE_PROPS = [
+  'COMPANY_NAME', 'COMPANY_DOMAIN', 'COMPANY_LOGO_ID', 'FOLDER_PREFIX',
+  'FOLDER_PREFIX_HISTORY', 'SETUP_COMPLETE', 'WEB_APP_URL', 'SESSION_SECRET',
+  'WMS_SESSIONS', 'WMS_MONITORED_MATERIALS', 'GMAIL_SCAN_ENABLED',
+  'ERROR_ALERTS_ENABLED', 'GEMINI_API_KEY',
+  'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'OAUTH_REDIRECT_URI'
+];
+
+function menuPrepareMasterTemplate() {
+  var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
+  requireOwnerContext_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // The file NAME is in the prompt on purpose. The one catastrophic mistake
+  // here is running this on the live system instead of the copy, and the only
+  // thing that reliably prevents it is showing which file is about to be wiped.
+  var resp = ui.prompt(
+    '💣 Erase everything in this file?',
+    'This will PERMANENTLY delete all data in:\n\n' +
+    '   ' + ss.getName() + '\n\n' +
+    'Movements, stock, users, suppliers, projects, locations, photos, logs and\n' +
+    'company settings — all of it. It cannot be undone.\n\n' +
+    'Only do this on a COPY you are turning into the blank template customers\n' +
+    'will copy. Never on the system you actually use.\n\n' +
+    'Type  ERASE  to confirm:',
+    ui.ButtonSet.OK_CANCEL);
+
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  if (String(resp.getResponseText() || '').trim().toUpperCase() !== 'ERASE') {
+    ui.alert('Cancelled — nothing was changed.');
+    return;
+  }
+
+  var cleared = [], missing = [];
+  TEMPLATE_DATA_SHEETS.forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { missing.push(name); return; }
+    var last = sh.getLastRow();
+    // Row 1 is the header and stays — the app expects the columns to exist.
+    if (last > 1) sh.getRange(2, 1, last - 1, sh.getMaxColumns()).clearContent();
+    cleared.push(name + (last > 1 ? ' (' + (last - 1) + ')' : ' (0)'));
+  });
+
+  // CONFIG holds the catalogs AND the legacy user list — wiped column by column
+  // so the header row and the sheet's shape survive.
+  var cfg = ss.getSheetByName('CONFIG');
+  if (cfg && cfg.getLastRow() > 1) {
+    cfg.getRange(2, 1, cfg.getLastRow() - 1, cfg.getMaxColumns()).clearContent();
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var wiped = 0;
+  Object.keys(all).forEach(function (k) {
+    // Named properties, plus every cached Drive folder ID — those point at
+    // folders in the OWNER's Drive that a customer cannot reach, and a stale
+    // one would send their uploads at a folder that isn't theirs.
+    if (TEMPLATE_WIPE_PROPS.indexOf(k) !== -1 || k.indexOf('FOLDER_') === 0) {
+      props.deleteProperty(k); wiped++;
+    }
+  });
+
+  // Triggers belong to whoever installed them; a template must not ship with
+  // the previous owner's backup schedule attached.
+  var triggersRemoved = 0;
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); triggersRemoved++; });
+  } catch (e) {}
+
+  try { ss.rename(PRODUCT_NAME + ' — Warehouse Template'); } catch (e) {}
+
+  ui.alert('✓ Template prepared',
+    'Cleared: ' + cleared.join(', ') + '\n' +
+    (missing.length ? 'Not present (fine): ' + missing.join(', ') + '\n' : '') +
+    'CONFIG catalogs cleared.\n' +
+    wiped + ' script propert(ies) removed.\n' +
+    triggersRemoved + ' trigger(s) removed.\n\n' +
+    'Now run "Check if this copy is a clean template" to confirm, then share the\n' +
+    'file with a /copy link.',
+    ui.ButtonSet.OK);
+}
+
+// Reads the file back and reports anything a customer must not receive. Written
+// as a separate check on purpose: "the wipe said it worked" and "the file is
+// actually clean" are different claims, and only the second one matters.
+function menuVerifyMasterTemplate() {
+  var ui = SpreadsheetApp.getUi();
+  requireOwnerContext_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var problems = [];
+
+  TEMPLATE_DATA_SHEETS.forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return;
+    var rows = sh.getLastRow() - 1;
+    if (rows > 0) problems.push(name + ' still has ' + rows + ' row(s)');
+  });
+
+  var cfg = ss.getSheetByName('CONFIG');
+  if (cfg && cfg.getLastRow() > 1) {
+    var vals = cfg.getRange(2, 1, cfg.getLastRow() - 1, cfg.getMaxColumns()).getValues();
+    var filled = 0;
+    vals.forEach(function (r) { r.forEach(function (c) { if (String(c || '').trim()) filled++; }); });
+    if (filled) problems.push('CONFIG still has ' + filled + ' filled cell(s)');
+  }
+
+  var props = PropertiesService.getScriptProperties().getProperties();
+  Object.keys(props).forEach(function (k) {
+    if (TEMPLATE_WIPE_PROPS.indexOf(k) !== -1 || k.indexOf('FOLDER_') === 0) {
+      problems.push('Script property still set: ' + k);
+    }
+  });
+
+  try {
+    var t = ScriptApp.getProjectTriggers();
+    if (t.length) problems.push(t.length + ' trigger(s) still installed');
+  } catch (e) {}
+
+  ui.alert(problems.length ? '⚠️ Not clean yet' : '✓ Clean template',
+    problems.length
+      ? 'A customer copying this file would receive:\n\n• ' + problems.join('\n• ') +
+        '\n\nRun "Erase everything" first.'
+      : 'Nothing personal left in this file.\n\n' +
+        'Remaining steps, which code cannot do:\n' +
+        '1. Apps Script editor → rename the project (top-left) to your product name.\n' +
+        '2. Share the file as "Anyone with the link — Viewer".\n' +
+        '3. Give customers the URL with /edit replaced by /copy.\n' +
+        '4. Copy it yourself once and run the wizard, to see exactly what they see.',
+    ui.ButtonSet.OK);
 }
 
 // STATUS is fully derived from MoveType — it holds no information of its own.

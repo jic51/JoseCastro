@@ -1952,7 +1952,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.29';
+var APP_VERSION = '9.32';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -8993,7 +8993,23 @@ function _showGoogleSignIn(clientId, redirectUri) {
             'Sign in with Google</button>' +
           '<p id="signInStatus" style="color:#6B7280;font-size:.78rem;margin-top:1rem;min-height:1.1em"></p>' +
           (_companyDomain ? '<p style="color:#9CA3AF;font-size:.72rem;margin-top:.5rem">@' + _he(_companyDomain) + ' staff sign in automatically, without this step.</p>' : '')
-        : '<p style="color:#EF4444;font-size:.85rem">Sign-in is not configured. The OAuth Client ID is missing on the server. Contact your administrator.</p>'
+        // Not an error state. Most installations never need this screen at all:
+        // staff on the company's own Google domain are identified automatically
+        // and land straight in the app. Only people OUTSIDE that domain (a
+        // personal @gmail.com, a contractor) reach here, and enabling that is a
+        // separate, deliberate setup step. The old wording ("Sign-in is not
+        // configured … contact your administrator") read like something was
+        // broken, which sent people chasing a fault that does not exist.
+        : '<div style="text-align:left;background:#F8FAFC;border:1px solid #E5E7EB;border-radius:10px;padding:1rem">' +
+            '<p style="color:#111827;font-size:.85rem;font-weight:700;margin-bottom:.4rem">Already part of this company?</p>' +
+            '<p style="color:#6B7280;font-size:.82rem;line-height:1.5;margin-bottom:.9rem">' +
+              'Staff with a company Google account' + (_companyDomain ? ' (@' + _he(_companyDomain) + ')' : '') +
+              ' are recognised automatically — just open this page while signed in to that account. ' +
+              'If you are seeing this, you are signed in with a different account.</p>' +
+            '<p style="color:#6B7280;font-size:.78rem;line-height:1.5">' +
+              'Need access for someone outside the company — a personal Gmail, a contractor? ' +
+              'That is switched on separately by whoever set this system up.</p>' +
+          '</div>'
       ) +
     '</div></div>';
 }
