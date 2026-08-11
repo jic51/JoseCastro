@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.32';
+var APP_VERSION = '9.33';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1001,6 +1001,7 @@ function getInitialData(sessionToken) {
     return {
       serverVersion:      APP_VERSION,
       company:            publicCompany_(),
+      systemActivity:     (function(){ try { return getSystemActivity(8); } catch (e) { return []; } })(),
       movements:          movements,
       stock:              stock,
       config:             config,
@@ -3768,6 +3769,53 @@ function auditLog_(ss, action, user, details, oldVal, newVal) {
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
   if (!sheet) return;
   sheet.appendRow([new Date(), action, user, sheetSafe_(details), sheetSafe_(oldVal), sheetSafe_(newVal)]);
+}
+
+// ─── WHAT THE SYSTEM DID ON ITS OWN ──────────────────────────────────────────
+// The backup at 2am and the archive job at 3am already ran and already wrote to
+// AUDIT_LOG — but nothing ever showed it, so from the app they were invisible.
+// Silent background work is indistinguishable from background work that stopped
+// happening, and "is this thing actually backing up?" is the first question
+// anyone asks about a spreadsheet holding their inventory.
+//
+// Read off AUDIT_LOG rather than a new log of its own: those rows are already
+// written, already trimmed with the rest of the sheet, and already carry the
+// timestamp. Only the automatic actors count — anything a person did is their
+// own action and belongs in the audit trail, not in a "the system is working"
+// notice.
+var SYSTEM_ACTORS = { 'system': 1, 'system@scheduled-trigger': 1 };
+
+var SYSTEM_EVENT_LABELS = {
+  BACKUP_CREATED:    'Backup created',
+  ARCHIVE_RECONCILE: 'Old movements archived',
+  STOCK_REBUILD:     'Stock totals rebuilt'
+};
+
+function getSystemActivity(limit) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.AUDIT);
+  if (!sheet) return [];
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+
+  // Only the tail is read. The audit sheet grows without bound and a full
+  // getDataRange() here would be paid on every single app load.
+  var span  = Math.min(400, last - 1);
+  var rows  = sheet.getRange(last - span + 1, 1, span, 6).getValues();
+  var out   = [];
+  for (var i = rows.length - 1; i >= 0 && out.length < (limit || 8); i--) {
+    var actor = String(rows[i][2] || '').toLowerCase().trim();
+    if (!SYSTEM_ACTORS[actor]) continue;
+    var action = String(rows[i][1] || '');
+    out.push({
+      at:     rows[i][0] ? new Date(rows[i][0]).toISOString() : '',
+      action: action,
+      label:  SYSTEM_EVENT_LABELS[action] || action.replace(/_/g, ' ').toLowerCase(),
+      detail: String(rows[i][3] || ''),
+      extra:  [rows[i][4], rows[i][5]].filter(function (v) { return String(v || '').trim(); }).join(' · ')
+    });
+  }
+  return out;
 }
 
 // ─── ERROR LOG ────────────────────────────────────────────────────────────────

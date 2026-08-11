@@ -49,8 +49,13 @@
   .chip button{border:none;background:none;color:#2563EB;cursor:pointer;font-size:.85rem;line-height:1;padding:0 2px;opacity:.6}
   .chip button:hover{opacity:1;color:#EF4444}
   .gen{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-  .userrow{display:grid;grid-template-columns:1fr 115px 30px;gap:.4rem;margin-bottom:.45rem;align-items:center}
-  .userrow .rm{border:none;background:none;color:#EF4444;cursor:pointer;font-size:1rem}
+  .userrow{display:grid;grid-template-columns:1fr 115px 28px 24px;gap:.4rem;margin-bottom:.45rem;align-items:center}
+  .uicon{border:none;background:none;cursor:pointer;font-size:.95rem;padding:0;line-height:1;color:#6B7280}
+  .uicon:hover{color:#3B7DD8}
+  .uicon.urm{color:#EF4444}
+  .userdone{background:#F8FAFC;border:1px solid #E5E7EB;border-radius:10px;padding:.65rem .9rem;font-size:.83rem;margin-bottom:.45rem;display:flex;align-items:center;gap:.5rem}
+  .userdone b{color:#1B2A4A}
+  .userdone-acts{margin-left:auto;display:flex;gap:.35rem;flex-shrink:0}
   .summary{background:#F8FAFC;border-radius:10px;padding:.9rem 1.05rem;font-size:.83rem;line-height:1.85}
   .summary b{color:#1B2A4A}
   .toggle{display:flex;align-items:flex-start;gap:.55rem;padding:.7rem;background:#D1FAE5;border-radius:8px;font-size:.83rem;margin-bottom:1rem}
@@ -351,30 +356,62 @@ function addUserRow(){
   // the moment they click "+ Add person" for a second row.
   syncUsers();
   W.users.push({email:'',name:'',role:'WAREHOUSE'});
+  _editingUser = W.users.length - 1;
   drawUsers();
-  var last = document.getElementById('wU' + (W.users.length - 1));
-  if (last) last.focus();
 }
-function rmUser(i){ syncUsers(); W.users.splice(i,1); drawUsers(); }
+function rmUser(i){ syncUsers(); W.users.splice(i,1); _editingUser = -1; drawUsers(); }
 function syncUsers(){
   W.users.forEach(function(u,i){
     var e = document.getElementById('wU'+i), r = document.getElementById('wR'+i);
     if (e) u.email = e.value.trim(); if (r) u.role = r.value;
   });
 }
+// People already added are shown the same way the owner is — a settled row, not
+// a form field. An always-editable input for every person made a finished list
+// look unfinished, and made it impossible to tell at a glance who was actually
+// on it. Editing is deliberate now: click ✏️.
+var _editingUser = -1;
+
 function drawUsers(){
   var box = document.getElementById('wUserRows'); if (!box) return;
   box.innerHTML = W.users.map(function(u,i){
+    var roleLabel = u.role === 'ADMIN' ? 'Administrator' : (u.role === 'VIEWER' ? 'View only' : 'Warehouse');
+    if (i !== _editingUser && u.email){
+      return '<div class="userdone">'+
+        '<b>'+_he(u.email)+'</b> — '+roleLabel+
+        '<span class="userdone-acts">'+
+          '<button class="uicon" onclick="editUserRow('+i+')" title="Edit">✏️</button>'+
+          '<button class="uicon urm" onclick="rmUser('+i+')" title="Remove">×</button>'+
+        '</span></div>';
+    }
     return '<div class="userrow">'+
       '<input type="email" id="wU'+i+'" placeholder="name@company.com" value="'+_escAttr(u.email)+'" '+
-      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();addUserRow()}">'+
+      'onkeydown="if(event.key===\'Enter\'){event.preventDefault();commitUserRow('+i+')}">'+
       '<select id="wR'+i+'">'+
         '<option value="WAREHOUSE"'+(u.role==='WAREHOUSE'?' selected':'')+'>Warehouse</option>'+
         '<option value="ADMIN"'+(u.role==='ADMIN'?' selected':'')+'>Admin</option>'+
         '<option value="VIEWER"'+(u.role==='VIEWER'?' selected':'')+'>View only</option>'+
       '</select>'+
-      '<button class="rm" onclick="rmUser('+i+')" title="Remove">×</button></div>';
+      '<button class="uicon" onclick="commitUserRow('+i+')" title="Done">✓</button>'+
+      '<button class="uicon urm" onclick="rmUser('+i+')" title="Remove">×</button></div>';
   }).join('');
+  var open = document.getElementById('wU' + (_editingUser >= 0 ? _editingUser : W.users.length - 1));
+  if (open) open.focus();
+}
+
+function editUserRow(i){ syncUsers(); _editingUser = i; drawUsers(); }
+
+function commitUserRow(i){
+  syncUsers();
+  var u = W.users[i];
+  if (!u) return;
+  if (!u.email || u.email.indexOf('@') === -1){
+    _err('Enter a full email address, like name@company.com');
+    return;
+  }
+  _err('');
+  _editingUser = -1;
+  drawUsers();
 }
 
 function saveSetup(){
