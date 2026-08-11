@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.36';
+var APP_VERSION = '9.37';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -297,6 +297,8 @@ function saveSetupWizard(data) {
   // any stock, on a copy that already has movements) so the first load reads a
   // valid, if empty, set of derived sheets instead of failing.
   try { refreshDerivedSheets_(ss); } catch (e) {}
+
+  removeStartHereSheet_(ss);   // setup done — the welcome sheet has served its purpose
 
   p.setProperty('SETUP_COMPLETE', 'true');
   auditLog_(ss, 'SETUP_COMPLETED', actor, companyName, '', '');
@@ -4145,20 +4147,74 @@ function onOpen() {
     .addSubMenu(advanced)
     .addToUi();
 
-  // Fresh copy: open the wizard automatically instead of waiting for the owner
-  // to find the menu item. Every OTHER viewer (or the owner's own second tab
-  // after they already dismissed it once) also runs onOpen(), so this must
-  // never throw — inline, non-throwing owner check rather than
-  // requireOwnerContext_(), which is written to throw on purpose everywhere
-  // else it's used.
+  // A fresh copy cannot be made to open the wizard by itself, and it took a lot
+  // of "it never opens" to work out why: onOpen is a SIMPLE trigger. Simple
+  // triggers run without authorization and are barred from any service that
+  // needs it — which covers both Session.getActiveUser() (used here to check
+  // the opener was the owner) and showModalDialog. On a copy nobody has
+  // authorized yet, every one of those throws, and the try/catch that kept
+  // onOpen from breaking also made the failure invisible.
+  //
+  // So: no Session call, no silent dependency on a dialog. A toast needs no
+  // authorization and always shows. The real signal is the START HERE sheet the
+  // template ships with, which is simply visible the moment the file opens.
   if (!cs.setupComplete) {
-    var eff = '', act = '';
-    try { eff = Session.getEffectiveUser().getEmail(); } catch (e) {}
-    try { act = Session.getActiveUser().getEmail();    } catch (e) {}
-    if (eff && eff === act) {
-      try { showSetupWizardDialog(); } catch (e) {}
-    }
+    try {
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        'Open the "🏭 ' + PRODUCT_NAME + '" menu above and choose "Set Up ' + PRODUCT_NAME + '".',
+        '👋 Not set up yet', 30);
+    } catch (e) {}
+    // Still attempted: on a copy that HAS been authorized this sometimes works,
+    // and costs nothing when it does not.
+    try { showSetupWizardDialog(); } catch (e) {}
   }
+}
+
+// The one instruction that reaches a customer with no authorization, no menu
+// knowledge and no email from us: a sheet, in front of them, when the file
+// opens. Created by the template tool and removed by the wizard once setup is
+// done, so a working system is not left carrying a welcome mat.
+var START_HERE_SHEET = '👉 START HERE';
+
+function createStartHereSheet_(ss) {
+  var sh = ss.getSheetByName(START_HERE_SHEET);
+  if (sh) ss.deleteSheet(sh);
+  sh = ss.insertSheet(START_HERE_SHEET, 0);
+
+  var lines = [
+    ['Welcome — your warehouse system is ready to set up.'],
+    [''],
+    ['1.  Look at the menu bar at the top of this window.'],
+    ['2.  Click  🏭 ' + PRODUCT_NAME + '  (it sits to the right of "Help").'],
+    ['3.  Choose  "🚀 Set Up ' + PRODUCT_NAME + ' (start here)".'],
+    [''],
+    ['That opens a short setup — your company, what you store, where you store'],
+    ['it, and who works here. About 10 minutes, once.'],
+    [''],
+    ['Google will ask you to authorize the system the first time. It will warn'],
+    ['that the app is not verified — that is expected: this copy belongs to YOU,'],
+    ['and the "developer" it names is your own account. Click Advanced, then'],
+    ['"Go to ..." to continue.'],
+    [''],
+    ['Do not type anything into the other tabs at the bottom — the app fills'],
+    ['those in for you.'],
+    [''],
+    ['This sheet disappears by itself once setup is finished.']
+  ];
+  sh.getRange(1, 1, lines.length, 1).setValues(lines);
+  sh.getRange(1, 1).setFontSize(16).setFontWeight('bold');
+  sh.getRange(3, 1, 3, 1).setFontWeight('bold');
+  sh.setColumnWidth(1, 640);
+  sh.setHiddenGridlines(true);
+  ss.setActiveSheet(sh);
+  return sh;
+}
+
+function removeStartHereSheet_(ss) {
+  try {
+    var sh = ss.getSheetByName(START_HERE_SHEET);
+    if (sh && ss.getSheets().length > 1) ss.deleteSheet(sh);
+  } catch (e) {}
 }
 
 // Opens the setup wizard as a dialog OVER the spreadsheet — no web app
@@ -4502,6 +4558,7 @@ function menuPrepareMasterTemplate() {
   } catch (e) {}
 
   try { ss.rename(PRODUCT_NAME + ' — Warehouse Template'); } catch (e) {}
+  try { createStartHereSheet_(ss); } catch (e) {}
 
   ui.alert('✓ Template prepared',
     'Cleared: ' + cleared.join(', ') + '\n' +

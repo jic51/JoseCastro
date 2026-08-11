@@ -768,6 +768,12 @@
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
     @media (max-width:640px){.cfg-deck{right:16px;bottom:72px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
     /* Manual merge picker */
+    .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
+    .app-splash.gone{opacity:0;pointer-events:none}
+    .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em}
+    .splash-bar{width:min(260px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
+    .splash-fill{height:100%;width:8%;background:#fff;border-radius:3px;transition:width .5s ease}
+    .splash-note{font-size:.8rem;color:#a1b0cb;text-align:center;min-height:1.2em}
     .submit-hint{flex:1;min-width:160px;font-size:.75rem;color:var(--orange);font-weight:600;text-align:left}
     .btn:disabled{opacity:.5;cursor:not-allowed}
     .cat-fix-btn{margin-top:.35rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
@@ -965,6 +971,21 @@
   </style>
 </head>
 <body>
+
+<!-- ══ SPLASH ═════════════════════════════════════════════════════════════════
+     Shown from the first paint until real data arrives. Without it the first
+     thing a customer sees is the placeholder title ("Warehouse") and an empty
+     table, which reads as a broken app for the ten-plus seconds Apps Script can
+     take to answer. Removed by _hideSplash() on the first successful load, and
+     on failure too, so it can never strand the page behind it. -->
+<div id="appSplash" class="app-splash">
+  <div class="splash-mark">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <span>Acopio</span>
+  </div>
+  <div class="splash-bar"><div class="splash-fill" id="splashFill"></div></div>
+  <div class="splash-note" id="splashNote">Connecting to your spreadsheet…</div>
+</div>
 
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <div class="topbar">
@@ -2007,7 +2028,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.36';
+var APP_VERSION = '9.37';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2163,6 +2184,20 @@ function refreshCategoryDropdowns() {
   if (inc){ var cv=inc.value; inc.innerHTML='<option value="">Select…</option>'+opts; if(cv) inc.value=cv; }
   var mt = document.getElementById('mType');
   if (mt){ var mv=mt.value; mt.innerHTML=opts; if(mv) mt.value=mv; }
+
+  // The per-material and per-exit category selects are built when their ROW is
+  // created, so they kept whatever list existed at that moment. Adding a
+  // category from inside the form left them stale until the whole modal was
+  // closed and reopened — which is exactly what the "Add categories" shortcut
+  // was supposed to save the user from. Refreshed in place, keeping each row's
+  // current selection.
+  document.querySelectorAll('select[id^="mat-cat-"], select[id^="exit-cat-"]').forEach(function(sel){
+    var cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  });
+
+  _refreshCatHelpers();
 }
 
 // ── Save button reflects whether the form is actually saveable ───────────────
@@ -6603,21 +6638,59 @@ function _cfgAdd(tab) {
   _cfgCall({ type: tab, op: 'add', newValue: val }, function(){ if(inp) inp.value = ''; });
 }
 
+// Catalog edits patch what is already on screen instead of re-fetching and
+// repainting everything.
+//
+// The old path fired _loadSettings() AND a full getInitialData() after every
+// single add, so adding one category flashed "Saving…", then "Saved ✓", then
+// "Loading…", then rebuilt the whole list — seconds of churn to show one new
+// row. The server call is the only part that has to happen; the browser already
+// knows exactly what changed.
 function _cfgCall(payload, onDone) {
-  _settingMsg('Saving…', 'info');
   google.script.run
     .withSuccessHandler(function() {
       if (onDone) onDone();
-      _loadSettings();
-      // Reload main data so dropdowns refresh
-      google.script.run
-        .withSuccessHandler(function(d){ config = d.config || config; refreshCategoryDropdowns(); })
-        .withFailureHandler(function(){})
-        .getInitialData(_sessionToken || null);
-      _settingMsg('Saved ✓', 'ok');
+      _applyCfgChangeLocally(payload);
     })
-    .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
+    .withFailureHandler(function(e){
+      var msg = (e && e.message) || String(e);
+      // A duplicate is not a failure worth a red banner — the value is on the
+      // list, which is what was asked for.
+      if (/already exists/i.test(msg)) { if (onDone) onDone(); _applyCfgChangeLocally(payload); return; }
+      _settingMsg('Error: ' + msg, 'error');
+    })
     .processMovement('updateConfig', _h(payload));
+}
+
+function _applyCfgChangeLocally(p) {
+  var type = p.type;
+  if (!_settingsData[type]) _settingsData[type] = [];
+  var list = _settingsData[type];
+
+  if (p.op === 'add') {
+    if (!list.some(function(v){ return String(v).toUpperCase() === String(p.newValue).toUpperCase(); })) {
+      list.push(p.newValue);
+    }
+  } else if (p.op === 'delete') {
+    _settingsData[type] = list.filter(function(v){ return String(v).toUpperCase() !== String(p.value).toUpperCase(); });
+  } else if (p.op === 'rename') {
+    _settingsData[type] = list.map(function(v){
+      return String(v).toUpperCase() === String(p.value).toUpperCase() ? p.newValue : v;
+    });
+  } else {
+    return;   // anything else (archiveCutoffMonths…) has no list to patch
+  }
+
+  _settingsData[type].sort(function(a, b){
+    return String(a).localeCompare(String(b), undefined, { sensitivity:'base', numeric:true });
+  });
+
+  // Keep the app-wide copy in step so the forms behind Settings see it too.
+  if (config[type] !== undefined) config[type] = _settingsData[type].slice();
+
+  _renderSettingsTab(_settingsTab);
+  refreshCategoryDropdowns();
+  refreshDropdowns();
 }
 
 // ── Materials tab ─────────────────────────────────────────────────────────────
@@ -9343,6 +9416,7 @@ function loadDataFromGoogle(skipCache){
     refreshDropdowns();
     refreshProjectDropdown();
     renderAll();
+    _hideSplash();
   } else {
     setLoading(true);
     // Show explicit loading message so user knows app is connecting (can take 10-20s)
@@ -9362,6 +9436,7 @@ function loadDataFromGoogle(skipCache){
         // BEFORE treating that as a refusal, or the owner is locked out of the
         // system they just created.
         if (data.accessStatus === 'DENIED' || data.accessStatus === 'NO_SESSION') {
+          _hideSplash();
           var deniedEmail = data.userEmail || '';
           var wasNoSession = data.accessStatus === 'NO_SESSION';
           google.script.run
@@ -9380,6 +9455,7 @@ function loadDataFromGoogle(skipCache){
         // ── Normal load ─────────────────────────────────────────────────────
         _applyData(data);
         _saveCache(data);
+        _hideSplash();
         _announceSystemActivity();
         lastLoadTime = Date.now();
         setConnStatus('online');
@@ -9409,6 +9485,7 @@ function loadDataFromGoogle(skipCache){
     })
     .withFailureHandler(function(err){
       setConnStatus('offline');
+      _hideSplash();   // an error must be readable, not hidden behind the splash
       var msg = (err && err.message) ? err.message : String(err);
       var sr = document.getElementById('statsRow');
       if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Error loading data: '+msg+'<br><small style="opacity:.7">Check GAS Executions log for details.</small></p>';
@@ -9649,6 +9726,34 @@ function toggleDarkMode() {
 })();
 
 // ── setLoading (skeleton stats cards while loading) ───────────────────────────
+// The bar is an honest approximation, not a fake measurement: one Apps Script
+// round trip reports no progress, so it eases toward 90% and only completes
+// when data actually lands.
+var _splashTimer = null, _splashPct = 8;
+(function _startSplash(){
+  _splashTimer = setInterval(function(){
+    _splashPct = Math.min(90, _splashPct + (90 - _splashPct) * 0.12 + 1);
+    var f = document.getElementById('splashFill');
+    if (f) f.style.width = _splashPct + '%';
+    if (_splashPct > 55) {
+      var n = document.getElementById('splashNote');
+      if (n) n.textContent = 'Almost there — this can take a few seconds the first time.';
+    }
+  }, 400);
+})();
+
+function _hideSplash(){
+  clearInterval(_splashTimer);
+  var sp = document.getElementById('appSplash');
+  if (!sp || sp.classList.contains('gone')) return;
+  var f = document.getElementById('splashFill');
+  if (f) f.style.width = '100%';
+  setTimeout(function(){
+    sp.classList.add('gone');
+    setTimeout(function(){ if (sp.parentNode) sp.parentNode.removeChild(sp); }, 500);
+  }, 220);
+}
+
 function setLoading(on) {
   var statsRow = document.getElementById('statsRow');
   if (!statsRow) return;
