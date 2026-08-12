@@ -9,6 +9,13 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
+    /* The page-level scrollbar is hidden — it ran the full height of the window
+       beside the table's own bar, two bars a few pixels apart meaning different
+       things. Scrolling is untouched: wheel, trackpad, touch and keyboard all
+       work. The bars INSIDE panels stay, because there they are the only cue
+       that a table or a list continues past the fold. */
+    html{scrollbar-width:none}
+    html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
     :root{
       --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
       --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
@@ -16,6 +23,11 @@
       --yellow:#D97706;--yellow-bg:#FEF3C7;--orange:#EA580C;--orange-bg:#FED7AA;
       --purple:#7C3AED;--purple-bg:#EDE9FE;
       --border:#E5E7EB;--shadow:0 1px 3px rgba(0,0,0,.08);--radius:10px;
+      /* See-through version of --card, for the resting card in each corner
+         deck. A real translucent BACKGROUND rather than opacity on the
+         element: opacity fades the whole subtree, which is what made the
+         count badge and the ✕ unreadable. */
+      --card-ghost:rgba(255,255,255,.52);--navy-ghost:rgba(27,42,74,.55);
     }
     body{font-family:'Inter','DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;transition:background .25s,color .25s}
     button{font-family:inherit;cursor:pointer}
@@ -32,7 +44,11 @@
        always beside the tabs rather than stranded on the line above them. The
        tab bar is the thing that gives way: its buttons narrow with the window
        (clamp, below) so the circle and the bell keep their place. */
-    .topbar-row2{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+    /* nowrap is the whole point: with wrap, the cluster fell onto its own line
+       the moment the tabs got tight, which is exactly what it was moved here to
+       stop doing. The tabs absorb the squeeze instead — their own buttons wrap
+       inside the bar. */
+    .topbar-row2{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap}
     .topbar-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
     .tools-primary{display:flex;align-items:center;gap:9px}
     /* The Acopio badge with the running version tucked under it — present
@@ -495,6 +511,22 @@
     .acct-item{width:100%;display:flex;align-items:center;gap:.6rem;background:none;border:none;border-radius:10px;padding:.55rem .7rem;font-size:.85rem;font-weight:600;font-family:inherit;color:var(--text);cursor:pointer;text-align:left;transition:.12s}
     .acct-item:hover{background:var(--bg)}
     .acct-foot{padding:.55rem 1rem .7rem;text-align:center;font-size:.67rem;color:var(--muted);border-top:1px solid var(--border)}
+    .acct-legal{margin-top:.25rem;display:flex;gap:.35rem;justify-content:center;align-items:center}
+    .acct-legal a{color:var(--muted);text-decoration:none;font-weight:600}
+    .acct-legal a:hover{color:var(--accent);text-decoration:underline}
+    /* Legal text, shown in the app rather than linked out: a customer running
+       this inside their own Google account has nowhere to be sent, and a policy
+       nobody can reach is the same as no policy. */
+    .lg-body{font-size:.84rem;line-height:1.6;color:var(--text);padding-bottom:1rem}
+    .lg-body h3{font-size:.92rem;font-weight:700;margin:1.15rem 0 .4rem;color:var(--text)}
+    .lg-body p{margin:.5rem 0}
+    .lg-body ul{margin:.5rem 0 .5rem 1.1rem}
+    .lg-body li{margin:.25rem 0}
+    .lg-body hr{border:none;border-top:1px solid var(--border);margin:1rem 0}
+    .lg-body a{color:var(--accent);word-break:break-word}
+    .lg-table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.78rem}
+    .lg-table th,.lg-table td{border:1px solid var(--border);padding:.4rem .55rem;text-align:left;vertical-align:top}
+    .lg-table th{background:var(--bg);font-weight:700}
     @media(max-width:640px){
       .acct-menu{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:calc(100vw - 2rem);max-width:360px;max-height:84vh;overflow-y:auto;animation:none}
     }
@@ -579,7 +611,10 @@
     .modal.settings-modal{max-width:min(920px,92vw);width:100%;height:min(82vh,700px);padding:0;display:flex;flex-direction:column;overflow:hidden}
     .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
     .settings-body{display:flex;flex:1;min-height:0}
-    .settings-sidebar{width:210px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .6rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+    /* A quarter of the dialog, not a fixed 210px. On a narrow window that
+       fixed width was eating half the screen and the settings themselves were
+       reading through a slot. */
+    .settings-sidebar{width:25%;min-width:132px;max-width:230px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .5rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
     .settings-sidebar-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.9rem .6rem .3rem}
     .settings-sidebar-label:first-child{padding-top:.2rem}
     /* display:flex so a tab's list/table can flex:1 to fill the fixed modal
@@ -737,16 +772,25 @@
     .sys-deck:empty{display:none}
     .sys-card{position:relative;background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green);border-radius:10px;padding:.6rem .75rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);width:270px;max-width:100%;height:96px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;overflow:hidden}
     .sys-deck:hover .sys-card,.sys-deck.open .sys-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
-    .sys-deck.dim:not(:hover):not(.open) .sys-card{background:var(--bg);border-left-color:var(--border);box-shadow:0 2px 6px rgba(0,0,0,.06)}
+    /* Same rules as the suggestion deck: one card visible, see-through, and
+       shrunk while it is stowed. */
+    .sys-deck:not(:hover):not(.open) .sys-card:not(:last-child){visibility:hidden}
+    .sys-deck.dim:not(:hover):not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
     .sys-deck.dim:not(:hover):not(.open) .sys-card .sys-card-title{color:var(--muted)}
+    .sys-deck.dim:not(:hover):not(.open) .sys-card-when,
+    .sys-deck.dim:not(:hover):not(.open) .sys-card-detail{opacity:.6}
     .sys-card + .sys-card{margin-top:.45rem}
     .sys-deck:not(:hover):not(.open) .sys-card{margin-top:-90px;transform:rotate(-2.4deg)}
     .sys-deck:not(:hover):not(.open) .sys-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
     .sys-deck:not(:hover):not(.open) .sys-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
     .sys-deck:not(:hover):not(.open) .sys-card:first-child{margin-top:0}
-    .sys-deck:not(:hover):not(.open) .sys-card:last-child{transform:rotate(0deg)}
+    .sys-deck:not(:hover):not(.open) .sys-card:last-child{transform:rotate(0deg) scale(.86);transform-origin:bottom right}
     .sys-deck:not(:hover):not(.open) .sys-card:not(:last-child){pointer-events:none}
+    /* Deliberately NOT translucent with the card underneath it — the one
+       control on a resting card has to stay legible, the same rule the count
+       badge on the other deck follows. */
     .sys-card-x{position:absolute;top:-9px;right:-9px;width:24px;height:24px;border-radius:12px;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
+    .sys-deck.dim:not(:hover):not(.open) .sys-card-x{background:var(--navy);color:#fff;opacity:1}
     .sys-card-x:hover{background:var(--red)}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
     .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
@@ -756,15 +800,18 @@
        instant the pointer leaves reads as the app swatting you away. */
     .cfg-card{position:relative;background:var(--navy);color:#fff;border:1px solid transparent;border-radius:10px;padding:.55rem .7rem;font-size:.76rem;box-shadow:0 6px 20px rgba(0,0,0,.25);width:250px;max-width:100%;height:88px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;cursor:default}
     .cfg-deck:hover .cfg-card,.cfg-deck.open .cfg-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
-    /* Resting state fades by MUTING the colours, not by turning the cards
-       transparent. Transparency was the wrong tool for a pile: each card let
-       the one behind it show through, the opacities stacked, and the whole
-       thing read as a smudge with other cards' text bleeding through the front
-       one. Opaque-but-quiet keeps every card readable and lets the count badge
-       stay at full strength, which per-card opacity could never do. */
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card{background:var(--card);color:var(--muted);border-color:var(--border);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+    /* At rest the deck shows ONE card and you can see the app through it.
+       Two earlier attempts failed here and both failures are the reason this
+       looks the way it does: per-card opacity stacked into a smudge with the
+       cards behind bleeding through, and muting the colours instead made a
+       solid white slab that covered the page. The answer is both at once — the
+       cards behind are hidden outright, so nothing can stack, and the one in
+       front gets a translucent BACKGROUND rather than a faded element, so its
+       badge and buttons stay crisp on top of it. */
+    .cfg-deck:not(:hover):not(.open) .cfg-card:not(:last-child){visibility:hidden}
+    .cfg-deck.dim:not(:hover):not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
     .cfg-deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-lbl,
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-val{color:var(--muted)}
+    .cfg-deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
     .cfg-deck.dim:not(:hover):not(.open) .cfg-card-acts{opacity:0}
     .cfg-card + .cfg-card{margin-top:.45rem}
     /* Piled: each card pulled fully up under the next, offset a few px so the
@@ -774,7 +821,8 @@
     .cfg-deck:not(:hover):not(.open) .cfg-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
     .cfg-deck:not(:hover):not(.open) .cfg-card:first-child{margin-top:0}
     /* The visible one sits square on top of the pile. */
-    .cfg-deck:not(:hover):not(.open) .cfg-card:last-child{transform:rotate(0deg)}
+    /* Smaller while stowed, full size on the way out. */
+    .cfg-deck:not(:hover):not(.open) .cfg-card:last-child{transform:rotate(0deg) scale(.9);transform-origin:bottom right}
     /* Only the top card takes clicks while piled — the rest are decoration
        until the deck is fanned out. */
     .cfg-deck:not(:hover):not(.open) .cfg-card:not(:last-child){pointer-events:none}
@@ -970,6 +1018,7 @@
     [data-theme="dark"]{
       --bg:#0F172A;--card:#1E293B;--text:#E2E8F0;--muted:#94A3B8;
       --border:#334155;--shadow:0 1px 4px rgba(0,0,0,.4);
+      --card-ghost:rgba(30,41,59,.55);--navy-ghost:rgba(15,23,42,.6);
       --navy:#0F172A;--steel:#1E293B;--accent:#3B82F6;--accent2:#60A5FA;
       --green:#22C55E;--green-bg:rgba(34,197,94,.12);
       --red:#EF4444;--red-bg:rgba(239,68,68,.12);
@@ -1184,7 +1233,7 @@
           <div class="acct-tags"  id="acctTags"></div>
         </div>
         <div class="acct-section" id="acctPresence">
-          <div class="acct-section-lbl">Who else is here</div>
+          <div class="acct-section-lbl">Active users</div>
           <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
         </div>
         <div class="acct-actions">
@@ -1194,7 +1243,14 @@
           <button class="acct-item" id="btnDarkMode" onclick="toggleDarkMode()"><span id="darkIcon">🌙</span> <span id="darkLabel">Dark mode</span></button>
           <button class="acct-item" id="acctSwitch" onclick="_signOut()" style="display:none">⇄ <span>Switch account</span></button>
         </div>
-        <div class="acct-foot"><span id="acctFoot"></span></div>
+        <div class="acct-foot">
+          <div id="acctFoot"></div>
+          <div class="acct-legal">
+            <a href="#" onclick="openLegal('privacy');return false">Privacy Policy</a>
+            <span>·</span>
+            <a href="#" onclick="openLegal('terms');return false">Terms of Service</a>
+          </div>
+        </div>
       </div>
     </div>
    </div>
@@ -1216,6 +1272,22 @@
     <button onclick="toggleCfgBell(event)" title="Close">✕</button>
   </div>
   <div id="cfgBellList"></div>
+</div>
+
+<!-- ══ LEGAL ═════════════════════════════════════════════════════════════════
+     The text is carried in the page rather than linked to a website. Every
+     customer runs their own copy inside their own Google account, so there is
+     no shared address to send them to, and a policy nobody can open is the
+     same as not having one. Source of truth is legal/*.md in the repo — change
+     it there and re-generate. -->
+<div class="overlay" id="legalOverlay">
+  <div class="modal modal-md">
+    <div class="mhdr">
+      <h3 id="legalTitle">Privacy Policy</h3>
+      <button class="modal-x" onclick="closeModal('legalOverlay')" title="Close">✕</button>
+    </div>
+    <div class="lg-body" id="legalBody"></div>
+  </div>
 </div>
 
 <!-- ══ TOAST CONTAINER ═══════════════════════════════════════════════════════ -->
@@ -2183,7 +2255,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.51';
+var APP_VERSION = '9.52';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -10898,6 +10970,151 @@ setInterval(function(){
   var ageSec = (Date.now() - lastLoadTime) / 1000;
   if (ageSec > 300) setConnStatus('stale');
 }, 60000);
+
+// ── Privacy Policy / Terms of Service ────────────────────────────────────────
+var LEGAL_DOCS = {
+  privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 6 August 2026</p>
+<p>Acopio is warehouse-management software provided by Jose Castro ("we", "us"). This policy explains what happens to data when you use it.</p>
+<p>Read the first section before anything else — it is the part that makes the rest of this document short.</p>
+<hr>
+<h3>1. Where your data lives — and who holds it</h3>
+<p><strong>Acopio does not host your data. We never receive a copy of it.</strong></p>
+<p>Acopio runs entirely inside <strong>your own Google account</strong>. When you install it, a Google Sheet and a Google Apps Script project are created <strong>in your Google Drive</strong>, owned by you. Every inventory record, photo, document and user list the software creates is written to that spreadsheet and that Drive folder — both yours.</p>
+<p>There is no Acopio server. There is no Acopio database. We operate no infrastructure that your business data passes through or is stored on.</p>
+<p>Practically, this means:</p>
+<ul>
+<li>We cannot read your inventory, your suppliers, your prices or your documents.</li>
+<li>We cannot lose your data in a breach of our systems, because it is not on our systems.</li>
+<li>If you stop paying us, your data does not go anywhere. It stays in your Drive and your spreadsheet keeps working.</li>
+<li>A subpoena served on us produces nothing about your business, because we hold nothing.</li>
+</ul>
+<p>Your data is governed by <strong>your</strong> agreement with Google (Google Workspace Terms or the Google Terms of Service, as applicable to your account).</p>
+<h3>2. What the software accesses, and why</h3>
+<p>When you first install Acopio, Google asks you to authorise it. Each permission exists for a specific feature:</p>
+<table class="lg-table"><tr><th>Permission</th><th>Why it is needed</th></tr>
+<tr><td>See, edit and delete your Google Drive files</td><td>Store the photos and documents you attach to movements, and create nightly backup copies of your spreadsheet.</td></tr>
+<tr><td>View and manage the spreadsheet this app is installed in</td><td>The spreadsheet is the application's database.</td></tr>
+<tr><td>Send email as you</td><td>Delivery notifications to your project managers, and system alerts to your administrator. <strong>It cannot read your email.</strong></td></tr>
+<tr><td>Create and edit Google Docs</td><td>Assemble multiple photos into a single PDF document.</td></tr>
+<tr><td>Connect to an external service</td><td>Version checks and, if you enable it, the optional AI document-reading add-on.</td></tr>
+<tr><td>Run when you are not present</td><td>The nightly automatic backup.</td></tr>
+<tr><td>See your primary email address and basic profile</td><td>Identify who is signed in, so the app knows which permissions to apply.</td></tr>
+</table>
+<p>Two notes on scope:</p>
+<ul>
+<li><strong>Full Gmail access is NOT part of the base product.</strong> It is required only by the optional paid Gmail delivery-scanner add-on. If you have not bought that add-on, Acopio never requests it and cannot read your mail.</li>
+<li>Every permission above is granted by you, to software running in your own account. None of it grants us access.</li>
+</ul>
+<h3>3. What we collect</h3>
+<p><strong>In normal operation: nothing.</strong></p>
+<p>Two features send data to us, and only when you choose to use them:</p>
+<ul>
+<li><strong>"Report a problem" (the 🐞 button).</strong> When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see.</li>
+<li><strong>Support you initiate.</strong> If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards.</li>
+</ul>
+<p>We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell.</p>
+<h3>4. The optional AI add-on</h3>
+<p>If you enable the document-reading feature, the contents of the documents you choose to scan are sent to <strong>Google's Gemini API</strong> for processing, using an API key that <strong>you</strong> supply from your own Google account. The request goes from your Google account to Google. It does not pass through us.</p>
+<p>This feature is off unless you turn it on.</p>
+<h3>5. Sub-processors</h3>
+<p>We use none for your business data, because we do not process it.</p>
+<p>Google is not our sub-processor — Google is <strong>your</strong> provider, under your own agreement with them.</p>
+<h3>6. Retention and deletion</h3>
+<p>You control retention entirely:</p>
+<ul>
+<li>Inventory records live in your spreadsheet until you delete them.</li>
+<li>Attached photos and documents live in your Drive until you delete them.</li>
+<li>Nightly backups are deleted automatically after 30 days.</li>
+</ul>
+<p><strong>To delete everything:</strong> delete the spreadsheet and the app's Drive folder. That is complete deletion — there is no second copy anywhere for us to purge, and no request to us is required.</p>
+<p>To revoke the software's access at any time, without deleting anything, go to <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p>
+<h3>7. Your rights (GDPR, CCPA and similar)</h3>
+<p>Because your data never leaves your Google account, <strong>you are the data controller</strong> for it and we are not a processor of it. Access, correction, export and deletion are all things you perform directly, in your own spreadsheet, without asking us.</p>
+<p>For the limited personal data we hold as a business — your name, billing email and support correspondence — write to the address below and we will act on your request within 30 days.</p>
+<h3>8. Children</h3>
+<p>Acopio is business software and is not directed at anyone under 16.</p>
+<h3>9. Security</h3>
+<p>The software is built to keep your data inside your account: uploaded files are private to your Drive by default and are never shared publicly; access is restricted to the user list you configure; and the code is written to resist common web vulnerabilities. Security fixes are shipped as software updates for you to install.</p>
+<p>That said, the security of your Google account — passwords, two-factor authentication, who you grant access to — is yours to manage, and no software we write can compensate for a compromised account.</p>
+<h3>10. Changes</h3>
+<p>Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version.</p>
+<h3>11. Contact</h3>
+<p>Jose Castro — jose@ox-glass.com</p>` },
+  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 6 August 2026</p>
+<p>These terms govern your use of Acopio, warehouse-management software provided by Jose Castro ("we", "us"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so.</p>
+<hr>
+<h3>1. What you are buying</h3>
+<p>A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus updates and support for as long as your licence is active.</p>
+<p><strong>You are not buying a hosted service.</strong> Acopio runs in your Google account, on your data, under your control. We do not operate a server your business depends on — which is why there is no uptime commitment below, and why there also is no one who can take your data away from you.</p>
+<h3>2. What you need to provide</h3>
+<ul>
+<li>A Google account (personal Gmail or Google Workspace).</li>
+<li>Sufficient Google Drive storage for your documents and backups.</li>
+<li>Compliance with Google's own terms for that account.</li>
+</ul>
+<p>Google may change its products, quotas or pricing at any time. Those changes are between you and Google, and are outside our control. See §7.</p>
+<h3>3. Your data</h3>
+<p>Your data is yours. We do not host it, receive it or claim any rights over it. See the Privacy Policy for detail.</p>
+<p>If you stop paying, <strong>your data keeps working</strong>. The spreadsheet is yours, the records are yours, the documents in your Drive are yours. What lapses is your right to updates and support, not your access to your own information. We cannot and will not disable your installation remotely.</p>
+<h3>4. What you may not do</h3>
+<ul>
+<li>Resell, sublicense, or distribute the software to third parties.</li>
+<li>Remove or obscure the "Powered by Acopio" attribution.</li>
+<li>Install one licence across multiple unrelated companies.</li>
+<li>Reverse engineer the software to build a competing product.</li>
+</ul>
+<p>Reading, understanding and modifying the code for your own internal use is permitted — it runs in your account and you can see all of it. Modified copies are unsupported, and §6 applies with particular force to them.</p>
+<h3>5. Support and updates</h3>
+<p>While your licence is active:</p>
+<ul>
+<li>Bug fixes and security updates, delivered as files for you to install.</li>
+<li>Support by email during business hours, on a best-effort basis.</li>
+</ul>
+<p><strong>Installing updates is your responsibility.</strong> Because the software lives in your account, we cannot push a fix to you — including a security fix. We will tell you an update matters; applying it is your call and your action.</p>
+<p>We do not commit to any specific new feature, or to any timeline for one, unless we have agreed it with you in writing.</p>
+<h3>6. Warranty disclaimer and limitation of liability</h3>
+<p><strong>Read this section. It is the one that matters most if something goes wrong.</strong></p>
+<p>The software is provided <strong>"as is"</strong>, without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose and non-infringement.</p>
+<p><strong>We are not responsible for the accuracy of your inventory.</strong> Acopio records what your staff enter. It cannot know whether the count was right, whether a delivery was miscounted, or whether someone recorded a movement that never happened. Inventory accuracy is an operational responsibility, not a software guarantee.</p>
+<p>To the maximum extent permitted by law, we are not liable for:</p>
+<ul>
+<li>lost profits, lost revenue, lost business or lost data;</li>
+<li>decisions made on the basis of information shown by the software;</li>
+<li>stock discrepancies, shortages, overstock or mis-shipments;</li>
+<li>any failure, change, quota, outage or discontinuation of Google's services;</li>
+<li>data loss caused by deletion, misconfiguration or account compromise on your side.</li>
+</ul>
+<p>Our total liability, for any and all claims, is capped at <strong>the amount you paid us in the twelve months preceding the claim</strong>.</p>
+<p>Some jurisdictions do not allow certain exclusions; in those places these limits apply to the fullest extent the law allows.</p>
+<h3>7. Dependence on Google</h3>
+<p>Acopio is built on Google Workspace and Google Apps Script. Google's platform carries limits that are theirs, not ours — including a daily cap on outgoing email (100/day on personal accounts, 1,500/day on Workspace), execution time limits, and a maximum spreadsheet size.</p>
+<p>We will tell you about the limits we know of and design around them where we can. We cannot remove them, and we are not liable if Google changes them, enforces them, or discontinues a service we rely on.</p>
+<h3>8. Backups</h3>
+<p>Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on.</p>
+<p><strong>It is a convenience, not a guarantee.</strong> It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility.</p>
+<h3>9. Payment and cancellation</h3>
+<p>Fees, billing period and any add-on pricing are as agreed in writing when you purchase. Cancel any time; cancellation ends future billing and ends support and updates at the end of the paid period. Fees already paid are not refundable except where required by law.</p>
+<h3>10. Termination</h3>
+<p>We may terminate your licence if you materially breach these terms and do not fix it within 30 days of written notice. On termination your right to support and updates ends. <strong>Your installation and your data are unaffected</strong> — we have no mechanism to remove them, and would not use one if we had it.</p>
+<h3>11. Changes to these terms</h3>
+<p>We may update these terms. Material changes will be emailed to active customers at least 30 days before they take effect. Continuing to use the software after that means you accept them.</p>
+<h3>12. Governing law</h3>
+<p>The laws of the State of Utah, United States, without regard to conflict-of-law rules. Disputes go to the state or federal courts located in Utah.</p>
+<h3>13. Contact</h3>
+<p>Jose Castro — jose@ox-glass.com</p>` }
+};
+
+function openLegal(which){
+  var doc = LEGAL_DOCS[which];
+  if (!doc) return;
+  closeAccountMenu();
+  document.getElementById('legalTitle').textContent = doc.title;
+  document.getElementById('legalBody').innerHTML = doc.html;
+  var ov = document.getElementById('legalOverlay');
+  var modal = ov.querySelector('.modal');
+  if (modal) modal.scrollTop = 0;      // the modal is the scroller, not the body div
+  ov.classList.add('show');
+}
 
 // ── Account menu ─────────────────────────────────────────────────────────────
 function toggleAccountMenu(e){
