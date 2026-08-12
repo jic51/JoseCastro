@@ -570,9 +570,6 @@
     /* ── CHARTS ── */
     .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
     /* ── COL TOGGLE ── */
-    .col-pick-item{display:flex;align-items:center;gap:.55rem;padding:.35rem .45rem;border-radius:6px;font-size:.82rem;cursor:pointer;transition:.12s;color:var(--text)}
-    .col-pick-item:hover{background:var(--bg)}
-    .col-pick-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--accent2);flex-shrink:0}
     /* ── FOOTER ── */
     .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
     /* ── STOCK DETAIL PANEL (alert bar expand) ── */
@@ -770,16 +767,42 @@
     /* Manual merge picker */
     .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
-    .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em}
+    .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
+    .splash-logo{max-width:min(280px,64vw);max-height:96px;object-fit:contain}
+    /* Deliberately quiet: the customer's name is the headline, ours is a
+       credit line under the bar. */
+    .splash-by{font-size:.68rem;color:#8fa0bd;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem}
+    .splash-by b{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;font-size:.84rem}
     .splash-bar{width:min(260px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
     .splash-fill{height:100%;width:8%;background:#fff;border-radius:3px;transition:width .5s ease}
     .splash-note{font-size:.8rem;color:#a1b0cb;text-align:center;min-height:1.2em}
     .submit-hint{flex:1;min-width:160px;font-size:.75rem;color:var(--orange);font-weight:600;text-align:left}
     .btn:disabled{opacity:.5;cursor:not-allowed}
-    .col-pref-table{width:100%;border-collapse:collapse;font-size:.82rem}
-    .col-pref-table th{text-align:left;padding:.4rem .5rem;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
-    .col-pref-table td{padding:.35rem .5rem;border-bottom:1px solid var(--border)}
-    .col-pref-table input[type=text]{width:100%;padding:.35rem .5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;font-family:inherit}
+    /* Settings → Company */
+    .co-form{max-width:460px}
+    .co-label{display:block;font-size:.78rem;font-weight:700;color:var(--text);margin:1rem 0 .3rem}
+    .co-form .co-label:first-child{margin-top:0}
+    .co-opt{font-weight:400;color:var(--muted)}
+    .co-input{width:100%;padding:.5rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit}
+    .co-input:focus{outline:none;border-color:var(--accent)}
+    .co-hint{font-size:.73rem;color:var(--muted);margin:.35rem 0 0;line-height:1.45}
+    .co-logo-box{display:inline-flex;align-items:center;justify-content:center;min-width:150px;min-height:64px;padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+    .co-logo-box img{max-height:52px;max-width:240px;object-fit:contain}
+    .co-logo-empty{color:var(--muted);font-size:.78rem}
+    .co-logo-acts{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
+    .co-save{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border)}
+    .col-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.15rem 0 .6rem}
+    .col-edit-help{font-size:.74rem;color:var(--muted)}
+    th.col-edit{cursor:grab;white-space:nowrap}
+    th.col-edit.col-dragging{opacity:.4}
+    th.col-edit.col-drop{outline:2px dashed var(--accent);outline-offset:-3px}
+    th.col-edit.col-off{opacity:.45}
+    .col-drag{opacity:.6;margin-right:.25rem;cursor:grab}
+    .col-rename{width:118px;padding:.2rem .35rem;border:1px solid rgba(255,255,255,.35);border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-size:.72rem;font-family:inherit;font-weight:700}
+    .col-rename:focus{outline:none;border-color:#fff;background:rgba(255,255,255,.2)}
+    .col-name-ro{font-weight:700}
+    .col-eye,.col-lock{background:none;border:none;cursor:pointer;font-size:.78rem;margin-left:.3rem;padding:0}
+    .col-lock{cursor:default;opacity:.6}
     .cat-fix-btn{margin-top:.35rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cat-fix-btn:hover{filter:brightness(1.1)}
     /* Own tooltip instead of the browser's title bubble: that one cannot be
@@ -982,15 +1005,55 @@
      table, which reads as a broken app for the ten-plus seconds Apps Script can
      take to answer. Lifted when the connection indicator turns green — that is
      the app's own "finished" signal — and on every failure path too, so it can
-     never strand the page behind it. -->
+     never strand the page behind it.
+
+     The name on it is the CUSTOMER's, not ours — this is their system, and the
+     loading screen is the first thing their crew sees every morning. Ours is
+     the credit line underneath. Their logo and name only exist on the server,
+     which is precisely what the splash is waiting for, so they are remembered
+     in this browser from the previous load and painted immediately. The very
+     first load anyone ever does still shows the Acopio mark alone. -->
 <div id="appSplash" class="app-splash">
-  <div class="splash-mark">
+  <div class="splash-mark" id="splashMark">
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    <span>Acopio</span>
+    <span id="splashName">Acopio</span>
   </div>
+  <img id="splashLogo" class="splash-logo" alt="" style="display:none">
   <div class="splash-bar"><div class="splash-fill" id="splashFill"></div></div>
   <div class="splash-note" id="splashNote">Connecting to your spreadsheet…</div>
+  <div class="splash-by" id="splashBy" style="display:none">
+    powered by
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <b>Acopio</b>
+  </div>
 </div>
+<script>
+// Runs before anything else on the page, so the customer's name is on the
+// splash from the first paint rather than swapping in a moment later.
+(function(){
+  var name = null, logo = null;
+  try {
+    name = localStorage.getItem('acopio_brand_name');
+    logo = localStorage.getItem('acopio_brand_logo');
+  } catch (e) {}
+  if (!name && !logo) return;                      // first ever load: Acopio alone
+  var by = document.getElementById('splashBy');
+  if (by) by.style.display = '';
+  if (logo){
+    var img = document.getElementById('splashLogo');
+    var mark = document.getElementById('splashMark');
+    if (img){ img.src = logo; img.alt = name || ''; img.style.display = ''; }
+    if (mark) mark.style.display = 'none';
+    return;
+  }
+  // No logo uploaded — the company name in place of ours, without our glyph.
+  var mk = document.getElementById('splashMark');
+  var sv = mk && mk.querySelector('svg');
+  if (sv) sv.style.display = 'none';
+  var sp = document.getElementById('splashName');
+  if (sp) sp.textContent = name;
+})();
+</script>
 
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <div class="topbar">
@@ -1161,6 +1224,14 @@
           <button id="btnMonitorSettingsToolbar" class="btn btn-ghost btn-sm" onclick="openMonitorModal()" title="Choose which materials to monitor and set minimum-stock thresholds" style="display:none">⚙ Stock Alerts</button>
         </div>
       </div>
+      <div class="col-bar">
+        <button class="btn btn-ghost btn-sm" id="btnEditCols_stock" onclick="toggleColEdit('stock')">⚙ Columns</button>
+        <span class="col-edit-help" id="colEditHelp_stock" style="display:none">
+          Drag a heading to move it · click the eye to hide it<span id="colEditAdminHelp_stock"> · click a name to rename it for everyone</span>
+        </span>
+        <button class="btn btn-primary btn-sm" id="btnColDone_stock" style="display:none" onclick="finishColEdit('stock')">Done</button>
+        <button class="btn btn-ghost btn-sm" id="btnColReset_stock" style="display:none" onclick="resetColEdit('stock')">Reset</button>
+      </div>
       <div id="stockSelectBar" style="display:none;align-items:center;gap:.75rem;background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:.5rem .9rem;margin-bottom:.75rem">
         <span id="stockSelectCount" style="font-size:.85rem;font-weight:700;color:var(--red)"></span>
         <button class="btn btn-danger btn-sm" onclick="exitSelectedStock()">↑ Exit Selected</button>
@@ -1168,15 +1239,7 @@
       </div>
       <div class="table-wrapper">
         <table>
-          <thead><tr>
-            <th style="width:30px"></th>
-            <th class="sc-category">Category</th><th class="sc-name">Name / Description</th>
-            <th class="sc-inWarehouse tip" data-tip="Units on hand in the warehouse">In Warehouse</th>
-            <th class="sc-atSite tip" data-tip="Sent out to a job — used or delivered">Used / Del</th>
-            <th class="sc-available tip" data-tip="In warehouse, minus what is reserved">Available</th>
-            <th class="sc-wasted tip" data-tip="Recorded as damaged or scrapped">Wasted</th>
-            <th class="sc-reserved">Reserved</th><th class="sc-location tip" data-tip="Where this material is stored">Location</th><th class="sc-status">Status</th><th class="sc-dateReceived tip" data-tip="Date of the most recent entry">Date Received</th><th class="sc-lastNote">Last Note</th><th class="sc-docs">Docs</th>
-          </tr></thead>
+          <thead><tr id="stockHeadRow"></tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
       </div>
@@ -1205,35 +1268,13 @@
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
         </div>
       </div>
-      <!-- Column selector dropdown -->
-      <div style="position:relative;display:inline-block" id="colPickerWrap">
-        <button onclick="toggleColPicker()" id="btnColPicker"
-          style="margin:6px 0 0 1rem;background:none;border:1px solid var(--border);border-radius:7px;
-                 padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;color:var(--text);
-                 display:flex;align-items:center;gap:.4rem;transition:.15s"
-          onmouseover="this.style.borderColor='var(--accent)'"
-          onmouseout="this.style.borderColor='var(--border)'">
-          ⚙ Columns <span id="colPickerChevron">▾</span>
-        </button>
-        <div id="colPickerMenu" style="display:none;position:absolute;left:0;top:calc(100% + 4px);
-             background:var(--card);border:1px solid var(--border);border-radius:10px;
-             box-shadow:0 6px 20px rgba(0,0,0,.15);min-width:200px;z-index:300;padding:.5rem;overflow:hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:.25rem .4rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.35rem">
-            <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase">Show Columns</span>
-            <div style="display:flex;gap:.4rem">
-              <button onclick="setAllCols(true)"  style="font-size:.7rem;color:var(--accent);background:none;border:none;cursor:pointer;font-weight:700">All</button>
-              <button onclick="setAllCols(false)" style="font-size:.7rem;color:var(--muted);background:none;border:none;cursor:pointer;font-weight:700">None</button>
-            </div>
-          </div>
-          <label class="col-pick-item"><input type="checkbox" id="chkSysDate"> System Date</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkGc"> GC / Contract</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkProj" checked> Project</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkSup"> Supplier</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkResp" checked> Received By</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkComm" checked> Comments</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkSrcDest"> Source → Dest</label>
-          <label class="col-pick-item"><input type="checkbox" id="chkPm"> PM</label>
-        </div>
+      <div class="col-bar">
+        <button class="btn btn-ghost btn-sm" id="btnEditCols_mov" onclick="toggleColEdit('mov')">⚙ Columns</button>
+        <span class="col-edit-help" id="colEditHelp_mov" style="display:none">
+          Drag a heading to move it · click the eye to hide it<span id="colEditAdminHelp_mov"> · click a name to rename it for everyone</span>
+        </span>
+        <button class="btn btn-primary btn-sm" id="btnColDone_mov" style="display:none" onclick="finishColEdit('mov')">Done</button>
+        <button class="btn btn-ghost btn-sm" id="btnColReset_mov" style="display:none" onclick="resetColEdit('mov')">Reset</button>
       </div>
       <div class="table-wrapper" id="tableContainer"></div>
     </div>
@@ -1865,6 +1906,8 @@
     </div>
     <div class="settings-body">
       <nav class="settings-sidebar" aria-label="Settings sections">
+        <div class="settings-sidebar-label">Company</div>
+        <button class="settings-tab"        data-tab="company"     onclick="switchSettingsTab('company')">🏷 <span>Name &amp; Logo</span></button>
         <div class="settings-sidebar-label">Catalog</div>
         <button class="settings-tab active" data-tab="categories"  onclick="switchSettingsTab('categories')">📦 <span>Categories</span></button>
         <button class="settings-tab"        data-tab="projects"    onclick="switchSettingsTab('projects')">📁 <span>Projects</span></button>
@@ -1872,7 +1915,6 @@
         <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
         <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
         <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>Directory</span></button>
-        <button class="settings-tab"        data-tab="columns"     onclick="switchSettingsTab('columns')">📐 <span>Columns</span></button>
         <button class="settings-tab"        data-tab="import"      onclick="switchSettingsTab('import')">📥 <span>Import</span></button>
         <div class="settings-sidebar-label">Diagnostics</div>
         <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
@@ -2016,25 +2058,16 @@ var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, sit
 var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
 var reservations = [];
 var currentMoveType = 'ENTRY';
+// Movements kept its column visibility here until v9.41 — a map of eight
+// checkbox flags. Nothing writes it any more; it is read once per browser so a
+// table someone had already tailored comes across unchanged. See _migratedHidden().
 var _COL_VIS_KEY = 'oxwms_colvis_v3';
-var _COL_DEFAULTS = { sysDate:false, gc:false, project:true, supplier:false, resp:true, comment:true, srcDest:false, pm:false };
-var colVis = (function(){
-  try {
-    var saved = localStorage.getItem(_COL_VIS_KEY);
-    if (saved) {
-      var parsed = JSON.parse(saved);
-      // Merge with defaults so new columns get their default state
-      return Object.assign({}, _COL_DEFAULTS, parsed);
-    }
-  } catch(e) {}
-  return Object.assign({}, _COL_DEFAULTS);
-})();
 var _movPage     = 1;
 var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.39';
+var APP_VERSION = '9.44';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2218,62 +2251,106 @@ function _refreshCatHelpers(){
   });
 }
 
+// Which form is on screen is decided by which SECTION is visible, not by which
+// container happens to hold rows: the move overlay is one modal reused by every
+// movement type, and switching type hides a section without emptying it. Going
+// by rows alone let a leftover ENTRY line answer for an EXIT form.
+function _moveSectionVisible(id){
+  var el = document.getElementById(id);
+  return !!(el && el.style.display !== 'none');
+}
+
 function _moveFormProblem(){
   if (!(config.categories && config.categories.length)) return 'Add at least one category first';
 
-  var lines = document.querySelectorAll('#multiMatContainer .mat-line');
+  var lines = _moveSectionVisible('multiMatSection')
+    ? document.querySelectorAll('#multiMatContainer .mat-line') : [];
+  // Mirrors submitMultiEntry(): EVERY card needs a name and a positive
+  // quantity, and it stops at the first one that doesn't. A category is not
+  // required there, so it is not required here either.
   if (lines.length){
-    var anyComplete = false, missing = '';
-    lines.forEach(function(line){
-      var n    = line.id.replace('mat-line-', '');
-      var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
-      var cat  = ((document.getElementById('mat-cat-'  + n) || {}).value || '').trim();
-      var qty  = 0;
-      var lc = document.getElementById('mat-locs-' + n);
+    var entryProblem = '';
+    lines.forEach(function(line, i){
+      if (entryProblem) return;
+      var n     = line.id.replace('mat-line-', '');
+      var label = 'Material ' + (i + 1);
+      var name  = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
+      if (!name){ entryProblem = label + ' needs a name'; return; }
+      var qty = 0;
+      var lc  = document.getElementById('mat-locs-' + n);
       if (lc) lc.querySelectorAll('.loc-row').forEach(function(row){
-        var q = parseInt((row.querySelector('.loc-qty') || {}).value, 10) || 0;
-        var loc = ((row.querySelector('.loc-rack') || {}).value || '').trim();
-        if (q > 0 && loc) qty += q;
+        qty += Math.max(0, parseInt((row.querySelector('.loc-qty') || {}).value, 10) || 0);
       });
-      if (name && cat && qty > 0) anyComplete = true;
-      else if (!missing) {
-        missing = !name ? 'Material ' + n + ' needs a name'
-                : !cat  ? 'Material ' + n + ' needs a category'
-                : 'Material ' + n + ' needs a location and quantity';
-      }
+      if (qty <= 0) entryProblem = label + ' needs a location and quantity';
     });
-    if (!anyComplete) return missing || 'Fill in a material to save';
-    return '';
+    return entryProblem;
   }
 
-  // Multi-EXIT: rows are .exit-mat-line with id exit-mat-N, and each carries its
-  // own list of location rows holding the quantities.
-  var exitLines = document.querySelectorAll('#multiExitContainer .exit-mat-line');
+  // Multi-EXIT: rows are .exit-mat-line with id exit-mat-N, and each carries a
+  // list of .exit-loc-row location rows holding the quantities.
+  //
+  // Every check below mirrors exactly what submitMultiExit() refuses to send —
+  // and it refuses on the FIRST bad material, so every card has to be complete,
+  // not just one of them. A validator that disagrees with the save is worse
+  // than none: it either blocks a good form or lets a bad one through to a
+  // toast.
+  var exitLines = _moveSectionVisible('multiExitSection')
+    ? document.querySelectorAll('#multiExitContainer .exit-mat-line') : [];
   if (exitLines.length){
-    var okExit = false, exitMissing = '';
-    exitLines.forEach(function(line){
-      var n    = line.id.replace('exit-mat-', '');
-      var name = ((document.getElementById('exit-name-' + n) || {}).value || '').trim();
-      var qty  = 0;
-      var lc = document.getElementById('exit-locs-' + n);
-      if (lc) lc.querySelectorAll('.exit-qty').forEach(function(inp){
-        qty += Math.max(0, parseInt(inp.value, 10) || 0);
+    var sameDest   = !!(document.getElementById('mExitSameDestChk') || {}).checked;
+    var sharedDest = ((document.getElementById('mExitDest') || {}).value || '').trim();
+    var exitProblem = '';
+    exitLines.forEach(function(line, i){
+      if (exitProblem) return;
+      var label = 'Material ' + (i + 1);
+      var name = ((line.querySelector('input[id^="exit-name-"]') || {}).value || '').trim();
+      if (!name){ exitProblem = label + ' needs a name'; return; }
+      // .el-qty, not .exit-qty — that second class belongs to the older
+      // single-material EXIT form further down. Looking for the wrong one here
+      // meant the quantity always read as zero, so Save stayed dead however
+      // much was typed in.
+      var qty = 0;
+      line.querySelectorAll('.exit-loc-row').forEach(function(row){
+        qty += Math.max(0, parseInt((row.querySelector('.el-qty') || {}).value, 10) || 0);
       });
-      if (name && qty > 0) okExit = true;
-      else if (!exitMissing) exitMissing = !name ? 'Pick a material to take out' : 'Enter how many to take out';
+      if (qty <= 0){ exitProblem = label + ' needs how many to take out'; return; }
+      if (!sameDest){
+        var d = ((line.querySelector('input[id^="exit-dest-"]') || {}).value || '').trim();
+        if (!d) exitProblem = label + ' needs a destination';
+      }
     });
-    if (!okExit) return exitMissing || 'Fill in a material to save';
-    return '';
+    if (!exitProblem && sameDest && !sharedDest) exitProblem = 'Enter the destination';
+    return exitProblem;
   }
 
   // Single-material EXIT uses its own rows container.
-  var exitRows = document.querySelectorAll('#exitRowsContainer .exit-qty');
+  var exitRows = _moveSectionVisible('exitLocsSection')
+    ? document.querySelectorAll('#exitRowsContainer .exit-qty') : [];
   if (exitRows.length){
     var nmEx = ((document.getElementById('mName') || {}).value || '').trim();
     if (!nmEx) return 'Enter the material name';
     var tot = 0;
     exitRows.forEach(function(inp){ tot += Math.max(0, parseInt(inp.value, 10) || 0); });
     if (tot <= 0) return 'Enter how many to take out';
+    return '';
+  }
+
+  // TRANSFER: a name, plus at least one row that has a source rack, a
+  // destination rack and a quantity. Its own Qty box is HIDDEN for this type
+  // and the real total is added up from the rows at submit — so falling
+  // through to the single-material check below, which insists on that hidden
+  // box, would leave Save dead no matter what was filled in.
+  if (_moveSectionVisible('multiTransferSection')){
+    var trName = ((document.getElementById('mName') || {}).value || '').trim();
+    if (!trName) return 'Enter the material name';
+    var pairs = 0;
+    document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
+      var src = ((row.querySelector('.tr-rack') || {}).value || '').trim();
+      var dst = ((row.querySelector('.tr-dest') || {}).value || '').trim();
+      var q   = Math.max(0, parseInt((row.querySelector('.tr-qty') || {}).value, 10) || 0);
+      if (src && dst && q > 0) pairs++;
+    });
+    if (!pairs) return 'Add a source rack, a destination rack and a quantity';
     return '';
   }
 
@@ -2303,6 +2380,13 @@ function _updateMoveSubmitState(){
 // form is open — binding per field would miss every row created later.
 document.addEventListener('input',  function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
 document.addEventListener('change', function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
+// Clicks too, deferred by a tick so the handler has already run: adding or
+// removing a material or location row, and "Auto-fill Racks" writing
+// quantities in code, all change whether the form is complete without anyone
+// typing a character.
+document.addEventListener('click', function(e){
+  if (e.target.closest && e.target.closest('#moveOverlay')) setTimeout(_updateMoveSubmitState, 0);
+});
 
 // ── Column labels and visibility ─────────────────────────────────────────────
 // The words on a warehouse screen belong to the warehouse. One business calls a
@@ -2310,7 +2394,7 @@ document.addEventListener('change', function(e){ if (e.target.closest && e.targe
 // and as used-on-a-job to another. Both the label and whether a column appears
 // at all are the customer's to decide.
 var STOCK_COLS = [
-  { key:'category',     def:'Category',         lock:false },
+  { key:'category',     def:'Category',         lock:true  },   // the row is unreadable without it
   { key:'name',         def:'Name / Description', lock:true },   // the row would be meaningless without it
   { key:'inWarehouse',  def:'In Warehouse',     lock:false },
   { key:'atSite',       def:'Used / Del',       lock:false },
@@ -2324,112 +2408,323 @@ var STOCK_COLS = [
   { key:'docs',         def:'Docs',             lock:false }
 ];
 
-var columnPrefs = { labels: {}, hidden: [] };
+// Movements is the record of what happened, Stock is what is on hand — different
+// columns, but the same gesture edits both. What is locked here is what makes a
+// movement readable at a glance: what kind it was, when, of what, and how much.
+var MOV_COLS = [
+  { key:'type',     def:'Type',        lock:true  },
+  { key:'date',     def:'Date',        lock:true  },
+  { key:'category', def:'Category',    lock:true  },
+  { key:'name',     def:'Name',        lock:true  },
+  { key:'qty',      def:'Qty',         lock:true  },
+  { key:'unit',     def:'Unit',        lock:false },
+  { key:'po',       def:'PO#',         lock:false },
+  { key:'locFlow',  def:'Src→Dest',    lock:false },
+  { key:'rawLoc',   def:'Raw Loc',     lock:false },
+  { key:'gc',       def:'GC',          lock:false },
+  { key:'project',  def:'Project',     lock:false },
+  { key:'supplier', def:'Supplier',    lock:false },
+  { key:'resp',     def:'Received By', lock:false },
+  { key:'comment',  def:'Comments',    lock:false },
+  { key:'pm',       def:'PM',          lock:false },
+  { key:'sysDate',  def:'Sys Date',    lock:false },
+  { key:'user',     def:'User',        lock:false },
+  { key:'doc',      def:'Doc',         lock:false }
+];
 
-function _applyColumnPrefs(){
-  // Hiding is done with one injected stylesheet rule per column rather than by
-  // rebuilding rows: the table is re-rendered constantly, and a rule survives
-  // every render for free.
-  var hidden = columnPrefs.hidden || [];
-  var css = hidden.map(function(k){ return '.sc-' + k + '{display:none}'; }).join('');
-  var tag = document.getElementById('colPrefStyle');
-  if (!tag){
-    tag = document.createElement('style');
-    tag.id = 'colPrefStyle';
-    document.head.appendChild(tag);
+var STOCK_COL_TIPS = {
+  inWarehouse:  'Units on hand in the warehouse',
+  atSite:       'Sent out to a job — used or delivered',
+  available:    'In warehouse, minus what is reserved',
+  wasted:       'Recorded as damaged or scrapped',
+  location:     'Where this material is stored',
+  dateReceived: 'Date of the most recent entry'
+};
+
+var MOV_COL_TIPS = {
+  locFlow: 'Where the material came from and where it went',
+  rawLoc:  'The source and destination fields exactly as recorded',
+  resp:    'Who received or handled the material',
+  pm:      'Project manager notified about this movement',
+  sysDate: 'When the record was saved — not the date of the movement itself',
+  user:    'The account that saved this record',
+  doc:     'Invoices, photos and other files attached to this movement'
+};
+
+// Two tables, one editor. Everything that differs between them is described
+// here, so the editing behaviour itself is written once.
+var COL_TABLES = {
+  stock: {
+    cols: STOCK_COLS, tips: STOCK_COL_TIPS, prefix: 'sc-',
+    orderKey: 'acopio_stock_col_order', hiddenKey: 'acopio_stock_col_hidden',
+    defaultHidden: [],
+    head: 'stockHeadRow',
+    lead: function(){ return '<th style="width:30px"></th>'; },        // row-select checkbox
+    tail: function(){ return ''; },
+    refresh: function(){ renderColHead('stock'); renderStock(); }
+  },
+  mov: {
+    cols: MOV_COLS, tips: MOV_COL_TIPS, prefix: 'mc-',
+    orderKey: 'acopio_mov_col_order', hiddenKey: 'acopio_mov_col_hidden',
+    // What Movements showed before it had an editor, so no table changes shape
+    // on upgrade for someone who never touched the old checkboxes.
+    defaultHidden: ['rawLoc','gc','supplier','pm','sysDate'],
+    head: 'movHeadRow',
+    lead: function(){ return ''; },
+    tail: function(){ return userRole === 'ADMIN' ? '<th></th>' : ''; },  // edit / delete
+    refresh: function(){ renderMovements(); }                             // rebuilds its own header
   }
-  tag.textContent = css;
+};
 
-  STOCK_COLS.forEach(function(c){
-    var th = document.querySelector('thead th.sc-' + c.key);
-    if (!th) return;
-    var custom = (columnPrefs.labels || {})[c.key];
-    // Only the label text is replaced — the tooltip element and its data stay,
-    // so renaming a column does not cost its explanation.
-    th.childNodes[0] ? (th.childNodes[0].nodeValue = custom || c.def) : (th.textContent = custom || c.def);
-  });
+// Names are the COMPANY's and are set by an admin for everyone — a report has
+// to mean the same thing to two people reading it. Which columns you see and
+// what order they sit in is YOURS: one person watching reservations and another
+// watching waste want different screens, and neither should be able to rearrange
+// the other's. So labels live on the server, order and visibility in this
+// browser.
+var columnPrefs = { labels: {}, hidden: [] };
+var _colEdit = { stock:false, mov:false };
+
+function _colCfg(t){ return COL_TABLES[t]; }
+
+function _defaultColOrder(t){ return _colCfg(t).cols.map(function(c){ return c.key; }); }
+
+function _colOrder(t){
+  var cfg = _colCfg(t);
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem(cfg.orderKey) || '[]') || []; } catch (e) {}
+  var known = {};
+  cfg.cols.forEach(function(c){ known[c.key] = 1; });
+  // Filtered against the current column set, then topped up: a saved order from
+  // an older version must not drop a column that has since been added, or hold
+  // on to one that no longer exists.
+  var out = saved.filter(function(k){ return known[k]; });
+  _defaultColOrder(t).forEach(function(k){ if (out.indexOf(k) === -1) out.push(k); });
+  return out;
 }
 
-function _colLabel(key){
-  var c = null;
-  STOCK_COLS.forEach(function(x){ if (x.key === key) c = x; });
-  if (!c) return key;
-  return (columnPrefs.labels || {})[key] || c.def;
+function _colHidden(t){
+  var raw = null;
+  try { raw = localStorage.getItem(_colCfg(t).hiddenKey); } catch (e) {}
+  if (raw === null || raw === undefined) return _migratedHidden(t);
+  try { return JSON.parse(raw) || []; } catch (e) { return []; }
 }
 
-function _renderColumnsTab(){
-  var content = document.getElementById('settingsTabContent');
+// Read the pre-v9.41 Movements checkboxes once, the first time this browser
+// opens the new editor. Somebody who had turned Supplier on and Project off
+// keeps that table; somebody who never touched it gets the defaults.
+function _migratedHidden(t){
+  var cfg = _colCfg(t);
+  if (t !== 'mov') return cfg.defaultHidden.slice();
+  var old = null;
+  try { old = JSON.parse(localStorage.getItem(_COL_VIS_KEY) || 'null'); } catch (e) {}
+  if (!old) return cfg.defaultHidden.slice();
+  var was = { sysDate:'sysDate', gc:'gc', project:'project', supplier:'supplier',
+              resp:'resp', comment:'comment', srcDest:'rawLoc', pm:'pm' };
+  var hidden = [];
+  Object.keys(was).forEach(function(k){ if (!old[k]) hidden.push(was[k]); });
+  return hidden;
+}
+
+function _saveColView(t, order, hidden){
+  var cfg = _colCfg(t);
+  try {
+    localStorage.setItem(cfg.orderKey,  JSON.stringify(order));
+    localStorage.setItem(cfg.hiddenKey, JSON.stringify(hidden));
+  } catch (e) {}
+}
+
+function _visibleColCount(t){
+  if (_colEdit[t]) return _colOrder(t).length;      // edit mode shows every column
   var hidden = {};
-  (columnPrefs.hidden || []).forEach(function(k){ hidden[k] = 1; });
+  _colHidden(t).forEach(function(k){ hidden[k] = 1; });
+  return _colOrder(t).filter(function(k){ return !hidden[k]; }).length;
+}
 
-  content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.9rem">' +
-      'Rename the columns of the Stock Dashboard to match how your team talks, and hide the ones you do not use. ' +
-      'Leave a name blank to go back to the default. This changes the screen only — nothing in your data is renamed.' +
-    '</p>' +
-    '<table class="col-pref-table"><thead><tr>' +
-      '<th style="width:44px">Show</th><th>Default</th><th>Your name for it</th>' +
-    '</tr></thead><tbody>' +
-    STOCK_COLS.map(function(c){
-      var cur = (columnPrefs.labels || {})[c.key] || '';
-      return '<tr>' +
-        '<td style="text-align:center">' +
-          (c.lock
-            ? '<span title="This column cannot be hidden" style="color:var(--muted)">—</span>'
-            : '<input type="checkbox" class="col-show" data-key="' + c.key + '"' + (hidden[c.key] ? '' : ' checked') + '>') +
-        '</td>' +
-        '<td style="font-size:.8rem;color:var(--muted)">' + _he(c.def) + '</td>' +
-        '<td><input type="text" class="col-label" data-key="' + c.key + '" value="' + _escAttr(cur) + '" placeholder="' + _escAttr(c.def) + '"></td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table>' +
-    '<div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap">' +
-      '<button class="btn btn-primary btn-sm" id="colPrefSave">Save columns</button>' +
-      '<button class="btn btn-ghost btn-sm" id="colPrefReset">Reset to defaults</button>' +
-    '</div>';
+function _colDef(t, key){
+  var found = null;
+  _colCfg(t).cols.forEach(function(c){ if (c.key === key) found = c; });
+  return found;
+}
 
-  document.getElementById('colPrefSave').addEventListener('click', function(){
-    var btn = this;
-    var labels = {}, hid = [];
-    document.querySelectorAll('.col-label').forEach(function(inp){
-      var v = (inp.value || '').trim();
-      if (v) labels[inp.getAttribute('data-key')] = v;
+// Stock's names were already saved in the field under bare keys, before any
+// other table had an editor. They stay bare so nothing has to be migrated on
+// the server; every table added since namespaces its keys.
+function _labelKey(t, key){ return t === 'stock' ? key : t + '.' + key; }
+function _ownsLabelKey(t, k){
+  return t === 'stock' ? (String(k).indexOf('.') === -1) : (String(k).indexOf(t + '.') === 0);
+}
+
+function _colLabel(t, key){
+  var c = _colDef(t, key);
+  if (!c) return key;
+  return (columnPrefs.labels || {})[_labelKey(t, key)] || c.def;
+}
+
+function _applyColumnPrefs(){ renderColHead('stock'); }
+
+// The header is rendered rather than written in the markup, because the order
+// is the user's and can change at any moment.
+function _colHeadRowHtml(t){
+  var cfg = _colCfg(t);
+  var editing = _colEdit[t];
+  var hidden = {};
+  _colHidden(t).forEach(function(k){ hidden[k] = 1; });
+  var isAdmin = userRole === 'ADMIN';
+
+  var html = cfg.lead();
+  _colOrder(t).forEach(function(key){
+    var c = _colDef(t, key);
+    if (!c) return;
+    if (hidden[key] && !editing) return;           // gone entirely until edit mode
+
+    if (editing){
+      html += '<th class="' + cfg.prefix + key + (hidden[key] ? ' col-off' : '') + ' col-edit" ' +
+              'draggable="true" data-col="' + key + '">' +
+        '<span class="col-drag" title="Drag to move">⋮⋮</span>' +
+        (isAdmin
+          ? '<input class="col-rename" data-col="' + key + '" value="' + _escAttr(_colLabel(t, key)) + '" ' +
+            'title="Name shown to everyone in this company">'
+          : '<span class="col-name-ro">' + _he(_colLabel(t, key)) + '</span>') +
+        (c.lock
+          ? '<span class="col-lock" title="This column cannot be hidden">🔒</span>'
+          : '<button class="col-eye" data-col="' + key + '" title="' + (hidden[key] ? 'Show' : 'Hide') + '">' +
+            (hidden[key] ? '🚫' : '👁') + '</button>') +
+      '</th>';
+    } else {
+      var tip = cfg.tips[key];
+      html += '<th class="' + cfg.prefix + key + (tip ? ' tip' : '') + '"' +
+              (tip ? ' data-tip="' + _escAttr(tip) + '"' : '') + '>' +
+              _he(_colLabel(t, key)) + '</th>';
+    }
+  });
+  return html + cfg.tail();
+}
+
+function renderColHead(t){
+  var row = document.getElementById(_colCfg(t).head);
+  if (!row) return;
+  row.innerHTML = _colHeadRowHtml(t);
+  if (_colEdit[t]) _wireColEdit(t);
+}
+
+function _colBarEl(t, base){ return document.getElementById(base + '_' + t); }
+
+function _setColBarMode(t){
+  var on = _colEdit[t];
+  [['btnColDone', on], ['btnColReset', on], ['colEditHelp', on], ['btnEditCols', !on]]
+    .forEach(function(pair){
+      var el = _colBarEl(t, pair[0]);
+      if (el) el.style.display = pair[1] ? '' : 'none';
     });
-    document.querySelectorAll('.col-show').forEach(function(cb){
-      if (!cb.checked) hid.push(cb.getAttribute('data-key'));
+  var adminHelp = _colBarEl(t, 'colEditAdminHelp');
+  if (adminHelp) adminHelp.style.display = (userRole === 'ADMIN') ? '' : 'none';
+}
+
+function toggleColEdit(t){
+  _colEdit[t] = !_colEdit[t];
+  _setColBarMode(t);
+  _colCfg(t).refresh();
+}
+
+function finishColEdit(t){
+  // Order and visibility are this browser's and are already saved as they
+  // change. Only the names have to reach the server, and only an admin can
+  // send them.
+  if (userRole === 'ADMIN'){
+    // Start from the names belonging to the OTHER tables: the server keeps one
+    // map for the whole app, so saving Movements must not wipe Stock.
+    var labels = {};
+    Object.keys(columnPrefs.labels || {}).forEach(function(k){
+      if (!_ownsLabelKey(t, k)) labels[k] = columnPrefs.labels[k];
     });
-    btn.disabled = true; btn.textContent = 'Saving…';
-    google.script.run
-      .withSuccessHandler(function(){
-        columnPrefs = { labels: labels, hidden: hid };
-        _applyColumnPrefs();
-        btn.disabled = false; btn.textContent = 'Save columns';
-        showToast('Columns updated ✓', 'ok');
-      })
-      .withFailureHandler(function(e){
-        btn.disabled = false; btn.textContent = 'Save columns';
-        showToast('Could not save: ' + (e.message || e), 'err', 6000);
-      })
-      .processMovement('saveColumnPrefs', _h({ labels: labels, hidden: hid }));
+    document.querySelectorAll('#' + _colCfg(t).head + ' .col-rename').forEach(function(inp){
+      var key = inp.getAttribute('data-col');
+      var v   = (inp.value || '').trim();
+      var def = (_colDef(t, key) || {}).def;
+      if (v && v !== def) labels[_labelKey(t, key)] = v;   // matching the default is not an override
+    });
+    var changed = JSON.stringify(labels) !== JSON.stringify(columnPrefs.labels || {});
+    if (changed){
+      google.script.run
+        .withSuccessHandler(function(){ showToast('Column names saved for everyone ✓', 'ok'); })
+        .withFailureHandler(function(e){ showToast('Could not save names: ' + (e.message || e), 'err', 6000); })
+        .processMovement('saveColumnPrefs', _h({ labels: labels, hidden: [] }));
+      columnPrefs.labels = labels;
+    }
+  }
+  _colEdit[t] = false;
+  _setColBarMode(t);
+  _colCfg(t).refresh();
+}
+
+function resetColEdit(t){
+  _showConfirm({
+    icon: '↩', title: 'Reset columns?',
+    message: userRole === 'ADMIN'
+      ? 'Your column order and hidden columns go back to default. Column NAMES go back to default for everyone in the company.'
+      : 'Your column order and hidden columns go back to default. Column names are set by an admin and are not affected.',
+    confirmText: 'Reset',
+    onConfirm: function(){
+      _saveColView(t, _defaultColOrder(t), _colCfg(t).defaultHidden.slice());
+      if (userRole === 'ADMIN'){
+        var labels = {};
+        Object.keys(columnPrefs.labels || {}).forEach(function(k){
+          if (!_ownsLabelKey(t, k)) labels[k] = columnPrefs.labels[k];   // only this table's names go
+        });
+        columnPrefs.labels = labels;
+        google.script.run
+          .withSuccessHandler(function(){})
+          .withFailureHandler(function(){})
+          .processMovement('saveColumnPrefs', _h({ labels: labels, hidden: [] }));
+      }
+      _colCfg(t).refresh();
+    }
+  });
+}
+
+var _colDragKey = null;
+function _wireColEdit(t){
+  var cfg = _colCfg(t);
+  document.querySelectorAll('#' + cfg.head + ' th.col-edit').forEach(function(th){
+    th.addEventListener('dragstart', function(e){
+      _colDragKey = th.getAttribute('data-col');
+      th.classList.add('col-dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _colDragKey); } catch (x) {}
+    });
+    th.addEventListener('dragend', function(){ th.classList.remove('col-dragging'); });
+    th.addEventListener('dragover', function(e){ e.preventDefault(); th.classList.add('col-drop'); });
+    th.addEventListener('dragleave', function(){ th.classList.remove('col-drop'); });
+    th.addEventListener('drop', function(e){
+      e.preventDefault();
+      th.classList.remove('col-drop');
+      var target = th.getAttribute('data-col');
+      if (!_colDragKey || _colDragKey === target) return;
+      var order = _colOrder(t).filter(function(k){ return k !== _colDragKey; });
+      var at = order.indexOf(target);
+      order.splice(at === -1 ? order.length : at, 0, _colDragKey);
+      _colDragKey = null;
+      _saveColView(t, order, _colHidden(t));
+      cfg.refresh();
+    });
   });
 
-  document.getElementById('colPrefReset').addEventListener('click', function(){
-    _showConfirm({
-      icon: '↩', title: 'Reset column names?',
-      message: 'Every column goes back to its default name and becomes visible again.',
-      confirmText: 'Reset',
-      onConfirm: function(){
-        google.script.run
-          .withSuccessHandler(function(){
-            columnPrefs = { labels: {}, hidden: [] };
-            _applyColumnPrefs();
-            _renderColumnsTab();
-            showToast('Columns reset ✓', 'ok');
-          })
-          .withFailureHandler(function(e){ showToast('Could not reset: ' + (e.message || e), 'err', 6000); })
-          .processMovement('saveColumnPrefs', _h({ labels: {}, hidden: [] }));
-      }
+  document.querySelectorAll('#' + cfg.head + ' .col-eye').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var key = btn.getAttribute('data-col');
+      var hidden = _colHidden(t);
+      var i = hidden.indexOf(key);
+      if (i === -1) hidden.push(key); else hidden.splice(i, 1);
+      _saveColView(t, _colOrder(t), hidden);
+      cfg.refresh();
     });
+  });
+
+  // Typing in a name must not start a drag.
+  document.querySelectorAll('#' + cfg.head + ' .col-rename').forEach(function(inp){
+    inp.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    inp.addEventListener('dragstart', function(e){ e.preventDefault(); e.stopPropagation(); });
   });
 }
 
@@ -2682,9 +2977,10 @@ function wizRender(){
 // (far above the ~28px it renders at, so it stays sharp on high-DPI screens)
 // and re-encoded as PNG to preserve transparency. A 3 MB upload becomes a few
 // KB, which matters because this is stored in Drive and fetched on every load.
-function _wizLogoPick(inp){
-  if (!inp.files || !inp.files[0]) return;
-  var f = inp.files[0];
+// Shared by the wizard and by Settings → Company, so a logo uploaded either way
+// is prepared identically. cb receives { dataUrl, fileData, w, h }.
+function _resizeLogoFile(f, cb){
+  if (!f) return;
   if (f.size > 8 * 1024 * 1024) { showToast('That image is very large - pick one under 8 MB.','warn'); return; }
   var reader = new FileReader();
   reader.onload = function(){
@@ -2698,16 +2994,23 @@ function _wizLogoPick(inp){
       cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, w, h);
       var dataUrl = cv.toDataURL('image/png');
-      _wiz.logo = { fileData: dataUrl.split(',')[1], fileMimeType: 'image/png', fileName: 'logo.png' };
-      document.getElementById('wizLogoPrev').innerHTML =
-        '<img src="' + dataUrl + '" style="max-height:52px;border-radius:6px;background:#F3F4F6;padding:4px">' +
-        '<div class="wiz-hint">Resized to ' + w + 'x' + h + ' automatically - any size or shape works.</div>';
+      cb({ dataUrl: dataUrl, fileData: dataUrl.split(',')[1], w: w, h: h });
     };
     img.onerror = function(){ showToast('That file is not a readable image.','err'); };
     img.src = reader.result;
   };
   reader.onerror = function(){ showToast('Could not read that image.','err'); };
   reader.readAsDataURL(f);
+}
+
+function _wizLogoPick(inp){
+  if (!inp.files || !inp.files[0]) return;
+  _resizeLogoFile(inp.files[0], function(r){
+    _wiz.logo = { fileData: r.fileData, fileMimeType: 'image/png', fileName: 'logo.png' };
+    document.getElementById('wizLogoPrev').innerHTML =
+      '<img src="' + r.dataUrl + '" style="max-height:52px;border-radius:6px;background:#F3F4F6;padding:4px">' +
+      '<div class="wiz-hint">Resized to ' + r.w + 'x' + r.h + ' automatically - any size or shape works.</div>';
+  });
 }
 
 function _wizPreset(kind, btn){
@@ -2930,6 +3233,13 @@ function applyCompanyBranding(c){
   var badge = document.getElementById('poweredByBadge');
   if (badge) badge.textContent = c.productName || PRODUCT;
 
+  // Remembered for the NEXT load's splash screen, which paints long before the
+  // server has answered and so has nothing else to go on. See the splash markup.
+  try {
+    if (name) localStorage.setItem('acopio_brand_name', name);
+    else localStorage.removeItem('acopio_brand_name');
+  } catch (e) {}
+
   // The logo was being uploaded, stored and even sent to the browser as
   // c.logoId — and then nothing ever rendered it, which is why setting one in
   // the wizard appeared to do nothing at all. It's a private Drive file inside
@@ -2943,10 +3253,17 @@ function applyCompanyBranding(c){
       logo.src = dataUrl;
       logo.alt = name || '';
       logo.style.display = '';
+      // Kept for the next load's splash. Anything big enough to be worth
+      // worrying about is left out: a logo that does not fit is simply not
+      // remembered, and the splash falls back to the company name.
+      try {
+        if (dataUrl.length < 400000) localStorage.setItem('acopio_brand_logo', dataUrl);
+      } catch (e) {}
     }, 'full');                            // full file: a logo is already tiny, and the
                                            // thumbnail would drop its transparency
   } else if (logo && !c.logoId){
     logo.style.display = 'none';
+    try { localStorage.removeItem('acopio_brand_logo'); } catch (e) {}   // a removed logo must not linger on the splash
   }
 }
 
@@ -3294,6 +3611,9 @@ function exitSelectedStock(){
 
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
 function renderStock(){
+  // Header and body are drawn from the same order on every pass — rendering one
+  // without the other is how a column ends up under the wrong heading.
+  renderColHead('stock');
   var q  = (document.getElementById('stockSearch').value || '').toLowerCase();
   var cf = document.getElementById('stockFilter').value;
   var sf = document.getElementById('stockStatusFilter').value;
@@ -3337,7 +3657,7 @@ function renderStock(){
 
   if (!items.length) {
     document.getElementById('stockBody').innerHTML =
-      '<tr><td colspan="13"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
+      '<tr><td colspan="' + (_visibleColCount('stock') + 1) + '"><div class="empty-state"><div class="empty-icon">📦</div><p>No stock items match your filters.</p></div></td></tr>';
     _updateStockSelectBar();
     return;
   }
@@ -3418,7 +3738,7 @@ function renderStock(){
         }).join('') + '</div>'
       : '<p style="color:var(--muted);font-size:.8rem;padding:.25rem 0">No documents attached.</p>';
 
-    var detailPanel = '<tr id="' + detailRowId + '" class="stock-detail-row"><td colspan="13">' +
+    var detailPanel = '<tr id="' + detailRowId + '" class="stock-detail-row"><td colspan="' + (_visibleColCount('stock') + 1) + '">' +
       (supplierBadgeHtml ? '<div style="padding:.6rem .75rem 0">' + supplierBadgeHtml + '</div>' : '') +
       '<div class="stock-detail-split">' +
         '<div class="sd-col"><div class="sd-col-hdr">📷 Location Photos</div>' + photosHtml + '</div>' +
@@ -3435,64 +3755,35 @@ function renderStock(){
       ' onclick="event.stopPropagation()" onchange="toggleStockSelect(this)"' +
       (selDisabled ? ' title="No available stock to exit"' : ' title="Select for Exit"') + '>';
 
+    // Cells are built by NAME and then emitted in the user's own order, so the
+    // row can never drift out of step with the header it sits under.
+    var cells = {
+      category:     '<td class="sc-category">'+catBadge(s.category)+'</td>',
+      name:         '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>',
+      inWarehouse:  '<td class="sc-inWarehouse" style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>',
+      atSite:       '<td class="sc-atSite" style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>',
+      available:    '<td class="sc-available"><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>',
+      wasted:       '<td class="sc-wasted" style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+(s.wastedQty>0?'✕ '+s.wastedQty:'—')+'</td>',
+      reserved:     '<td class="sc-reserved" style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>',
+      location:     '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>',
+      status:       '<td class="sc-status">'+stockBadge(s)+'</td>',
+      dateReceived: '<td class="sc-dateReceived">'+dateCell+'</td>',
+      lastNote:     '<td class="sc-lastNote">'+noteCell+'</td>',
+      docs:         '<td class="sc-docs" style="text-align:center">'+summaryCell+'</td>'
+    };
+    var hiddenNow = {};
+    _colHidden('stock').forEach(function(k){ hiddenNow[k] = 1; });
+    var body = _colOrder('stock').map(function(k){
+      if (hiddenNow[k] && !_colEdit.stock) return '';
+      return cells[k] || '';
+    }).join('');
+
     return '<tr class="'+(zero?'row-zero':'')+'" data-action="toggle-stock-detail" data-row-id="'+detailRowId+'" style="cursor:pointer" title="Click to view location photos and documents">'+
-      '<td onclick="event.stopPropagation()">'+selCell+'</td>'+
-      '<td class="sc-category">'+catBadge(s.category)+'</td>'+
-      '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>'+
-      '<td class="sc-inWarehouse" style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
-      '<td class="sc-atSite" style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
-      '<td class="sc-available"><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
-      '<td class="sc-wasted" style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+
-        (s.wastedQty>0?'✕ '+s.wastedQty:'—')+'</td>'+
-      '<td class="sc-reserved" style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
-      '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>'+
-      '<td class="sc-status">'+stockBadge(s)+'</td>'+
-      '<td class="sc-dateReceived">'+dateCell+'</td>'+
-      '<td class="sc-lastNote">'+noteCell+'</td>'+
-      '<td class="sc-docs" style="text-align:center">'+summaryCell+'</td></tr>'+
+      '<td onclick="event.stopPropagation()">'+selCell+'</td>'+ body + '</tr>'+
       detailPanel;
   }).join('');
   _updateStockSelectBar();
 }
-
-// ── Movements: Column Toggle ──────────────────────────────────────────────────
-function toggleCol(col){
-  colVis[col] = !colVis[col];
-  try { localStorage.setItem(_COL_VIS_KEY, JSON.stringify(colVis)); } catch(e) {}
-  renderMovements();
-}
-
-function toggleColPicker() {
-  var menu = document.getElementById('colPickerMenu');
-  var chev = document.getElementById('colPickerChevron');
-  var open = menu.style.display === 'none';
-  menu.style.display = open ? 'block' : 'none';
-  if (chev) chev.textContent = open ? '▴' : '▾';
-}
-
-function setAllCols(val) {
-  Object.keys(colVis).forEach(function(k){ colVis[k] = val; });
-  // Sync checkboxes
-  var map = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
-              supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest', pm:'chkPm' };
-  Object.keys(map).forEach(function(k){
-    var el = document.getElementById(map[k]);
-    if (el) el.checked = val;
-  });
-  try { localStorage.setItem(_COL_VIS_KEY, JSON.stringify(colVis)); } catch(e) {}
-  renderMovements();
-}
-
-// Close col picker when clicking outside
-document.addEventListener('click', function(e) {
-  var wrap = document.getElementById('colPickerWrap');
-  if (wrap && !wrap.contains(e.target)) {
-    var menu = document.getElementById('colPickerMenu');
-    var chev = document.getElementById('colPickerChevron');
-    if (menu) menu.style.display = 'none';
-    if (chev) chev.textContent = '▾';
-  }
-});
 
 // ── Feature C: Doc / Photo thumbnail helpers ──────────────────────────────────
 // Handles /file/d/ID/view and ?id=ID (older rows, saved back when documents
@@ -3713,7 +4004,6 @@ function renderMovements(){
   var q    = (document.getElementById('movSearch').value || '').toLowerCase();
   var tf   = document.getElementById('movTypeFilter').value;
   var cf   = document.getElementById('movCatFilter').value;
-  var v    = colVis;
 
   var allMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
   var filtered = allMovs.slice().reverse().filter(function(m){
@@ -3728,27 +4018,21 @@ function renderMovements(){
     return true;
   });
 
-  var html = '<table><thead><tr>'+
-    '<th>Type</th><th>Date</th><th>Category</th><th>Name</th><th>Qty</th><th>Unit</th><th>PO#</th><th>Src→Dest</th>'+
-    (v.srcDest ? '<th>Raw Loc</th>' : '')+
-    (v.gc      ? '<th>GC</th>'       : '')+
-    (v.project ? '<th>Project</th>'  : '')+
-    (v.supplier? '<th>Supplier</th>' : '')+
-    (v.resp    ? '<th>Received By</th>':'')+
-    (v.comment ? '<th>Comments</th>' : '')+
-    (v.pm      ? '<th>PM</th>'       : '')+
-    (v.sysDate ? '<th>Sys Date</th>' : '')+
-    '<th>User</th><th>Doc</th>'+
-    (userRole==='ADMIN'?'<th></th>':'')+
-    '</tr></thead><tbody>';
+  // Which columns, in which order, is the reader's — see COL_TABLES. Each row
+  // builds every cell and then emits the ones this reader asked for, rather
+  // than a fixed sequence of conditionals.
+  var isAdmin   = userRole === 'ADMIN';
+  var order     = _colOrder('mov');
+  var hiddenNow = {};
+  _colHidden('mov').forEach(function(k){ hiddenNow[k] = 1; });
 
   // ── Pagination ────────────────────────────────────────────────────────────
-  var total    = filtered.length;
-  var pageEnd  = Math.min(_movPage * _MOV_PAGE_SZ, total);
-  var paged    = filtered.slice(0, pageEnd);
+  var total     = filtered.length;
+  var pageEnd   = Math.min(_movPage * _MOV_PAGE_SZ, total);
+  var paged     = filtered.slice(0, pageEnd);
   var remaining = total - pageEnd;
 
-  html += paged.map(function(m){
+  var rows = paged.map(function(m){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
     // Src→Dest display rules:
@@ -3778,47 +4062,68 @@ function renderMovements(){
     // active sheet — view/export only, no edit/attach (see loadOlderHistory()).
     var attachBtn = m.archived ? '' : '<button class="btn-icon" data-row="'+m.rowIdx+'" data-po="'+(m.po||'General').replace(/"/g,'')+'">📎</button>';
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
-    return '<tr class="'+rowClass(m.moveType)+'">'+
-      '<td>'+moveBadge(m.moveType)+'</td>'+
-      '<td style="white-space:nowrap">'+_he(m.dateRec||m.timestamp||'—')+'</td>'+
-      '<td>'+catBadge(m.category)+'</td>'+
-      '<td><strong>'+_he(displayName(m))+'</strong></td>'+
-      '<td style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+
-        (isOut?'−':'+')+m.qty+'</td>'+
-      '<td style="color:var(--muted);font-size:.78rem">'+_he(m.unit||'—')+'</td>'+
-      '<td style="font-size:.78rem">'+_he(m.po||'—')+'</td>'+
-      '<td style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>'+
-      (v.srcDest?'<td style="font-size:.75rem;color:var(--muted)">'+_he(srcDest)+'</td>':'')+
-      (v.gc     ?'<td style="font-size:.78rem">'+_he(m.gc||'—')+'</td>':'')+
-      (v.project?'<td style="font-size:.78rem">'+_he(m.project||'—')+'</td>':'')+
-      (v.supplier?'<td style="font-size:.78rem">'+_he(m.supplier||'—')+'</td>':'')+
-      (v.resp   ?'<td style="font-size:.78rem">'+_he(m.responsible||'—')+'</td>':'')+
-      (v.comment?'<td style="font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(m.comments||'')+'">'+_he(m.comments||'—')+'</td>':'')+
-      (v.pm     ?'<td style="font-size:.78rem">'+_he(m.pm||'—')+'</td>':'')+
-      (v.sysDate?'<td style="font-size:.72rem;color:var(--muted)">'+_he(m.timestamp||'—')+'</td>':'')+
-      '<td style="font-size:.7rem;color:var(--muted)">'+_he(m.userEmail||'—')+'</td>'+
-      '<td style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'+
-      (userRole==='ADMIN'?'<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>':'')+
-      '</tr>';
+
+    var cells = {
+      type:     '<td class="mc-type">'+moveBadge(m.moveType)+'</td>',
+      date:     '<td class="mc-date" style="white-space:nowrap">'+_he(m.dateRec||m.timestamp||'—')+'</td>',
+      category: '<td class="mc-category">'+catBadge(m.category)+'</td>',
+      name:     '<td class="mc-name"><strong>'+_he(displayName(m))+'</strong></td>',
+      qty:      '<td class="mc-qty" style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+(isOut?'−':'+')+m.qty+'</td>',
+      unit:     '<td class="mc-unit" style="color:var(--muted);font-size:.78rem">'+_he(m.unit||'—')+'</td>',
+      po:       '<td class="mc-po" style="font-size:.78rem">'+_he(m.po||'—')+'</td>',
+      locFlow:  '<td class="mc-locFlow" style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>',
+      rawLoc:   '<td class="mc-rawLoc" style="font-size:.75rem;color:var(--muted)">'+_he(srcDest)+'</td>',
+      gc:       '<td class="mc-gc" style="font-size:.78rem">'+_he(m.gc||'—')+'</td>',
+      project:  '<td class="mc-project" style="font-size:.78rem">'+_he(m.project||'—')+'</td>',
+      supplier: '<td class="mc-supplier" style="font-size:.78rem">'+_he(m.supplier||'—')+'</td>',
+      resp:     '<td class="mc-resp" style="font-size:.78rem">'+_he(m.responsible||'—')+'</td>',
+      comment:  '<td class="mc-comment" style="font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(m.comments||'')+'">'+_he(m.comments||'—')+'</td>',
+      pm:       '<td class="mc-pm" style="font-size:.78rem">'+_he(m.pm||'—')+'</td>',
+      sysDate:  '<td class="mc-sysDate" style="font-size:.72rem;color:var(--muted)">'+_he(m.timestamp||'—')+'</td>',
+      user:     '<td class="mc-user" style="font-size:.7rem;color:var(--muted)">'+_he(m.userEmail||'—')+'</td>',
+      doc:      '<td class="mc-doc" style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'
+    };
+
+    var body = order.map(function(k){
+      if (hiddenNow[k] && !_colEdit.mov) return '';
+      return cells[k] || '';
+    }).join('');
+
+    var adminCell = isAdmin
+      ? '<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>'
+      : '';
+
+    return '<tr class="'+rowClass(m.moveType)+'">' + body + adminCell + '</tr>';
   }).join('');
 
-  if (!total) {
-    document.getElementById('tableContainer').innerHTML =
-      '<div class="empty-state"><div class="empty-icon">📋</div><p>No movements match your filters.</p></div>';
-    return;
+  var span = _visibleColCount('mov') + (isAdmin ? 1 : 0);
+
+  // An empty result used to replace the whole table, header included — which
+  // took the column editor off screen with it. The message is a row now, so the
+  // headings stay put whatever the filters match.
+  if (!total){
+    rows = '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
+           '<p>No movements match your filters.</p></div></td></tr>';
   }
 
-  // Load-more button
+  var foot = total
+    ? '<tfoot><tr><td colspan="'+span+'" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'+
+      pageEnd + ' of ' + total + ' records</td></tr></tfoot>'
+    : '';
+
   var loadMoreBtn = remaining > 0
     ? '<button onclick="_loadMoreMovements()" style="width:100%;padding:.6rem;margin-top:.5rem;background:none;border:1px dashed var(--border);border-radius:8px;color:var(--muted);font-size:.82rem;cursor:pointer;font-family:inherit" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">⬇ Load ' + Math.min(remaining, _MOV_PAGE_SZ) + ' more &nbsp;<span style="opacity:.55">(' + remaining + ' remaining)</span></button>'
     : '';
 
-  html += '</tbody><tfoot><tr><td colspan="20" style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">'
-        + pageEnd + ' of ' + total + ' records</td></tr></tfoot></table>'
-        + loadMoreBtn;
-  document.getElementById('tableContainer').innerHTML = html;
+  var tc = document.getElementById('tableContainer');
+  tc.innerHTML = '<table><thead><tr id="movHeadRow">' + _colHeadRowHtml('mov') + '</tr></thead>' +
+                 '<tbody>' + rows + '</tbody>' + foot + '</table>' + loadMoreBtn;
 
-  document.getElementById('tableContainer').querySelectorAll('[data-row]').forEach(function(btn){
+  // The header is rebuilt with the table, so its drag/hide/rename handlers have
+  // to be attached again each time.
+  if (_colEdit.mov) _wireColEdit('mov');
+
+  tc.querySelectorAll('[data-row]').forEach(function(btn){
     btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
   });
 }
@@ -5740,6 +6045,116 @@ function _rebuildStockNow() {
     .processMovement('adminAction', _h({ action: 'reconcile' }));
 }
 
+// ── Company: name, domain and logo ──────────────────────────────────────────
+// All three used to be settable only inside the setup wizard, so a company
+// whose logo arrived a month after going live had to walk back through the
+// whole wizard to add it. They are settings now.
+var _coLogo = null;          // picked, not saved yet: { dataUrl, fileData, w, h }
+var _coLogoRemove = false;
+
+// The header's logo is already an <img> holding the real image, so the preview
+// costs nothing. On a page that hasn't fetched it yet, the copy the splash
+// screen remembers does just as well.
+function _coCurrentLogoUrl(){
+  var el = document.getElementById('appLogo');
+  if (el && el.src && el.style.display !== 'none') return el.src;
+  try { return localStorage.getItem('acopio_brand_logo') || ''; } catch (e) { return ''; }
+}
+
+function _coLogoBoxHtml(){
+  var url = _coLogo ? _coLogo.dataUrl : (_coLogoRemove ? '' : _coCurrentLogoUrl());
+  if (!url){
+    return '<div class="co-logo-box co-logo-empty">' +
+      (_coLogoRemove ? 'Logo will be removed when you save.' : 'No logo yet') + '</div>';
+  }
+  return '<div class="co-logo-box"><img src="' + _escAttr(url) + '" alt=""></div>' +
+    (_coLogo ? '<div class="co-hint">New image, ' + _coLogo.w + '×' + _coLogo.h +
+               ' — click Save changes to apply it.</div>' : '');
+}
+
+function _renderCompanyTab(){
+  var c = (_settingsData && _settingsData.company) || {};
+  document.getElementById('settingsTabContent').innerHTML =
+    '<div class="co-form">' +
+      '<label class="co-label" for="coName">Company name</label>' +
+      '<input type="text" id="coName" class="co-input" maxlength="60" value="' + _escAttr(c.name || '') + '">' +
+      '<p class="co-hint">Shown in the header, on the browser tab, on the loading screen, and as the sender name on every email this system sends.</p>' +
+
+      '<label class="co-label" for="coDomain">Email domain <span class="co-opt">(optional)</span></label>' +
+      '<input type="text" id="coDomain" class="co-input" maxlength="60" placeholder="yourcompany.com" value="' + _escAttr(c.domain || '') + '">' +
+      '<p class="co-hint">People with an email at this domain are recognised as staff. Everyone still has to be on the user list to get in — this only saves them the extra sign-in step. Leave it blank if your team uses personal Gmail accounts.</p>' +
+
+      '<label class="co-label">Logo</label>' +
+      '<div id="coLogoWrap">' + _coLogoBoxHtml() + '</div>' +
+      '<div class="co-logo-acts">' +
+        '<input type="file" id="coLogoFile" accept="image/*" style="display:none" onchange="_coLogoPick(this)">' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'coLogoFile\').click()">' +
+          (_coCurrentLogoUrl() && !_coLogoRemove ? 'Replace image' : 'Choose image') + '</button>' +
+        ((_coCurrentLogoUrl() && !_coLogoRemove) || _coLogo
+          ? '<button type="button" class="btn btn-ghost btn-sm" onclick="_coClearLogo()">Remove</button>' : '') +
+        (_coLogoRemove || _coLogo
+          ? '<button type="button" class="btn btn-ghost btn-sm" onclick="_coUndoLogo()">Undo</button>' : '') +
+      '</div>' +
+      '<p class="co-hint">Any size or shape works — it is resized automatically. Appears beside the company name in the header and on the loading screen.</p>' +
+
+      '<div class="co-save"><button type="button" class="btn btn-primary" id="coSave" onclick="_saveCompanyProfile()">Save changes</button></div>' +
+    '</div>';
+}
+
+function _coLogoPick(inp){
+  if (!inp.files || !inp.files[0]) return;
+  _resizeLogoFile(inp.files[0], function(r){
+    _coLogo = r;
+    _coLogoRemove = false;
+    _renderCompanyTab();
+  });
+  inp.value = '';    // so picking the same file twice still fires onchange
+}
+
+function _coClearLogo(){ _coLogo = null; _coLogoRemove = true;  _renderCompanyTab(); }
+function _coUndoLogo(){  _coLogo = null; _coLogoRemove = false; _renderCompanyTab(); }
+
+function _saveCompanyProfile(){
+  var name   = (document.getElementById('coName').value   || '').trim();
+  var domain = (document.getElementById('coDomain').value || '').trim();
+  if (!name){ _settingMsg('Company name is required.', 'error'); return; }
+
+  var payload = { name: name, domain: domain };
+  var picked = _coLogo;
+  if (_coLogoRemove) payload.removeLogo = true;
+  else if (picked) payload.logo = { fileData: picked.fileData, fileMimeType: 'image/png', fileName: 'logo.png' };
+
+  var btn = document.getElementById('coSave');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      var c = (res && res.company) || {};
+      if (_settingsData) _settingsData.company = c;
+      // We already hold the image in the browser, so paint it straight into the
+      // header rather than making applyCompanyBranding fetch back the file we
+      // just uploaded.
+      if (picked && c.logoId){
+        var el = document.getElementById('appLogo');
+        if (el){
+          el.dataset.loadedId = c.logoId;
+          el.src = picked.dataUrl; el.alt = name; el.style.display = '';
+        }
+        try {
+          if (picked.dataUrl.length < 400000) localStorage.setItem('acopio_brand_logo', picked.dataUrl);
+        } catch (e) {}
+      }
+      applyCompanyBranding(c);
+      _coLogo = null; _coLogoRemove = false;
+      _renderCompanyTab();
+      showToast('Company details saved ✓', 'ok');
+    })
+    .withFailureHandler(function(e){
+      btn.disabled = false; btn.textContent = 'Save changes';
+      _settingMsg('Could not save: ' + (e.message || e), 'error');
+    })
+    .processMovement('saveCompanyProfile', _h(payload));
+}
+
 function _renderSystemTab() {
   var content = document.getElementById('settingsTabContent');
   var months = String((_settingsData && _settingsData.archiveCutoffMonths) || 12);
@@ -5951,8 +6366,8 @@ function _renderSettingsTab(tab) {
   if (tab === 'system')      { _renderSystemTab(); return; }
   if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
   if (tab === 'import')      { _renderImportTab(); return; }
-  if (tab === 'columns')     { _renderColumnsTab(); return; }
   if (tab === 'locations')   { _renderLocationsTab(); return; }
+  if (tab === 'company')     { _renderCompanyTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -7931,6 +8346,17 @@ function _cfgWake(){
   deck.addEventListener('mouseenter', _cfgWake);
   deck.addEventListener('mouseleave', function(){ _cfgScheduleDim(_CFG_REDIM_MS); });
 })();
+
+// Above the breakpoint the corner decks take over and the bell disappears — but
+// a panel left open stayed open, so the same suggestions were on screen twice.
+// Closing just the panel, rather than re-rendering anything, is all that is
+// needed.
+window.addEventListener('resize', function(){
+  if (window.innerWidth > 900) {
+    var panel = document.getElementById('cfgBellPanel');
+    if (panel) panel.classList.remove('show');
+  }
+});
 
 function toggleCfgBell(e){
   if (e) e.stopPropagation();
@@ -9953,14 +10379,6 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('movSearch','input', _debounce(function(){ _movPage=1; renderMovements(); }, 220));
   _safeOn('movTypeFilter','change', function(){ _movPage=1; renderMovements(); });
   _safeOn('movCatFilter','change', function(){ _movPage=1; renderMovements(); });
-
-  // Column toggles
-  var _chkMap = { sysDate:'chkSysDate', gc:'chkGc', project:'chkProj',
-                  supplier:'chkSup', resp:'chkResp', comment:'chkComm', srcDest:'chkSrcDest', pm:'chkPm' };
-  Object.keys(_chkMap).forEach(function(k){
-    var el = document.getElementById(_chkMap[k]);
-    if (el) { el.checked = !!colVis[k]; el.addEventListener('change', function(){ toggleCol(k); }); }
-  });
 
   // Export
   _safeOn('btnExportCSV','click', exportMovementsCSV);

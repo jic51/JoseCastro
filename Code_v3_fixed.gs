@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.39';
+var APP_VERSION = '9.44';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1511,6 +1511,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'saveLocationLayout') return saveLocationLayout(data, auth);
   if (action === 'mergeLocations')     return mergeLocations(data, auth);
   if (action === 'saveColumnPrefs')    return saveColumnPrefs(data, auth);
+  if (action === 'saveCompanyProfile') return saveCompanyProfile(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -4897,7 +4898,8 @@ function getSettings(auth) {
       c.locations.forEach(function(l){ m[l.name] = l.type || 'RACK'; });
       return m;
     })(),
-    archiveCutoffMonths: c.archiveCutoffMonths
+    archiveCutoffMonths: c.archiveCutoffMonths,
+    company: publicCompany_()      // the Company tab edits these
   };
 }
 
@@ -5009,6 +5011,62 @@ function saveColumnPrefs(data, auth) {
   auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'UPDATE_CONFIG', auth.email,
     'columns', Object.keys(labels).length + ' renamed', hidden.length + ' hidden');
   return { status: 'success' };
+}
+
+// ─── COMPANY NAME, DOMAIN AND LOGO ───────────────────────────────────────────
+// These were only ever settable in the setup wizard, which meant a company that
+// got its logo made a month after going live had no way to add it short of
+// walking back through the whole wizard. They are settings, not a one-time
+// ceremony, so they are editable like any other.
+//
+// data = { name, domain, logo:{fileData, fileMimeType}|null, removeLogo:bool }
+function saveCompanyProfile(data, auth) {
+  auth = requireAuth_('ADMIN');
+  data = data || {};
+  var p = PropertiesService.getScriptProperties();
+
+  var name = String(data.name || '').trim();
+  if (!name) throw new Error('Company name is required.');
+  var before = companySettings_();
+  p.setProperty('COMPANY_NAME', name);
+
+  // Leading @ is what people type; the rest of the app compares bare domains.
+  p.setProperty('COMPANY_DOMAIN', String(data.domain || '').trim().replace(/^@/, '').toLowerCase());
+
+  // FOLDER_PREFIX is deliberately NOT recomputed from the new name. Every
+  // document and photo ever attached lives in a folder named after the prefix,
+  // and DOC_LINKS rows point into it — renaming the company must not orphan
+  // them. Same rule the wizard follows on a re-run.
+
+  if (data.removeLogo) {
+    trashFileQuietly_(before.logoId);
+    p.deleteProperty('COMPANY_LOGO_ID');
+  } else if (data.logo && data.logo.fileData) {
+    var bytes = Utilities.base64Decode(data.logo.fileData);
+    var blob  = Utilities.newBlob(bytes, data.logo.fileMimeType || 'image/png', 'logo');
+    var file  = getOrCreateFolder_(docsFolderName_()).createFile(blob);
+    p.setProperty('COMPANY_LOGO_ID', file.getId());
+    trashFileQuietly_(before.logoId);   // only after the new one is safely stored
+  }
+
+  // The spreadsheet file's own name follows the company, the same way the
+  // wizard sets it — otherwise Drive keeps showing the old company forever.
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var wanted = name + ' — ' + PRODUCT_NAME;
+    if (ss.getName() !== wanted) ss.rename(wanted);
+    auditLog_(ss, 'UPDATE_CONFIG', auth.email, 'company', before.name || '(none)', name);
+  } catch (e) {}
+
+  return { status: 'success', company: publicCompany_() };
+}
+
+// An old logo that cannot be trashed (already deleted by hand, or owned by
+// somebody else after a transfer) is not a reason to fail the save — the new
+// one is already in place by then.
+function trashFileQuietly_(fileId) {
+  if (!fileId) return;
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) {}
 }
 
 // Writes the Locations column and its Type column back in one go, in the exact
