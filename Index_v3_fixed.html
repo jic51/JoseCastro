@@ -776,6 +776,10 @@
     .splash-note{font-size:.8rem;color:#a1b0cb;text-align:center;min-height:1.2em}
     .submit-hint{flex:1;min-width:160px;font-size:.75rem;color:var(--orange);font-weight:600;text-align:left}
     .btn:disabled{opacity:.5;cursor:not-allowed}
+    .col-pref-table{width:100%;border-collapse:collapse;font-size:.82rem}
+    .col-pref-table th{text-align:left;padding:.4rem .5rem;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+    .col-pref-table td{padding:.35rem .5rem;border-bottom:1px solid var(--border)}
+    .col-pref-table input[type=text]{width:100%;padding:.35rem .5rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;font-family:inherit}
     .cat-fix-btn{margin-top:.35rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cat-fix-btn:hover{filter:brightness(1.1)}
     /* Own tooltip instead of the browser's title bubble: that one cannot be
@@ -976,8 +980,9 @@
      Shown from the first paint until real data arrives. Without it the first
      thing a customer sees is the placeholder title ("Warehouse") and an empty
      table, which reads as a broken app for the ten-plus seconds Apps Script can
-     take to answer. Removed by _hideSplash() on the first successful load, and
-     on failure too, so it can never strand the page behind it. -->
+     take to answer. Lifted when the connection indicator turns green — that is
+     the app's own "finished" signal — and on every failure path too, so it can
+     never strand the page behind it. -->
 <div id="appSplash" class="app-splash">
   <div class="splash-mark">
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -1165,12 +1170,12 @@
         <table>
           <thead><tr>
             <th style="width:30px"></th>
-            <th>Category</th><th>Name / Description</th>
-            <th class="tip" data-tip="Units on hand in the warehouse">In Warehouse</th>
-            <th class="tip" data-tip="Sent out to a job — used or delivered">Used / Del</th>
-            <th class="tip" data-tip="In warehouse, minus what is reserved">Available</th>
-            <th class="tip" data-tip="Recorded as damaged or scrapped">Wasted</th>
-            <th>Reserved</th><th class="tip" data-tip="Where this material is stored">Location</th><th>Status</th><th class="tip" data-tip="Date of the most recent entry">Date Received</th><th>Last Note</th><th>Docs</th>
+            <th class="sc-category">Category</th><th class="sc-name">Name / Description</th>
+            <th class="sc-inWarehouse tip" data-tip="Units on hand in the warehouse">In Warehouse</th>
+            <th class="sc-atSite tip" data-tip="Sent out to a job — used or delivered">Used / Del</th>
+            <th class="sc-available tip" data-tip="In warehouse, minus what is reserved">Available</th>
+            <th class="sc-wasted tip" data-tip="Recorded as damaged or scrapped">Wasted</th>
+            <th class="sc-reserved">Reserved</th><th class="sc-location tip" data-tip="Where this material is stored">Location</th><th class="sc-status">Status</th><th class="sc-dateReceived tip" data-tip="Date of the most recent entry">Date Received</th><th class="sc-lastNote">Last Note</th><th class="sc-docs">Docs</th>
           </tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -1867,6 +1872,7 @@
         <button class="settings-tab"        data-tab="locations"   onclick="switchSettingsTab('locations')">📍 <span>Locations</span></button>
         <button class="settings-tab"        data-tab="materials"   onclick="switchSettingsTab('materials')">🔧 <span>Materials</span></button>
         <button class="settings-tab"        data-tab="pmdirectory" onclick="switchSettingsTab('pmdirectory')">📇 <span>Directory</span></button>
+        <button class="settings-tab"        data-tab="columns"     onclick="switchSettingsTab('columns')">📐 <span>Columns</span></button>
         <button class="settings-tab"        data-tab="import"      onclick="switchSettingsTab('import')">📥 <span>Import</span></button>
         <div class="settings-sidebar-label">Diagnostics</div>
         <button class="settings-tab"        data-tab="errorlog"    onclick="switchSettingsTab('errorlog')">🐞 <span>Error Log</span></button>
@@ -2028,7 +2034,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.37';
+var APP_VERSION = '9.39';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2297,6 +2303,135 @@ function _updateMoveSubmitState(){
 // form is open — binding per field would miss every row created later.
 document.addEventListener('input',  function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
 document.addEventListener('change', function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
+
+// ── Column labels and visibility ─────────────────────────────────────────────
+// The words on a warehouse screen belong to the warehouse. One business calls a
+// shelf a rack, the next calls it a bay; "At Site" reads as delivered to one
+// and as used-on-a-job to another. Both the label and whether a column appears
+// at all are the customer's to decide.
+var STOCK_COLS = [
+  { key:'category',     def:'Category',         lock:false },
+  { key:'name',         def:'Name / Description', lock:true },   // the row would be meaningless without it
+  { key:'inWarehouse',  def:'In Warehouse',     lock:false },
+  { key:'atSite',       def:'Used / Del',       lock:false },
+  { key:'available',    def:'Available',        lock:false },
+  { key:'wasted',       def:'Wasted',           lock:false },
+  { key:'reserved',     def:'Reserved',         lock:false },
+  { key:'location',     def:'Location',         lock:false },
+  { key:'status',       def:'Status',           lock:false },
+  { key:'dateReceived', def:'Date Received',    lock:false },
+  { key:'lastNote',     def:'Last Note',        lock:false },
+  { key:'docs',         def:'Docs',             lock:false }
+];
+
+var columnPrefs = { labels: {}, hidden: [] };
+
+function _applyColumnPrefs(){
+  // Hiding is done with one injected stylesheet rule per column rather than by
+  // rebuilding rows: the table is re-rendered constantly, and a rule survives
+  // every render for free.
+  var hidden = columnPrefs.hidden || [];
+  var css = hidden.map(function(k){ return '.sc-' + k + '{display:none}'; }).join('');
+  var tag = document.getElementById('colPrefStyle');
+  if (!tag){
+    tag = document.createElement('style');
+    tag.id = 'colPrefStyle';
+    document.head.appendChild(tag);
+  }
+  tag.textContent = css;
+
+  STOCK_COLS.forEach(function(c){
+    var th = document.querySelector('thead th.sc-' + c.key);
+    if (!th) return;
+    var custom = (columnPrefs.labels || {})[c.key];
+    // Only the label text is replaced — the tooltip element and its data stay,
+    // so renaming a column does not cost its explanation.
+    th.childNodes[0] ? (th.childNodes[0].nodeValue = custom || c.def) : (th.textContent = custom || c.def);
+  });
+}
+
+function _colLabel(key){
+  var c = null;
+  STOCK_COLS.forEach(function(x){ if (x.key === key) c = x; });
+  if (!c) return key;
+  return (columnPrefs.labels || {})[key] || c.def;
+}
+
+function _renderColumnsTab(){
+  var content = document.getElementById('settingsTabContent');
+  var hidden = {};
+  (columnPrefs.hidden || []).forEach(function(k){ hidden[k] = 1; });
+
+  content.innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.9rem">' +
+      'Rename the columns of the Stock Dashboard to match how your team talks, and hide the ones you do not use. ' +
+      'Leave a name blank to go back to the default. This changes the screen only — nothing in your data is renamed.' +
+    '</p>' +
+    '<table class="col-pref-table"><thead><tr>' +
+      '<th style="width:44px">Show</th><th>Default</th><th>Your name for it</th>' +
+    '</tr></thead><tbody>' +
+    STOCK_COLS.map(function(c){
+      var cur = (columnPrefs.labels || {})[c.key] || '';
+      return '<tr>' +
+        '<td style="text-align:center">' +
+          (c.lock
+            ? '<span title="This column cannot be hidden" style="color:var(--muted)">—</span>'
+            : '<input type="checkbox" class="col-show" data-key="' + c.key + '"' + (hidden[c.key] ? '' : ' checked') + '>') +
+        '</td>' +
+        '<td style="font-size:.8rem;color:var(--muted)">' + _he(c.def) + '</td>' +
+        '<td><input type="text" class="col-label" data-key="' + c.key + '" value="' + _escAttr(cur) + '" placeholder="' + _escAttr(c.def) + '"></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table>' +
+    '<div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap">' +
+      '<button class="btn btn-primary btn-sm" id="colPrefSave">Save columns</button>' +
+      '<button class="btn btn-ghost btn-sm" id="colPrefReset">Reset to defaults</button>' +
+    '</div>';
+
+  document.getElementById('colPrefSave').addEventListener('click', function(){
+    var btn = this;
+    var labels = {}, hid = [];
+    document.querySelectorAll('.col-label').forEach(function(inp){
+      var v = (inp.value || '').trim();
+      if (v) labels[inp.getAttribute('data-key')] = v;
+    });
+    document.querySelectorAll('.col-show').forEach(function(cb){
+      if (!cb.checked) hid.push(cb.getAttribute('data-key'));
+    });
+    btn.disabled = true; btn.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(){
+        columnPrefs = { labels: labels, hidden: hid };
+        _applyColumnPrefs();
+        btn.disabled = false; btn.textContent = 'Save columns';
+        showToast('Columns updated ✓', 'ok');
+      })
+      .withFailureHandler(function(e){
+        btn.disabled = false; btn.textContent = 'Save columns';
+        showToast('Could not save: ' + (e.message || e), 'err', 6000);
+      })
+      .processMovement('saveColumnPrefs', _h({ labels: labels, hidden: hid }));
+  });
+
+  document.getElementById('colPrefReset').addEventListener('click', function(){
+    _showConfirm({
+      icon: '↩', title: 'Reset column names?',
+      message: 'Every column goes back to its default name and becomes visible again.',
+      confirmText: 'Reset',
+      onConfirm: function(){
+        google.script.run
+          .withSuccessHandler(function(){
+            columnPrefs = { labels: {}, hidden: [] };
+            _applyColumnPrefs();
+            _renderColumnsTab();
+            showToast('Columns reset ✓', 'ok');
+          })
+          .withFailureHandler(function(e){ showToast('Could not reset: ' + (e.message || e), 'err', 6000); })
+          .processMovement('saveColumnPrefs', _h({ labels: {}, hidden: [] }));
+      }
+    });
+  });
+}
 
 function displayName(m){
   return (m.name||'').trim() || (m.comments||'').substring(0,60) || 'Unnamed';
@@ -3302,19 +3437,19 @@ function renderStock(){
 
     return '<tr class="'+(zero?'row-zero':'')+'" data-action="toggle-stock-detail" data-row-id="'+detailRowId+'" style="cursor:pointer" title="Click to view location photos and documents">'+
       '<td onclick="event.stopPropagation()">'+selCell+'</td>'+
-      '<td>'+catBadge(s.category)+'</td>'+
-      '<td><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>'+
-      '<td style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
-      '<td style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
-      '<td><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
-      '<td style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+
+      '<td class="sc-category">'+catBadge(s.category)+'</td>'+
+      '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>'+
+      '<td class="sc-inWarehouse" style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>'+
+      '<td class="sc-atSite" style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>'+
+      '<td class="sc-available"><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>'+
+      '<td class="sc-wasted" style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+
         (s.wastedQty>0?'✕ '+s.wastedQty:'—')+'</td>'+
-      '<td style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
-      '<td style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>'+
-      '<td>'+stockBadge(s)+'</td>'+
-      '<td>'+dateCell+'</td>'+
-      '<td>'+noteCell+'</td>'+
-      '<td style="text-align:center">'+summaryCell+'</td></tr>'+
+      '<td class="sc-reserved" style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>'+
+      '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>'+
+      '<td class="sc-status">'+stockBadge(s)+'</td>'+
+      '<td class="sc-dateReceived">'+dateCell+'</td>'+
+      '<td class="sc-lastNote">'+noteCell+'</td>'+
+      '<td class="sc-docs" style="text-align:center">'+summaryCell+'</td></tr>'+
       detailPanel;
   }).join('');
   _updateStockSelectBar();
@@ -5816,6 +5951,7 @@ function _renderSettingsTab(tab) {
   if (tab === 'system')      { _renderSystemTab(); return; }
   if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
   if (tab === 'import')      { _renderImportTab(); return; }
+  if (tab === 'columns')     { _renderColumnsTab(); return; }
   if (tab === 'locations')   { _renderLocationsTab(); return; }
 
   var items = _settingsData[tab] || [];
@@ -6635,6 +6771,11 @@ function _cfgAdd(tab) {
   var inp = document.getElementById('cfgNewVal');
   var val = inp ? inp.value.trim() : '';
   if (!val) { inp.focus(); return; }
+  // Stored uppercase, like every other path already does — the wizard, the chip
+  // inputs and the deck all uppercase before saving. Settings was the one place
+  // that did not, which is how "crown" and "CROWN" could end up as two
+  // categories that look identical in a report.
+  val = val.toUpperCase();
   _cfgCall({ type: tab, op: 'add', newValue: val }, function(){ if(inp) inp.value = ''; });
 }
 
@@ -6691,6 +6832,14 @@ function _applyCfgChangeLocally(p) {
   _renderSettingsTab(_settingsTab);
   refreshCategoryDropdowns();
   refreshDropdowns();
+
+  // Re-rendering the tab rebuilds the input, so focus has to be put back —
+  // otherwise entering a list of categories means reaching for the mouse
+  // between every single one.
+  if (p.op === 'add') {
+    var box = document.getElementById('cfgNewVal');
+    if (box) { box.value = ''; box.focus(); }
+  }
 }
 
 // ── Materials tab ─────────────────────────────────────────────────────────────
@@ -9416,7 +9565,6 @@ function loadDataFromGoogle(skipCache){
     refreshDropdowns();
     refreshProjectDropdown();
     renderAll();
-    _hideSplash();
   } else {
     setLoading(true);
     // Show explicit loading message so user knows app is connecting (can take 10-20s)
@@ -9455,7 +9603,6 @@ function loadDataFromGoogle(skipCache){
         // ── Normal load ─────────────────────────────────────────────────────
         _applyData(data);
         _saveCache(data);
-        _hideSplash();
         _announceSystemActivity();
         lastLoadTime = Date.now();
         setConnStatus('online');
@@ -9531,6 +9678,7 @@ function _applyData(data) {
   materialLocks      = data.materialLocks      || [];
   _gmailScanEnabled  = data.gmailScanEnabled === true;
   systemActivity     = data.systemActivity     || [];
+  if (data.columnPrefs) { columnPrefs = data.columnPrefs; _applyColumnPrefs(); }
   _rebuildLocksIndex();
   if (data.users && data.users.length) _usersData = data.users;
 }
@@ -9931,6 +10079,11 @@ function applyRoleUI(){
 var lastLoadTime = null;
 
 function setConnStatus(status){
+  // The splash lifts on GREEN, not on "data arrived". Those are not the same
+  // moment: rendering, dropdown rebuilds and the derived views all run after
+  // the payload lands, and hiding the splash first showed a page still visibly
+  // assembling itself. Green is the app's own signal that it is done.
+  if (status === 'online') _hideSplash();
   var btn = document.getElementById('connBtn');
   if (!btn) return;
   btn.className = 'conn-btn ' + status;

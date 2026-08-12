@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.37';
+var APP_VERSION = '9.39';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1004,6 +1004,7 @@ function getInitialData(sessionToken) {
       serverVersion:      APP_VERSION,
       company:            publicCompany_(),
       systemActivity:     (function(){ try { return getSystemActivity(8); } catch (e) { return []; } })(),
+      columnPrefs:        columnPrefs_(),
       movements:          movements,
       stock:              stock,
       config:             config,
@@ -1509,6 +1510,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'mergeConfigValues') return mergeConfigValues(data, auth);
   if (action === 'saveLocationLayout') return saveLocationLayout(data, auth);
   if (action === 'mergeLocations')     return mergeLocations(data, auth);
+  if (action === 'saveColumnPrefs')    return saveColumnPrefs(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -4493,7 +4495,8 @@ var TEMPLATE_WIPE_PROPS = [
   'FOLDER_PREFIX_HISTORY', 'SETUP_COMPLETE', 'WEB_APP_URL', 'SESSION_SECRET',
   'WMS_SESSIONS', 'WMS_MONITORED_MATERIALS', 'GMAIL_SCAN_ENABLED',
   'ERROR_ALERTS_ENABLED', 'GEMINI_API_KEY',
-  'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'OAUTH_REDIRECT_URI'
+  'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'OAUTH_REDIRECT_URI',
+  'COLUMN_PREFS'
 ];
 
 function menuPrepareMasterTemplate() {
@@ -4960,6 +4963,52 @@ function mergeLocations(data, auth) {
   refreshDerivedSheets_(ss);
   auditLog_(ss, 'MERGE_LOCATIONS', auth.email, from.join(' + ') + ' → ' + into, String(rowsChanged) + ' cells', '');
   return { status: 'success', rowsChanged: rowsChanged, into: into };
+}
+
+// ─── COLUMN LABELS AND VISIBILITY ────────────────────────────────────────────
+// Every business names these things differently — one calls a shelf a rack, the
+// next calls it a bay; "At Site" means delivered to one customer and used on a
+// job to another. Hardcoding our words into their screen makes the product feel
+// like it was built for somebody else.
+//
+// Stored as one JSON blob in Script Properties rather than as CONFIG columns:
+// it is a handful of settings, not a catalog, and CONFIG's columns are already
+// crowded. Being a Script Property also means it does not survive into a
+// customer's copy of the template, which is right — these are one
+// installation's words.
+function columnPrefs_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('COLUMN_PREFS');
+  if (!raw) return { labels: {}, hidden: [] };
+  try {
+    var o = JSON.parse(raw);
+    return { labels: o.labels || {}, hidden: o.hidden || [] };
+  } catch (e) {
+    return { labels: {}, hidden: [] };
+  }
+}
+
+function saveColumnPrefs(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var labels = {}, hidden = [];
+
+  // Only trimmed, non-empty overrides are kept. A blank box means "use the
+  // default name", which must not be stored as an empty header.
+  var inLabels = (data && data.labels) || {};
+  Object.keys(inLabels).forEach(function (k) {
+    var v = String(inLabels[k] || '').trim();
+    if (v) labels[String(k).substring(0, 40)] = v.substring(0, 40);
+  });
+
+  ((data && data.hidden) || []).forEach(function (k) {
+    k = String(k || '').trim();
+    if (k) hidden.push(k.substring(0, 40));
+  });
+
+  PropertiesService.getScriptProperties()
+    .setProperty('COLUMN_PREFS', JSON.stringify({ labels: labels, hidden: hidden }));
+  auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'UPDATE_CONFIG', auth.email,
+    'columns', Object.keys(labels).length + ' renamed', hidden.length + ' hidden');
+  return { status: 'success' };
 }
 
 // Writes the Locations column and its Type column back in one go, in the exact
