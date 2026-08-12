@@ -41,7 +41,6 @@
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
     .nav button.active{background:var(--accent);color:#fff}
     .author-badge{background:rgba(0,0,0,.2);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.7rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
-    .user-chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:.72rem;color:rgba(255,255,255,.75)}
     /* ── LAYOUT ── */
     .container{max-width:1400px;margin:0 auto;padding:1.25rem;flex-grow:1;width:100%}
     .section{display:none}.section.active{display:block}
@@ -453,17 +452,35 @@
     .conn-btn.loading{background:#9CA3AF}
     .conn-btn.offline{background:#EF4444;animation:pulse-offline 1s ease-in-out infinite}
     /* ── PRESENCE DROPDOWN ── */
-    .presence-wrap{position:relative}
-    .presence-chip{cursor:pointer;user-select:none;transition:.15s}
-    .presence-chip:hover,.presence-chip.open{background:rgba(255,255,255,.2)!important}
-    .presence-dropdown{display:none;position:absolute;right:0;top:calc(100% + 10px);background:var(--card);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);border:1px solid var(--border);min-width:250px;z-index:600;overflow:hidden}
-    .presence-dropdown.open{display:block}
+    /* ── Account menu ────────────────────────────────────────────────────────
+       The name, the email, the role, who else is online, and every action that
+       is about the app rather than about the warehouse — all behind one circle
+       in the corner, the way an account menu works everywhere else. The topbar
+       used to carry the email, a role tag, a "view only" tag, a switch-account
+       link and a bug button side by side, which is a lot of furniture to read
+       past before getting to the inventory. */
+    .acct-wrap{position:relative}
+    .acct-btn{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.28);background:var(--accent);color:#fff;font-size:.76rem;font-weight:800;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:box-shadow .15s,transform .15s;font-family:inherit}
+    .acct-btn:hover{transform:scale(1.05)}
+    .acct-btn.open{box-shadow:0 0 0 4px rgba(255,255,255,.16)}
+    .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.26);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
+    .acct-menu.open{display:block}
+    @keyframes acct-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+    .acct-head{padding:1.15rem 1rem .9rem;text-align:center;border-bottom:1px solid var(--border)}
+    .acct-avatar{width:62px;height:62px;border-radius:50%;margin:0 auto .6rem;display:flex;align-items:center;justify-content:center;font-size:1.35rem;font-weight:800;color:#fff;background:var(--accent)}
+    .acct-name{font-size:.96rem;font-weight:700;color:var(--text);line-height:1.3}
+    .acct-email{font-size:.76rem;color:var(--muted);margin-top:.15rem;word-break:break-all}
+    .acct-tags{margin-top:.55rem;display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap}
+    .acct-tag{font-size:.64rem;font-weight:800;border-radius:10px;padding:2px 10px;letter-spacing:.04em}
+    .acct-section{padding:.65rem 0 .35rem;border-bottom:1px solid var(--border);max-height:186px;overflow-y:auto}
+    .acct-section-lbl{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 1rem .4rem}
+    .acct-actions{padding:.4rem}
+    .acct-item{width:100%;display:flex;align-items:center;gap:.6rem;background:none;border:none;border-radius:10px;padding:.55rem .7rem;font-size:.85rem;font-weight:600;font-family:inherit;color:var(--text);cursor:pointer;text-align:left;transition:.12s}
+    .acct-item:hover{background:var(--bg)}
+    .acct-foot{padding:.55rem 1rem .7rem;text-align:center;font-size:.67rem;color:var(--muted);border-top:1px solid var(--border)}
     @media(max-width:640px){
-      .presence-dropdown{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:calc(100vw - 2rem);max-width:360px;max-height:80vh;overflow-y:auto;border-radius:14px}
+      .acct-menu{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:calc(100vw - 2rem);max-width:360px;max-height:84vh;overflow-y:auto;animation:none}
     }
-    .presence-hdr{background:var(--navy);color:#fff;padding:.55rem 1rem;font-size:.75rem;font-weight:700;display:flex;justify-content:space-between;align-items:center}
-    .presence-hdr button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 4px}
-    .presence-hdr button:hover{color:#fff}
     .presence-user{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;font-size:.78rem;border-bottom:1px solid var(--border)}
     .presence-user:last-child{border-bottom:none}
     .presence-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -1121,34 +1138,31 @@
     <!-- Connection indicator -->
     <button id="connBtn" class="conn-btn loading" title="Connecting…" onclick="loadDataFromGoogle()"></button>
 
-    <!-- User chip + active-users dropdown -->
-    <div class="presence-wrap" id="presenceWrap">
-      <div class="user-chip presence-chip" id="userChip" onclick="togglePresence(event)">
-        <span class="spin-hg">⏳</span> Loading…
-      </div>
-      <div class="presence-dropdown" id="presenceDropdown">
-        <div class="presence-hdr">
-          <span>👥 Active Users</span>
-          <button onclick="togglePresence(event)">✕</button>
+    <!-- Account menu. One circle in the corner; everything about you and
+         everything you can do to the app itself lives behind it, instead of
+         being scattered across the topbar. -->
+    <div class="acct-wrap" id="acctWrap">
+      <button class="acct-btn" id="acctBtn" onclick="toggleAccountMenu(event)" title="Your account">
+        <span id="acctInitials">·</span>
+      </button>
+      <div class="acct-menu" id="acctMenu">
+        <div class="acct-head">
+          <div class="acct-avatar" id="acctAvatar">·</div>
+          <div class="acct-name"  id="acctName">Loading…</div>
+          <div class="acct-email" id="acctEmail"></div>
+          <div class="acct-tags"  id="acctTags"></div>
         </div>
-        <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
-        <!-- Admin actions inside the dropdown -->
-        <div id="presenceAdminActions" style="display:none;border-top:1px solid var(--border);padding:.5rem">
-          <button id="btnUsersMgmt" onclick="togglePresence(event);openUsersModal()"
-            style="width:100%;background:none;border:1px solid var(--border);border-radius:7px;
-                   padding:.4rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;
-                   color:var(--text);text-align:left;margin-bottom:.35rem;transition:.15s"
-            onmouseover="this.style.background='var(--accent)';this.style.color='#fff'"
-            onmouseout="this.style.background='none';this.style.color='var(--text)'"
-            title="Manage system users">👥 Manage Users</button>
-          <button id="btnSettings" onclick="togglePresence(event);openSettingsModal()"
-            style="width:100%;background:none;border:1px solid var(--border);border-radius:7px;
-                   padding:.4rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;
-                   color:var(--text);text-align:left;transition:.15s"
-            onmouseover="this.style.background='var(--accent)';this.style.color='#fff'"
-            onmouseout="this.style.background='none';this.style.color='var(--text)'"
-            title="App settings">⚙️ App Settings</button>
+        <div class="acct-section" id="acctPresence">
+          <div class="acct-section-lbl">Who else is here</div>
+          <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
         </div>
+        <div class="acct-actions">
+          <button class="acct-item" id="btnSettings"  onclick="closeAccountMenu();openSettingsModal()" style="display:none">⚙️ <span>App Settings</span></button>
+          <button class="acct-item" id="btnUsersMgmt" onclick="closeAccountMenu();openUsersModal()"    style="display:none">👥 <span>Manage Users</span></button>
+          <button class="acct-item" id="btnReportIssue" onclick="closeAccountMenu();openReportIssueModal()">🐞 <span>Report a problem</span></button>
+          <button class="acct-item" id="acctSwitch" onclick="_signOut()" style="display:none">⇄ <span>Switch account</span></button>
+        </div>
+        <div class="acct-foot"><span id="acctFoot"></span></div>
       </div>
     </div>
     <!-- Unregistered suppliers/projects — phone/tablet entry point. The corner
@@ -1157,9 +1171,6 @@
     <button class="cfg-bell" id="cfgBellBtn" onclick="toggleCfgBell(event)" title="Unregistered suppliers / projects">
       🔔<span class="cfg-bell-count" id="cfgBellCount">0</span>
     </button>
-    <!-- Report a problem — in the cluster with the account and settings now,
-         rather than floating over the bottom-right corner. -->
-    <button id="reportIssueBtn" class="topbar-icon-btn" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
     <!-- Dark mode toggle -->
     <button class="dark-toggle" id="btnDarkMode" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   </div>
@@ -2146,9 +2157,10 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.48';
+var APP_VERSION = '9.49';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
+var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
 // Paid Gmail-scanner add-on: off unless the backend says this installation
 // bought it. Set from getInitialData; defaults false so a stale/failed load
 // hides the feature rather than showing a button that can only error out.
@@ -10266,8 +10278,7 @@ function loadDataFromGoogle(skipCache, quiet){
     _applyData(cached);
     userRole  = cached.userRole  || userRole;
     userEmail = cached.userEmail || userEmail;
-    var cachedDisplay = cached.userName ? cached.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
-    document.getElementById('userChip').textContent = cachedDisplay + ' ⟳';
+    _setAccountIdentity(cached.userName, userEmail, userRole, true);   // stale: fresh data still on the way
     applyRoleUI();
     refreshCategoryDropdowns();
     refreshDropdowns();
@@ -10315,8 +10326,7 @@ function loadDataFromGoogle(skipCache, quiet){
         lastLoadTime = Date.now();
         setConnStatus('online');
         _checkVersionMatch(data.serverVersion);
-        var displayName = data.userName ? data.userName + ' · ' + userRole : userEmail + ' · ' + userRole;
-        document.getElementById('userChip').textContent = displayName;
+        _setAccountIdentity(data.userName, userEmail, userRole, false);
         if (data.activeUsers) renderActiveUsers(data.activeUsers);
         applyRoleUI();
         try { refreshCategoryDropdowns(); } catch(e){ console.error('refreshCategoryDropdowns:', e); }
@@ -10744,35 +10754,20 @@ function applyRoleUI(){
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');
   if (gearToolbar) gearToolbar.style.display = isAdmin ? '' : 'none';
-  // Admin actions panel inside presence dropdown (Users + Settings)
-  var adminPanel = document.getElementById('presenceAdminActions');
-  if (adminPanel) adminPanel.style.display = isAdmin ? '' : 'none';
-  // Show a "View Only" tag next to the user chip when in VIEWER mode
-  var tag = document.getElementById('viewerTag');
-  if (!tag && isViewer){
-    tag = document.createElement('span');
-    tag.id = 'viewerTag';
-    tag.textContent = '👁 View Only';
-    tag.style.cssText = 'font-size:.68rem;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 10px;font-weight:700;margin-left:4px';
-    var chip = document.getElementById('userChip');
-    if (chip) chip.after(tag);
-  }
-  if (tag) tag.style.display = isViewer ? 'inline' : 'none';
+  // Admin-only entries in the account menu. The VIEWER tag and the
+  // switch-account link used to be extra furniture bolted onto the topbar next
+  // to the email; both are rows in the menu now.
+  var mu = document.getElementById('btnUsersMgmt');
+  if (mu) mu.style.display = isAdmin ? '' : 'none';
+  var st = document.getElementById('btnSettings');
+  if (st) st.style.display = isAdmin ? '' : 'none';
 
-  // Show "Sign out" link only for non-org users who signed in with Google.
-  var switchTag = document.getElementById('switchUserTag');
-  if (_sessionToken) {
-    if (!switchTag) {
-      switchTag = document.createElement('span');
-      switchTag.id = 'switchUserTag';
-      switchTag.innerHTML = '<button onclick="_signOut()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:.68rem;cursor:pointer;padding:2px 6px;border-radius:4px;font-family:inherit" title="Switch account">⇄ Switch</button>';
-      var chip = document.getElementById('userChip');
-      if (chip) chip.after(switchTag);
-    }
-    switchTag.style.display = 'inline';
-  } else if (switchTag) {
-    switchTag.style.display = 'none';
-  }
+  // Only people who signed in with Google (rather than being recognised by
+  // their company domain) have another account to switch to.
+  var sw = document.getElementById('acctSwitch');
+  if (sw) sw.style.display = _sessionToken ? '' : 'none';
+
+  _setAccountIdentity(_lastUserName, userEmail, userRole, false);
 }
 
 // ── Connection status ─────────────────────────────────────────────────────────
@@ -10803,15 +10798,16 @@ setInterval(function(){
   if (ageSec > 300) setConnStatus('stale');
 }, 60000);
 
-// ── Active users presence ─────────────────────────────────────────────────────
-function togglePresence(e){
+// ── Account menu ─────────────────────────────────────────────────────────────
+function toggleAccountMenu(e){
   if (e) e.stopPropagation();
-  var dd   = document.getElementById('presenceDropdown');
-  var chip = document.getElementById('userChip');
-  var open = dd.classList.toggle('open');
-  chip.classList.toggle('open', open);
+  var menu = document.getElementById('acctMenu');
+  var btn  = document.getElementById('acctBtn');
+  if (!menu) return;
+  var open = menu.classList.toggle('open');
+  if (btn) btn.classList.toggle('open', open);
   if (open){
-    // Refresh list on open
+    // Who else is online is only worth asking about while the menu is open.
     google.script.run
       .withSuccessHandler(renderActiveUsers)
       .withFailureHandler(function(){})
@@ -10819,14 +10815,85 @@ function togglePresence(e){
   }
 }
 
-// Close presence when clicking anywhere outside
+function closeAccountMenu(){
+  var menu = document.getElementById('acctMenu');
+  var btn  = document.getElementById('acctBtn');
+  if (menu) menu.classList.remove('open');
+  if (btn)  btn.classList.remove('open');
+}
+
+// Kept because older buttons still call it by this name.
+function togglePresence(e){ toggleAccountMenu(e); }
+
 document.addEventListener('click', function(e){
-  var wrap = document.getElementById('presenceWrap');
-  if (wrap && !wrap.contains(e.target)){
-    document.getElementById('presenceDropdown').classList.remove('open');
-    document.getElementById('userChip').classList.remove('open');
-  }
+  var wrap = document.getElementById('acctWrap');
+  if (wrap && !wrap.contains(e.target)) closeAccountMenu();
 });
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') closeAccountMenu();
+});
+
+// Initials rather than a photo: Apps Script never sees the Google profile
+// picture, and a warehouse account often has no name on file at all, so the
+// email's first letter is the honest fallback.
+function _initialsFor(name, email){
+  var n = String(name || '').trim();
+  if (n){
+    var parts = n.split(/\s+/).filter(Boolean);
+    return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : parts[0].substring(0, 2)).toUpperCase();
+  }
+  return String(email || '?').trim().substring(0, 2).toUpperCase();
+}
+
+// A stable colour per person, derived from their email — so the circle in the
+// corner looks like THEIR circle, and two people at one terminal can tell at a
+// glance who is signed in.
+var _ACCT_COLORS = ['#2563EB','#7C3AED','#DB2777','#DC2626','#EA580C','#CA8A04','#16A34A','#0891B2','#4F46E5','#BE185D'];
+function _avatarColor(email){
+  var s = String(email || ''), h = 0;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100000;
+  return _ACCT_COLORS[h % _ACCT_COLORS.length];
+}
+
+var _ROLE_TAG_STYLE = {
+  ADMIN:     'background:#DBEAFE;color:#1D4ED8',
+  WAREHOUSE: 'background:#D1FAE5;color:#047857',
+  VIEWER:    'background:#FEF3C7;color:#92400E'
+};
+
+// Fills the circle and everything behind it. Called from the cached paint and
+// again when the real data lands, so the corner is never blank.
+function _setAccountIdentity(name, email, role, stale){
+  if (name && String(name).trim()) _lastUserName = name;
+  else name = _lastUserName;
+  var initials = _initialsFor(name, email);
+  var color    = _avatarColor(email);
+
+  var btn = document.getElementById('acctBtn');
+  var ini = document.getElementById('acctInitials');
+  if (ini) ini.textContent = initials;
+  if (btn) btn.style.background = color;
+
+  var av = document.getElementById('acctAvatar');
+  if (av){ av.textContent = initials; av.style.background = color; }
+
+  var nm = document.getElementById('acctName');
+  if (nm) nm.textContent = (name && String(name).trim()) ? name : (email || '');
+  var em = document.getElementById('acctEmail');
+  if (em) em.textContent = (name && String(name).trim()) ? (email || '') : '';
+
+  var tags = document.getElementById('acctTags');
+  if (tags){
+    var html = '';
+    if (role) html += '<span class="acct-tag" style="' + (_ROLE_TAG_STYLE[role] || _ROLE_TAG_STYLE.VIEWER) + '">' + _he(role) + '</span>';
+    if (role === 'VIEWER') html += '<span class="acct-tag" style="background:#FEF3C7;color:#92400E">👁 VIEW ONLY</span>';
+    if (stale) html += '<span class="acct-tag" style="background:var(--border);color:var(--muted)">REFRESHING…</span>';
+    tags.innerHTML = html;
+  }
+
+  var foot = document.getElementById('acctFoot');
+  if (foot) foot.textContent = (_companyName ? _companyName + ' · ' : '') + PRODUCT + ' v' + APP_VERSION;
+}
 
 function renderActiveUsers(users){
   var list = document.getElementById('activeUsersList');
