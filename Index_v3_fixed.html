@@ -1544,8 +1544,25 @@
     <div id="incAiStatus" style="display:none;margin-bottom:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
     <div class="form-grid">
       <div class="field">
-        <label>Estimated Arrival Date *</label>
+        <label>When is it arriving?</label>
+        <select id="incDateMode" onchange="_incSyncDateMode()">
+          <option value="exact">On a known date</option>
+          <option value="window">Sometime between two dates</option>
+          <option value="about">Around a date / a rough idea</option>
+          <option value="unknown">Not known yet</option>
+        </select>
+      </div>
+      <div class="field" id="incDateField">
+        <label id="incDateLabel">Estimated arrival date *</label>
         <input type="date" id="incDate">
+      </div>
+      <div class="field" id="incDateEndField" style="display:none">
+        <label>…and this date</label>
+        <input type="date" id="incDateEnd">
+      </div>
+      <div class="field" id="incDateNoteField" style="display:none">
+        <label id="incDateNoteLabel">What were you told?</label>
+        <input type="text" id="incDateNote" maxlength="60" placeholder="e.g. next week, in about 2 weeks, waiting on the factory">
       </div>
       <div class="field">
         <label>Status</label>
@@ -2244,7 +2261,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.53';
+var APP_VERSION = '9.54';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -5616,7 +5633,7 @@ function _checkIncomingSuggest(n, inputEl){
   var incMatches = (incoming || []).filter(function(item){
     return (item.status || '').toLowerCase() !== 'received' &&
            item.name && item.name.toLowerCase().indexOf(typed) !== -1 &&
-           item.estDate >= today;  // today or future
+           (!item.estDate || item.estDate >= today);   // today, later, or not yet dated
   }).slice(0, 6);
 
   if (!stockMatches.length && !incMatches.length) { box.style.display = 'none'; return; }
@@ -9747,7 +9764,8 @@ function renderIncomingWeekGrid() {
   incoming.forEach(function(item) {
     if (sf && item.status !== sf) return;
     for (var d = 0; d < days.length; d++) {
-      if (days[d].date === item.estDate) { days[d].items.push(item); break; }
+      // No break: an item spanning several days belongs on each of them.
+      if (_incOnDay(item, days[d].date)) days[d].items.push(item);
     }
   });
 
@@ -9789,11 +9807,13 @@ function renderIncomingTable() {
     '</tr></thead><tbody>';
   html += filtered.map(function(item){
     var today = _isoDate(new Date());
-    var isOverdue = item.status === 'Pending' && item.estDate < today;
+    var isOverdue = _incIsOverdue(item, today);
     var statusBadge = '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>';
     if (isOverdue) statusBadge += ' <span class="badge badge-red" style="font-size:.65rem">overdue</span>';
+    var soft = (item.dateMode && item.dateMode !== 'exact');
     return '<tr>' +
-      '<td style="white-space:nowrap;font-weight:600' + (isOverdue?';color:var(--red)':'') + '">' + (item.estDate||'—') + '</td>' +
+      '<td style="white-space:nowrap;font-weight:600' + (isOverdue?';color:var(--red)':'') +
+        (soft?';color:var(--muted);font-weight:500':'') + '">' + _he(_incDateLabel(item)) + '</td>' +
       '<td>' + statusBadge + '</td>' +
       '<td>' + catBadge(item.category) + '</td>' +
       '<td><strong>' + _he(item.name) + '</strong></td>' +
@@ -9821,7 +9841,11 @@ function openIncomingModal(id) {
   if (isEdit) {
     var item = incoming.find(function(i){ return i.id === id; });
     if (!item) { alert('Item not found'); return; }
+    document.getElementById('incDateMode').value = item.dateMode || 'exact';
     document.getElementById('incDate').value     = item.estDate || '';
+    document.getElementById('incDateEnd').value  = item.estDateEnd || '';
+    document.getElementById('incDateNote').value = item.dateNote || '';
+    _incSyncDateMode();
     document.getElementById('incStatus').value   = item.status  || 'Pending';
     document.getElementById('incCategory').value = item.category|| '';
     document.getElementById('incName').value     = item.name    || '';
@@ -9833,7 +9857,11 @@ function openIncomingModal(id) {
     document.getElementById('incNotes').value    = item.notes   || '';
   } else {
     // Defaults for new
+    document.getElementById('incDateMode').value = 'exact';
     document.getElementById('incDate').value     = _isoDate(new Date());
+    document.getElementById('incDateEnd').value  = '';
+    document.getElementById('incDateNote').value = '';
+    _incSyncDateMode();
     document.getElementById('incStatus').value   = 'Pending';
     document.getElementById('incCategory').value = '';
     document.getElementById('incName').value     = '';
@@ -9860,11 +9888,65 @@ function openIncomingModal(id) {
   document.getElementById('incomingOverlay').classList.add('show');
 }
 
+// Shows only the fields the chosen mode actually uses, and says what each one
+// means in that mode — an end date on a single-day delivery is noise, and a
+// date input on "not known yet" is a trap that invites a made-up answer.
+function _incSyncDateMode(){
+  var mode = (document.getElementById('incDateMode') || {}).value || 'exact';
+  var show = function(id, on){ var el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('incDateField',     mode !== 'unknown');
+  show('incDateEndField',  mode === 'window');
+  show('incDateNoteField', mode === 'about' || mode === 'unknown');
+  var lbl = document.getElementById('incDateLabel');
+  if (lbl) lbl.textContent = mode === 'window' ? 'Any time between this date…'
+                           : mode === 'about'  ? 'Roughly around'
+                           : 'Estimated arrival date *';
+  var nlbl = document.getElementById('incDateNoteLabel');
+  if (nlbl) nlbl.textContent = mode === 'unknown' ? 'Why not? (optional)' : 'What were you told? (optional)';
+}
+
+// One line that reads correctly whatever the mode, used by the table, the
+// weekly view and the morning popup — so none of them has to know the rules.
+function _incDateLabel(item){
+  var mode = item.dateMode || 'exact';
+  if (mode === 'unknown') return item.dateNote ? 'No date — ' + item.dateNote : 'No date yet';
+  if (mode === 'window' && item.estDateEnd) return item.estDate + ' → ' + item.estDateEnd;
+  if (mode === 'about')  return '≈ ' + (item.estDate || '') + (item.dateNote ? ' (' + item.dateNote + ')' : '');
+  return item.estDate || '—';
+}
+
+// Only a date somebody actually committed to counts as late. "Around the 5th"
+// and "no idea" cannot be overdue, and flagging them red would train people to
+// ignore the colour.
+// A window covers every day it spans; an approximate date covers the day it
+// points at; an unknown date covers none. Every view that lays items out on a
+// calendar asks this, so none of them has to know the rules.
+function _incOnDay(item, ymd){
+  var mode = item.dateMode || 'exact';
+  if (mode === 'unknown' || !item.estDate) return false;
+  if (mode === 'window' && item.estDateEnd) return ymd >= item.estDate && ymd <= item.estDateEnd;
+  return item.estDate === ymd;
+}
+
+function _incIsOverdue(item, today){
+  return item.status === 'Pending' && (item.dateMode || 'exact') === 'exact' &&
+         item.estDate && item.estDate < today;
+}
+
 function saveIncomingItem() {
-  var id      = document.getElementById('incId').value;
-  var estDate = document.getElementById('incDate').value;
-  var name    = (document.getElementById('incName').value || '').trim();
-  if (!estDate){ alert('Select the estimated arrival date.'); return; }
+  var id       = document.getElementById('incId').value;
+  var dateMode = document.getElementById('incDateMode').value || 'exact';
+  var estDate  = document.getElementById('incDate').value;
+  var estEnd   = document.getElementById('incDateEnd').value;
+  var dateNote = (document.getElementById('incDateNote').value || '').trim();
+  var name     = (document.getElementById('incName').value || '').trim();
+  if (dateMode !== 'unknown' && !estDate){
+    showToast('Pick a date, or choose "Not known yet".', 'warn'); return;
+  }
+  if (dateMode === 'window'){
+    if (!estEnd){ showToast('Pick the end of the window too.', 'warn'); return; }
+    if (estEnd < estDate){ showToast('The second date is before the first one.', 'warn'); return; }
+  }
 
   var fileInput = document.getElementById('incFile');
   var hasFile   = fileInput && fileInput.files && fileInput.files.length;
@@ -9872,8 +9954,11 @@ function saveIncomingItem() {
   if (!name && !hasFile){ alert('Enter a description of what is arriving, or attach a PDF/photo.'); return; }
 
   var payload = {
-    id:       id || undefined,
-    estDate:  estDate,
+    id:         id || undefined,
+    estDate:    estDate,
+    dateMode:   dateMode,
+    estDateEnd: estEnd,
+    dateNote:   dateNote,
     status:   document.getElementById('incStatus').value,
     category: document.getElementById('incCategory').value,
     name:     name || '📎 See attached',
@@ -9974,7 +10059,7 @@ function checkMorningPopup() {
 
   // Only show if there are pending deliveries today (status ≠ 'Received')
   var todayPending = incoming.filter(function(item) {
-    return item.estDate === todayStr &&
+    return _incOnDay(item, todayStr) &&
            (item.status || '').toLowerCase() !== 'received';
   });
 
@@ -9986,10 +10071,14 @@ function checkMorningPopup() {
   endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
   var endStr = _isoDate(endOfWeek);
 
+  // A window counts if any part of it falls in what is left of the week, not
+  // only if it starts there.
   var thisWeek = incoming.filter(function(item) {
-    return (item.status || '').toLowerCase() !== 'received' &&
-           item.estDate >= todayStr &&
-           item.estDate <= endStr;
+    if ((item.status || '').toLowerCase() === 'received') return false;
+    if (!item.estDate) return false;                       // no date — not part of a week's plan
+    var from = item.estDate;
+    var to   = (item.dateMode === 'window' && item.estDateEnd) ? item.estDateEnd : item.estDate;
+    return to >= todayStr && from <= endStr;
   });
 
   _popupShownThisLoad = true; // mark as shown — won't fire again until next F5 / new tab
@@ -9997,8 +10086,8 @@ function checkMorningPopup() {
 }
 
 function showMorningPopup(items, todayStr) {
-  var todayItems = items.filter(function(i){ return i.estDate === todayStr; });
-  var restItems  = items.filter(function(i){ return i.estDate !== todayStr; });
+  var todayItems = items.filter(function(i){ return _incOnDay(i, todayStr); });
+  var restItems  = items.filter(function(i){ return !_incOnDay(i, todayStr); });
 
   function itemRow(item) {
     return '<div class="morning-item">' +
@@ -10008,7 +10097,7 @@ function showMorningPopup(items, todayStr) {
           '<span class="morning-item-name">' + item.qty + ' ' + _he(item.unit) + ' — ' + _he(item.name) + '</span>' +
         '</div>' +
         '<div class="morning-item-meta">' +
-          (item.estDate !== todayStr ? _he(item.estDate) + (item.notes ? ' · ' : '') : '') +
+          (!_incOnDay(item, todayStr) ? _he(_incDateLabel(item)) + (item.notes ? ' · ' : '') : '') +
           (item.notes ? _he(item.notes) : '') +
         '</div>' +
       '</div>' +
@@ -10655,7 +10744,6 @@ var _toastIdSeq = 0;
 // app ten times a day doesn't repeat the same 2am backup notice — and so a
 // notice is never missed either, which is what a plain "latest event" banner
 // would do to anyone who skipped a day.
-var _SYSACT_KEY = 'acopio_sysact_seen';
 
 function _fmtWhen(iso){
   if (!iso) return '';
@@ -10686,39 +10774,23 @@ function _dismissSysCard(id){
   _renderSysDeck();
 }
 
+// A notification stays until somebody presses its ✕. It used to carry a
+// "seen" watermark that advanced on every load, so each card appeared exactly
+// once — on the first load after the thing happened — and then vanished
+// whether or not it had been read, let alone dismissed. Jose saw one backup
+// notice, once, and never again. The watermark is gone; the only thing that
+// removes a card is the ✕, which is what the ✕ is for.
+//
+// It cannot pile up without bound: the server returns only the most recent
+// handful of system events, so the deck is naturally capped at what has
+// happened lately.
 function _announceSystemActivity(){
-  if (!systemActivity || !systemActivity.length) { _sysCards = []; _renderSysDeck(); return; }
-
-  var seen = 0;
-  try { seen = parseInt(localStorage.getItem(_SYSACT_KEY) || '0', 10) || 0; } catch (e) {}
-
-  var newest = 0;
-  systemActivity.forEach(function(a){
-    var t = a.at ? new Date(a.at).getTime() : 0;
-    if (t > newest) newest = t;
-  });
-
-  // First run on an installation with months of history: record where we are
-  // and show nothing, rather than opening with a pile of notices about things
-  // nobody was waiting on.
-  if (!seen) {
-    try { localStorage.setItem(_SYSACT_KEY, String(newest)); } catch (e) {}
-    _sysCards = []; _renderSysDeck();
-    return;
-  }
-
   var dismissed = _loadSysDismissed();
-  _sysCards = systemActivity.filter(function(a){
-    var t = a.at ? new Date(a.at).getTime() : 0;
-    if (!t || t <= seen) return false;
-    return !dismissed[a.at + '|' + a.action];
+  _sysCards = (systemActivity || []).filter(function(a){
+    return a.at && !dismissed[a.at + '|' + a.action];
   }).map(function(a){
     return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
-
-  // The "seen" mark only moves once the cards have been built from it —
-  // otherwise a reload before dismissing would silently drop them.
-  try { localStorage.setItem(_SYSACT_KEY, String(newest)); } catch (e) {}
   _renderSysDeck();
 }
 

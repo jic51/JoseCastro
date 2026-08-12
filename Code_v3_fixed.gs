@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.53';
+var APP_VERSION = '9.54';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -5389,19 +5389,43 @@ function manageMaterial(data, auth) {
 //  A=0:ID  B=1:EstDate  C=2:Category  D=3:Name  E=4:Qty  F=5:Unit
 //  G=6:Supplier  H=7:PO  I=8:Notes  J=9:Status  K=10:AddedBy  L=11:AddedAt
 //  M=12:PM (Project Manager)  N=13:Doc Link (attached PDF/photo URL)
+//  O=14:Date Mode  P=15:Est. Date End  Q=16:Date Note
+//
+// Not every delivery has a date. A supplier says "next week", or "between the
+// 5th and the 10th", or nothing at all, and forcing that into a single date
+// column means somebody invents one — and an invented date is worse than no
+// date, because a week later nobody can tell which is which.
+//
+// Date Mode is one of:
+//   exact   — Est. Date is the day it arrives (the original behaviour)
+//   window  — it arrives somewhere between Est. Date and Est. Date End
+//   about   — around Est. Date, give or take; Date Note holds what was said
+//   unknown — no date at all; Date Note may say why
+// Est. Date still carries the anchor for every mode except unknown, so sorting,
+// the weekly view and the overdue check keep working without knowing about any
+// of this.
+var INCOMING_DATE_MODES = { exact:1, window:1, about:1, unknown:1 };
+
+function incomingDateMode_(v) {
+  v = String(v || '').toLowerCase().trim();
+  return INCOMING_DATE_MODES[v] ? v : 'exact';
+}
 
 function ensureIncomingSheet_(ss) {
   var sheet = ss.getSheetByName('INCOMING_V3');
   if (!sheet) {
     sheet = ss.insertSheet('INCOMING_V3');
-    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At','PM','Doc Link']);
+    sheet.appendRow(['ID','Est. Date','Category','Name','Qty','Unit','Supplier','PO','Notes','Status','Added By','Added At','PM','Doc Link','Date Mode','Est. Date End','Date Note']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 17).setFontWeight('bold');
   } else {
-    // Migrate older sheets: add PM (M) and Doc Link (N) headers if missing
+    // Migrate older sheets one column at a time. Existing rows have a blank
+    // Date Mode, which reads as 'exact' — which is what they were.
     var lastCol = sheet.getLastColumn();
-    if (lastCol < 13) sheet.getRange(1, 13).setValue('PM').setFontWeight('bold');
-    if (lastCol < 14) sheet.getRange(1, 14).setValue('Doc Link').setFontWeight('bold');
+    var headers = ['PM','Doc Link','Date Mode','Est. Date End','Date Note'];
+    for (var c = 13; c <= 17; c++) {
+      if (lastCol < c) sheet.getRange(1, c).setValue(headers[c - 13]).setFontWeight('bold');
+    }
   }
   return sheet;
 }
@@ -5424,12 +5448,7 @@ function getIncoming(sessionToken) {
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[0]) continue;
-    var estDate = '';
-    if (row[1] instanceof Date) {
-      estDate = Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    } else if (row[1]) {
-      estDate = String(row[1]).substring(0, 10);
-    }
+    var estDate = incomingCellDate_(row[1]);
     results.push({
       id:       String(row[0]),
       estDate:  estDate,
@@ -5444,13 +5463,33 @@ function getIncoming(sessionToken) {
       addedBy:  String(row[10] || ''),
       addedAt:  String(row[11] || ''),
       pm:       String(row[12] || ''),
-      docLink:  String(row[13] || '')
+      docLink:  String(row[13] || ''),
+      dateMode:   incomingDateMode_(row[14]),
+      estDateEnd: incomingCellDate_(row[15]),
+      dateNote:   String(row[16] || '')
     });
   }
-  // Return sorted nearest-first
+  // Nearest first, and anything with no date at all last rather than first —
+  // an empty string sorts before every real date, so "we don't know yet" used
+  // to jump the queue ahead of tomorrow's delivery.
   return results.sort(function(a, b) {
-    return (a.estDate || '') < (b.estDate || '') ? -1 : 1;
+    var ka = a.estDate || '9999-12-31';
+    var kb = b.estDate || '9999-12-31';
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
+}
+
+// Sheets hands back a Date for a date-formatted cell and a string for anything
+// else; both have to come out as YYYY-MM-DD.
+function incomingCellDate_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return v ? String(v).substring(0, 10) : '';
+}
+
+// Noon rather than midnight, so converting the string to a Date cannot land on
+// the previous day in a timezone west of the script's.
+function incomingDateCell_(ymd) {
+  return ymd ? new Date(String(ymd) + 'T12:00:00') : '';
 }
 
 function addIncoming(data) {
@@ -5459,8 +5498,9 @@ function addIncoming(data) {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ensureIncomingSheet_(ss);
   var id    = 'INC-' + new Date().getTime();
-  // Add noon UTC to avoid timezone shift when GAS converts string→Date
-  var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : '';
+  var mode    = incomingDateMode_(data.dateMode);
+  var estDate = incomingDateCell_(mode === 'unknown' ? '' : data.estDate);
+  var estEnd  = incomingDateCell_(mode === 'window'  ? data.estDateEnd : '');
   var docLink = uploadIncomingDoc_(data.docFile, data.name, data.po);
   sheet.appendRow([
     id,
@@ -5476,7 +5516,10 @@ function addIncoming(data) {
     auth.email,
     new Date(),
     sheetSafe_(String(data.pm       || '')),
-    docLink
+    docLink,
+    mode,
+    estEnd,
+    sheetSafe_(String(data.dateNote || ''))
   ]);
   return { status: 'success', id: id, docLink: docLink };
 }
@@ -5500,12 +5543,15 @@ function updateIncoming(data) {
   var values = sheet.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(data.id)) {
-      var estDate = data.estDate ? new Date(data.estDate + 'T12:00:00') : values[i][1];
+      var mode    = incomingDateMode_(data.dateMode);
+      var estDate = mode === 'unknown' ? ''
+                  : (data.estDate ? incomingDateCell_(data.estDate) : values[i][1]);
+      var estEnd  = incomingDateCell_(mode === 'window' ? data.estDateEnd : '');
       // New file replaces the old link; otherwise keep whatever was there (col N, idx 13)
       var docLink = data.docFile && data.docFile.fileData
         ? uploadIncomingDoc_(data.docFile, data.name, data.po)
         : (values[i][13] || '');
-      sheet.getRange(i + 1, 1, 1, 14).setValues([[
+      sheet.getRange(i + 1, 1, 1, 17).setValues([[
         data.id,
         estDate,
         sheetSafe_(String(data.category || '').toUpperCase().trim()),
@@ -5519,7 +5565,10 @@ function updateIncoming(data) {
         values[i][10],          // preserve addedBy
         values[i][11],          // preserve addedAt
         sheetSafe_(String(data.pm || '')),  // PM — Project Manager
-        docLink
+        docLink,
+        mode,
+        estEnd,
+        sheetSafe_(String(data.dateNote || ''))
       ]]);
       return { status: 'success', docLink: docLink };
     }
