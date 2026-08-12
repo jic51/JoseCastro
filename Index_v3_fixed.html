@@ -763,76 +763,74 @@
        the pile is a real hand of cards, not a 300-card staircase — as one is
        dealt with, the next flows in. Padding on the container leaves room for
        the rotated corners and the count badge to sit OUTSIDE the top card. */
-    .corner-decks{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-    .cfg-deck{display:flex;flex-direction:column;align-items:flex-end;max-width:min(300px,calc(100vw - 44px));padding:14px 12px 0 14px}
-    /* Notifications: same pile behaviour as the suggestion deck, but bigger and
-       with nothing to decide — just an ✕ where the count badge sits. They are
-       reports of things already done, not questions. */
-    .sys-deck{display:flex;flex-direction:column;align-items:flex-end;max-width:min(320px,calc(100vw - 44px));padding:14px 12px 0 14px}
-    .sys-deck:empty{display:none}
-    .sys-card{position:relative;background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green);border-radius:10px;padding:.6rem .75rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);width:270px;max-width:100%;height:96px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;overflow:hidden}
-    .sys-deck:hover .sys-card,.sys-deck.open .sys-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
-    /* Same rules as the suggestion deck: one card visible, see-through, and
-       shrunk while it is stowed. */
-    .sys-deck:not(:hover):not(.open) .sys-card:not(:last-child){visibility:hidden}
-    .sys-deck.dim:not(:hover):not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    .sys-deck.dim:not(:hover):not(.open) .sys-card .sys-card-title{color:var(--muted)}
-    .sys-deck.dim:not(:hover):not(.open) .sys-card-when,
-    .sys-deck.dim:not(:hover):not(.open) .sys-card-detail{opacity:.6}
-    .sys-card + .sys-card{margin-top:.45rem}
-    .sys-deck:not(:hover):not(.open) .sys-card{margin-top:-90px;transform:rotate(-2.4deg)}
-    .sys-deck:not(:hover):not(.open) .sys-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
-    .sys-deck:not(:hover):not(.open) .sys-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
-    .sys-deck:not(:hover):not(.open) .sys-card:first-child{margin-top:0}
-    .sys-deck:not(:hover):not(.open) .sys-card:last-child{transform:rotate(0deg) scale(.86);transform-origin:bottom right}
-    .sys-deck:not(:hover):not(.open) .sys-card:not(:last-child){pointer-events:none}
-    /* Deliberately NOT translucent with the card underneath it — the one
-       control on a resting card has to stay legible, the same rule the count
-       badge on the other deck follows. */
-    .sys-card-x{position:absolute;top:-9px;right:-9px;width:24px;height:24px;border-radius:12px;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
-    .sys-deck.dim:not(:hover):not(.open) .sys-card-x{background:var(--navy);color:#fff;opacity:1}
-    .sys-card-x:hover{background:var(--red)}
+    /* ── The corner deck ─────────────────────────────────────────────────────
+       ONE pile, holding both kinds of card. They used to be two stacks in the
+       same corner, which read as two floating boxes and took twice the room for
+       no reason — the two things ARE different (one reports what already
+       happened, one asks a question), but that difference belongs on the card,
+       not in the layout. It shows on the card: a notification is dismissed with
+       the ✕ in its corner, a suggestion with Add to list / Not now.
+
+       Cards are a FIXED height so collapsing can be pure margin+transform —
+       those animate, height does not, and a staircase of mismatched heights
+       would not read as a deck. Newest is last in the DOM so it paints on top
+       without fighting z-index. Padding on the container leaves room for the
+       rotated corners and the badge to sit OUTSIDE the top card. */
+    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(320px,calc(100vw - 44px));padding:16px 12px 0 14px}
+    .deck:empty{display:none}
+    .deck-card{position:relative;width:270px;max-width:100%;height:96px;flex-shrink:0;border-radius:10px;padding:.6rem .75rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    .deck-card + .deck-card{margin-top:.45rem}
+    /* Closing is deliberately slower than opening — a pile snapping shut the
+       instant the pointer leaves reads as the app swatting you away. */
+    .deck:hover .deck-card,.deck.open .deck-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
+    /* Piled: every card pulled up under the next, offset a few px, rotation
+       alternating for a hand-stacked look. */
+    .deck:not(:hover):not(.open) .deck-card{margin-top:-90px;transform:rotate(-2.4deg)}
+    .deck:not(:hover):not(.open) .deck-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
+    .deck:not(:hover):not(.open) .deck-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
+    .deck:not(:hover):not(.open) .deck-card:first-child{margin-top:0}
+    /* At rest ONE card is on screen and you can see the app through it. Two
+       earlier attempts are the reason it works this way: per-card opacity
+       stacked into a smudge with the cards behind bleeding through, and muting
+       the colours instead made a solid slab covering the page. Both at once is
+       the answer — the ones behind are hidden outright so nothing can stack,
+       and the front one gets a translucent BACKGROUND rather than a faded
+       element, which is what keeps its badge and its ✕ crisp on top of it. */
+    .deck:not(:hover):not(.open) .deck-card:not(:last-child){visibility:hidden;pointer-events:none}
+    .deck:not(:hover):not(.open) .deck-card:last-child{transform:rotate(0deg) scale(.88);transform-origin:bottom right}
+
+    /* A suggestion: dark card, asks a question, answered with its buttons. */
+    .cfg-card{background:var(--navy);color:#fff;border:1px solid transparent}
+    .deck.dim:not(:hover):not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+    .deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-lbl,
+    .deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
+    .deck.dim:not(:hover):not(.open) .cfg-card-acts{opacity:0}
+    .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
+    .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
+    .cfg-card-acts button{border:none;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-card-add{background:var(--accent);color:#fff}
+    .cfg-card-add:disabled{opacity:.6;cursor:default}
+    .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
+
+    /* A notification: light card, reports a fact, dismissed with its ✕. */
+    .sys-card{background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green)}
+    .deck.dim:not(:hover):not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .deck.dim:not(:hover):not(.open) .sys-card .sys-card-title{color:var(--muted)}
+    .deck.dim:not(:hover):not(.open) .sys-card-when,
+    .deck.dim:not(:hover):not(.open) .sys-card-detail{opacity:.6}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
     .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
     .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
-    .cfg-deck:empty{display:none}
-    /* Closing is deliberately slower than opening — a pile snapping shut the
-       instant the pointer leaves reads as the app swatting you away. */
-    .cfg-card{position:relative;background:var(--navy);color:#fff;border:1px solid transparent;border-radius:10px;padding:.55rem .7rem;font-size:.76rem;box-shadow:0 6px 20px rgba(0,0,0,.25);width:250px;max-width:100%;height:88px;flex-shrink:0;transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;cursor:default}
-    .cfg-deck:hover .cfg-card,.cfg-deck.open .cfg-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
-    /* At rest the deck shows ONE card and you can see the app through it.
-       Two earlier attempts failed here and both failures are the reason this
-       looks the way it does: per-card opacity stacked into a smudge with the
-       cards behind bleeding through, and muting the colours instead made a
-       solid white slab that covered the page. The answer is both at once — the
-       cards behind are hidden outright, so nothing can stack, and the one in
-       front gets a translucent BACKGROUND rather than a faded element, so its
-       badge and buttons stay crisp on top of it. */
-    .cfg-deck:not(:hover):not(.open) .cfg-card:not(:last-child){visibility:hidden}
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-lbl,
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
-    .cfg-deck.dim:not(:hover):not(.open) .cfg-card-acts{opacity:0}
-    .cfg-card + .cfg-card{margin-top:.45rem}
-    /* Piled: each card pulled fully up under the next, offset a few px so the
-       edges show. Rotation alternates for a hand-stacked look. */
-    .cfg-deck:not(:hover):not(.open) .cfg-card{margin-top:-82px;transform:rotate(-2.4deg)}
-    .cfg-deck:not(:hover):not(.open) .cfg-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
-    .cfg-deck:not(:hover):not(.open) .cfg-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
-    .cfg-deck:not(:hover):not(.open) .cfg-card:first-child{margin-top:0}
-    /* The visible one sits square on top of the pile. */
-    /* Smaller while stowed, full size on the way out. */
-    .cfg-deck:not(:hover):not(.open) .cfg-card:last-child{transform:rotate(0deg) scale(.9);transform-origin:bottom right}
-    /* Only the top card takes clicks while piled — the rest are decoration
-       until the deck is fanned out. */
-    .cfg-deck:not(:hover):not(.open) .cfg-card:not(:last-child){pointer-events:none}
-    /* Badge lives on the top card but must not be clipped by it, so no
-       overflow:hidden anywhere on the card — the value ellipsizes instead. */
-    .cfg-count{position:absolute;top:-9px;right:-9px;min-width:24px;height:24px;border-radius:12px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--card);box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
-    .cfg-deck:hover .cfg-count,.cfg-deck.open .cfg-count{display:none}
-    /* Deliberately NOT muted with the cards: the count is the one thing on a
-       resting pile that has to stay readable at a glance. */
-    .cfg-deck.dim .cfg-count{background:var(--accent);color:#fff}
+
+    /* The two corner controls. Neither is ever translucent with the card under
+       it: the one thing you can act on while the pile is at rest has to stay
+       legible, which is exactly what per-element opacity could never deliver. */
+    .sys-card-x{position:absolute;top:-9px;right:-9px;width:24px;height:24px;border-radius:12px;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
+    .sys-card-x:hover{background:var(--red)}
+    .cfg-count{position:absolute;top:-9px;left:-9px;min-width:24px;height:24px;border-radius:12px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--card);box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
+    .deck:hover .cfg-count,.deck.open .cfg-count{display:none}
+    .deck.dim .cfg-count,.deck.dim .sys-card-x{opacity:1}
 
     /* ── Phone/tablet: bell in the topbar instead of the hover deck ── */
     .cfg-bell{display:none;position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:38px;height:34px;font-size:1rem;cursor:pointer;align-items:center;justify-content:center}
@@ -845,18 +843,14 @@
     .cfg-bell-row:last-child{border-bottom:none}
     .cfg-bell-row .cfg-card-lbl{color:var(--muted)}
     .cfg-bell-row .cfg-card-val{color:var(--text)}
+    /* Below this width the pile is hidden and the bell takes over — the deck
+       is a hover interaction, and touch has no hover. The bell has always shown
+       both kinds together, which is what the pile does now too. */
     @media (max-width:900px){
-      .cfg-deck{display:none!important}
+      .deck{display:none!important}
       .cfg-bell{display:inline-flex}
     }
-    .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
-    .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
-    .cfg-card-acts button{border:none;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
-    .cfg-card-add{background:var(--accent);color:#fff}
-    .cfg-card-add:disabled{opacity:.6;cursor:default}
-    .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
-    @media (max-width:640px){.cfg-deck{right:16px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
+    @media (max-width:640px){.deck{right:16px;max-width:calc(100vw - 32px)}.deck-card{width:230px}}
     /* Manual merge picker */
     .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
@@ -1110,8 +1104,6 @@
       .nav{flex:1 1 auto}
       .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
       .cfg-bell-panel{left:auto;right:12px;width:calc(50vw - 18px);max-width:none}
-      .sys-card{width:calc(50vw - 22px);height:190px}
-      .sys-deck:not(:hover):not(.open) .sys-card{margin-top:-184px}
     }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
@@ -2203,13 +2195,10 @@
   </div>
 </div>
 
-<!-- Notification and suggestion decks. They sit lower in the corner than they
-     used to: the report-a-problem button that they had to clear now lives in
-     the topbar. -->
-<div class="corner-decks">
-  <div class="sys-deck" id="sysDeck" onclick="this.classList.toggle('open')"></div>
-  <div class="cfg-deck" id="cfgDeck" onclick="this.classList.toggle('open')"></div>
-</div>
+<!-- One pile for both kinds of card. Tapping toggles .open — touch has no
+     hover, and without that anything behind the front card would be
+     unreachable on a tablet. -->
+<div class="deck" id="cornerDeck" onclick="this.classList.toggle('open')"></div>
 
 <div class="overlay" id="reportIssueOverlay">
   <div class="modal modal-sm">
@@ -2255,7 +2244,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.52';
+var APP_VERSION = '9.53';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -8593,8 +8582,51 @@ function _unqueueCfgAdd(type, value){
 // and the badge reports the true total, so a long tail of legacy values costs
 // no screen space until someone opens the deck.
 
+// ── One pile, two kinds of card ──────────────────────────────────────────────
+// Each kind still decides what its own card says and what its buttons do; what
+// they share is the pile. Both build their HTML into these, and _paintDeck puts
+// the whole thing on screen in one write — which it has to be, because setting
+// innerHTML a second time would throw away the handlers wired after the first.
+var _cfgDeckHtml = '', _sysDeckHtml = '', _cfgDeckTotal = 0, _sysDeckTotal = 0;
+
+function _paintDeck(){
+  var deck = document.getElementById('cornerDeck');
+  if (!deck) return;
+  // Notifications sit deeper in the pile than suggestions: one reports
+  // something already done, the other is waiting on an answer, and the thing
+  // waiting on you belongs on top.
+  deck.innerHTML = _sysDeckHtml + _cfgDeckHtml;
+  if (!deck.innerHTML){ deck.classList.remove('open'); return; }
+
+  // The badge counts the WHOLE pile, including the cards held back from the
+  // DOM, and rides on whichever card is actually on top.
+  var total = _cfgDeckTotal + _sysDeckTotal;
+  var top = deck.lastElementChild;
+  if (top && total > 1){
+    var badge = document.createElement('span');
+    badge.className = 'cfg-count';
+    badge.title = total + ' waiting';
+    badge.textContent = total;
+    top.appendChild(badge);
+  }
+
+  deck.querySelectorAll('[data-sys-x]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      _dismissSysCard(btn.getAttribute('data-sys-x'));
+    });
+  });
+  deck.querySelectorAll('button[data-act]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();   // don't toggle the deck's own open/closed state
+      if (btn.getAttribute('data-act') === 'addall') { _cfgAddAll(); return; }
+      _cfgCardAction(btn.getAttribute('data-act'), btn.getAttribute('data-key'), btn);
+    });
+  });
+}
+
 function _renderCfgDeck(){
-  var deck = document.getElementById('cfgDeck');
+  var deck = document.getElementById('cornerDeck');
   if (!deck) return;
   // Drop anything that got registered by other means (Settings, the inline
   // prompt, another tab) before painting.
@@ -8603,8 +8635,9 @@ function _renderCfgDeck(){
   });
 
   var total = _pendingCfgAdds.length;
-  _syncCfgBell(total);
-  if (!total){ deck.innerHTML = ''; deck.classList.remove('open'); return; }
+  _cfgDeckTotal = total;
+  _syncCfgBell();
+  if (!total){ _cfgDeckHtml = ''; _paintDeck(); return; }
 
   // Only a handful are ever in the DOM. Rendering all of them produced a
   // staircase reaching off the top of the screen and a fan nobody could use;
@@ -8613,13 +8646,14 @@ function _renderCfgDeck(){
 
   // hand is newest-first; painted in reverse so the newest lands LAST in the
   // DOM and therefore on top of the pile.
-  deck.innerHTML = hand.slice().reverse().map(function(p, revIdx){
+  // The count badge is no longer emitted here — the pile holds both kinds of
+  // card now, so the total and the card it rides on are decided by _paintDeck.
+  _cfgDeckHtml = hand.slice().reverse().map(function(p, revIdx){
     var isTop = revIdx === hand.length - 1;
     // Keyed by type|value, never by array position: indices shift the moment a
     // card is removed, which had later clicks acting on the wrong entry.
     var k = _he(_cfgKey(p.type, p.value));
-    return '<div class="cfg-card" data-key="' + k + '">' +
-      (isTop && total > 1 ? '<span class="cfg-count" title="' + total + ' unregistered">' + total + '</span>' : '') +
+    return '<div class="deck-card cfg-card" data-key="' + k + '">' +
       '<div class="cfg-card-lbl">New ' + (p.type === 'suppliers' ? 'supplier' : 'project') + '</div>' +
       '<div class="cfg-card-val" title="' + _he(p.value) + '">' + _he(p.value) + '</div>' +
       '<div class="cfg-card-acts">' +
@@ -8630,14 +8664,7 @@ function _renderCfgDeck(){
           : '') +
       '</div></div>';
   }).join('');
-
-  deck.querySelectorAll('button[data-act]').forEach(function(btn){
-    btn.addEventListener('click', function(e){
-      e.stopPropagation();   // don't toggle the deck's own open/closed state
-      if (btn.getAttribute('data-act') === 'addall') { _cfgAddAll(); return; }
-      _cfgCardAction(btn.getAttribute('data-act'), btn.getAttribute('data-key'), btn);
-    });
-  });
+  _paintDeck();
 
   // Full strength ONLY for a genuinely new suggestion — or while the pointer is
   // on the deck. Every render used to flash it solid, so any background refresh
@@ -8723,10 +8750,14 @@ function _cfgCardAction(act, key, btn){
 }
 
 // ── Phone/tablet panel ───────────────────────────────────────────────────────
-function _syncCfgBell(total){
+// The touch equivalent of the pile, and it carries the same two kinds of card
+// for the same reason: below the breakpoint the deck is hidden (it is a hover
+// interaction) and this is the only way to reach any of it.
+function _syncCfgBell(){
   var btn = document.getElementById('cfgBellBtn');
   var cnt = document.getElementById('cfgBellCount');
   if (!btn || !cnt) return;
+  var total = _pendingCfgAdds.length + _sysCards.length;
   cnt.textContent = total;
   btn.style.visibility = total ? '' : 'hidden';
   if (!total){
@@ -8736,9 +8767,20 @@ function _syncCfgBell(total){
   }
   var list = document.getElementById('cfgBellList');
   if (!list) return;
+
   // The panel lists ALL of them — it scrolls, so there is no reason to ration
   // them the way the pile does.
-  list.innerHTML = _pendingCfgAdds.map(function(p){
+  var sysRows = _sysCards.map(function(c){
+    return '<div class="cfg-bell-row">' +
+      '<div class="cfg-card-lbl">' + _he(_fmtWhen(c.at)) + '</div>' +
+      '<div class="cfg-card-val" title="' + _he(c.label) + '">✓ ' + _he(c.label) + '</div>' +
+      (c.detail ? '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem">' + _he(c.detail) + '</div>' : '') +
+      '<div class="cfg-card-acts">' +
+        '<button type="button" class="cfg-card-skip" data-sys-x="' + _he(c.id) + '">✕ Dismiss</button>' +
+      '</div></div>';
+  }).join('');
+
+  var cfgRows = _pendingCfgAdds.map(function(p){
     var k = _he(_cfgKey(p.type, p.value));
     return '<div class="cfg-bell-row">' +
       '<div class="cfg-card-lbl">New ' + (p.type === 'suppliers' ? 'supplier' : 'project') + '</div>' +
@@ -8748,10 +8790,18 @@ function _syncCfgBell(total){
         '<button type="button" class="cfg-card-skip" data-act="skip" data-key="' + k + '">Not now</button>' +
       '</div></div>';
   }).join('');
+
+  list.innerHTML = cfgRows + sysRows;    // questions first, reports after
   list.querySelectorAll('button[data-act]').forEach(function(b){
     b.addEventListener('click', function(e){
       e.stopPropagation();
       _cfgCardAction(b.getAttribute('data-act'), b.getAttribute('data-key'), b);
+    });
+  });
+  list.querySelectorAll('button[data-sys-x]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      _dismissSysCard(b.getAttribute('data-sys-x'));
     });
   });
 }
@@ -8769,19 +8819,19 @@ var _cfgSeenKeys = {};      // keys already shown, so a re-render isn't "new"
 
 function _cfgScheduleDim(delay){
   clearTimeout(_cfgDimTimer);
-  var deck = document.getElementById('cfgDeck');
+  var deck = document.getElementById('cornerDeck');
   if (!deck) return;
   _cfgDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, delay);
 }
 
 function _cfgWake(){
   clearTimeout(_cfgDimTimer);
-  var deck = document.getElementById('cfgDeck');
+  var deck = document.getElementById('cornerDeck');
   if (deck) deck.classList.remove('dim');
 }
 
 (function _wireCfgDeckFade(){
-  var deck = document.getElementById('cfgDeck');
+  var deck = document.getElementById('cornerDeck');
   if (!deck) return;
   deck.addEventListener('mouseenter', _cfgWake);
   deck.addEventListener('mouseleave', function(){ _cfgScheduleDim(_CFG_REDIM_MS); });
@@ -10673,43 +10723,31 @@ function _announceSystemActivity(){
 }
 
 function _renderSysDeck(){
-  var deck = document.getElementById('sysDeck');
+  var deck = document.getElementById('cornerDeck');
   if (!deck) return;
-  if (!_sysCards.length){ deck.innerHTML = ''; deck.classList.remove('open'); return; }
+  _sysDeckTotal = _sysCards.length;
+  _syncCfgBell();
+  if (!_sysCards.length){ _sysDeckHtml = ''; _paintDeck(); return; }
 
-  // Newest painted last so it sits on top of the pile, same as the other deck.
-  deck.innerHTML = _sysCards.slice(0, 5).reverse().map(function(c){
-    return '<div class="sys-card">' +
+  // Newest painted last so it sits nearest the top of the pile.
+  _sysDeckHtml = _sysCards.slice(0, 5).reverse().map(function(c){
+    return '<div class="deck-card sys-card">' +
       '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
       '<div class="sys-card-title">✓ ' + _he(c.label) + '</div>' +
       '<div class="sys-card-when">' + _he(_fmtWhen(c.at)) + '</div>' +
       (c.detail ? '<div class="sys-card-detail">' + _he(c.detail) + (c.extra ? ' · ' + _he(c.extra) : '') + '</div>' : '') +
     '</div>';
   }).join('');
+  _paintDeck();
 
-  deck.querySelectorAll('[data-sys-x]').forEach(function(btn){
-    btn.addEventListener('click', function(e){
-      e.stopPropagation();
-      _dismissSysCard(btn.getAttribute('data-sys-x'));
-    });
-  });
-
-  // Same fade rules as the suggestion deck: solid on arrival, then out of the
-  // way; hovering brings it back.
-  if (deck.matches(':hover') || deck.classList.contains('open')) { clearTimeout(_sysDimTimer); deck.classList.remove('dim'); }
-  else { deck.classList.remove('dim'); clearTimeout(_sysDimTimer); _sysDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, _CFG_SOLID_MS); }
+  // Solid on arrival, then out of the way; hovering brings it back. One pile,
+  // one timer — the two decks used to run their own and could disagree about
+  // whether the corner was resting.
+  if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
+  else { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
 }
 
-var _sysDimTimer = null;
-(function _wireSysDeckFade(){
-  var deck = document.getElementById('sysDeck');
-  if (!deck) return;
-  deck.addEventListener('mouseenter', function(){ clearTimeout(_sysDimTimer); deck.classList.remove('dim'); });
-  deck.addEventListener('mouseleave', function(){
-    clearTimeout(_sysDimTimer);
-    _sysDimTimer = setTimeout(function(){ deck.classList.add('dim'); }, _CFG_REDIM_MS);
-  });
-})();
+
 
 function showToast(msg, type, duration) {
   type     = type     || 'ok';
