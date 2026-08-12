@@ -198,6 +198,15 @@
     .wiz-progress-label{font-size:.78rem;color:#6B7280;margin-top:.45rem;text-align:center}
     /* Nudge shown after setup when an optional step was skipped */
     .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:390;background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
+    /* Coming back is not the same as arriving. A reminder that pops into place
+       reads as an alarm; this one walks in from off the left edge, invisible,
+       and colours up as it travels to where it was sitting. Slow on purpose. */
+    @keyframes nudge-return{
+      0%{opacity:0;transform:translateX(calc(-100% - 46px))}
+      55%{opacity:.5}
+      100%{opacity:1;transform:translateX(0)}
+    }
+    .setup-nudge.returning{animation:nudge-return 1.15s cubic-bezier(.22,.61,.36,1) both}
     .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:.4rem}
     .setup-nudge:hover .nudge-act{display:flex}
     .setup-nudge button{border:none;border-radius:6px;padding:.3rem .6rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit}
@@ -2157,7 +2166,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.49';
+var APP_VERSION = '9.50';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -3361,34 +3370,100 @@ function wizFinish(){
     .saveSetupWizard(_wiz);
 }
 
-// Gentle reminder for the optional steps that were skipped. Collapsed to one
-// line; hovering reveals the button. Dismissing it stops it for a week rather
-// than forever — an empty supplier list is worth mentioning again eventually.
-function _showSetupNudge(){
+// ── The "you haven't set up your…" reminder ─────────────────────────────────
+// Two buttons that used to do the same thing. Clicking "Set up now", opening
+// Settings, touching nothing and closing it silenced the reminder for a week —
+// exactly what "Later" does — which is not what the person said. Only "Later"
+// buys a week now. "Set up now" gets out of the way and then checks: if
+// something was added it stops asking, and if nothing was, it comes back.
+//
+// It comes back more quietly each time and then gives up: 20 minutes, an hour,
+// four hours, and after that a week like any dismissal. A reminder that returns
+// forever on the same terms stops being a reminder and becomes something people
+// learn to ignore.
+var _NUDGE_UNTIL_KEY = 'acopio_nudge_until';
+var _NUDGE_STEP_KEY  = 'acopio_nudge_step';
+var _NUDGE_RETURNS   = [20*60*1000, 60*60*1000, 4*60*60*1000];
+var _NUDGE_WEEK      = 7*24*60*60*1000;
+var _nudgeWatch = null;    // what was missing when "Set up now" was clicked
+var _nudgeTimer = null;
+
+function _nudgeMissing(){
   var missing = [];
-  if (!config.suppliers || !config.suppliers.length) missing.push('suppliers');
+  if (!config.suppliers  || !config.suppliers.length)  missing.push('suppliers');
   if (!config.categories || !config.categories.length) missing.push('categories');
-  if (!config.projects || !config.projects.length) missing.push('projects');
-  if (!missing.length || userRole !== 'ADMIN') return;
+  if (!config.projects   || !config.projects.length)   missing.push('projects');
+  return missing;
+}
+
+function _nudgeStep(){
+  try { return parseInt(localStorage.getItem(_NUDGE_STEP_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+}
+function _nudgeQuietFor(ms, step){
   try {
-    var until = Number(localStorage.getItem('acopio_nudge_until') || 0);
-    if (Date.now() < until) return;
-  } catch(e){}
+    localStorage.setItem(_NUDGE_UNTIL_KEY, String(Date.now() + ms));
+    if (step === null) localStorage.removeItem(_NUDGE_STEP_KEY);
+    else localStorage.setItem(_NUDGE_STEP_KEY, String(step));
+  } catch (e) {}
+}
+
+function _showSetupNudge(returning){
+  if (userRole !== 'ADMIN') return;
+  var missing = _nudgeMissing();
+  if (!missing.length) return;
+  var existing = document.getElementById('setupNudge');
+  if (existing) existing.remove();
+  // A scheduled return has already waited out its own delay — the stored
+  // "quiet until" is what protects a page reload, not this call.
+  if (!returning){
+    try {
+      var until = Number(localStorage.getItem(_NUDGE_UNTIL_KEY) || 0);
+      if (Date.now() < until) return;
+    } catch (e) {}
+  }
   var el = document.createElement('div');
-  el.className = 'setup-nudge';
+  el.className = 'setup-nudge' + (returning ? ' returning' : '');
   el.id = 'setupNudge';
   el.innerHTML = '⚙️ You haven\'t set up your <b>' + _he(missing.join(', ')) + '</b> yet.' +
     '<div class="nudge-act">' +
-      '<button style="background:var(--accent);color:#fff" onclick="openSettingsModal();_dismissNudge()">Set up now</button>' +
+      '<button style="background:var(--accent);color:#fff" onclick="_nudgeSetUpNow()">Set up now</button>' +
       '<button style="background:rgba(255,255,255,.18);color:#fff" onclick="_dismissNudge()">Later</button>' +
     '</div>';
   document.body.appendChild(el);
 }
 
+// Out of the way, but NOT dismissed — whether this counted as dealing with it
+// is decided when Settings closes.
+function _nudgeSetUpNow(){
+  _nudgeWatch = _nudgeMissing().length;
+  var el = document.getElementById('setupNudge');
+  if (el) el.remove();
+  openSettingsModal();
+}
+
+function _nudgeSettingsClosed(){
+  if (_nudgeWatch === null) return;      // Settings was opened some other way
+  var before = _nudgeWatch;
+  _nudgeWatch = null;
+  var now = _nudgeMissing().length;
+
+  if (!now){ _nudgeQuietFor(0, null); return; }            // nothing left to ask about
+  if (now < before){ _nudgeQuietFor(24*60*60*1000, null); return; }   // progress — leave them alone for a day
+
+  var step = _nudgeStep();
+  if (step >= _NUDGE_RETURNS.length){ _nudgeQuietFor(_NUDGE_WEEK, null); return; }   // asked enough
+  var delay = _NUDGE_RETURNS[step];
+  _nudgeQuietFor(delay, step + 1);       // also covers a page reload inside the window
+  clearTimeout(_nudgeTimer);
+  _nudgeTimer = setTimeout(function(){ _showSetupNudge(true); }, delay);
+}
+
 function _dismissNudge(){
   var el = document.getElementById('setupNudge');
   if (el) el.remove();
-  try { localStorage.setItem('acopio_nudge_until', String(Date.now() + 7*24*60*60*1000)); } catch(e){}
+  clearTimeout(_nudgeTimer);
+  _nudgeWatch = null;
+  _nudgeQuietFor(_NUDGE_WEEK, null);     // "Later" is the one that buys a week
 }
 
 // Paints the customer's own identity over the app. Called on every load, and
@@ -7733,6 +7808,7 @@ function closeModal(id){
   // whatever was just created, and its Save button has to be re-judged.
   if (id === 'settingsOverlay'){
     try { _clearRowModes(); } catch (e) {}
+    try { _nudgeSettingsClosed(); } catch (e) {}
     try { refreshCategoryDropdowns(); refreshDropdowns(); } catch (e) {}
     try { _refreshCatHelpers(); } catch (e) {}
     setTimeout(_updateMoveSubmitState, 0);
