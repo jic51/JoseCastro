@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.44';
+var APP_VERSION = '9.48';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2407,10 +2407,20 @@ function refreshDerivedSheets_(ss) {
       // i+1; for history rows, i has to be re-based off where the history
       // segment starts in the concatenated `data` array, then +2 to account for
       // history's own header row (which was sliced out of `data` above).
+      // What was repaired is recorded alongside the repair. "1 row had a
+      // stale MatID" tells an owner nothing they can act on or verify; the
+      // material, the amount, the rack and the two IDs let them go and look.
       matIdFixes.push({
         rowNum: isHistoryRow ? (i - archiveData.length + 2) : (i + 1),
         isHistory: isHistoryRow,
-        correctMatId: key
+        correctMatId: key,
+        wasMatId: String(row[AC.MAT_ID] || '(blank)'),
+        what:  (m.category ? m.category + ' — ' : '') + (m.name || '(no name)'),
+        qty:   m.qty,
+        unit:  m.unit || '',
+        where: m.destLoc || m.sourceLoc || '',
+        when:  m.dateRec || '',
+        kind:  m.moveType || ''
       });
     }
 
@@ -2465,7 +2475,10 @@ function refreshDerivedSheets_(ss) {
     var historyFixes = matIdFixes.filter(function(f){ return f.isHistory; });
     archiveFixes.forEach(function(f){ archive.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
     historyFixes.forEach(function(f){ history.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
-    auditLog_(ss, 'AUTO_REPAIR_MATID', 'system', matIdFixes.length + ' row(s) had a stale MatID, corrected automatically', '', '');
+    auditLog_(ss, 'AUTO_REPAIR_MATID', 'system',
+      describeMatIdFixes_(matIdFixes),
+      'was ' + matIdFixes[0].wasMatId + (matIdFixes.length > 1 ? ' (and ' + (matIdFixes.length - 1) + ' more)' : ''),
+      'now ' + matIdFixes[0].correctMatId);
   }
 
   var now = new Date();
@@ -3793,8 +3806,25 @@ var SYSTEM_ACTORS = { 'system': 1, 'system@scheduled-trigger': 1 };
 var SYSTEM_EVENT_LABELS = {
   BACKUP_CREATED:    'Backup created',
   ARCHIVE_RECONCILE: 'Old movements archived',
-  STOCK_REBUILD:     'Stock totals rebuilt'
+  STOCK_REBUILD:     'Stock totals rebuilt',
+  AUTO_REPAIR_MATID: 'Movements re-linked to the right material'
 };
+
+// Plain English for the notification card and the System tab. Names the
+// movements that were re-linked — up to three, then a count — so the owner can
+// check the rows themselves instead of taking the word "corrected" on trust.
+function describeMatIdFixes_(fixes) {
+  var named = fixes.slice(0, 3).map(function (f) {
+    return (f.kind ? f.kind + ' ' : '') + f.what +
+           (f.qty ? ' ×' + f.qty + (f.unit ? ' ' + f.unit : '') : '') +
+           (f.where ? ' @ ' + f.where : '') +
+           (f.when ? ' (' + f.when + ')' : '');
+  }).join(' · ');
+  var more = fixes.length > 3 ? ' …and ' + (fixes.length - 3) + ' more' : '';
+  return fixes.length + ' movement' + (fixes.length === 1 ? '' : 's') +
+         ' were filed under an out-of-date material ID and have been re-linked, ' +
+         'so their stock counts against the right material: ' + named + more;
+}
 
 function getSystemActivity(limit) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();

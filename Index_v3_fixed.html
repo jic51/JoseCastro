@@ -21,12 +21,22 @@
     button{font-family:inherit;cursor:pointer}
     input,select,textarea{font-family:inherit;font-size:.9rem}
     /* ── TOPBAR ── */
-    .topbar{background:var(--navy);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;border-bottom:3px solid var(--accent);flex-wrap:wrap;gap:10px}
+    /* Two rows, at every width. The topbar used to be one flex line that WRAPPED
+       when it ran out of room, so the tab bar jumped up beside the company name
+       on a wide window and dropped below it on a narrower one — and the whole
+       page shifted as it went. Now the tabs have a line of their own that they
+       never leave; they just move toward the middle as the window grows. */
+    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:0;z-index:100;border-bottom:3px solid var(--accent)}
+    .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .topbar-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    /* The report-a-problem button, no longer floating over the bottom-right
+       corner where it crowded the card decks. */
+    .topbar-icon-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:34px;height:30px;font-size:.95rem;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:.15s;padding:0}
+    .topbar-icon-btn:hover{background:var(--accent);border-color:var(--accent)}
     .topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
     .topbar-brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .app-logo{height:30px;max-width:150px;object-fit:contain;border-radius:4px;flex-shrink:0}
-    .topbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-    .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap}
+    .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap;align-self:center;max-width:100%}
     .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;transition:.2s}
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
     .nav button.active{background:var(--accent);color:#fff}
@@ -194,11 +204,6 @@
     .setup-nudge button{border:none;border-radius:6px;padding:.3rem .6rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit}
     @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:1.25rem}.wiz-gen{grid-template-columns:1fr}}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:550;align-items:center;justify-content:center;padding:15px}
-    /* Floating "report a problem" button — z-index sits well under .overlay (550)
-       so any open modal already covers it; no extra show/hide logic needed. */
-    .report-issue-fab{position:fixed;bottom:22px;right:22px;width:52px;height:52px;border-radius:50%;background:var(--navy);color:#fff;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:400;display:flex;align-items:center;justify-content:center;transition:.15s}
-    .report-issue-fab:hover{background:var(--accent);transform:scale(1.06)}
-    @media (max-width:640px){.report-issue-fab{bottom:16px;right:16px;width:46px;height:46px;font-size:1.2rem}}
     .ri-photo-thumb{position:relative;width:52px;height:52px;flex-shrink:0}
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
     .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:.65rem;cursor:pointer;line-height:1;padding:0}
@@ -381,6 +386,12 @@
     .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;transition:.15s}
     .cconfirm-footer button:hover{filter:brightness(.9)}
     .cconfirm-cancel{background:var(--border);color:var(--text)}
+    .cprompt-input{width:100%;margin-top:.9rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.92rem;font-family:inherit;text-align:center}
+    .cprompt-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+    .cprompt-list{margin-top:.7rem;max-height:170px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center}
+    .cprompt-chip{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:.22rem .7rem;font-size:.75rem;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit}
+    .cprompt-chip:hover{border-color:var(--accent);color:var(--accent)}
+    .cprompt-err{margin-top:.5rem;font-size:.76rem;color:var(--red);font-weight:600;min-height:1.1em}
     /* ── MULTI-EXIT MATERIAL LINES ── */
     .exit-mat-line{background:#FFF5F5;border:1px solid #FECACA;border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
     .exit-mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
@@ -683,7 +694,7 @@
        the pile is a real hand of cards, not a 300-card staircase — as one is
        dealt with, the next flows in. Padding on the container leaves room for
        the rotated corners and the count badge to sit OUTSIDE the top card. */
-    .corner-decks{position:fixed;right:22px;bottom:86px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+    .corner-decks{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
     .cfg-deck{display:flex;flex-direction:column;align-items:flex-end;max-width:min(300px,calc(100vw - 44px));padding:14px 12px 0 14px}
     /* Notifications: same pile behaviour as the suggestion deck, but bigger and
        with nothing to decide — just an ✕ where the count badge sits. They are
@@ -705,7 +716,7 @@
     .sys-card-x:hover{background:var(--red)}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
     .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
-    .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
     .cfg-deck:empty{display:none}
     /* Closing is deliberately slower than opening — a pile snapping shut the
        instant the pointer leaves reads as the app swatting you away. */
@@ -763,16 +774,16 @@
     .cfg-card-add{background:var(--accent);color:#fff}
     .cfg-card-add:disabled{opacity:.6;cursor:default}
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
-    @media (max-width:640px){.cfg-deck{right:16px;bottom:72px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
+    @media (max-width:640px){.cfg-deck{right:16px;max-width:calc(100vw - 32px)}.cfg-card{width:230px}}
     /* Manual merge picker */
     .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
     .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
-    .splash-logo{max-width:min(280px,64vw);max-height:96px;object-fit:contain}
+    .splash-logo{max-width:min(350px,72vw);max-height:120px;object-fit:contain}
     /* Deliberately quiet: the customer's name is the headline, ours is a
        credit line under the bar. */
     .splash-by{font-size:.68rem;color:#8fa0bd;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem}
-    .splash-by b{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;font-size:.84rem}
+    .splash-by b{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;font-size:1.05rem}
     .splash-bar{width:min(260px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
     .splash-fill{height:100%;width:8%;background:#fff;border-radius:3px;transition:width .5s ease}
     .splash-note{font-size:.8rem;color:#a1b0cb;text-align:center;min-height:1.2em}
@@ -791,6 +802,23 @@
     .co-logo-empty{color:var(--muted);font-size:.78rem}
     .co-logo-acts{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
     .co-save{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border)}
+    /* One edit mode and one delete mode per screen. Rows carry no controls
+       until a mode is switched on, so a list reads as a list and deleting is
+       something you have to mean. */
+    .row-mode-bar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 .7rem}
+    .rm-btn{display:inline-flex;align-items:center;gap:.3rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:.3rem .7rem;font-size:.78rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.15s}
+    .rm-btn:hover{border-color:var(--accent)}
+    .rm-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+    .rm-btn.rm-del:hover{border-color:var(--red)}
+    .rm-btn.rm-del.on{background:var(--red);border-color:var(--red);color:#fff}
+    .rm-hint{font-size:.74rem;color:var(--muted)}
+    .row-mode-bar.is-del .rm-hint{color:var(--red);font-weight:600}
+    /* Only ever ADDS display:none — when the mode is on the rule stops matching
+       and each control keeps whatever display it had. */
+    [data-rowscope]:not(.mode-edit) [data-rowact="edit"],
+    [data-rowscope]:not(.mode-del)  [data-rowact="del"]{display:none!important}
+    /* Delete mode is worth noticing from across the room. */
+    [data-rowscope].mode-del{outline:1px solid var(--red);outline-offset:4px;border-radius:6px}
     .col-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.15rem 0 .6rem}
     .col-edit-help{font-size:.74rem;color:var(--muted)}
     th.col-edit{cursor:grab;white-space:nowrap}
@@ -814,6 +842,15 @@
       padding:.4rem .55rem;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:normal;width:max-content;max-width:190px;
       opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:60}
     .tip:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* A table heading that carries a tooltip must still stick.
+       .tip sets position:relative to anchor its bubble, and a class beats the
+       `thead th` rule that makes headings sticky whatever the order — so every
+       column with a tooltip quietly stopped sticking and scrolled away with the
+       rows, leaving a see-through gap in the header bar. Re-asserting sticky at
+       higher specificity fixes it without costing the tooltip anything: sticky
+       is a positioned value, so it anchors the bubble just as well as relative
+       did. */
+    thead th.tip{position:sticky;top:0}
     .cfg-pick{margin-right:.5rem;flex-shrink:0;cursor:pointer}
     .cfg-pickbar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:8px;padding:.5rem .7rem;margin-bottom:.75rem}
     .cfg-pickbar.show{display:flex}
@@ -980,9 +1017,22 @@
     @media(prefers-reduced-motion:reduce){
       *{animation-duration:.01ms!important;transition-duration:.01ms!important}
     }
+    /* ── Small phones: these two boxes cover the app ─────────────────────────
+       On a narrow phone the setup message and the notification panel each ran
+       the full width of the screen and sat squat across it, hiding whatever was
+       underneath. Half the width leaves the app readable beside them, and the
+       text simply wraps to roughly twice the height rather than being shrunk —
+       nothing here changes the font size. Phone only; from tablet up they are
+       already the right shape. */
+    @media (max-width:520px){
+      .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
+      .cfg-bell-panel{left:auto;right:12px;width:calc(50vw - 18px);max-width:none}
+      .sys-card{width:calc(50vw - 22px);height:190px}
+      .sys-deck:not(:hover):not(.open) .sys-card{margin-top:-184px}
+    }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
-      .topbar{flex-direction:column;align-items:flex-start}
+      .topbar{padding:.7rem 1rem .6rem}
       .nav{width:100%;flex-wrap:wrap}
       .nav button{flex-grow:1;text-align:center;padding:.6rem;min-height:40px}
       .toolbar{flex-direction:column;align-items:stretch;width:100%}
@@ -1023,7 +1073,7 @@
   <div class="splash-note" id="splashNote">Connecting to your spreadsheet…</div>
   <div class="splash-by" id="splashBy" style="display:none">
     powered by
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     <b>Acopio</b>
   </div>
 </div>
@@ -1057,6 +1107,7 @@
 
 <!-- ══ TOPBAR ══════════════════════════════════════════════════════════════════ -->
 <div class="topbar">
+ <div class="topbar-row1">
   <div class="topbar-brand">
     <img id="appLogo" class="app-logo" alt="" style="display:none">
     <h1 id="appTitle">Warehouse</h1>
@@ -1066,15 +1117,7 @@
     </div>
     <span id="jsVersionTag" style="font-size:.65rem;color:rgba(255,80,80,.9);font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(255,0,0,.15)">JS NOT LOADED</span>
   </div>
-  <div class="topbar-right">
-    <div class="nav">
-      <button id="btn-dashboard" class="active">Stock Dashboard</button>
-      <button id="btn-movements">Movements &amp; History</button>
-      <button id="btn-projects">Project View</button>
-      <button id="btn-warehouse">Warehouse Map</button>
-      <button id="btn-incoming">📦 Incoming</button>
-    </div>
-
+  <div class="topbar-tools">
     <!-- Connection indicator -->
     <button id="connBtn" class="conn-btn loading" title="Connecting…" onclick="loadDataFromGoogle()"></button>
 
@@ -1114,9 +1157,20 @@
     <button class="cfg-bell" id="cfgBellBtn" onclick="toggleCfgBell(event)" title="Unregistered suppliers / projects">
       🔔<span class="cfg-bell-count" id="cfgBellCount">0</span>
     </button>
+    <!-- Report a problem — in the cluster with the account and settings now,
+         rather than floating over the bottom-right corner. -->
+    <button id="reportIssueBtn" class="topbar-icon-btn" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
     <!-- Dark mode toggle -->
     <button class="dark-toggle" id="btnDarkMode" onclick="toggleDarkMode()" title="Toggle dark / light mode">🌙</button>
   </div>
+ </div>
+ <div class="nav">
+  <button id="btn-dashboard" class="active">Stock Dashboard</button>
+  <button id="btn-movements">Movements &amp; History</button>
+  <button id="btn-projects">Project View</button>
+  <button id="btn-warehouse">Warehouse Map</button>
+  <button id="btn-incoming">📦 Incoming</button>
+ </div>
 </div>
 
 <div class="cfg-bell-panel" id="cfgBellPanel">
@@ -1167,7 +1221,8 @@
     </div>
 
     <!-- Users table -->
-    <div class="table-wrapper" style="max-height:45vh">
+    <div id="rowModeSlot_usr"></div>
+    <div class="table-wrapper" style="max-height:45vh" data-rowscope="usr">
       <table class="users-table">
         <thead><tr>
           <th>Email</th><th>Name</th><th>Role</th>
@@ -1275,8 +1330,9 @@
         </span>
         <button class="btn btn-primary btn-sm" id="btnColDone_mov" style="display:none" onclick="finishColEdit('mov')">Done</button>
         <button class="btn btn-ghost btn-sm" id="btnColReset_mov" style="display:none" onclick="resetColEdit('mov')">Reset</button>
+        <span id="rowModeSlot_mov"></span>
       </div>
-      <div class="table-wrapper" id="tableContainer"></div>
+      <div class="table-wrapper" id="tableContainer" data-rowscope="mov"></div>
     </div>
   </div>
 
@@ -1525,6 +1581,28 @@
     <div class="cconfirm-footer">
       <button class="cconfirm-cancel" id="confirmCancelBtn" onclick="_confirmCancel()">Cancel</button>
       <button class="btn-primary btn" id="confirmOkBtn" onclick="_confirmOk()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ASK-FOR-A-VALUE DIALOG ═════════════════════════════════════════════════
+     The browser's own prompt() is a black bar bolted to the top of the window
+     that announces the googleusercontent.com address it came from. It looks
+     like a security warning, not like this app. Same shell as the confirm
+     dialog above, so every question the app asks looks the same. -->
+<div class="cconfirm-overlay" id="promptOverlay">
+  <div class="cconfirm-dialog">
+    <div class="cconfirm-icon-row" id="promptIcon">✏️</div>
+    <div class="cconfirm-body">
+      <h3 id="promptTitle">Rename</h3>
+      <p id="promptMessage"></p>
+      <input type="text" class="cprompt-input" id="promptInput" autocomplete="off">
+      <div class="cprompt-list" id="promptChoices"></div>
+      <div class="cprompt-err" id="promptErr"></div>
+    </div>
+    <div class="cconfirm-footer">
+      <button class="cconfirm-cancel" onclick="_promptCancel()">Cancel</button>
+      <button class="btn btn-primary" id="promptOkBtn" onclick="_promptOk()">Save</button>
     </div>
   </div>
 </div>
@@ -2016,12 +2094,13 @@
   </div>
 </div>
 
-<!-- Floating "report a problem" button — available from every screen -->
+<!-- Notification and suggestion decks. They sit lower in the corner than they
+     used to: the report-a-problem button that they had to clear now lives in
+     the topbar. -->
 <div class="corner-decks">
   <div class="sys-deck" id="sysDeck" onclick="this.classList.toggle('open')"></div>
   <div class="cfg-deck" id="cfgDeck" onclick="this.classList.toggle('open')"></div>
 </div>
-<button id="reportIssueFab" class="report-issue-fab" onclick="openReportIssueModal()" title="Report a problem">🐞</button>
 
 <div class="overlay" id="reportIssueOverlay">
   <div class="modal modal-sm">
@@ -2067,7 +2146,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.44';
+var APP_VERSION = '9.48';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 // Paid Gmail-scanner add-on: off unless the backend says this installation
@@ -2388,6 +2467,88 @@ document.addEventListener('click', function(e){
   if (e.target.closest && e.target.closest('#moveOverlay')) setTimeout(_updateMoveSubmitState, 0);
 });
 
+// ── One edit mode and one delete mode per screen ─────────────────────────────
+// Every list used to carry a pencil and a bin on every single row. On a screen
+// with forty locations that is eighty buttons competing with the data, and the
+// bin sits one slip of the finger away from the row above it.
+//
+// Instead each screen has two toggles at the top. Nothing is editable until
+// "Edit" is on; nothing can be deleted until "Delete" is on; and the two are
+// mutually exclusive, so the screen is only ever in one state and it says which
+// one. Turning both off is the resting state — a list you can read.
+//
+// Same two buttons, same place, same behaviour in every window: the value is in
+// not having to learn each screen separately.
+var ROW_MODES = {
+  cfg: { edit: 'Rename', del: 'Delete',
+         editHint: 'Click the pencil on a row to rename it.',
+         delHint:  'Click the bin on a row to delete it.' },
+  pm:  { edit: null, del: 'Delete',
+         delHint:  'Click the bin on a contact to remove it.' },
+  mat: { edit: 'Edit', del: null,
+         editHint: 'Rename a material, move it to another category, or merge it into another.' },
+  loc: { edit: 'Rename', del: 'Remove',
+         editHint: 'Click the pencil on a group to rename it.',
+         delHint:  'Bin deletes a group (its locations move to ALL LOCATIONS). The box archives a single location.' },
+  mov: { edit: 'Edit', del: 'Delete',
+         editHint: 'Click the pencil on a row to correct that record.',
+         delHint:  'Click the bin on a row to delete that record permanently.',
+         refresh: function(){ renderMovements(); } },   // its actions column comes and goes with the mode
+  usr: { edit: 'Edit', del: 'Deactivate',
+         editHint: 'Click the pencil on a person to change their name or role.',
+         delHint:  'Click 🚫 to stop someone signing in. Their history is kept.' }
+};
+
+var _rowModes = {};    // scope -> '' | 'edit' | 'del'
+
+function _rowModeBarHtml(scope){
+  var d = ROW_MODES[scope];
+  if (!d) return '';
+  var m = _rowModes[scope] || '';
+  return '<div class="row-mode-bar' + (m === 'del' ? ' is-del' : '') + '" id="rmb-' + scope + '">' +
+    (d.edit ? '<button type="button" class="rm-btn rm-edit' + (m === 'edit' ? ' on' : '') + '" ' +
+              'onclick="setRowMode(\'' + scope + '\',\'edit\')">✏️ ' + _he(d.edit) + '</button>' : '') +
+    (d.del  ? '<button type="button" class="rm-btn rm-del' + (m === 'del' ? ' on' : '') + '" ' +
+              'onclick="setRowMode(\'' + scope + '\',\'del\')">🗑 ' + _he(d.del) + '</button>' : '') +
+    '<span class="rm-hint">' + _he(_rowModeHint(scope)) + '</span>' +
+  '</div>';
+}
+
+function _rowModeHint(scope){
+  var d = ROW_MODES[scope] || {};
+  var m = _rowModes[scope] || '';
+  return m === 'edit' ? (d.editHint || '') : m === 'del' ? (d.delHint || '') : '';
+}
+
+// Clicking the mode you are already in turns it off — the same button both
+// enters and leaves, so there is never a third button to find.
+function setRowMode(scope, mode){
+  _rowModes[scope] = (_rowModes[scope] === mode) ? '' : mode;
+  _applyRowMode(scope);
+  var d = ROW_MODES[scope];
+  if (d && d.refresh) d.refresh();
+}
+
+function _applyRowMode(scope){
+  var m = _rowModes[scope] || '';
+  document.querySelectorAll('[data-rowscope="' + scope + '"]').forEach(function(el){
+    el.classList.toggle('mode-edit', m === 'edit');
+    el.classList.toggle('mode-del',  m === 'del');
+  });
+  var bar = document.getElementById('rmb-' + scope);
+  if (!bar) return;
+  bar.classList.toggle('is-del', m === 'del');
+  var e = bar.querySelector('.rm-edit'), d = bar.querySelector('.rm-del');
+  if (e) e.classList.toggle('on', m === 'edit');
+  if (d) d.classList.toggle('on', m === 'del');
+  var hint = bar.querySelector('.rm-hint');
+  if (hint) hint.textContent = _rowModeHint(scope);
+}
+
+// Called right after a screen paints its rows, so a mode left on survives the
+// repaint that follows a rename or a delete.
+function _mountRowMode(scope){ _applyRowMode(scope); }
+
 // ── Column labels and visibility ─────────────────────────────────────────────
 // The words on a warehouse screen belong to the warehouse. One business calls a
 // shelf a rack, the next calls it a bay; "At Site" reads as delivered to one
@@ -2471,7 +2632,9 @@ var COL_TABLES = {
     defaultHidden: ['rawLoc','gc','supplier','pm','sysDate'],
     head: 'movHeadRow',
     lead: function(){ return ''; },
-    tail: function(){ return userRole === 'ADMIN' ? '<th></th>' : ''; },  // edit / delete
+    // The actions column comes and goes with the row mode, so a table nobody
+    // is editing has no empty column hanging off the end of it.
+    tail: function(){ return (userRole === 'ADMIN' && _rowModes.mov) ? '<th></th>' : ''; },
     refresh: function(){ renderMovements(); }                             // rebuilds its own header
   }
 };
@@ -3405,6 +3568,7 @@ function _activeTab() {
 }
 
 function showTab(tab, btnId){
+  _clearRowModes();     // Edit / Delete never survive leaving the screen they were armed on
   document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(tab).classList.add('active');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
@@ -4089,14 +4253,14 @@ function renderMovements(){
       return cells[k] || '';
     }).join('');
 
-    var adminCell = isAdmin
-      ? '<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>'
+    var adminCell = (isAdmin && _rowModes.mov)
+      ? '<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" data-rowact="edit" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" data-rowact="del" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>'
       : '';
 
     return '<tr class="'+rowClass(m.moveType)+'">' + body + adminCell + '</tr>';
   }).join('');
 
-  var span = _visibleColCount('mov') + (isAdmin ? 1 : 0);
+  var span = _visibleColCount('mov') + ((isAdmin && _rowModes.mov) ? 1 : 0);
 
   // An empty result used to replace the whole table, header included — which
   // took the column editor off screen with it. The message is a row now, so the
@@ -4122,6 +4286,12 @@ function renderMovements(){
   // The header is rebuilt with the table, so its drag/hide/rename handlers have
   // to be attached again each time.
   if (_colEdit.mov) _wireColEdit('mov');
+
+  // Admins get the Edit / Delete toggles beside the column button. Mounted once
+  // and then left alone — re-rendering the table must not reset the mode.
+  var rmSlot = document.getElementById('rowModeSlot_mov');
+  if (rmSlot && isAdmin && !rmSlot.firstChild) rmSlot.innerHTML = _rowModeBarHtml('mov');
+  _mountRowMode('mov');
 
   tc.querySelectorAll('[data-row]').forEach(function(btn){
     btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
@@ -5954,6 +6124,7 @@ var _settingsTab  = 'categories';
 var _matListAll   = [];   // full material list for Materials tab
 
 function openSettingsModal() {
+  _clearRowModes();
   document.getElementById('settingsMsgBar').style.display = 'none';
   document.getElementById('settingsOverlay').classList.add('show');
   _loadSettings();
@@ -6354,9 +6525,25 @@ function _commitImport(){
 }
 
 function switchSettingsTab(tab) {
+  // Edit and Delete belong to the screen they were switched on in. Carrying
+  // them across meant you could leave Delete armed on four tabs at once and
+  // come back to a screen already primed to remove things.
+  _clearRowModes();
   _settingsTab = tab;
   document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
   _renderSettingsTab(tab);
+}
+
+// Every scope off, and every bar that is currently on screen repainted to say
+// so. Called on any move between screens.
+function _clearRowModes(){
+  Object.keys(ROW_MODES).forEach(function(scope){
+    if (!_rowModes[scope]) return;
+    _rowModes[scope] = '';
+    _applyRowMode(scope);
+    var d = ROW_MODES[scope];
+    if (d && d.refresh) d.refresh();
+  });
 }
 
 function _renderSettingsTab(tab) {
@@ -6388,8 +6575,8 @@ function _renderSettingsTab(tab) {
         '<button class="cfg-btn" onclick="_cfgSaveRename(\''+tab+'\','+i+')">✓</button>' +
         '<button class="cfg-btn" onclick="_cfgCancelEdit(\''+tab+'\','+i+')">✗</button>' +
       '</div>' +
-      '<button class="cfg-btn" onclick="_cfgStartEdit(\''+tab+'\','+i+')">✏️</button>' +
-      '<button class="cfg-btn cfg-btn-danger" data-action="cfg-delete" data-tab="'+tab+'" data-val="'+_he(v)+'">🗑</button>' +
+      '<button class="cfg-btn" data-rowact="edit" onclick="_cfgStartEdit(\''+tab+'\','+i+')">✏️</button>' +
+      '<button class="cfg-btn cfg-btn-danger" data-rowact="del" data-action="cfg-delete" data-tab="'+tab+'" data-val="'+_he(v)+'">🗑</button>' +
     '</li>';
   }).join('');
 
@@ -6398,12 +6585,14 @@ function _renderSettingsTab(tab) {
       (mergeable ? ' Tick two or more to merge them by hand.' : '') + '</p>' +
     (mergeable ? _renderSimilarGroups(tab, items, label) : '') +
     (mergeable ? '<div class="cfg-pickbar" id="cfgPickBar"></div>' : '') +
-    '<ul class="cfg-list">'+rows+'</ul>' +
+    _rowModeBarHtml('cfg') +
+    '<ul class="cfg-list" data-rowscope="cfg">'+rows+'</ul>' +
     '<div class="cfg-add-row">' +
       '<input type="text" id="cfgNewVal" placeholder="New '+label+' name…" onkeydown="if(event.key===\'Enter\')_cfgAdd(\''+tab+'\')">' +
       '<button class="btn btn-primary btn-sm" onclick="_cfgAdd(\''+tab+'\')">+ Add</button>' +
     '</div>';
   if (mergeable) { _wireSimilarGroups(tab); _wireManualMerge(tab, label); }
+  _mountRowMode('cfg');
 }
 
 // ── Locations, grouped by type ───────────────────────────────────────────────
@@ -6473,7 +6662,8 @@ function _renderLocationsTab(){
       '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'locNewRow\').style.display=\'none\'">Cancel</button>' +
     '</div>' +
     '<div id="locMergeBar" class="cfg-pickbar"></div>' +
-    '<div class="loc-groups" id="locGroups"></div>' +
+    _rowModeBarHtml('loc') +
+    '<div class="loc-groups" id="locGroups" data-rowscope="loc"></div>' +
     '<div id="locSaveBar" class="loc-savebar"></div>';
   _redrawLocGroups();
 }
@@ -6494,8 +6684,8 @@ function _renderLocGroup(type){
         ? '<span class="loc-arch-note">Kept for history — not offered on new movements. Drag out to restore.</span>'
         : '<button class="cfg-btn" title="Sort this group A–Z" onclick="_locSortGroup(\'' + _he(type) + '\')">A–Z</button>') +
       (fixed ? '' :
-        '<button class="cfg-btn" title="Rename group" onclick="_locRenameGroup(\'' + _he(type) + '\')">✏️</button>' +
-        '<button class="cfg-btn cfg-btn-danger" title="Delete group" onclick="_locDeleteGroup(\'' + _he(type) + '\')">🗑</button>') +
+        '<button class="cfg-btn" data-rowact="edit" title="Rename group" onclick="_locRenameGroup(\'' + _he(type) + '\')">✏️</button>' +
+        '<button class="cfg-btn cfg-btn-danger" data-rowact="del" title="Delete group" onclick="_locDeleteGroup(\'' + _he(type) + '\')">🗑</button>') +
     '</div>' +
     '<ul class="loc-list" data-type="' + _he(type) + '">' +
       (items.length
@@ -6503,7 +6693,7 @@ function _renderLocGroup(type){
             return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
               '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to merge">' +
               '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span>' +
-              '<button class="loc-arch-btn" title="' + (isArchived ? 'Restore' : 'Archive') + '" ' +
+              '<button class="loc-arch-btn" data-rowact="del" title="' + (isArchived ? 'Restore' : 'Archive') + '" ' +
                 'onclick="_locToggleArchive(\'' + _he(l.name) + '\')">' + (isArchived ? '↩' : '🗄') + '</button>' +
             '</li>';
           }).join('')
@@ -6559,16 +6749,20 @@ function _locCreate(){
 }
 
 function _locRenameGroup(type){
-  var next = prompt('Rename group "' + type + '" to:', type);
-  if (next === null) return;
-  next = String(next).trim().toUpperCase();
-  if (!next || next === type) return;
-  if (next === LOC_DEFAULT_GROUP || next === LOC_ARCHIVED_GROUP) { showToast('That name is reserved.', 'warn'); return; }
-  if (_locTypesInOrder().indexOf(next) !== -1) { showToast('That group already exists.', 'warn'); return; }
-  _locLayout.forEach(function(l){ if ((l.type || LOC_DEFAULT_GROUP) === type) l.type = next; });
-  _locExtraGroups = _locExtraGroups.map(function(t){ return t === type ? next : t; });
-  _redrawLocGroups();
-  _locMarkDirty();
+  _showPrompt({
+    icon: '🗂', title: 'Rename group', message: 'Currently "' + type + '".',
+    value: type, confirmText: 'Rename',
+    onOk: function(next){
+      next = String(next).trim().toUpperCase();
+      if (!next || next === type) return;                      // nothing to do — just close
+      if (next === LOC_DEFAULT_GROUP || next === LOC_ARCHIVED_GROUP) return 'That name is reserved.';
+      if (_locTypesInOrder().indexOf(next) !== -1) return 'A group called ' + next + ' already exists.';
+      _locLayout.forEach(function(l){ if ((l.type || LOC_DEFAULT_GROUP) === type) l.type = next; });
+      _locExtraGroups = _locExtraGroups.map(function(t){ return t === type ? next : t; });
+      _redrawLocGroups();
+      _locMarkDirty();
+    }
+  });
 }
 
 function _locDeleteGroup(type){
@@ -6613,6 +6807,7 @@ function _redrawLocGroups(){
   box.innerHTML = _locTypesInOrder().map(_renderLocGroup).join('');
   _wireLocDnD();
   _wireLocMerge();
+  _mountRowMode('loc');
 }
 
 // Merging locations, for the case archiving doesn't cover: the same shelf
@@ -7102,18 +7297,20 @@ function _drawPmDirectory() {
   var rows = _pmDirectoryData.map(function(p) {
     return '<li class="cfg-item">' +
       '<span class="cfg-item-name" style="flex:1"><strong>'+_he(p.name)+'</strong> <span style="color:var(--muted);font-size:.78rem">'+_he(p.email)+'</span></span>' +
-      '<button class="cfg-btn cfg-btn-danger" data-action="pm-dir-delete" data-val="'+_he(p.name)+'">🗑</button>' +
+      '<button class="cfg-btn cfg-btn-danger" data-rowact="del" data-action="pm-dir-delete" data-val="'+_he(p.name)+'">🗑</button>' +
     '</li>';
   }).join('');
 
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">General address book — employees, suppliers, PMs, anyone you email regularly. One special behavior: if a name here matches what\'s typed in the PM field on ENTRY, materials for that batch auto-send ONE grouped email to that address (not one per material). Everyone else here is just a saved contact — use them with the "Send notification email" option when saving a movement.</p>' +
-    '<ul class="cfg-list">'+(rows || '<li style="padding:.5rem;color:var(--muted);font-size:.82rem">No contacts registered yet.</li>')+'</ul>' +
+    _rowModeBarHtml('pm') +
+    '<ul class="cfg-list" data-rowscope="pm">'+(rows || '<li style="padding:.5rem;color:var(--muted);font-size:.82rem">No contacts registered yet.</li>')+'</ul>' +
     '<div class="cfg-add-row" style="flex-wrap:wrap">' +
       '<input type="text" id="pmDirNewName" placeholder="Name…" style="flex:1;min-width:120px">' +
       '<input type="email" id="pmDirNewEmail" placeholder="Email…" style="flex:1;min-width:160px">' +
       '<button class="btn btn-primary btn-sm" onclick="_pmDirAdd()">+ Add</button>' +
     '</div>';
+  _mountRowMode('pm');
 }
 
 function _pmDirAdd() {
@@ -7266,7 +7463,8 @@ function _renderMaterialsTab() {
       '<input type="text" id="matSearchInp" placeholder="Search material name…" oninput="_filterMatList()">' +
       '<button class="btn btn-ghost btn-sm" onclick="_loadMatList()">↺ Refresh</button>' +
     '</div>' +
-    '<div class="mat-list" id="matListContainer"><p style="color:var(--muted);font-size:.82rem">Loading…</p></div>';
+    _rowModeBarHtml('mat') +
+    '<div class="mat-list" id="matListContainer" data-rowscope="mat"><p style="color:var(--muted);font-size:.82rem">Loading…</p></div>';
   // Already prefetched in _loadSettings() (fired the moment the modal opened) —
   // render immediately instead of re-fetching and flashing "Loading…" again.
   if (_matListAll) { _filterMatList(); } else { _loadMatList(); }
@@ -7298,30 +7496,59 @@ function _filterMatList() {
       '<span class="mat-item-cat">'+catBadge(m.category)+'</span>' +
       '<span class="mat-item-name">'+_he(m.name)+'</span>' +
       '<span style="color:var(--muted);font-size:.7rem">'+m.count+' rows</span>' +
-      '<button class="cfg-btn" data-action="mat-action" data-op="rename">✏️ Rename</button>' +
-      '<button class="cfg-btn" data-action="mat-action" data-op="changeCategory">↕ Category</button>' +
-      '<button class="cfg-btn" data-action="mat-action" data-op="merge">🔗 Merge</button>' +
+      '<button class="cfg-btn" data-rowact="edit" data-action="mat-action" data-op="rename">✏️ Rename</button>' +
+      '<button class="cfg-btn" data-rowact="edit" data-action="mat-action" data-op="changeCategory">↕ Category</button>' +
+      '<button class="cfg-btn" data-rowact="edit" data-action="mat-action" data-op="merge">🔗 Merge</button>' +
     '</div>';
   }).join('') + (filtered.length > 80 ? '<p style="font-size:.75rem;color:var(--muted);padding:.5rem">Showing first 80. Type to filter.</p>' : '');
+  _mountRowMode('mat');
 }
 
 function _matAction(op, name, cat) {
   if (op === 'rename') {
-    var nv = prompt('Rename "' + name + '" to:', name);
-    if (!nv || nv.trim() === name) return;
-    _matCall({ op: 'rename', name: name, category: cat, newName: nv.trim() });
+    _showPrompt({
+      icon: '✏️', title: 'Rename material', message: 'Every movement recorded under this name changes with it.',
+      value: name, confirmText: 'Rename',
+      onOk: function(nv){
+        if (!nv || nv === name) return;
+        _matCall({ op: 'rename', name: name, category: cat, newName: nv });
+      }
+    });
 
   } else if (op === 'changeCategory') {
-    var cats = (config.categories && config.categories.length) ? config.categories : _DEFAULT_CATS;
-    var cur  = cats.indexOf(cat);
-    var nv   = prompt('Move "' + name + '" to category:\n\n' + cats.join('\n') + '\n\nType the category name exactly:', cat);
-    if (!nv || nv.trim().toUpperCase() === cat) return;
-    _matCall({ op: 'changeCategory', name: name, category: cat, newCategory: nv.trim().toUpperCase() });
+    var cats = (config.categories || []);
+    if (!cats.length){ showToast('Add categories in Settings first.', 'warn'); return; }
+    // The categories are offered as chips — typing one exactly, from memory,
+    // was never a reasonable thing to ask.
+    _showPrompt({
+      icon: '↕', title: 'Move to another category',
+      message: '"' + name + '" is in ' + cat + '. Pick where it belongs.',
+      value: cat, choices: cats, confirmText: 'Move',
+      onOk: function(nv){
+        nv = String(nv).trim().toUpperCase();
+        if (!nv || nv === cat) return;
+        if (cats.map(function(c){ return String(c).toUpperCase(); }).indexOf(nv) === -1)
+          return 'There is no category called ' + nv + '.';
+        _matCall({ op: 'changeCategory', name: name, category: cat, newCategory: nv });
+      }
+    });
 
   } else if (op === 'merge') {
-    var nv = prompt('Merge "' + name + '" INTO which existing material?\n(Type the exact target name — all rows of "' + name + '" will be renamed to the target)', '');
-    if (!nv || !nv.trim()) return;
-    var nvTrimmed = nv.trim();
+    _showPrompt({
+      icon: '🔗', title: 'Merge into another material',
+      message: 'Every row of "' + name + '" is renamed to the material you pick.',
+      placeholder: 'Exact name of the material to keep', confirmText: 'Continue',
+      choices: (_matListAll || []).filter(function(m){ return m.name !== name; })
+                                  .slice(0, 40).map(function(m){ return m.name; }),
+      onOk: function(nv){
+        if (!nv) return 'Type or pick the material to merge into.';
+        _matMergeConfirm(name, cat, nv);
+      }
+    });
+  }
+}
+
+function _matMergeConfirm(name, cat, nvTrimmed){
     _showConfirm({
       icon:'🔀', danger: true,
       title: 'Merge Materials?',
@@ -7329,19 +7556,54 @@ function _matAction(op, name, cat) {
       confirmText: 'Merge',
       onConfirm: function(){ _matCall({ op: 'merge', name: name, category: cat, targetName: nvTrimmed }); }
     });
-  }
 }
 
+// Renaming, re-filing or merging a material rewrites rows all over the
+// archive, so the totals genuinely have to come back from the server. What
+// does NOT have to happen is the app blinking: the list on screen and the
+// movements already loaded are patched immediately, and the server refresh
+// runs underneath without the loading state.
 function _matCall(payload) {
-  _settingMsg('Working…', 'info');
   google.script.run
     .withSuccessHandler(function(res) {
-      _settingMsg('Done ✓ (' + (res.updated || res.merged || 1) + ' rows updated)', 'ok');
-      _loadMatList();
-      loadDataFromGoogle(true);  // skipCache — refresh movements + stock
+      _applyMatChangeLocally(payload);
+      showToast('Done ✓ — ' + (res.updated || res.merged || 1) + ' row(s) updated.', 'ok');
+      loadDataFromGoogle(true, true);   // skipCache, quiet
     })
     .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
     .processMovement('manageMaterial', _h(payload));
+}
+
+function _applyMatChangeLocally(p){
+  var was = String(p.name || '').toUpperCase();
+  var wasCat = String(p.category || '').toUpperCase();
+  var list = _matListAll || [];
+
+  function sameRow(m){
+    return String(m.name).toUpperCase() === was &&
+           String(m.category || '').toUpperCase() === wasCat;
+  }
+
+  if (p.op === 'rename'){
+    list.forEach(function(m){ if (sameRow(m)) m.name = p.newName; });
+    movements.forEach(function(m){ if (sameRow(m)) m.name = p.newName; });
+
+  } else if (p.op === 'changeCategory'){
+    list.forEach(function(m){ if (sameRow(m)) m.category = p.newCategory; });
+    movements.forEach(function(m){ if (sameRow(m)) m.category = p.newCategory; });
+
+  } else if (p.op === 'merge'){
+    var target = String(p.targetName || '').toUpperCase();
+    var moved  = 0;
+    list.forEach(function(m){ if (sameRow(m)) moved = m.count || 0; });
+    _matListAll = list.filter(function(m){ return !sameRow(m); });
+    _matListAll.forEach(function(m){
+      if (String(m.name).toUpperCase() === target) m.count = (m.count || 0) + moved;
+    });
+    movements.forEach(function(m){ if (sameRow(m)) m.name = p.targetName; });
+  }
+
+  _filterMatList();     // just this list, in place — no round trip to redraw it
 }
 
 // ── Shared settings helpers ───────────────────────────────────────────────────
@@ -7458,6 +7720,7 @@ function closeModal(id){
   // point of the "Add categories" shortcut). Coming back, the form has to see
   // whatever was just created, and its Save button has to be re-judged.
   if (id === 'settingsOverlay'){
+    try { _clearRowModes(); } catch (e) {}
     try { refreshCategoryDropdowns(); refreshDropdowns(); } catch (e) {}
     try { _refreshCatHelpers(); } catch (e) {}
     setTimeout(_updateMoveSubmitState, 0);
@@ -9724,6 +9987,9 @@ function _roleBadge(role) {
 }
 
 function _renderUsersTable() {
+  var slot = document.getElementById('rowModeSlot_usr');
+  if (slot && !slot.firstChild) slot.innerHTML = _rowModeBarHtml('usr');
+  _mountRowMode('usr');
   var tbody = document.getElementById('usersTableBody');
   if (!_usersData.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem">No users registered yet.</td></tr>';
@@ -9740,9 +10006,9 @@ function _renderUsersTable() {
       '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
       '<td style="white-space:nowrap">' +
         (!isSelf
-          ? '<button class="btn-icon" data-action="edit-user" data-email="' + _he(u.email) + '" title="Edit">✏️</button> ' +
+          ? '<button class="btn-icon" data-rowact="edit" data-action="edit-user" data-email="' + _he(u.email) + '" title="Edit">✏️</button> ' +
             (u.active
-              ? '<button class="btn-icon" data-action="deact-user" data-email="' + _he(u.email) + '" title="Deactivate">🚫</button>'
+              ? '<button class="btn-icon" data-rowact="del" data-action="deact-user" data-email="' + _he(u.email) + '" title="Deactivate">🚫</button>'
               : '<span style="color:var(--muted);font-size:.72rem">inactive</span>')
           : '<span style="color:var(--muted);font-size:.72rem">—</span>') +
       '</td>' +
@@ -9799,8 +10065,16 @@ function saveUser() {
     .withSuccessHandler(function() {
       btn.textContent = 'Save User'; btn.disabled = false;
       _userFormMsg(_editingUser ? 'User updated.' : 'User added successfully.', 'ok');
+      // The row is patched in place rather than the whole list being fetched
+      // again: the browser already knows exactly what changed, and re-reading
+      // the sheet to learn it puts a "Loading…" flash over a list of four names.
+      var found = null;
+      _usersData.forEach(function(u){ if (u.email === email) found = u; });
+      if (found){ found.name = name; found.role = role; found.active = true; }
+      else _usersData.push({ email: email, name: name, role: role, active: true,
+                             addedBy: userEmail, addedAt: _isoDate(new Date()) });
       resetUserForm();
-      _loadUsersTable();
+      _renderUsersTable();
     })
     .withFailureHandler(function(err) {
       btn.textContent = 'Save User'; btn.disabled = false;
@@ -9817,7 +10091,11 @@ function deactivateUser(email) {
     confirmText: 'Deactivate',
     onConfirm: function(){
       google.script.run
-        .withSuccessHandler(function() { _loadUsersTable(); })
+        .withSuccessHandler(function() {
+          _usersData.forEach(function(u){ if (u.email === email) u.active = false; });
+          _renderUsersTable();
+          showToast(email + ' can no longer sign in.', 'ok');
+        })
         .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
         .processMovement('removeUser', _h({ email: email }));
     }
@@ -9972,9 +10250,13 @@ function _showAccessDeniedScreen(status, email) {
 }
 
 // ── Load Data from Backend ────────────────────────────────────────────────────
-function loadDataFromGoogle(skipCache){
+// quiet=true refreshes the data underneath without the loading dot, the
+// skeleton or the "connecting…" line. Used after an edit that has already been
+// applied on screen, where the round trip is only there to true up the totals
+// the server derives.
+function loadDataFromGoogle(skipCache, quiet){
   lastLoadTime = null;
-  setConnStatus('loading');
+  if (!quiet) setConnStatus('loading');
 
   // ── Show cached data instantly while fresh data loads in background ──────
   // skipCache=true is passed after a save/delete so user sees loading state
@@ -9991,7 +10273,7 @@ function loadDataFromGoogle(skipCache){
     refreshDropdowns();
     refreshProjectDropdown();
     renderAll();
-  } else {
+  } else if (!quiet) {
     setLoading(true);
     // Show explicit loading message so user knows app is connecting (can take 10-20s)
     var sr = document.getElementById('statsRow');
@@ -10591,6 +10873,64 @@ function _confirmCancel() {
   _confirmCb = null;
   document.getElementById('confirmOverlay').classList.remove('show');
 }
+
+// ── Ask for a value, in the app's own dialog ─────────────────────────────────
+// opts: { icon, title, message, value, placeholder, confirmText, danger,
+//         choices:[…], onOk(value) }  — return a string from onOk to show it as
+// an error and keep the dialog open.
+var _promptCb = null;
+function _showPrompt(opts){
+  opts = opts || {};
+  _promptCb = opts.onOk || null;
+  document.getElementById('promptIcon').textContent    = opts.icon || '✏️';
+  document.getElementById('promptTitle').textContent   = opts.title || '';
+  var msg = document.getElementById('promptMessage');
+  msg.textContent = opts.message || '';
+  msg.style.display = opts.message ? '' : 'none';
+  var inp = document.getElementById('promptInput');
+  inp.value = opts.value || '';
+  inp.placeholder = opts.placeholder || '';
+  document.getElementById('promptErr').textContent = '';
+  var ok = document.getElementById('promptOkBtn');
+  ok.textContent = opts.confirmText || 'Save';
+  ok.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+
+  // Anything the answer is likely to be, offered as one click instead of a
+  // sentence asking the person to type it exactly.
+  var box = document.getElementById('promptChoices');
+  var choices = opts.choices || [];
+  box.innerHTML = choices.map(function(c){
+    return '<button type="button" class="cprompt-chip">' + _he(c) + '</button>';
+  }).join('');
+  box.style.display = choices.length ? '' : 'none';
+  box.querySelectorAll('.cprompt-chip').forEach(function(b){
+    b.addEventListener('click', function(){ inp.value = b.textContent; inp.focus(); });
+  });
+
+  document.getElementById('promptOverlay').classList.add('show');
+  setTimeout(function(){ inp.focus(); inp.select(); }, 40);
+}
+
+function _promptOk(){
+  if (!_promptCb) { _promptCancel(); return; }
+  var v = (document.getElementById('promptInput').value || '').trim();
+  var err = _promptCb(v);
+  if (err){ document.getElementById('promptErr').textContent = err; return; }   // stay open
+  _promptCb = null;
+  document.getElementById('promptOverlay').classList.remove('show');
+}
+
+function _promptCancel(){
+  _promptCb = null;
+  document.getElementById('promptOverlay').classList.remove('show');
+}
+
+document.addEventListener('keydown', function(e){
+  var ov = document.getElementById('promptOverlay');
+  if (!ov || !ov.classList.contains('show')) return;
+  if (e.key === 'Enter'){ e.preventDefault(); _promptOk(); }
+  else if (e.key === 'Escape'){ e.preventDefault(); _promptCancel(); }
+});
 
 // ── Edit Movement ─────────────────────────────────────────────────────────────
 var _editMovRowIdx = 0;
