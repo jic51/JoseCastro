@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.54';
+var APP_VERSION = '9.60';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -544,6 +544,61 @@ function oauthCfg_() {
 //   2. GAS Editor → ⚙ Project Settings → Script Properties →
 //      GMAIL_SCAN_ENABLED = true
 //   3. Re-run any function once so Google re-prompts for the new permission.
+// Google retires Gemini model names on its own schedule — gemini-2.0-flash
+// stopped answering and every AI feature returned a 404 that said nothing
+// useful to a warehouse manager. The name lives in one place now, and in a
+// Script Property, so a retirement is a two-minute settings change instead of
+// a code release for every customer.
+var GEMINI_MODEL_DEFAULT = 'gemini-2.5-flash';
+
+function geminiModel_() {
+  return String(PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || '').trim()
+         || GEMINI_MODEL_DEFAULT;
+}
+
+// Ordered fallbacks, tried in turn. The configured model first, then names that
+// have outlived several deprecations — so one retirement does not take the
+// feature down with it.
+function geminiModels_() {
+  var out = [geminiModel_()];
+  ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'].forEach(function (m) {
+    if (out.indexOf(m) === -1) out.push(m);
+  });
+  return out;
+}
+
+function geminiUrl_(model, apiKey) {
+  return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+}
+
+// One call, trying each model until one answers. Returns the HTTPResponse of
+// the first success, or of the last attempt so the caller can report something.
+function geminiFetch_(requestBody, apiKey) {
+  var models = geminiModels_();
+  var last = null;
+  for (var i = 0; i < models.length; i++) {
+    last = UrlFetchApp.fetch(geminiUrl_(models[i], apiKey), {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(requestBody),
+      muteHttpExceptions: true
+    });
+    if (last.getResponseCode() === 200) return last;
+    // 404 means "that model is gone" — worth trying the next name. Anything
+    // else (bad key, quota, malformed request) will fail the same way on every
+    // model, so stop and report it.
+    if (last.getResponseCode() !== 404) return last;
+  }
+  return last;
+}
+
+// The /exec address the customer actually opens. ScriptApp.getService().getUrl()
+// reports a deployment that was never published (Google issue 170799249), so
+// the one pasted in during setup wins.
+function savedWebAppUrl_() {
+  return String(PropertiesService.getScriptProperties().getProperty('WEB_APP_URL') || '').trim();
+}
+
 function isGmailScanEnabled() {
   return String(PropertiesService.getScriptProperties().getProperty('GMAIL_SCAN_ENABLED') || '')
            .toLowerCase() === 'true';
@@ -1003,7 +1058,7 @@ function getInitialData(sessionToken) {
     return {
       serverVersion:      APP_VERSION,
       company:            publicCompany_(),
-      systemActivity:     (function(){ try { return getSystemActivity(8); } catch (e) { return []; } })(),
+      systemActivity:     (function(){ try { return getSystemActivity(30); } catch (e) { return []; } })(),
       columnPrefs:        columnPrefs_(),
       movements:          movements,
       stock:              stock,
@@ -1018,7 +1073,7 @@ function getInitialData(sessionToken) {
       users:              users,
       rackPhotos:         rackPhotos,
       materialLocks:      materialLocks,
-      gmailScanEnabled:   isGmailScanEnabled()
+      gmailScanEnabled:   false   // the scanner has no UI; see isGmailScanEnabled()
     };
   } catch (err) {
     try {
@@ -1488,7 +1543,10 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'addIncoming')           return addIncoming(data);
   if (action === 'updateIncoming')        return updateIncoming(data);
   if (action === 'deleteIncoming')        return deleteIncoming(data.id, data._sessionToken);
-  if (action === 'scanGmail')             return scanGmailForDeliveries(data, auth);
+  // 'scanGmail' is deliberately NOT dispatched. The scanner needs Google's
+  // restricted mail scope, which is not in the manifest, so the call could only
+  // ever fail — and an action that cannot succeed should not be reachable.
+  // scanGmailForDeliveries() is kept for the day it ships as a real add-on.
   if (action === 'modifyMovement')        return modifyMovement(data, auth);
   if (action === 'setMonitoredMaterials') return setMonitoredMaterials(data.names, auth);
   if (action === 'getPmDirectory')        return getPmDirectory();
@@ -2475,10 +2533,13 @@ function refreshDerivedSheets_(ss) {
     var historyFixes = matIdFixes.filter(function(f){ return f.isHistory; });
     archiveFixes.forEach(function(f){ archive.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
     historyFixes.forEach(function(f){ history.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
+    // The row numbers go in a shape the app can parse back out, so the
+    // notification can offer to show you the actual rows rather than leaving
+    // you to search the sheet for them.
     auditLog_(ss, 'AUTO_REPAIR_MATID', 'system',
       describeMatIdFixes_(matIdFixes),
-      'was ' + matIdFixes[0].wasMatId + (matIdFixes.length > 1 ? ' (and ' + (matIdFixes.length - 1) + ' more)' : ''),
-      'now ' + matIdFixes[0].correctMatId);
+      'rows ' + matIdFixes.map(function (f) { return f.rowNum; }).join(','),
+      'was ' + matIdFixes[0].wasMatId + ' → now ' + matIdFixes[0].correctMatId);
   }
 
   var now = new Date();
@@ -3810,22 +3871,36 @@ var SYSTEM_EVENT_LABELS = {
   AUTO_REPAIR_MATID: 'Movements re-linked to the right material'
 };
 
-// Plain English for the notification card and the System tab. Names the
-// movements that were re-linked — up to three, then a count — so the owner can
-// check the rows themselves instead of taking the word "corrected" on trust.
+// Plain English for the notification card and the System tab.
+//
+// "1 row(s) had a stale MatID, corrected automatically" told an owner nothing:
+// not which row, not what it means, and — the part that actually confused
+// Jose — not WHY it happened. It is almost always a consequence of somebody
+// editing a movement: the material's ID is computed from its category and
+// name, so renaming either one leaves the stored ID pointing at the old
+// identity, and the next stock recalculation quietly re-links it. Nothing is
+// wrong; the app is finishing a job the editor started. Saying so is the
+// difference between a reassuring note and an alarming one.
 function describeMatIdFixes_(fixes) {
   var named = fixes.slice(0, 3).map(function (f) {
-    return (f.kind ? f.kind + ' ' : '') + f.what +
+    return 'row ' + f.rowNum + ' — ' + (f.kind ? f.kind + ' ' : '') + f.what +
            (f.qty ? ' ×' + f.qty + (f.unit ? ' ' + f.unit : '') : '') +
            (f.where ? ' @ ' + f.where : '') +
            (f.when ? ' (' + f.when + ')' : '');
   }).join(' · ');
   var more = fixes.length > 3 ? ' …and ' + (fixes.length - 3) + ' more' : '';
   return fixes.length + ' movement' + (fixes.length === 1 ? '' : 's') +
-         ' were filed under an out-of-date material ID and have been re-linked, ' +
-         'so their stock counts against the right material: ' + named + more;
+         ' still pointed at an old material identity — usually because someone ' +
+         'edited the category or name on that movement — and ' +
+         (fixes.length === 1 ? 'has' : 'have') + ' been re-linked so the stock ' +
+         'counts against the right material. Nothing was lost: ' + named + more;
 }
 
+// limit is how many undismissed notices the app can hold at once. Anything
+// older than that genuinely does fall away — see the note in
+// _announceSystemActivity on the client. Kept generous rather than tight: a
+// notice that disappears before it is read is the bug this whole feature was
+// meant to fix.
 function getSystemActivity(limit) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
@@ -3834,20 +3909,35 @@ function getSystemActivity(limit) {
   if (last < 2) return [];
 
   // Only the tail is read. The audit sheet grows without bound and a full
-  // getDataRange() here would be paid on every single app load.
-  var span  = Math.min(400, last - 1);
+  // getDataRange() here would be paid on every single app load. The tail has to
+  // be long enough that ordinary traffic — every movement saved, every config
+  // change — cannot push the system's own entries out of range before anyone
+  // has seen them.
+  var span  = Math.min(1500, last - 1);
   var rows  = sheet.getRange(last - span + 1, 1, span, 6).getValues();
   var out   = [];
   for (var i = rows.length - 1; i >= 0 && out.length < (limit || 8); i--) {
     var actor = String(rows[i][2] || '').toLowerCase().trim();
     if (!SYSTEM_ACTORS[actor]) continue;
     var action = String(rows[i][1] || '');
+    // Anything the app can take you to, it should. A backup is a file in
+    // Drive; a re-link happened on numbered rows of the archive. Both are
+    // reachable, and "corrected automatically" is only reassuring if you can
+    // go and look.
+    var ref = null;
+    if (action === 'BACKUP_CREATED' && String(rows[i][5] || '').trim()) {
+      ref = { kind: 'drive', id: String(rows[i][5]).trim(), label: 'Open the backup in Drive' };
+    } else if (action === 'AUTO_REPAIR_MATID') {
+      var m = String(rows[i][4] || '').match(/rows ([\d,]+)/);
+      if (m) ref = { kind: 'rows', rows: m[1].split(','), label: 'Show the movement' + (m[1].indexOf(',') === -1 ? '' : 's') };
+    }
     out.push({
       at:     rows[i][0] ? new Date(rows[i][0]).toISOString() : '',
       action: action,
       label:  SYSTEM_EVENT_LABELS[action] || action.replace(/_/g, ' ').toLowerCase(),
       detail: String(rows[i][3] || ''),
-      extra:  [rows[i][4], rows[i][5]].filter(function (v) { return String(v || '').trim(); }).join(' · ')
+      extra:  [rows[i][4], rows[i][5]].filter(function (v) { return String(v || '').trim(); }).join(' · '),
+      ref:    ref
     });
   }
   return out;
@@ -4094,11 +4184,28 @@ function reportIssue(data) {
   }
 
   var cfg     = loadConfig();
+  var cs      = companySettings_();
+  // The installation's admin gets it, and so does whoever supports the product
+  // — set SUPPORT_EMAIL to route reports somewhere other than the admin's inbox.
   var toEmail = cfg.adminEmail || Session.getEffectiveUser().getEmail();
-  var body = 'Reported by: ' + auth.email + ' (' + auth.role + ')\n' +
+  var support = String(PropertiesService.getScriptProperties().getProperty('SUPPORT_EMAIL') || '').trim();
+  if (support && support.toLowerCase() !== String(toEmail).toLowerCase()) toEmail += ',' + support;
+
+  // What a person actually needs to reproduce a problem. The old body carried
+  // a link to the sandboxed frame's own address
+  // (…googleusercontent.com/userCodeAppPanel), which opens a blank page for
+  // everybody including the developer — it is the inside of the iframe, not
+  // the app. The app's real address, which screen they were on, and what they
+  // were running it in are the things that answer "where do I look?".
+  var body = 'Company: ' + (cs.name || '(not set)') + '\n' +
+    'Reported by: ' + auth.email + ' (' + auth.role + ')\n' +
     'App version: ' + APP_VERSION + '\n' +
     'When: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') + '\n' +
-    (data && data.url ? 'Page: ' + data.url + '\n' : '') +
+    (data && data.screen  ? 'Screen: ' + String(data.screen).substring(0, 60) + '\n' : '') +
+    (data && data.viewport ? 'Window: ' + String(data.viewport).substring(0, 40) + '\n' : '') +
+    (data && data.browser ? 'Browser: ' + String(data.browser).substring(0, 200) + '\n' : '') +
+    'App URL: ' + (savedWebAppUrl_() || '(not saved — Settings › publish step)') + '\n' +
+    'Spreadsheet: ' + ss.getUrl() + '\n' +
     '\n' + message +
     (driveLinks.length
       ? '\n\nPhoto(s) also saved to Drive:\n' + driveLinks.map(function(id){ return 'https://drive.google.com/file/d/' + id + '/view'; }).join('\n')
@@ -4166,6 +4273,7 @@ function onOpen() {
     .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
     .addItem('Push Update Live (owner, standard Cloud project only)', 'menuActivateWebApp')
     .addSeparator()
+    .addItem('🩺 Check this installation', 'menuCheckInstallation')
     .addItem('🔎 Check if this copy is a clean template', 'menuVerifyMasterTemplate')
     .addItem('💣 Erase everything — make this a blank template', 'menuPrepareMasterTemplate');
 
@@ -4298,7 +4406,17 @@ function saveWebAppUrl(url) {
   if (!/^https:\/\/script\.google\.com\/.*\/exec(\?.*)?$/.test(u)) {
     throw new Error('That does not look like a web app link. It should start with https://script.google.com/ and end in /exec');
   }
-  PropertiesService.getScriptProperties().setProperty('WEB_APP_URL', u);
+  var p2 = PropertiesService.getScriptProperties();
+  p2.setProperty('WEB_APP_URL', u);
+  // The external sign-in flow has to hand Google back the exact same address,
+  // and it lived in a second property that somebody had to type in by hand —
+  // which is how it ends up missing, or subtly different, on a fresh copy.
+  // Setting it here means pasting the link once does both. It is not
+  // overwritten if it was set deliberately: a broker or a proxy redirect is a
+  // legitimate reason for the two to differ.
+  if (!String(p2.getProperty('OAUTH_REDIRECT_URI') || '').trim()) {
+    p2.setProperty('OAUTH_REDIRECT_URI', u);
+  }
   return { url: u, saved: true };
 }
 
@@ -4529,6 +4647,145 @@ var TEMPLATE_WIPE_PROPS = [
   'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET', 'OAUTH_REDIRECT_URI',
   'COLUMN_PREFS'
 ];
+
+// ─── INSTALLATION CHECK ──────────────────────────────────────────────────────
+// Script Properties are the one part of an installation that is invisible,
+// unlabelled and one click from gone. Google's editor shows a bare list of
+// names with no hint that FOLDER_PREFIX is holding every document link in the
+// system together, so deleting "the ones that don't look necessary" is a
+// reasonable thing for an owner to do and a very bad thing for the app.
+//
+// This says what each one is for, what happens without it, and repairs the ones
+// that can be repaired — including working FOLDER_PREFIX back out of the Drive
+// folders that already exist, which is the only one whose loss actually
+// destroys something.
+var PROPERTY_GUIDE = [
+  { key:'FOLDER_PREFIX', sev:'CRITICAL',
+    what:'Names the Drive folders holding every document and photo ever attached.',
+    lost:'Attachments stop opening — the app looks in a folder that is not the one they are in.' },
+  { key:'SETUP_COMPLETE', sev:'IMPORTANT',
+    what:'Marks setup as finished.',
+    lost:'The menu offers to run setup again and treats this as a fresh copy.' },
+  { key:'COMPANY_NAME', sev:'COSMETIC',
+    what:'Your company name in the header, the browser tab and outgoing email.',
+    lost:'The app says "Warehouse". Re-enter it in Settings › Company.' },
+  { key:'COMPANY_DOMAIN', sev:'IMPORTANT',
+    what:'Recognises your own staff by their email domain.',
+    lost:'Staff are asked to sign in with Google instead of being recognised.' },
+  { key:'COMPANY_LOGO_ID', sev:'COSMETIC',
+    what:'Your logo.', lost:'No logo. Upload it again in Settings › Company.' },
+  { key:'WEB_APP_URL', sev:'IMPORTANT',
+    what:'The /exec address your team opens.',
+    lost:'Setup shows the wrong link again, and bug reports cannot say where the app lives.' },
+  { key:'SESSION_SECRET', sev:'AUTO',
+    what:'Signs sign-in tokens. Recreated automatically.',
+    lost:'Everyone who signed in with Google has to sign in once more. Nothing else.' },
+  { key:'WMS_SESSIONS', sev:'AUTO',
+    what:'Who is currently signed in.', lost:'Same — one extra sign-in.' },
+  { key:'WMS_MONITORED_MATERIALS', sev:'RECOVERABLE',
+    what:'Which materials have a minimum-stock alert, and at what level.',
+    lost:'Low-stock alerts stop. Set them again from ⚙ Stock Alerts.' },
+  { key:'COLUMN_PREFS', sev:'RECOVERABLE',
+    what:'Your renamed column headings.', lost:'Headings go back to their default names.' },
+  { key:'GEMINI_API_KEY', sev:'RECOVERABLE',
+    what:'Key for the AI document reader.', lost:'AI Extract stops working. Paste the key back.' },
+  { key:'OAUTH_CLIENT_ID', sev:'RECOVERABLE',
+    what:'Lets people OUTSIDE your domain sign in.', lost:'Only your own domain can get in.' },
+  { key:'OAUTH_CLIENT_SECRET', sev:'RECOVERABLE', what:'Pairs with the client ID.', lost:'Same.' },
+  { key:'OAUTH_REDIRECT_URI', sev:'AUTO',
+    what:'Where Google returns after an external sign-in.',
+    lost:'Refilled automatically the next time the /exec link is saved in setup.' },
+  { key:'ERROR_ALERTS_ENABLED', sev:'OPTIONAL',
+    what:'Set to false to stop error emails.', lost:'Alerts are on, which is the default.' },
+  { key:'GMAIL_SCAN_ENABLED', sev:'OPTIONAL',
+    what:'Legacy flag. The scanner has no UI.', lost:'Nothing.' },
+  { key:'FOLDER_PREFIX_HISTORY', sev:'IMPORTANT',
+    what:'Older folder names, so documents filed under a previous company name still open.',
+    lost:'Attachments from before a rename stop opening.' }
+];
+
+// Reads the Drive folders this account owns and works out what FOLDER_PREFIX
+// must have been — the folders are named "<prefix>_Docs", so they still know.
+function detectFolderPrefixes_() {
+  var found = {};
+  try {
+    var it = DriveApp.searchFolders('title contains "_Docs"');
+    while (it.hasNext()) {
+      var name = it.next().getName();
+      var m = name.match(/^(.+)_Docs$/);
+      if (m) found[m[1]] = true;
+    }
+  } catch (e) {}
+  return Object.keys(found);
+}
+
+function menuCheckInstallation() {
+  var ui = SpreadsheetApp.getUi();
+  var p  = PropertiesService.getScriptProperties();
+  var missing = [], ok = [], repaired = [];
+
+  PROPERTY_GUIDE.forEach(function (g) {
+    var v = String(p.getProperty(g.key) || '').trim();
+    if (v) { ok.push(g.key); return; }
+    missing.push(g);
+  });
+
+  // Repair what can be repaired without asking, and only that.
+  if (!String(p.getProperty('SESSION_SECRET') || '').trim()) {
+    serverSecret_();                      // creates it
+    repaired.push('SESSION_SECRET — recreated');
+  }
+  var url = String(p.getProperty('WEB_APP_URL') || '').trim();
+  if (url && !String(p.getProperty('OAUTH_REDIRECT_URI') || '').trim()) {
+    p.setProperty('OAUTH_REDIRECT_URI', url);
+    repaired.push('OAUTH_REDIRECT_URI — set from your saved app link');
+  }
+  // Setup is complete if there is an admin on the user list, whatever the flag says.
+  if (String(p.getProperty('SETUP_COMPLETE') || '') !== 'true') {
+    var users = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('USERS_V3');
+    var hasAdmin = false;
+    if (users && users.getLastRow() > 1) {
+      users.getDataRange().getValues().slice(1).forEach(function (r) {
+        if (String(r[3] || '').toUpperCase().trim() === 'ADMIN') hasAdmin = true;
+      });
+    }
+    if (hasAdmin) { p.setProperty('SETUP_COMPLETE', 'true'); repaired.push('SETUP_COMPLETE — you already have an admin, so setup is done'); }
+  }
+
+  var lines = [];
+  if (repaired.length) lines.push('REPAIRED AUTOMATICALLY\n  • ' + repaired.join('\n  • ') + '\n');
+
+  var stillMissing = missing.filter(function (g) {
+    return !(repaired.join(' ').indexOf(g.key) !== -1);
+  });
+
+  if (!stillMissing.length) {
+    lines.push('Everything the app needs is present.');
+  } else {
+    var bySev = { CRITICAL:[], IMPORTANT:[], RECOVERABLE:[], COSMETIC:[], OPTIONAL:[], AUTO:[] };
+    stillMissing.forEach(function (g) { (bySev[g.sev] || bySev.OPTIONAL).push(g); });
+    ['CRITICAL','IMPORTANT','RECOVERABLE','COSMETIC','OPTIONAL','AUTO'].forEach(function (sev) {
+      if (!bySev[sev].length) return;
+      lines.push(sev);
+      bySev[sev].forEach(function (g) {
+        lines.push('  • ' + g.key + '\n      ' + g.what + '\n      Without it: ' + g.lost);
+      });
+      lines.push('');
+    });
+  }
+
+  // FOLDER_PREFIX is the one worth spelling out, because the folders themselves
+  // still hold the answer and guessing wrong orphans every attachment.
+  if (!String(p.getProperty('FOLDER_PREFIX') || '').trim()) {
+    var guesses = detectFolderPrefixes_();
+    lines.push('FOLDER_PREFIX is missing. Your Drive has these document folders:');
+    lines.push(guesses.length ? '  • ' + guesses.join('\n  • ') : '  (none found)');
+    lines.push('Set FOLDER_PREFIX to the one your attachments are in — without the "_Docs".');
+    lines.push('Project Settings › Script Properties › Add.');
+  }
+
+  ui.alert('🩺 ' + PRODUCT_NAME + ' — installation check', lines.join('\n'), ui.ButtonSet.OK);
+}
 
 function menuPrepareMasterTemplate() {
   var ui = SpreadsheetApp.getUi();   // throws outside the Sheets UI — the real gate
@@ -5783,7 +6040,7 @@ function testGemini_() {
   requireOwnerContext_();
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) { Logger.log('ERROR: GEMINI_API_KEY not set'); return; }
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+  var url = geminiUrl_(geminiModel_(), apiKey);
   var resp = UrlFetchApp.fetch(url, {
     method: 'POST',
     contentType: 'application/json',
@@ -5901,20 +6158,13 @@ function parseEmailsBatch_(emailMetas, apiKey) {
       'Body: '    + em.bodyText + '\n\n';
   });
 
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
   var requestBody = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
   };
 
   try {
-    var response = UrlFetchApp.fetch(url, {
-      method: 'POST',
-      contentType: 'application/json',
-      payload: JSON.stringify(requestBody),
-      muteHttpExceptions: true
-    });
-
+    var response = geminiFetch_(requestBody, apiKey);
     var code = response.getResponseCode();
     var body = response.getContentText();
 
@@ -5993,12 +6243,7 @@ function parseEmailTextAsIncoming_(bodyText, subject, from, apiKey) {
     '}\n' +
     'Return ONLY the JSON object, no other text.';
 
-  // Try gemini-2.0-flash first, fall back to gemini-1.5-flash
-  var models = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash-002'
-  ];
+  var models = geminiModels_();
   var baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var requestBody = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -6142,8 +6387,6 @@ function extractDocumentInfo(fileData, mimeType, sessionToken) {
     'For category, infer from the product description. ' +
     'For qty, extract the total quantity being delivered.';
 
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
-
   var requestBody = {
     contents: [{
       parts: [
@@ -6154,12 +6397,7 @@ function extractDocumentInfo(fileData, mimeType, sessionToken) {
     generationConfig: { temperature: 0.05 }
   };
 
-  var response = UrlFetchApp.fetch(url, {
-    method: 'POST',
-    contentType: 'application/json',
-    payload: JSON.stringify(requestBody),
-    muteHttpExceptions: true
-  });
+  var response = geminiFetch_(requestBody, apiKey);
 
   var code = response.getResponseCode();
   var body = response.getContentText();

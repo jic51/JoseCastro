@@ -48,8 +48,13 @@
        the moment the tabs got tight, which is exactly what it was moved here to
        stop doing. The tabs absorb the squeeze instead — their own buttons wrap
        inside the bar. */
-    .topbar-row2{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap}
-    .topbar-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
+    /* The tabs sit centred in whatever room is left; the account cluster is
+       pinned to the right edge and stays there at every width. Auto margins on
+       the nav absorb the free space evenly on both sides, which centres it
+       without a spacer element and without unpinning the cluster. */
+    .topbar-row2{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+    .topbar-row2 .nav{margin:0 auto}
+    .topbar-tools{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:auto}
     .tools-primary{display:flex;align-items:center;gap:9px}
     /* The Acopio badge with the running version tucked under it — present
        enough to read when someone asks "what version are you on?", quiet
@@ -369,42 +374,6 @@
     .inc-suggest-item .inc-tag{font-size:.68rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
     .inc-suggest-item>span:not(.inc-tag):not(.inc-meta){flex:1 1 100px;min-width:0;overflow-wrap:break-word;word-break:break-word}
     .inc-suggest-item .inc-meta{font-size:.72rem;color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
-    /* ── GMAIL SCANNER ── */
-    .gmail-scan-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:1.5rem 1rem 3rem}
-    .gmail-scan-overlay.show{display:flex}
-    .gmail-scan-modal{background:var(--card);border-radius:var(--radius);box-shadow:0 12px 48px rgba(0,0,0,.25);width:100%;max-width:820px;display:flex;flex-direction:column;margin:auto}
-    .gmail-scan-hdr{background:var(--navy);color:#fff;padding:.85rem 1.25rem;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
-    .gmail-scan-hdr h3{font-size:1rem;font-weight:700;margin:0}
-    .gmail-scan-hdr button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.85rem}
-    .gmail-scan-hdr button:hover{background:rgba(255,255,255,.22)}
-    .gmail-scan-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.85rem}
-    .gmail-scan-config{display:grid;grid-template-columns:1fr 110px 110px;gap:.6rem;align-items:end}
-    .gmail-scan-config .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.3rem}
-    .gmail-scan-config .field input{width:100%;padding:.45rem .7rem;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit}
-    .gmail-scan-config .field input:focus{outline:none;border-color:var(--accent)}
-    .gmail-scan-actions{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
-    #gmailScanStatus{font-size:.82rem;color:var(--muted);flex:1;min-width:0}
-    .gmail-scan-loading{display:none;align-items:center;gap:.75rem;padding:.6rem .9rem;background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px;font-size:.82rem;color:var(--yellow)}
-    .gmail-scan-loading.show{display:flex}
-    /* Cards scroll with the page — no inner scroll container */
-    .gmail-scan-results{display:flex;flex-direction:column;gap:.85rem}
-    .gmail-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:.15s}
-    .gmail-card.skipped{opacity:.35;pointer-events:none}
-    .gmail-card.saved{border-color:var(--green);background:#F0FDF4}
-    /* Header: subject wraps instead of truncating */
-    .gmail-card-hdr{background:#F8FAFC;border-bottom:1px solid var(--border);padding:.6rem .9rem;display:flex;align-items:flex-start;gap:.5rem;flex-wrap:wrap}
-    .gmail-card-hdr .gc-subject{font-size:.86rem;font-weight:700;color:var(--navy);flex:1 1 200px;word-break:break-word;line-height:1.4}
-    .gmail-card-hdr .gc-meta{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
-    .gmail-card-hdr .gc-not-delivery{font-size:.72rem;font-weight:600;flex-shrink:0;padding:.15rem .5rem;border-radius:10px}
-    .gmail-card-body{padding:.75rem .9rem;display:grid;grid-template-columns:1fr 1fr;gap:.55rem .9rem}
-    @media(max-width:560px){.gmail-card-body{grid-template-columns:1fr}}
-    .gmail-card-body .field label{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.25rem}
-    .gmail-card-body .field input,.gmail-card-body .field select{width:100%;padding:.4rem .65rem;border:1px solid var(--border);border-radius:5px;font-size:.83rem;font-family:inherit}
-    .gmail-card-body .field input:focus,.gmail-card-body .field select:focus{outline:none;border-color:var(--accent)}
-    .gmail-card-body .field.full{grid-column:1/-1}
-    .gmail-card-footer{padding:.55rem .9rem;border-top:1px solid var(--border);display:flex;gap:.5rem;justify-content:flex-end;align-items:center;background:#FAFAFA}
-    .gmail-card-footer .gc-saved-badge{font-size:.78rem;font-weight:700;color:var(--green);flex:1}
-    .gmail-no-results{text-align:center;padding:2.5rem;color:var(--muted);font-size:.88rem;line-height:1.6}
     /* ── CONFIRM DIALOG ── */
     .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:1rem}
     .cconfirm-overlay.show{display:flex}
@@ -683,6 +652,10 @@
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    .inc-group-row td{background:var(--bg);padding:.45rem .75rem;border-top:2px solid var(--border)}
+    .inc-group-lbl{font-size:.76rem;font-weight:800;color:var(--text);letter-spacing:.01em}
+    .inc-group-count{font-size:.68rem;font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
+    .inc-group-note{font-size:.7rem;color:var(--muted);margin-left:.6rem;font-weight:400}
     .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700;text-decoration:line-through}
     /* ── MORNING POPUP ── */
     .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -776,16 +749,22 @@
        would not read as a deck. Newest is last in the DOM so it paints on top
        without fighting z-index. Padding on the container leaves room for the
        rotated corners and the badge to sit OUTSIDE the top card. */
-    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(320px,calc(100vw - 44px));padding:16px 12px 0 14px}
+    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px}
     .deck:empty{display:none}
-    .deck-card{position:relative;width:270px;max-width:100%;height:96px;flex-shrink:0;border-radius:10px;padding:.6rem .75rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    /* Each kind carries its own size, and the collapse is computed FROM that
+       size rather than from one hardcoded number — so a mixed pile still
+       collapses exactly, whatever is in it. Colour alone was not enough of a
+       difference: a notification holds a sentence and needs the width to show
+       it, a suggestion holds one name and a pair of buttons. */
+    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
     .deck-card + .deck-card{margin-top:.45rem}
     /* Closing is deliberately slower than opening — a pile snapping shut the
        instant the pointer leaves reads as the app swatting you away. */
     .deck:hover .deck-card,.deck.open .deck-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
     /* Piled: every card pulled up under the next, offset a few px, rotation
        alternating for a hand-stacked look. */
-    .deck:not(:hover):not(.open) .deck-card{margin-top:-90px;transform:rotate(-2.4deg)}
+    .deck:not(:hover):not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:rotate(-2.4deg)}
     .deck:not(:hover):not(.open) .deck-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
     .deck:not(:hover):not(.open) .deck-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
     .deck:not(:hover):not(.open) .deck-card:first-child{margin-top:0}
@@ -821,7 +800,9 @@
     .deck.dim:not(:hover):not(.open) .sys-card-detail{opacity:.6}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
     .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
-    .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
+    .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-height:1.32}
+    .sys-card-more{position:absolute;right:.8rem;bottom:.5rem;font-size:.66rem;font-weight:700;color:var(--accent);opacity:0;transition:opacity .15s}
+    .sys-card:hover .sys-card-more{opacity:1}
 
     /* The two corner controls. Neither is ever translucent with the card under
        it: the one thing you can act on while the pile is at rest has to stay
@@ -850,7 +831,7 @@
       .deck{display:none!important}
       .cfg-bell{display:inline-flex}
     }
-    @media (max-width:640px){.deck{right:16px;max-width:calc(100vw - 32px)}.deck-card{width:230px}}
+    @media (max-width:640px){.deck{right:16px;max-width:calc(100vw - 32px)}.deck-card{--card-w:250px}.sys-card{--card-w:calc(100vw - 60px)}}
     /* Manual merge picker */
     .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
@@ -983,7 +964,13 @@
     .sysact-dot{color:var(--green);font-weight:800}
     .sysact-label{font-weight:700;color:var(--text)}
     .sysact-when{color:var(--muted);font-size:.74rem}
-    .sysact-detail{color:var(--muted);font-size:.72rem;width:100%;padding-left:1.3rem}
+    .sysact-detail{color:var(--muted);font-size:.72rem;width:100%;padding-left:1.3rem;line-height:1.5}
+    .sysact-link{display:inline-block;margin:.3rem 0 0 1.3rem;background:none;border:none;padding:0;font-family:inherit;font-size:.72rem;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:none}
+    .sysact-link:hover{text-decoration:underline}
+    /* Lands you on the exact entry you clicked through from. */
+    @keyframes spotlight{0%{background:var(--yellow-bg)}100%{background:transparent}}
+    .sysact-spot{animation:spotlight 6s ease-out both;border-radius:8px}
+    tr.row-spotlight td{animation:spotlight 6s ease-out both}
     .cfg-new-hint{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.3rem;font-size:.72rem;color:var(--muted)}
     .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem .5rem;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-new-add:hover{filter:brightness(1.1)}
@@ -1099,9 +1086,14 @@
        text simply wraps to roughly twice the height rather than being shrunk —
        nothing here changes the font size. Phone only; from tablet up they are
        already the right shape. */
-    @media (max-width:520px){
+    /* Stacked from here down, not only on a phone: the moment the tabs need
+       two rows there is height beside them going spare and no width to spare,
+       so the account circle goes on top and the bell under it. */
+    @media (max-width:720px){
       .topbar-tools{flex-direction:column;gap:8px;align-items:center}
       .nav{flex:1 1 auto}
+    }
+    @media (max-width:520px){
       .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
       .cfg-bell-panel{left:auto;right:12px;width:calc(50vw - 18px);max-width:none}
     }
@@ -1485,7 +1477,6 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
-          <button id="btnScanGmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openGmailScanModal()">📧 Scan Gmail</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
       </div>
@@ -1619,50 +1610,6 @@
       <button class="btn btn-ghost btn-sm" onclick="closeModal('incomingOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveIncomingItem()">💾 Save</button>
     </div>
-  </div>
-</div>
-
-<!-- ══ GMAIL SCANNER MODAL ════════════════════════════════════════════════════ -->
-<div class="gmail-scan-overlay" id="gmailScanOverlay" onclick="if(event.target===this)_flashModalHeader('gmailScanOverlay')">
-  <div class="gmail-scan-modal">
-    <div class="gmail-scan-hdr">
-      <h3>📧 Scan Gmail for Deliveries</h3>
-      <button onclick="closeGmailScanModal()">✕ Close</button>
-    </div>
-    <div class="gmail-scan-body">
-
-      <!-- Config row -->
-      <div class="gmail-scan-config">
-        <div class="field">
-          <label>Search Query</label>
-          <input type="text" id="gmailQuery" placeholder="e.g. delivery OR shipment OR 'purchase order'">
-        </div>
-        <div class="field field-sm">
-          <label>Days Back</label>
-          <input type="number" id="gmailDaysBack" value="14" min="1" max="60">
-        </div>
-        <div class="field field-sm">
-          <label>Max Emails</label>
-          <input type="number" id="gmailMaxResults" value="10" min="1" max="20">
-        </div>
-      </div>
-
-      <!-- Actions + status -->
-      <div class="gmail-scan-actions">
-        <button class="btn btn-primary btn-sm" id="btnRunScan" onclick="runGmailScan()">🔍 Scan</button>
-        <span id="gmailScanStatus">Enter a query or use the default, then press Scan.</span>
-      </div>
-
-      <!-- Loading indicator -->
-      <div class="gmail-scan-loading" id="gmailScanLoading">
-        <span class="spin-hg">⏳</span>
-        <span>Scanning Gmail and parsing with AI — this may take 15-30 seconds…</span>
-      </div>
-
-      <!-- Results -->
-      <div class="gmail-scan-results" id="gmailScanResults"></div>
-
-    </div><!-- /body -->
   </div>
 </div>
 
@@ -2261,14 +2208,10 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.54';
+var APP_VERSION = '9.60';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
-// Paid Gmail-scanner add-on: off unless the backend says this installation
-// bought it. Set from getInitialData; defaults false so a stale/failed load
-// hides the feature rather than showing a button that can only error out.
-var _gmailScanEnabled = false;
 // Company identity, filled from getInitialData on every load (including the
 // unauthenticated paths, so the sign-in screen is branded too).
 var _companyName = '', _companyDomain = '';
@@ -3666,7 +3609,17 @@ function submitReportIssue(){
       btn.disabled = false; btn.textContent = 'Send Report';
       showToast('Could not send the report: ' + ((err && err.message) || err), 'err');
     })
-    .reportIssue(_h({ message: message, photos: _riPhotos, url: location.href }));
+    // location.href here is the INSIDE of Google's sandboxed frame
+    // (…googleusercontent.com/userCodeAppPanel), which opens a blank page for
+    // anyone who clicks it — it was in every report and helped nobody. What
+    // does help: which screen they were on, and what they were running it in.
+    .reportIssue(_h({
+      message:  message,
+      photos:   _riPhotos,
+      screen:   _activeTab(),
+      viewport: window.innerWidth + '×' + window.innerHeight,
+      browser:  navigator.userAgent
+    }));
 }
 
 function locSummary(locs){
@@ -4378,6 +4331,7 @@ function renderMovements(){
   var paged     = filtered.slice(0, pageEnd);
   var remaining = total - pageEnd;
 
+  _movRenderedRows = paged.map(function(m){ return m.archived ? null : m.rowIdx; });
   var rows = paged.map(function(m){
     var norm = normMT(m.moveType);
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
@@ -6508,6 +6462,78 @@ function _saveCompanyProfile(){
     .processMovement('saveCompanyProfile', _h(payload));
 }
 
+// The id a notification and its row in the System tab agree on, so clicking
+// the card can scroll to the entry it came from.
+function _sysActId(a){ return String(a.at || '') + '|' + String(a.action || ''); }
+
+// Opens Settings on the System tab and lights up the entry the card came from,
+// so "what did it actually do?" is one click rather than a hunt through the
+// audit sheet.
+function _openSystemActivity(id){
+  if (userRole !== 'ADMIN'){
+    showToast('Ask an admin to look this up in Settings → System.', 'info', 5000);
+    return;
+  }
+  _settingsTab = 'system';
+  openSettingsModal();
+  setTimeout(function(){
+    var el = document.getElementById('sysact-' + id);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('sysact-spot');
+    setTimeout(function(){ el.classList.remove('sysact-spot'); }, 6000);
+  }, 350);
+}
+
+// "Corrected automatically" is only reassuring if you can go and look. A backup
+// is a file in Drive; a re-link happened on numbered rows of the archive, which
+// the app can show you itself.
+function _sysActRefHtml(a){
+  var r = a.ref;
+  if (!r) return a.extra ? '<span class="sysact-detail" style="opacity:.7">' + _he(a.extra) + '</span>' : '';
+  if (r.kind === 'drive'){
+    return '<a class="sysact-link" target="_blank" rel="noopener" ' +
+           'href="https://drive.google.com/file/d/' + _he(r.id) + '/view">' + _he(r.label || 'Open in Drive') + ' ↗</a>';
+  }
+  if (r.kind === 'rows' && r.rows && r.rows.length){
+    return '<button type="button" class="sysact-link" onclick="_showMovementRows(\'' + _he(r.rows.join(',')) + '\')">' +
+           _he(r.label || 'Show the rows') + ' (' + r.rows.join(', ') + ') →</button>';
+  }
+  return '';
+}
+
+// Takes you to the movements it is talking about: closes Settings, switches to
+// Movements & History, and marks the rows. An archived row is not in the loaded
+// window, so it says so rather than silently doing nothing.
+function _showMovementRows(csv){
+  var want = {};
+  String(csv).split(',').forEach(function(n){ want[String(n).trim()] = 1; });
+  closeModal('settingsOverlay');
+  showTab('movements', 'btn-movements');
+  var search = document.getElementById('movSearch');
+  if (search) search.value = '';
+  _movPage = 1;
+  renderMovements();
+  setTimeout(function(){
+    var found = 0;
+    document.querySelectorAll('#tableContainer tbody tr').forEach(function(tr, i){
+      var idx = _movRowIndexAt(i);
+      if (idx && want[String(idx)]){
+        tr.classList.add('row-spotlight');
+        if (!found) tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        found++;
+        setTimeout(function(){ tr.classList.remove('row-spotlight'); }, 6000);
+      }
+    });
+    if (!found) showToast('Those rows are in the archived history — use "Load Older History" to see them.', 'warn', 6000);
+  }, 60);
+}
+
+// The row index the table painted at this position, read back from the data it
+// painted from — the table itself does not carry it.
+var _movRenderedRows = [];
+function _movRowIndexAt(i){ return _movRenderedRows[i]; }
+
 function _renderSystemTab() {
   var content = document.getElementById('settingsTabContent');
   var months = String((_settingsData && _settingsData.archiveCutoffMonths) || 12);
@@ -6516,10 +6542,11 @@ function _renderSystemTab() {
   // without anyone having to open the Sheet and read AUDIT_LOG by hand.
   var actHtml = (systemActivity && systemActivity.length)
     ? '<ul class="sysact-list">' + systemActivity.map(function(a){
-        return '<li><span class="sysact-dot">✓</span>' +
+        return '<li id="sysact-' + _he(_sysActId(a)) + '"><span class="sysact-dot">✓</span>' +
           '<span class="sysact-label">' + _he(a.label) + '</span>' +
           '<span class="sysact-when">' + _he(_fmtWhen(a.at)) + '</span>' +
-          (a.detail ? '<span class="sysact-detail">' + _he(a.detail) + (a.extra ? ' · ' + _he(a.extra) : '') + '</span>' : '') +
+          (a.detail ? '<span class="sysact-detail">' + _he(a.detail) + '</span>' : '') +
+          _sysActRefHtml(a) +
         '</li>';
       }).join('') + '</ul>'
     : '<p style="font-size:.78rem;color:var(--muted)">Nothing automatic has run yet. The daily backup runs at 2am ' +
@@ -7788,8 +7815,14 @@ function _applyMatChangeLocally(p){
   _filterMatList();     // just this list, in place — no round trip to redraw it
 }
 
-// ── Shared settings helpers ───────────────────────────────────────────────────
+// ── Shared escaping helpers ─────────────────────────────────────────────────
+// Both live here, together. _escAttr used to be defined in the middle of the
+// Gmail scanner's code — nothing to do with Gmail, it just ended up there — and
+// removing that feature took a helper used 26 times across the app with it. A
+// missing function is not a syntax error, so every check passed and the app
+// simply stopped part-way through its first render.
 function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
@@ -7927,7 +7960,7 @@ function closeIfOutside(e, id){
 
 function _flashModalHeader(overlayId){
   var ov = document.getElementById(overlayId); if (!ov) return;
-  var h = ov.querySelector('.mhdr, .gmail-scan-hdr, .rack-drawer-hdr'); if (!h) return;
+  var h = ov.querySelector('.mhdr, .rack-drawer-hdr'); if (!h) return;
   h.classList.remove('flash-hdr'); void h.offsetWidth; h.classList.add('flash-hdr');
 }
 
@@ -8631,6 +8664,14 @@ function _paintDeck(){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       _dismissSysCard(btn.getAttribute('data-sys-x'));
+    });
+  });
+  // The card itself opens the full record. Admin only — Settings is.
+  deck.querySelectorAll('[data-sys-open]').forEach(function(card){
+    card.addEventListener('click', function(e){
+      if (e.target.closest('.sys-card-x')) return;
+      e.stopPropagation();
+      _openSystemActivity(card.getAttribute('data-sys-open'));
     });
   });
   deck.querySelectorAll('button[data-act]').forEach(function(btn){
@@ -9800,14 +9841,64 @@ function renderIncomingTable() {
     return;
   }
   var isAdmin = userRole === 'ADMIN';
+  var todayKey = _isoDate(new Date());
+
+  // Grouped by what you need to DO about each one, and each group ordered the
+  // way that group is read. The list used to be one run sorted oldest-date
+  // first, so it opened on deliveries that arrived months ago and you had to
+  // scroll past the whole year to find what is coming.
+  var GROUPS = [
+    { key:'overdue',  label:'⚠ Overdue',           note:'Committed to a date that has passed and still not marked as arrived.' },
+    { key:'expected', label:'📅 Expected',          note:'Soonest first.' },
+    { key:'nodate',   label:'❔ No date yet',       note:'Waiting on the supplier to say when.' },
+    { key:'arrived',  label:'✓ Arrived',            note:'Most recent first.' },
+    { key:'cancelled',label:'✕ Cancelled',          note:'' }
+  ];
+  var buckets = { overdue:[], expected:[], nodate:[], arrived:[], cancelled:[] };
+  filtered.forEach(function(item){
+    var st = String(item.status || 'Pending').toLowerCase();
+    if (st === 'cancelled')                     buckets.cancelled.push(item);
+    else if (st === 'arrived' || st === 'received') buckets.arrived.push(item);
+    else if (_incIsOverdue(item, todayKey))     buckets.overdue.push(item);
+    else if (!item.estDate)                     buckets.nodate.push(item);
+    else                                        buckets.expected.push(item);
+  });
+  // Soonest first for anything still coming — that is the next thing to plan
+  // around. Newest first for anything already settled — nobody scrolls a
+  // history to reach the oldest row.
+  var asc  = function(a,b){ return (a.estDate||'') < (b.estDate||'') ? -1 : 1; };
+  var desc = function(a,b){ return (a.estDate||'') > (b.estDate||'') ? -1 : 1; };
+  buckets.overdue.sort(asc);       // longest overdue at the top
+  buckets.expected.sort(asc);
+  buckets.arrived.sort(desc);
+  buckets.cancelled.sort(desc);
+
   var html = '<table><thead><tr>' +
     '<th>Est. Date</th><th>Status</th><th>Category</th><th>Name</th>' +
     '<th>Qty</th><th>Unit</th><th>Doc</th><th>Notes / Comments</th>' +
     (isAdmin ? '<th></th>' : '') +
     '</tr></thead><tbody>';
-  html += filtered.map(function(item){
-    var today = _isoDate(new Date());
-    var isOverdue = _incIsOverdue(item, today);
+
+  var colCount = 8 + (isAdmin ? 1 : 0);
+  html += GROUPS.map(function(g){
+    var rows = buckets[g.key];
+    if (!rows.length) return '';
+    return '<tr class="inc-group-row"><td colspan="' + colCount + '">' +
+        '<span class="inc-group-lbl">' + g.label + '</span>' +
+        '<span class="inc-group-count">' + rows.length + '</span>' +
+        (g.note ? '<span class="inc-group-note">' + g.note + '</span>' : '') +
+      '</td></tr>' + rows.map(_incRowHtml).join('');
+  }).join('');
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// One row of the incoming table. Pulled out of renderIncomingTable so the
+// grouped sections can each emit their own rows without duplicating it.
+function _incRowHtml(item){
+  var isAdmin = userRole === 'ADMIN';
+  var today = _isoDate(new Date());
+  var isOverdue = _incIsOverdue(item, today);
     var statusBadge = '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>';
     if (isOverdue) statusBadge += ' <span class="badge badge-red" style="font-size:.65rem">overdue</span>';
     var soft = (item.dateMode && item.dateMode !== 'exact');
@@ -9828,9 +9919,6 @@ function renderIncomingTable() {
       '<td style="font-size:.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _he(item.notes||'') + '">' + _he(item.notes||'—') + '</td>' +
       (isAdmin ? '<td><button class="btn-icon" data-action="edit-incoming" data-id="' + _he(item.id) + '">✏️</button></td>' : '') +
     '</tr>';
-  }).join('');
-  html += '</tbody></table>';
-  container.innerHTML = html;
 }
 
 function openIncomingModal(id) {
@@ -10698,7 +10786,6 @@ function _applyData(data) {
   monitoredMaterials = data.monitoredMaterials || null;
   rackPhotos         = data.rackPhotos         || {};
   materialLocks      = data.materialLocks      || [];
-  _gmailScanEnabled  = data.gmailScanEnabled === true;
   systemActivity     = data.systemActivity     || [];
   if (data.columnPrefs) { columnPrefs = data.columnPrefs; _applyColumnPrefs(); }
   _rebuildLocksIndex();
@@ -10781,9 +10868,11 @@ function _dismissSysCard(id){
 // notice, once, and never again. The watermark is gone; the only thing that
 // removes a card is the ✕, which is what the ✕ is for.
 //
-// It cannot pile up without bound: the server returns only the most recent
-// handful of system events, so the deck is naturally capped at what has
-// happened lately.
+// It cannot pile up without bound, and that ceiling is the one honest limit
+// here: the server returns the most recent 30 system events, so an undismissed
+// notice DOES eventually fall off — once 30 newer ones exist. At roughly one
+// backup a day that is a month of ignoring it, which is long enough to mean
+// nobody was ever going to read it.
 function _announceSystemActivity(){
   var dismissed = _loadSysDismissed();
   _sysCards = (systemActivity || []).filter(function(a){
@@ -10803,11 +10892,12 @@ function _renderSysDeck(){
 
   // Newest painted last so it sits nearest the top of the pile.
   _sysDeckHtml = _sysCards.slice(0, 5).reverse().map(function(c){
-    return '<div class="deck-card sys-card">' +
+    return '<div class="deck-card sys-card" data-sys-open="' + _he(c.id) + '" title="Click for the full record">' +
       '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
       '<div class="sys-card-title">✓ ' + _he(c.label) + '</div>' +
       '<div class="sys-card-when">' + _he(_fmtWhen(c.at)) + '</div>' +
-      (c.detail ? '<div class="sys-card-detail">' + _he(c.detail) + (c.extra ? ' · ' + _he(c.extra) : '') + '</div>' : '') +
+      (c.detail ? '<div class="sys-card-detail">' + _he(c.detail) + '</div>' : '') +
+      '<span class="sys-card-more">Details →</span>' +
     '</div>';
   }).join('');
   _paintDeck();
@@ -11028,11 +11118,6 @@ function applyRoleUI(){
   // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
-  // Gmail scanner is a paid add-on: admin-only AND only when the installation
-  // has it enabled (see isGmailScanEnabled() in Code.gs). Hiding it when it's
-  // off keeps a button that can only fail out of the customer's face.
-  var scanGmailBtn = document.getElementById('btnScanGmail');
-  if (scanGmailBtn) scanGmailBtn.style.display = (isAdmin && _gmailScanEnabled) ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');
@@ -11149,7 +11234,7 @@ var LEGAL_DOCS = {
 <h3>10. Changes</h3>
 <p>Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version.</p>
 <h3>11. Contact</h3>
-<p>Jose Castro — jose@ox-glass.com</p>` },
+<p>Jose Castro — joseisrael5101@gmail.com</p>` },
   terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 6 August 2026</p>
 <p>These terms govern your use of Acopio, warehouse-management software provided by Jose Castro ("we", "us"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so.</p>
 <hr>
@@ -11211,7 +11296,7 @@ var LEGAL_DOCS = {
 <h3>12. Governing law</h3>
 <p>The laws of the State of Utah, United States, without regard to conflict-of-law rules. Disputes go to the state or federal courts located in Utah.</p>
 <h3>13. Contact</h3>
-<p>Jose Castro — jose@ox-glass.com</p>` }
+<p>Jose Castro — joseisrael5101@gmail.com</p>` }
 };
 
 function openLegal(which){
@@ -11538,245 +11623,13 @@ function saveEditMov() {
     .processMovement('modifyMovement', _h(payload));
 }
 
-// ── Gmail Scanner ─────────────────────────────────────────────────────────────
-var _gmailScanResults = [];
-
-function openGmailScanModal() {
-  // Reset state
-  document.getElementById('gmailScanResults').innerHTML = '';
-  document.getElementById('gmailScanStatus').textContent = 'Enter a query or use the default, then press Scan.';
-  document.getElementById('gmailScanLoading').classList.remove('show');
-  document.getElementById('btnRunScan').disabled = false;
-  _gmailScanResults = [];
-  document.getElementById('gmailScanOverlay').classList.add('show');
-}
-
-function closeGmailScanModal() {
-  document.getElementById('gmailScanOverlay').classList.remove('show');
-}
-
-function runGmailScan() {
-  var query       = (document.getElementById('gmailQuery').value || '').trim();
-  var daysBack    = parseInt(document.getElementById('gmailDaysBack').value, 10)    || 14;
-  var maxResults  = parseInt(document.getElementById('gmailMaxResults').value, 10)  || 10;
-
-  document.getElementById('gmailScanResults').innerHTML = '';
-  document.getElementById('gmailScanStatus').textContent = 'Scanning…';
-  document.getElementById('gmailScanLoading').classList.add('show');
-  document.getElementById('btnRunScan').disabled = true;
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      document.getElementById('gmailScanLoading').classList.remove('show');
-      document.getElementById('btnRunScan').disabled = false;
-      if (!res || res.status !== 'success') {
-        document.getElementById('gmailScanStatus').textContent = 'Error: ' + (res && res.message ? res.message : 'Unknown error.');
-        return;
-      }
-      _gmailScanResults = res.emails || [];
-      var n = _gmailScanResults.length;
-      var allFailed = n > 0 && _gmailScanResults.every(function(e){ return !e.parsed || !e.parsed.name; });
-      document.getElementById('gmailScanStatus').textContent =
-        n === 0  ? 'No emails found. Try adjusting the query or days back.' :
-        allFailed? n + ' emails found — ⚠ AI parsing failed (quota exceeded?). Fill fields manually or upgrade your Gemini API key at aistudio.google.com.' :
-        n + ' email' + (n > 1 ? 's' : '') + ' found. Review, edit if needed, and save.';
-      renderGmailScanResults(_gmailScanResults);
-    })
-    .withFailureHandler(function(err) {
-      document.getElementById('gmailScanLoading').classList.remove('show');
-      document.getElementById('btnRunScan').disabled = false;
-      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
-      var statusEl = document.getElementById('gmailScanStatus');
-      statusEl.innerHTML = '<span style="color:var(--red)">⚠ ' + _escAttr(msg) + '</span>';
-      document.getElementById('gmailScanResults').innerHTML =
-        '<div style="padding:.75rem;background:var(--red-bg);border-radius:8px;color:var(--red);font-size:.84rem;line-height:1.5">' +
-        '<strong>Error details:</strong><br>' + _escAttr(msg) + '</div>';
-    })
-    .processMovement('scanGmail', _h({ query: query, daysBack: daysBack, maxResults: maxResults }));
-}
-
-function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
-
-function renderGmailScanResults(emails) {
-  var container = document.getElementById('gmailScanResults');
-  if (!emails || !emails.length) {
-    container.innerHTML = '<div class="gmail-no-results">📭 No delivery emails found.<br>Try increasing "Days Back" or broadening the query.</div>';
-    return;
-  }
-
-  var CATS = (config && config.categories && config.categories.length) ? config.categories : [];
-  var UNITS = ['UNIT','SQ FT','LN FT','PIECE','BOX','PALLET'];
-
-  container.innerHTML = '';
-
-  emails.forEach(function(em, idx) {
-    try {
-      var p = (em.parsed && typeof em.parsed === 'object') ? em.parsed : {};
-      // aiOk = false only when parsed is completely null (all Gemini models failed)
-      var aiOk = (em.parsed !== null && em.parsed !== undefined);
-      // If the "name" is empty and notes has the AI-fail marker, flag it
-      var aiPartial = aiOk && !p.name && String(p.notes||'').indexOf('⚠ AI parsing') === 0;
-
-      // ── Build card element ──
-      var card = document.createElement('div');
-      card.className = 'gmail-card';
-      card.id = 'gc-' + idx;
-
-      // Header
-      var hdr = document.createElement('div');
-      hdr.className = 'gmail-card-hdr';
-      var aiTag = (!aiOk || aiPartial)
-        ? '<span class="gc-not-delivery" style="background:var(--orange-bg);color:var(--orange)">⚠ Fill manually</span>'
-        : '<span class="gc-not-delivery" style="background:var(--green-bg);color:var(--green)">✓ AI filled</span>';
-      var delivTag = (p.isDelivery === false)
-        ? '<span class="gc-not-delivery" style="background:var(--red-bg);color:var(--red)">⚠ Not a delivery</span>'
-        : '';
-
-      hdr.innerHTML =
-        '<span class="gc-subject">' + _escAttr(em.subject || '(no subject)') + '</span>' +
-        '<span class="gc-meta">' +
-          '<span class="gc-from">' + _escAttr(em.from) + '</span>' +
-          '<span class="gc-date">' + _escAttr(em.date) + '</span>' +
-        '</span>' +
-        delivTag + aiTag;
-
-      // Body — build category select
-      var catSelHtml = '<option value="">Select category…</option>';
-      CATS.forEach(function(c){
-        catSelHtml += '<option value="' + _escAttr(c) + '"' + (nt(String(p.category||''))===nt(c)?' selected':'') + '>' + _escAttr(c) + '</option>';
-      });
-
-      // Unit select
-      var unitSelHtml = '';
-      UNITS.forEach(function(u){
-        unitSelHtml += '<option' + (nt(u)===nt(String(p.unit||''))?' selected':'') + '>' + u + '</option>';
-      });
-
-      var body = document.createElement('div');
-      body.className = 'gmail-card-body';
-      body.innerHTML =
-        '<div class="field"><label>Material Name *</label>' +
-          '<input type="text" id="gf-name-' + idx + '" placeholder="Required" value="' + _escAttr(p.name) + '"></div>' +
-        '<div class="field"><label>Category</label>' +
-          '<select id="gf-cat-' + idx + '">' + catSelHtml + '</select></div>' +
-        '<div class="field"><label>Qty</label>' +
-          '<input type="number" id="gf-qty-' + idx + '" value="' + (Number(p.qty)||1) + '" min="1"></div>' +
-        '<div class="field"><label>Unit</label>' +
-          '<select id="gf-unit-' + idx + '">' + unitSelHtml + '</select></div>' +
-        '<div class="field"><label>Supplier</label>' +
-          '<input type="text" id="gf-sup-' + idx + '" value="' + _escAttr(p.supplier) + '"></div>' +
-        '<div class="field"><label>PO #</label>' +
-          '<input type="text" id="gf-po-' + idx + '" value="' + _escAttr(p.po) + '"></div>' +
-        '<div class="field"><label>Est. Arrival Date</label>' +
-          '<input type="date" id="gf-date-' + idx + '" value="' + _escAttr(p.estDate) + '"></div>' +
-        '<div class="field"><label>Project</label>' +
-          '<input type="text" id="gf-proj-' + idx + '" value="' + _escAttr(p.project) + '"></div>' +
-        '<div class="field"><label>PM (Project Manager)</label>' +
-          '<input type="text" id="gf-pm-' + idx + '" value="' + _escAttr(p.pm) + '"></div>' +
-        '<div class="field full"><label>Notes</label>' +
-          '<input type="text" id="gf-notes-' + idx + '" value="' + _escAttr(p.notes) + '"></div>';
-
-      // Footer
-      var footer = document.createElement('div');
-      footer.className = 'gmail-card-footer';
-      var badge  = document.createElement('span');
-      badge.className = 'gc-saved-badge';
-      badge.id = 'gc-badge-' + idx;
-      var btnSkip = document.createElement('button');
-      btnSkip.className = 'btn btn-ghost btn-sm';
-      btnSkip.textContent = '✗ Skip';
-      btnSkip.onclick = (function(i){ return function(){ skipGmailDraft(i); }; })(idx);
-      var btnSave = document.createElement('button');
-      btnSave.className = 'btn btn-primary btn-sm';
-      btnSave.textContent = '✓ Save as Incoming';
-      btnSave.id = 'gc-savebtn-' + idx;
-      btnSave.onclick = (function(i){ return function(){ saveGmailDraft(i); }; })(idx);
-
-      footer.appendChild(badge);
-      footer.appendChild(btnSkip);
-      footer.appendChild(btnSave);
-
-      card.appendChild(hdr);
-      card.appendChild(body);
-      card.appendChild(footer);
-      container.appendChild(card);
-
-    } catch(eCard) {
-      var errDiv = document.createElement('div');
-      errDiv.className = 'gmail-card';
-      errDiv.style.cssText = 'padding:.75rem;color:var(--red);font-size:.82rem';
-      errDiv.textContent = '⚠ Error rendering email ' + idx + ': ' + eCard.message;
-      container.appendChild(errDiv);
-    }
-  });
-}
-
-function skipGmailDraft(idx) {
-  var card = document.getElementById('gc-' + idx);
-  if (card) card.classList.add('skipped');
-  var saved = 0, skipped = 0, total = _gmailScanResults.length;
-  for (var i = 0; i < total; i++) {
-    var c = document.getElementById('gc-' + i);
-    if (!c) continue;
-    if (c.classList.contains('saved'))   saved++;
-    if (c.classList.contains('skipped')) skipped++;
-  }
-  document.getElementById('gmailScanStatus').textContent =
-    total + ' emails · ' + saved + ' saved · ' + skipped + ' skipped';
-}
-
-function saveGmailDraft(idx) {
-  var btn = document.getElementById('gc-savebtn-' + idx);
-  if (btn) { btn.disabled = true; btn.textContent = '💾 Saving…'; }
-
-  var val = function(id){ return (document.getElementById(id) || {}).value || ''; };
-  var item = {
-    name:     val('gf-name-'+idx),
-    category: val('gf-cat-'+idx),
-    qty:      parseFloat(val('gf-qty-'+idx)) || 1,
-    unit:     val('gf-unit-'+idx),
-    supplier: val('gf-sup-'+idx),
-    po:       val('gf-po-'+idx),
-    date:     val('gf-date-'+idx),
-    project:  val('gf-proj-'+idx),
-    pm:       val('gf-pm-'+idx),
-    notes:    val('gf-notes-'+idx),
-    status:   'Pending'
-  };
-
-  if (!item.name.trim()) {
-    showToast('Material name is required.', 'warn');
-    if (btn) { btn.disabled = false; btn.textContent = '✓ Save as Incoming'; }
-    return;
-  }
-
-  google.script.run
-    .withSuccessHandler(function() {
-      var card  = document.getElementById('gc-' + idx);
-      var badge = document.getElementById('gc-badge-' + idx);
-      if (card)  card.classList.add('saved');
-      if (badge) badge.textContent = '✓ Saved!';
-      if (btn)   { btn.disabled = true; btn.textContent = 'Saved'; }
-      // Refresh the incoming list in background
-      loadDataFromGoogle(false);
-      // Update status bar
-      var saved = 0, skipped = 0, total = _gmailScanResults.length;
-      for (var i = 0; i < total; i++) {
-        var c = document.getElementById('gc-' + i);
-        if (!c) continue;
-        if (c.classList.contains('saved'))   saved++;
-        if (c.classList.contains('skipped')) skipped++;
-      }
-      document.getElementById('gmailScanStatus').textContent =
-        total + ' emails · ' + saved + ' saved · ' + skipped + ' skipped';
-    })
-    .withFailureHandler(function(err) {
-      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
-      showToast('Save failed: ' + msg, 'err');
-      if (btn) { btn.disabled = false; btn.textContent = '✓ Save as Incoming'; }
-    })
-    .processMovement('addIncoming', _h(item));
-}
+// The Gmail delivery scanner used to live here. It is out of the product: it
+// needs Google's restricted "read all your mail" scope, which is not in the
+// manifest and cannot be shipped to customers without an annual paid security
+// audit — so leaving a button for it meant showing people a feature that
+// could only ever fail. The server side is still present but unreachable and
+// gated three ways over (admin, a script property, and a scope nothing
+// requests). See isGmailScanEnabled() in Code.gs.
 
 // Heartbeat — keeps this user visible in the presence list, refreshes it.
 //
@@ -11815,6 +11668,21 @@ document.addEventListener('visibilitychange', function(){
   t.textContent = 'v' + APP_VERSION;
   t.className = 'ver-tag';       // the alarm styling was only for "never ran"
 })();
+
+// A JavaScript error anywhere in the first render used to leave the splash up
+// forever: the screen said "Almost there" and meant "I died". Whatever went
+// wrong, the loading screen comes down and says so — a visible error is worth
+// a great deal more than a convincing wait.
+window.addEventListener('error', function(e){
+  try { _hideSplash(); } catch (x) {}
+  try {
+    showToast('Something went wrong loading the app: ' + (e && e.message ? e.message : 'unknown error') +
+              ' — please report this with the 🐞 button.', 'err', 15000);
+  } catch (x) {}
+});
+window.addEventListener('unhandledrejection', function(){
+  try { _hideSplash(); } catch (x) {}
+});
 
 // Start
 loadDataFromGoogle();
