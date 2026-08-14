@@ -245,6 +245,23 @@
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
     .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:.65rem;cursor:pointer;line-height:1;padding:0}
     .overlay.show{display:flex}
+    /* ── An open window is the only thing you can touch ──────────────────────
+       The dark backdrop already covers the screen, so the MOUSE was never the
+       whole problem: the KEYBOARD was. Tab walked focus straight through the
+       dark layer into the form behind, so someone could type into — and even
+       Save — a screen they could not see, while the window in front believed
+       nothing had moved. `inert` takes an element out of the tab order, out of
+       hit-testing and out of screen readers in one go, and it composes: opening
+       Settings on top of a half-filled movement form makes that form inert too,
+       and closing Settings hands it straight back. _syncModalShield() applies
+       it to every top-level block except the front window.
+       .app-inert is the fallback for a browser without inert; it only has to
+       stop the mouse, because the backdrop is already there for the eye.
+       modal-open goes on <html>, not <body> — on the document element Chrome
+       keeps the scroll position while the page is locked, so closing the window
+       leaves the list exactly where it was. */
+    html.modal-open{overflow:hidden}
+    .app-inert{pointer-events:none}
     /* height (not max-height): the box is ALWAYS this size, tied only to the
        viewport — never shrinks for a short form, never grows for a long one.
        Short content just leaves empty space at the bottom; long content scrolls
@@ -259,6 +276,20 @@
     .modal-sm{max-width:min(480px,92vw)}
     .modal-md{max-width:min(640px,92vw)}
     .modal-lg{max-width:min(760px,92vw)}
+    /* No dialog may ever scroll SIDEWAYS. It happened because a grid item's
+       default min-width is `auto`, which means "never shrink below the widest
+       thing inside me" — one long placeholder, or a file input showing a long
+       file name, and the column refused to narrow, pushing the form past the
+       edge of the box. min-width:0 lets the column shrink; width/max-width:100%
+       makes the control follow the column instead of keeping its own intrinsic
+       size. File inputs need saying explicitly: their intrinsic width comes
+       from the chosen file's NAME, so an unconstrained one grows with whatever
+       the user picks. Checkboxes and radios are exempted — 100% would stretch
+       them into bars. Applied to every modal at once rather than only the one
+       that was reported, because the cause is the same in all of them. */
+    .modal .form-grid>*,.modal .mat-line-grid>*{min-width:0}
+    .modal input,.modal select,.modal textarea{width:100%;min-width:0;max-width:100%}
+    .modal input[type="checkbox"],.modal input[type="radio"]{width:auto;min-width:auto}
     .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
     /* Sticky modal header — stays pinned while the body scrolls, so the X is always reachable */
     .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.6rem;margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem 1rem .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
@@ -652,6 +683,18 @@
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    /* Draft rows from an email — editable before anything is saved. */
+    .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
+    .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
+    .ei-card.skipped{opacity:.4}
+    .ei-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .7rem}
+    @media(max-width:560px){.ei-grid{grid-template-columns:1fr}}
+    .ei-grid .field.full{grid-column:1/-1}
+    .ei-grid label{font-size:.66rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.2rem}
+    .ei-grid input,.ei-grid select{width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.83rem;font-family:inherit;background:var(--card);color:var(--text)}
+    .ei-grid input:focus,.ei-grid select:focus{outline:none;border-color:var(--accent)}
+    .ei-foot{display:flex;gap:.5rem;justify-content:flex-end;align-items:center;margin-top:.6rem}
+    .ei-guess{font-size:.7rem;color:var(--yellow);font-weight:700;flex:1}
     .inc-group-row td{background:var(--bg);padding:.45rem .75rem;border-top:2px solid var(--border)}
     .inc-group-lbl{font-size:.76rem;font-weight:800;color:var(--text);letter-spacing:.01em}
     .inc-group-count{font-size:.68rem;font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
@@ -1477,6 +1520,7 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
+          <button id="btnFromEmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openEmailImport()" title="Paste a supplier email and let the app fill these in">📧 From an email</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
       </div>
@@ -1505,6 +1549,39 @@
 
 </div><!-- /container -->
 
+<!-- ══ READ AN EMAIL INTO EXPECTED DELIVERIES ═══════════════════════════════
+     Paste, read, check, save. Nothing is written until a person has looked at
+     it: pulling facts out of prose is a guess, and a guess that saves itself is
+     how a warehouse ends up with deliveries nobody ordered. -->
+<div class="overlay" id="emailImportOverlay">
+  <div class="modal modal-md">
+    <div class="mhdr">
+      <h3>📧 Read an email</h3>
+      <button class="modal-x" onclick="closeModal('emailImportOverlay')" title="Close">✕</button>
+    </div>
+    <div id="emailImportStep1">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">
+        Paste the supplier's email below — the whole thing, subject and all. Nothing is
+        saved until you have checked what it found.
+      </p>
+      <textarea id="emailImportText" rows="10" placeholder="Paste the email here…"
+        style="width:100%;padding:.65rem .8rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit;resize:vertical"></textarea>
+      <div style="display:flex;gap:.6rem;align-items:center;margin-top:.75rem;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btnReadEmail" onclick="runEmailImport()">Read it</button>
+        <span id="emailImportStatus" style="font-size:.8rem;color:var(--muted);flex:1;min-width:0"></span>
+      </div>
+    </div>
+    <div id="emailImportStep2" style="display:none">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.7rem">
+        <span id="emailImportFound" style="font-size:.85rem;font-weight:700"></span>
+        <button class="btn btn-ghost btn-sm" onclick="_emailImportBack()">← Paste a different email</button>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" id="btnSaveAllEmail" onclick="_emailSaveAll()">Save all</button>
+      </div>
+      <div id="emailImportResults"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MORNING POPUP ════════════════════════════════════════════════════════ -->
 <div class="morning-overlay" id="morningOverlay">
   <div class="morning-popup">
@@ -1524,7 +1601,10 @@
 
 <!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="incomingOverlay">
-  <div class="modal modal-sm">
+  <!-- modal-md, not modal-sm: this is an eleven-field form in two columns, the
+       second-largest in the app. At the small tier each column was under 200px
+       and every text field was fighting for room. -->
+  <div class="modal modal-md">
     <div class="mhdr">
       <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
       <button class="btn btn-ghost btn-sm" onclick="aiExtractFromIncoming()" title="Upload a PO or delivery confirmation and let AI fill the fields"
@@ -2208,7 +2288,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.60';
+var APP_VERSION = '9.65';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -6733,13 +6813,23 @@ function _commitImport(){
     .processMovement('commitImport', _h({ rows: validRows }));
 }
 
+// Marcar la pestaña activa vivía SOLO dentro de switchSettingsTab, así que
+// cualquier otra vía de entrada — una tarjeta de notificación que abre System,
+// el atajo de "Add categories" — pintaba el contenido correcto con la pestaña
+// equivocada resaltada. Ahora lo hace el renderizador, que es por donde pasan
+// todas las vías.
+function _syncSettingsTabButtons(tab){
+  document.querySelectorAll('.settings-tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+}
+
 function switchSettingsTab(tab) {
   // Edit and Delete belong to the screen they were switched on in. Carrying
   // them across meant you could leave Delete armed on four tabs at once and
   // come back to a screen already primed to remove things.
   _clearRowModes();
   _settingsTab = tab;
-  document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
   _renderSettingsTab(tab);
 }
 
@@ -6756,6 +6846,7 @@ function _clearRowModes(){
 }
 
 function _renderSettingsTab(tab) {
+  _syncSettingsTabButtons(tab);
   var content = document.getElementById('settingsTabContent');
   if (tab === 'materials')   { _renderMaterialsTab(); return; }
   if (tab === 'errorlog')    { _renderErrorLogTab(); return; }
@@ -7468,8 +7559,23 @@ function _drawErrorLog(filterText) {
     '</tr>';
   }).join('');
 
+  // Counted, not just listed. "3 errors" and "3 errors among 240 warnings" are
+  // two different situations, and the second one is why Clear warnings exists.
+  var warnCount = 0;
+  _errorLogData.forEach(function(r){ if (String(r.severity).toUpperCase() === 'WARN') warnCount++; });
+  var errCount = _errorLogData.length - warnCount;
+
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Last '+_errorLogData.length+' entries (backend + frontend). ERROR = unexpected bug, WARN = expected validation rejection.</p>' +
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">' +
+      '<b>'+errCount+'</b> error'+(errCount===1?'':'s')+' and <b>'+warnCount+'</b> warning'+(warnCount===1?'':'s')+' ' +
+      '(backend + frontend). ERROR = unexpected bug, WARN = the app correctly refusing something. ' +
+      'Entries older than 30 days are removed on their own.</p>' +
+    '<div style="display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap">' +
+      '<button class="btn btn-sm" onclick="_clearErrorLog(\'warnings\')"' + (warnCount ? '' : ' disabled') + '>' +
+        '🧹 Clear '+warnCount+' warning'+(warnCount===1?'':'s')+'</button>' +
+      '<button class="btn btn-sm btn-danger" onclick="_clearErrorLog(\'all\')"' + (_errorLogData.length ? '' : ' disabled') + '>' +
+        '🗑 Clear everything</button>' +
+    '</div>' +
     '<input type="text" id="errLogSearch" placeholder="Search message, action, user, or ID…" ' +
       'style="width:100%;margin-bottom:.6rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:var(--bg);color:var(--text)" ' +
       'oninput="_drawErrorLog(this.value)" value="'+_he(filterText||'')+'">' +
@@ -7488,6 +7594,39 @@ function _drawErrorLog(filterText) {
     '</div>';
   var inp = document.getElementById('errLogSearch');
   if (inp) { inp.focus(); var v = inp.value; inp.value=''; inp.value=v; }
+}
+
+// Clearing the log is not undoable and it is not urgent, so it asks first —
+// with the count in the question, because "clear the log" and "delete 240
+// entries" feel like different decisions and only the second one is accurate.
+function _clearErrorLog(mode) {
+  var warnings = mode === 'warnings';
+  var n = warnings
+    ? _errorLogData.filter(function(r){ return String(r.severity).toUpperCase() === 'WARN'; }).length
+    : _errorLogData.length;
+  if (!n) return;
+
+  _showConfirm({
+    icon: warnings ? '🧹' : '🗑️',
+    danger: !warnings,
+    title: warnings ? 'Clear warnings?' : 'Clear the whole log?',
+    message: warnings
+      ? 'Removes ' + n + ' warning' + (n===1?'':'s') + ' and keeps every error. Warnings are the app refusing '
+        + 'something on purpose — clearing them makes real problems easier to see. This cannot be undone.'
+      : 'Removes all ' + n + ' entries, errors included. Only do this once the problems in the list are '
+        + 'actually fixed — it is the record of what went wrong. This cannot be undone.',
+    confirmText: warnings ? 'Clear warnings' : 'Clear everything',
+    onConfirm: function(){
+      google.script.run
+        .withSuccessHandler(function(res){
+          showToast((res && res.removed ? res.removed : 0) + ' entries removed', 'ok');
+          _errorLogData = null;                 // forces a real reload, not a redraw of stale rows
+          _renderErrorLogTab();
+        })
+        .withFailureHandler(function(e){ showToast('Could not clear the log: ' + (e.message||e), 'err'); })
+        .processMovement('clearErrorLog', _h({ mode: mode }));
+    }
+  });
 }
 
 var _pmDirectoryData = null;
@@ -7926,6 +8065,131 @@ function submitAttachment() {
       docGroups: docs,
       files:     []
     }));
+}
+
+// ── Window shield — the front window is the only live part of the app ────────
+// Every popup in the app announces itself the same way: the class "show" goes
+// on its overlay. Rather than change the twenty-odd places that add and remove
+// it — and rather than trust that the next new window will remember to call
+// something — a single MutationObserver watches that one class on every overlay
+// and recomputes the shield. A window opened from anywhere, by any path, is
+// covered; one that is never closed properly cannot leave the app stuck either,
+// because the state is derived from what is on screen, never accumulated.
+var _SHIELD_SEL = '.overlay,.wiz-overlay,.morning-overlay,.media-preview-overlay,.cconfirm-overlay';
+// Left alone no matter what: toasts float above every window on purpose and
+// must stay readable, and the splash is the app's own loading screen.
+var _SHIELD_SKIP = { toastContainer: 1, appSplash: 1 };
+
+function _shieldOverlays(){
+  return Array.prototype.slice.call(document.querySelectorAll(_SHIELD_SEL));
+}
+
+// Which window is in front. Same rule the browser itself paints by: the higher
+// z-index wins, and when two tie the one further down the document wins — which
+// is why Settings, declared after the movement form, lands on top of it.
+function _topOpenOverlay(){
+  var best = null, bestZ = -1;
+  _shieldOverlays().forEach(function(el){
+    if (!el.classList.contains('show')) return;
+    var z = parseInt(window.getComputedStyle(el).zIndex, 10);
+    if (isNaN(z)) z = 0;
+    if (z >= bestZ){ bestZ = z; best = el; }
+  });
+  return best;
+}
+
+// EVERY WRITE BELOW IS GUARDED BY A CHECK, AND THAT IS NOT AN OPTIMISATION —
+// IT IS THE WHOLE CORRECTNESS OF THIS FUNCTION.
+//
+// The observer watches the `class` attribute of the overlays, and the shield
+// puts a class ON those same overlays. classList.add/remove rewrite the class
+// attribute even when the token was already there — or already absent — and a
+// rewrite is a mutation, which wakes the observer, which runs this again, and
+// again. Observer callbacks are microtasks, so that chain never yields to the
+// browser: nothing paints, no server response is ever processed, and the splash
+// spins for ever on a blank screen. That is precisely what v9.63 shipped, and
+// the reason it was invisible to every check we run is that it is not a syntax
+// error and not a missing function — it is valid code that never stops.
+//
+// Testing before writing makes the second pass do nothing at all, so the chain
+// ends after one round. The observer is ALSO disconnected while the shield
+// runs, which discards anything the shield's own writes would have queued. Two
+// independent defences on purpose: a hang leaves no error message to debug
+// from, so this must not be able to come back.
+var _shieldObs = null;
+
+function _shieldObserve(){
+  if (!_shieldObs) return;
+  _shieldOverlays().forEach(function(el){
+    _shieldObs.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+}
+
+function _syncModalShield(){
+  if (_shieldObs) _shieldObs.disconnect();
+  try {
+    var top = _topOpenOverlay();
+    Array.prototype.slice.call(document.body.children).forEach(function(el){
+      if (el.tagName === 'SCRIPT' || _SHIELD_SKIP[el.id]) return;
+      // The front window must be actively RELEASED, not merely skipped. A
+      // window that was behind another one is already carrying inert, so
+      // skipping it the moment it becomes the front window leaves it frozen:
+      // open Settings over a movement form and Settings itself is dead, close
+      // Settings and the form never comes back. Deciding a state for every
+      // element on every pass — instead of only touching the ones being
+      // blocked — is what makes the stack work in both directions.
+      var block = !!top && el !== top;
+      if (block){
+        if (!el.hasAttribute('inert'))           el.setAttribute('inert', '');
+        if (!el.classList.contains('app-inert')) el.classList.add('app-inert');
+      } else {
+        if (el.hasAttribute('inert'))            el.removeAttribute('inert');
+        if (el.classList.contains('app-inert'))  el.classList.remove('app-inert');
+      }
+    });
+    var html = document.documentElement;
+    var want = !!top;
+    if (html.classList.contains('modal-open') !== want){
+      html.classList[want ? 'add' : 'remove']('modal-open');
+    }
+  } finally {
+    _shieldObserve();
+  }
+}
+
+// Escape closes the front window — but ONLY the windows where pressing it can
+// cost nothing. A form that has been half filled in is not on this list, for
+// the same reason clicking the backdrop stopped closing them: an accidental key
+// throwing away five minutes of typing is a worse bug than having to reach for
+// the ✕. Reading windows and yes/no questions are safe, and there Escape is
+// what every user already expects.
+var _ESC_CLOSES = {
+  confirmOverlay:      function(){ _confirmCancel(); },
+  promptOverlay:       function(){ _promptCancel(); },
+  mediaPreviewOverlay: function(){ closeMediaPreview(); },
+  morningOverlay:      function(){ closeMorningPopup(); },
+  legalOverlay:        function(){ closeModal('legalOverlay'); },
+  usersOverlay:        function(){ closeModal('usersOverlay'); }
+};
+
+function _onShieldKeydown(e){
+  if (e.key !== 'Escape' && e.keyCode !== 27) return;
+  var top = _topOpenOverlay();
+  if (!top) return;
+  if (top.classList.contains('busy')) return;   // saving — the window is frozen
+  var fn = _ESC_CLOSES[top.id];
+  if (!fn) return;
+  e.preventDefault();
+  try { fn(); } catch (err) {}
+}
+
+function _initModalShield(){
+  try {
+    _shieldObs = new MutationObserver(_syncModalShield);
+    _shieldObserve();
+    _syncModalShield();
+    document.addEventListener('keydown', _onShieldKeydown);
+  } catch (e) {}
 }
 
 // ── Close / Open helpers ──────────────────────────────────────────────────────
@@ -10124,6 +10388,170 @@ function _doDeleteIncomingItem(id){
     .processMovement('deleteIncoming', _h({ id: id }));
 }
 
+// ── Read an email into expected deliveries ──────────────────────────────────
+// Three states: paste, check, saved. Nothing reaches the sheet until somebody
+// has looked at it — see parseIncomingEmail() in Code.gs for why.
+var _emailDrafts = [];
+
+function openEmailImport(){
+  _emailDrafts = [];
+  document.getElementById('emailImportText').value = '';
+  document.getElementById('emailImportStatus').textContent = '';
+  document.getElementById('emailImportStep1').style.display = '';
+  document.getElementById('emailImportStep2').style.display = 'none';
+  document.getElementById('emailImportOverlay').classList.add('show');
+  setTimeout(function(){ document.getElementById('emailImportText').focus(); }, 60);
+}
+
+function _emailImportBack(){
+  document.getElementById('emailImportStep1').style.display = '';
+  document.getElementById('emailImportStep2').style.display = 'none';
+  document.getElementById('emailImportStatus').textContent = '';
+}
+
+function runEmailImport(){
+  var text = (document.getElementById('emailImportText').value || '').trim();
+  var status = document.getElementById('emailImportStatus');
+  if (text.length < 25){ status.textContent = 'Paste a bit more of the email first.'; return; }
+
+  var btn = document.getElementById('btnReadEmail');
+  btn.disabled = true; btn.textContent = 'Reading…';
+  status.innerHTML = '<span class="spin-hg">⏳</span> Reading the email — a few seconds.';
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.textContent = 'Read it';
+      _emailDrafts = (res && res.items) || [];
+      if (!_emailDrafts.length){
+        status.textContent = 'Nothing about a delivery in that one. Try another email, or add it by hand.';
+        return;
+      }
+      status.textContent = '';
+      document.getElementById('emailImportFound').textContent =
+        _emailDrafts.length + ' item' + (_emailDrafts.length === 1 ? '' : 's') + ' found — check them before saving';
+      document.getElementById('emailImportStep1').style.display = 'none';
+      document.getElementById('emailImportStep2').style.display = '';
+      _renderEmailDrafts();
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false; btn.textContent = 'Read it';
+      status.textContent = (err && err.message ? err.message : String(err)).replace(/^Error:\s*/i, '');
+    })
+    .processMovement('parseIncomingEmail', _h({ text: text }));
+}
+
+function _renderEmailDrafts(){
+  var cats = (config.categories || []);
+  document.getElementById('emailImportResults').innerHTML = _emailDrafts.map(function(d, i){
+    var catOpts = '<option value="">—</option>' + cats.map(function(c){
+      return '<option value="' + _escAttr(c) + '"' + (c.toUpperCase() === d.category ? ' selected' : '') + '>' + _he(c) + '</option>';
+    }).join('');
+    var modeOpts = [['exact','On a known date'],['window','Between two dates'],['about','Around a date'],['unknown','Not known yet']]
+      .map(function(m){ return '<option value="' + m[0] + '"' + (d.dateMode === m[0] ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('');
+    return '<div class="ei-card" id="ei-' + i + '">' +
+      '<div class="ei-grid">' +
+        '<div class="field full"><label>What is arriving</label><input id="ei-name-' + i + '" value="' + _escAttr(d.name) + '"></div>' +
+        '<div class="field"><label>Category</label><select id="ei-cat-' + i + '">' + catOpts + '</select></div>' +
+        '<div class="field"><label>Qty</label><input type="number" id="ei-qty-' + i + '" value="' + (d.qty || '') + '" min="0"></div>' +
+        '<div class="field"><label>Supplier</label><input id="ei-sup-' + i + '" value="' + _escAttr(d.supplier) + '"></div>' +
+        '<div class="field"><label>PO #</label><input id="ei-po-' + i + '" value="' + _escAttr(d.po) + '"></div>' +
+        '<div class="field"><label>When</label><select id="ei-mode-' + i + '" onchange="_eiSyncMode(' + i + ')">' + modeOpts + '</select></div>' +
+        '<div class="field"><label id="ei-datelbl-' + i + '">Date</label><input type="date" id="ei-date-' + i + '" value="' + _escAttr(d.estDate) + '"></div>' +
+        '<div class="field" id="ei-endwrap-' + i + '"><label>…and</label><input type="date" id="ei-end-' + i + '" value="' + _escAttr(d.estDateEnd) + '"></div>' +
+        '<div class="field full" id="ei-notewrap-' + i + '"><label>What the email said about timing</label><input id="ei-note-' + i + '" value="' + _escAttr(d.dateNote) + '"></div>' +
+        '<div class="field full"><label>Notes</label><input id="ei-notes-' + i + '" value="' + _escAttr(d.notes) + '"></div>' +
+      '</div>' +
+      '<div class="ei-foot">' +
+        (d.dateMode === 'unknown' ? '<span class="ei-guess">The email did not give a date — saved as "not known yet" rather than a guess.</span>' : '<span class="ei-guess"></span>') +
+        '<button class="btn btn-ghost btn-sm" onclick="_eiSkip(' + i + ')">Skip</button>' +
+        '<button class="btn btn-primary btn-sm" id="ei-save-' + i + '" onclick="_eiSave(' + i + ')">Save</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  _emailDrafts.forEach(function(d, i){ _eiSyncMode(i); });
+}
+
+// Same rule as the Add Expected form: only the fields that mode uses.
+function _eiSyncMode(i){
+  var mode = (document.getElementById('ei-mode-' + i) || {}).value || 'exact';
+  var show = function(id, on){ var el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('ei-endwrap-' + i,  mode === 'window');
+  show('ei-notewrap-' + i, mode === 'about' || mode === 'unknown');
+  var dateWrap = document.getElementById('ei-date-' + i);
+  if (dateWrap) dateWrap.parentNode.style.display = (mode === 'unknown') ? 'none' : '';
+  var lbl = document.getElementById('ei-datelbl-' + i);
+  if (lbl) lbl.textContent = mode === 'window' ? 'Any time between' : mode === 'about' ? 'Roughly around' : 'Date';
+}
+
+function _eiPayload(i){
+  var v = function(id){ var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+  var mode = v('ei-mode-' + i) || 'exact';
+  return {
+    name:       v('ei-name-' + i) || '(from email)',
+    category:   v('ei-cat-' + i),
+    qty:        Number(v('ei-qty-' + i)) || 0,
+    unit:       (_emailDrafts[i] && _emailDrafts[i].unit) || 'UNIT',
+    supplier:   v('ei-sup-' + i),
+    po:         v('ei-po-' + i),
+    pm:         (_emailDrafts[i] && _emailDrafts[i].pm) || '',
+    notes:      v('ei-notes-' + i),
+    status:     'Pending',
+    dateMode:   mode,
+    estDate:    mode === 'unknown' ? '' : v('ei-date-' + i),
+    estDateEnd: mode === 'window'  ? v('ei-end-' + i) : '',
+    dateNote:   v('ei-note-' + i)
+  };
+}
+
+function _eiSkip(i){
+  var card = document.getElementById('ei-' + i);
+  if (card) card.classList.add('skipped');
+}
+
+function _eiSave(i, done){
+  var card = document.getElementById('ei-' + i);
+  if (!card || card.classList.contains('saved') || card.classList.contains('skipped')){ if (done) done(); return; }
+  var payload = _eiPayload(i);
+  if (payload.dateMode !== 'unknown' && !payload.estDate){
+    showToast('Item ' + (i + 1) + ' needs a date, or set it to "Not known yet".', 'warn');
+    if (done) done();
+    return;
+  }
+  var btn = document.getElementById('ei-save-' + i);
+  if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  google.script.run
+    .withSuccessHandler(function(){
+      card.classList.add('saved');
+      if (btn){ btn.textContent = 'Saved ✓'; }
+      if (done) done();
+    })
+    .withFailureHandler(function(err){
+      if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+      showToast('Could not save item ' + (i + 1) + ': ' + ((err && err.message) || err), 'err', 6000);
+      if (done) done();
+    })
+    .processMovement('addIncoming', _h(payload));
+}
+
+// One at a time rather than all at once: each save is a server execution, and
+// firing a dozen together is what trips "too many scripts running".
+function _emailSaveAll(){
+  var btn = document.getElementById('btnSaveAllEmail');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  var i = 0;
+  (function next(){
+    if (i >= _emailDrafts.length){
+      btn.disabled = false; btn.textContent = 'Save all';
+      showToast('Saved. Closing — the list will refresh.', 'ok');
+      closeModal('emailImportOverlay');
+      loadDataFromGoogle(true, true);   // quiet refresh
+      return;
+    }
+    var idx = i++;
+    _eiSave(idx, next);
+  })();
+}
+
 // ── Morning Popup ─────────────────────────────────────────────────────────────
 function _isoDate(dt) {
   return dt.toISOString().substring(0, 10);
@@ -11024,6 +11452,10 @@ function _safeOn(id, event, fn) {
 document.addEventListener('DOMContentLoaded', function(){
   try {
 
+  // First thing, before any window can be opened: nothing behind an open
+  // window may be clicked, tabbed into or scrolled.
+  _initModalShield();
+
   // Nav
   _safeOn('btn-dashboard','click', function(){ showTab('dashboard','btn-dashboard'); });
   _safeOn('btn-movements','click', function(){ showTab('movements','btn-movements'); });
@@ -11118,6 +11550,8 @@ function applyRoleUI(){
   // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
+  var fromEmail = document.getElementById('btnFromEmail');
+  if (fromEmail) fromEmail.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');
