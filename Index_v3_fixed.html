@@ -476,6 +476,22 @@
       100%      {transform:rotate(360deg)}
     }
     .spin-hg{display:inline-block;animation:hg-flip 2.6s ease-in-out infinite;will-change:transform}
+    /* ── BUTTONS THAT ARE WORKING ────────────────────────────────────────────
+       A real spinner, drawn in CSS from the button's own text colour, so the
+       same rule works on a white button and on a red one. The ⏳ it replaces was
+       a picture of an hourglass that never turned: it read as a label, not as
+       motion, which is the one thing a busy state has to do.
+       min-width is pinned to the button's OWN width at the moment it starts,
+       never to a fixed number — "Saving…" is shorter than "Save to System", and
+       a button that shrinks mid-click drags the whole row along with it. */
+    @keyframes btn-spin{to{transform:rotate(360deg)}}
+    .btn-spin{display:inline-block;width:.9em;height:.9em;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:btn-spin .7s linear infinite;vertical-align:-.1em}
+    .btn-spin + span{margin-left:.45rem}
+    button.is-busy{cursor:progress}
+    /* The tick is the whole point of the short pause after a save: without it
+       the window just vanishes and you are left wondering whether it saved. */
+    @keyframes tick-pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+    .btn-tick{display:inline-block;animation:tick-pop .28s ease;font-weight:700}
     /* ── CONNECTION INDICATOR ── */
     @keyframes pulse-stale{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{box-shadow:0 0 0 7px rgba(245,158,11,0)}}
     @keyframes pulse-offline{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0)}}
@@ -2288,7 +2304,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.65';
+var APP_VERSION = '9.69';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -3444,7 +3460,7 @@ function wizFinish(){
   _wizSyncUsers();
   _wiz.users = _wiz.users.filter(function(u){ return u.email && u.email.indexOf('@') !== -1; });
   var btn = document.getElementById('wizNext');
-  btn.disabled = true; btn.textContent = 'Setting up…';
+  _btnBusy(btn, 'Setting up…');
 
   // Same honest-approximation progress bar as the Sheet-side wizard (see
   // SetupWizard.html's saveSetup): one synchronous Apps Script call has no
@@ -3678,7 +3694,7 @@ function submitReportIssue(){
   var message = (document.getElementById('riMessage').value || '').trim();
   if (!message) { showToast('Please describe what happened.', 'warn'); return; }
   var btn = document.getElementById('riSubmitBtn');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  _btnBusy(btn, 'Sending…');
   google.script.run
     .withSuccessHandler(function(){
       btn.disabled = false; btn.textContent = 'Send Report';
@@ -4517,7 +4533,7 @@ function renderMovements(){
 function _loadOlderHistoryClicked() {
   var btn = document.getElementById('btnLoadOlderHistory');
   if (_oldHistoryLoaded) { showToast('Older history already loaded (' + oldMovements.length + ' movements).', 'ok'); return; }
-  btn.disabled = true; btn.textContent = 'Loading…';
+  _btnBusy(btn, 'Loading…');
   google.script.run
     .withSuccessHandler(function(rows) {
       oldMovements = rows || [];
@@ -5368,7 +5384,7 @@ async function submitMovement(){
 
   function _doSubmit(force) {
     payload.forceSubmit = !!force;
-    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -5376,7 +5392,11 @@ async function submitMovement(){
         var savedType = currentMoveType; // capture before modal closes
         var savedName = name;
         var savedQty  = qty;
-        closeModal('moveOverlay');
+        // The tick sits on the button for a moment before the window goes. A
+        // window that vanishes the instant you click Save looks exactly like a
+        // window that closed without saving, and the toast arrives afterwards,
+        // somewhere else on the screen, when the eye is still on the button.
+        _btnDone(btn, true, function(){ closeModal('moveOverlay'); });
         // Show cached numbers instantly (no skeleton-card flash), fresh data quietly
         // replaces them a moment later once the round-trip completes — the "reload"
         // feeling was the skeleton cards, not the actual data refresh.
@@ -5404,7 +5424,7 @@ async function submitMovement(){
         // GAS wraps errors with "Error: " prefix, so we search anywhere in msg
         var dupIdx = msg.indexOf('DUPLICATE_MOVEMENT|');
         if (dupIdx !== -1) {
-          btn.textContent = 'Save to System'; btn.disabled = false;
+          _btnReset(btn);
           _setModalBusy('moveOverlay', false);
           var dupStr  = msg.substring(dupIdx);   // "DUPLICATE_MOVEMENT|367|1.9"
           var parts   = dupStr.split('|');
@@ -5421,7 +5441,7 @@ async function submitMovement(){
         }
         // ── Any other error ────────────────────────────────────────────────
         showToast('Error: ' + msg, 'err', 6000);
-        btn.textContent = 'Save to System'; btn.disabled = false;
+        _btnReset(btn);
         _setModalBusy('moveOverlay', false);
       })
       .processMovement('addMovement', _h(payload));
@@ -6137,7 +6157,7 @@ function submitMultiExit(){
     // loading feedback ever appeared for EXIT. Also unified to the same animated
     // spinner used by ENTRY/TRANSFER/RETURN/WASTE.
     var btn = document.getElementById('moveSubmit');
-    if (btn){ btn.disabled=true; btn.innerHTML='Saving… <span class="spin-hg">⏳</span>'; }
+    if (btn){ _btnBusy(btn, 'Saving…'); }
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -6282,7 +6302,7 @@ function submitMultiEntry(){
 
   function _doMultiSubmit(force){
     payload.forceSubmit = !!force;
-    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -6418,7 +6438,7 @@ function _saveArchiveCutoff() {
 
 function _rebuildStockNow() {
   var btn = document.getElementById('btnRebuildStock');
-  btn.disabled = true; btn.textContent = 'Rebuilding…';
+  _btnBusy(btn, 'Rebuilding…');
   google.script.run
     .withSuccessHandler(function(res){
       btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
@@ -6512,7 +6532,7 @@ function _saveCompanyProfile(){
   else if (picked) payload.logo = { fileData: picked.fileData, fileMimeType: 'image/png', fileName: 'logo.png' };
 
   var btn = document.getElementById('coSave');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  _btnBusy(btn, 'Saving…');
   google.script.run
     .withSuccessHandler(function(res){
       var c = (res && res.company) || {};
@@ -6797,7 +6817,7 @@ function _commitImport(){
   var validRows = _importParsedRows.filter(function(r){ return r.valid; });
   if (!validRows.length) return;
   var btn = document.getElementById('btnCommitImport');
-  btn.disabled = true; btn.innerHTML = 'Importing… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Importing…');
   google.script.run
     .withSuccessHandler(function(res){
       showToast('✓ Imported ' + res.rowCount + ' row(s) as new ENTRY movements.', 'ok', 6000);
@@ -7149,7 +7169,7 @@ function _wireLocMerge(){
                  'source and as a destination. This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' entr(ies) updated.', 'ok', 5000);
@@ -7245,7 +7265,7 @@ function _locMarkDirty(){
   bar.classList.add('show');
   document.getElementById('locSaveBtn').addEventListener('click', function(){
     var btn = this;
-    btn.disabled = true; btn.textContent = 'Saving…';
+    _btnBusy(btn, 'Saving…');
     google.script.run
       .withSuccessHandler(function(){
         showToast('Location layout saved ✓', 'ok');
@@ -7303,7 +7323,7 @@ function _wireManualMerge(tab, label){
                  'This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
@@ -7458,7 +7478,7 @@ function _wireSimilarGroups(tab){
                  'This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
@@ -7620,8 +7640,16 @@ function _clearErrorLog(mode) {
       google.script.run
         .withSuccessHandler(function(res){
           showToast((res && res.removed ? res.removed : 0) + ' entries removed', 'ok');
-          _errorLogData = null;                 // forces a real reload, not a redraw of stale rows
-          _renderErrorLogTab();
+          // Drop the rows here and redraw. The first version threw the whole
+          // list away and asked the server for it again, which blanked the
+          // panel to "Loading…" and rebuilt it — a screen flash and a round
+          // trip to show a list we could already work out ourselves. What was
+          // removed is exactly what we asked to remove, so the screen should
+          // only lose those rows and nothing else should move.
+          _errorLogData = (mode === 'warnings')
+            ? _errorLogData.filter(function(r){ return String(r.severity).toUpperCase() !== 'WARN'; })
+            : [];
+          _drawErrorLog();
         })
         .withFailureHandler(function(e){ showToast('Could not clear the log: ' + (e.message||e), 'err'); })
         .processMovement('clearErrorLog', _h({ mode: mode }));
@@ -8043,18 +8071,18 @@ function submitAttachment() {
     return;
   }
 
-  btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+  _btnBusy(btn, 'Saving…');
   _setModalBusy('attachOverlay', true);
   google.script.run
     .withSuccessHandler(function() {
       _setModalBusy('attachOverlay', false);
-      closeModal('attachOverlay');
+      _btnDone(btn, true, function(){ closeModal('attachOverlay'); });
       showToast('Documents updated ✓', 'ok');
       loadDataFromGoogle(false);
     })
     .withFailureHandler(function(err) {
       showToast('Save failed: ' + (err.message || err), 'err', 6000);
-      btn.textContent = 'Save Changes'; btn.disabled = false;
+      _btnReset(btn);
       _setModalBusy('attachOverlay', false);
     })
     .processMovement('updateDocument', _h({
@@ -8205,10 +8233,11 @@ function closeModal(id){
     try { _refreshCatHelpers(); } catch (e) {}
     setTimeout(_updateMoveSubmitState, 0);
   }
-  var bm = document.getElementById('moveSubmit');
-  var ba = document.getElementById('attachSubmit');
-  if (bm){ bm.textContent = 'Save to System'; bm.disabled = false; }
-  if (ba){ ba.textContent = 'Save Changes'; ba.disabled = false; }
+  // Restored through the helper, which puts back each button's own captured
+  // label — so these two strings no longer live in a second place where they
+  // can drift away from the buttons they belong to.
+  _btnReset(document.getElementById('moveSubmit'));
+  _btnReset(document.getElementById('attachSubmit'));
   // Reset attach builder when the attach modal closes
   if (id === 'attachOverlay') resetAttachDocBuilder();
 }
@@ -9058,7 +9087,7 @@ function _cfgCardAction(act, key, btn){
     return;
   }
 
-  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  if (btn){ _btnBusy(btn, 'Adding…'); }
   _cfgAddValue(p.type, p.value, function(ok, err){
     if (ok){
       showToast('Added to your ' + (p.type === 'suppliers' ? 'suppliers' : 'projects') + ' ✓', 'ok');
@@ -9211,7 +9240,7 @@ function _cfgAddValue(type, value, done){
 
 function _cfgAddInline(type, value, hintEl){
   var btn = hintEl.querySelector('.cfg-new-add');
-  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  if (btn){ _btnBusy(btn, 'Adding…'); }
   _cfgAddValue(type, value, function(ok, err){
     if (!ok){
       if (btn){ btn.disabled = false; btn.textContent = '+ Add it'; }
@@ -9814,7 +9843,7 @@ function submitLockMaterial(){
   };
 
   var btn = document.getElementById('lockMatSubmit');
-  btn.disabled = true; btn.innerHTML = 'Locking… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Locking…');
 
   google.script.run
     .withSuccessHandler(function(res){
@@ -10325,22 +10354,21 @@ function saveIncomingItem() {
   var btn = document.getElementById('incomingOverlay').querySelector('.btn-primary');
   function _send(){
     var action = id ? 'updateIncoming' : 'addIncoming';
-    btn.textContent = 'Saving… ⏳'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     google.script.run
       .withSuccessHandler(function(){
-        btn.textContent = '💾 Save'; btn.disabled = false;
-        closeModal('incomingOverlay');
+        _btnDone(btn, true, function(){ closeModal('incomingOverlay'); });
         loadDataFromGoogle(false);
       })
       .withFailureHandler(function(err){
-        btn.textContent = '💾 Save'; btn.disabled = false;
+        _btnReset(btn);
         showToast('Error: ' + err.message, 'err', 5000);
       })
       .processMovement(action, _h(payload));
   }
 
   if (hasFile){
-    btn.textContent = 'Reading file… ⏳'; btn.disabled = true;
+    _btnBusy(btn, 'Reading file…');
     _readFileAsBase64(fileInput.files[0], function(b64, mime){
       if (b64){ payload.docFile = { fileData: b64, fileMimeType: mime, fileName: fileInput.files[0].name }; }
       _send();
@@ -10415,7 +10443,7 @@ function runEmailImport(){
   if (text.length < 25){ status.textContent = 'Paste a bit more of the email first.'; return; }
 
   var btn = document.getElementById('btnReadEmail');
-  btn.disabled = true; btn.textContent = 'Reading…';
+  _btnBusy(btn, 'Reading…');
   status.innerHTML = '<span class="spin-hg">⏳</span> Reading the email — a few seconds.';
 
   google.script.run
@@ -10518,7 +10546,7 @@ function _eiSave(i, done){
     return;
   }
   var btn = document.getElementById('ei-save-' + i);
-  if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  if (btn){ _btnBusy(btn, 'Saving…'); }
   google.script.run
     .withSuccessHandler(function(){
       card.classList.add('saved');
@@ -10537,7 +10565,7 @@ function _eiSave(i, done){
 // firing a dozen together is what trips "too many scripts running".
 function _emailSaveAll(){
   var btn = document.getElementById('btnSaveAllEmail');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  _btnBusy(btn, 'Saving…');
   var i = 0;
   (function next(){
     if (i >= _emailDrafts.length){
@@ -10888,14 +10916,14 @@ function saveUser() {
   if (!email) { _userFormMsg('Email is required.', 'error'); return; }
 
   var btn = document.getElementById('btnSaveUser');
-  btn.textContent = 'Saving…'; btn.disabled = true;
+  _btnBusy(btn, 'Saving…');
 
   var action  = _editingUser ? 'updateUser' : 'addUser';
   var payload = { email: email, name: name, role: role, active: true };
 
   google.script.run
     .withSuccessHandler(function() {
-      btn.textContent = 'Save User'; btn.disabled = false;
+      _btnDone(btn, true);
       _userFormMsg(_editingUser ? 'User updated.' : 'User added successfully.', 'ok');
       // The row is patched in place rather than the whole list being fetched
       // again: the browser already knows exactly what changed, and re-reading
@@ -10909,7 +10937,7 @@ function saveUser() {
       _renderUsersTable();
     })
     .withFailureHandler(function(err) {
-      btn.textContent = 'Save User'; btn.disabled = false;
+      _btnReset(btn);
       _userFormMsg(err.message || String(err), 'error');
     })
     .processMovement(action, _h(payload));
@@ -11339,6 +11367,52 @@ function _renderSysDeck(){
 
 
 
+// ── One busy state for every button that writes something ────────────────────
+// Before this, roughly twenty-five places each did it their own way: some set
+// textContent, some set innerHTML with an ⏳, some forgot to disable the button
+// at all, and the restore was written out by hand in every success and failure
+// handler — which is how a button ends up stuck saying "Saving…" after an error
+// nobody thought about. One pair of functions instead, so a button behaves the
+// same everywhere and a new one gets it for free.
+//
+// The original label is kept ON the element rather than in a lookup, so it
+// survives anything else that redraws around it, and _btnReset is safe to call
+// on a button that was never made busy.
+function _btnBusy(btn, label){
+  if (!btn) return;
+  // Remember the label only when the button is not ALREADY showing a spinner.
+  // Not a nicety: several call sites still restore their own button by hand, so
+  // this can be entered a second time, and a naive capture would "remember" the
+  // spinner as the button's real label and never give the text back.
+  if (btn.innerHTML.indexOf('btn-spin') === -1) btn._acHtml = btn.innerHTML;
+  // Pin the width BEFORE the label changes, or it is already the wrong width.
+  try { btn.style.minWidth = btn.getBoundingClientRect().width + 'px'; } catch (e) {}
+  btn.disabled = true;
+  btn.classList.add('is-busy');
+  btn.innerHTML = '<span class="btn-spin"></span>' + (label ? '<span>' + _he(label) + '</span>' : '');
+}
+
+function _btnReset(btn){
+  if (!btn) return;
+  if (btn._acHtml != null) btn.innerHTML = btn._acHtml;
+  btn._acHtml = null;
+  btn.disabled = false;
+  btn.style.minWidth = '';
+  btn.classList.remove('is-busy');
+}
+
+// ok=true holds a tick for a moment before handing control back. That pause is
+// deliberate: a save that closes its window instantly is indistinguishable from
+// a save that did nothing. `then` runs after the tick, so callers close the
+// window there rather than racing it.
+function _btnDone(btn, ok, then){
+  if (!btn){ if (then) then(); return; }
+  btn.classList.remove('is-busy');
+  if (!ok){ _btnReset(btn); if (then) then(); return; }
+  btn.innerHTML = '<span class="btn-tick">✓</span>';
+  setTimeout(function(){ _btnReset(btn); if (then) then(); }, 700);
+}
+
 function showToast(msg, type, duration) {
   type     = type     || 'ok';
   duration = duration || 3500;
@@ -11380,12 +11454,18 @@ function toggleDarkMode() {
   _setDarkUI(!isDark);
   try { localStorage.setItem('oxwms_theme', next); } catch(e) {}
 }
+// Light unless the person asked for dark IN THIS APP. It used to follow the
+// operating system, which meant anyone whose laptop is set to dark — most
+// people now — met the app in dark for the very first time, before it had a
+// chance to look like anything. Dark mode is a preference somebody chooses once
+// they already know the product; it is a bad first impression, and first
+// impressions are the one thing that cannot be retried.
+//
+// The toggle is untouched: choose dark and it is remembered for ever. What is
+// gone is the app guessing on somebody's behalf before they have seen it.
 (function initTheme() {
   var saved;
   try { saved = localStorage.getItem('oxwms_theme'); } catch(e) {}
-  if (!saved) {
-    saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
   if (saved === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
     _setDarkUI(true);
@@ -12038,7 +12118,7 @@ function saveEditMov() {
   if (!payload.name) { showToast('Material name cannot be empty.', 'warn'); return; }
 
   var btn = document.getElementById('btnSaveEditMov');
-  btn.disabled = true; btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Saving…');
   _setModalBusy('editMovOverlay', true);
 
   google.script.run
