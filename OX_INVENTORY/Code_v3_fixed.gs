@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.70';
+var APP_VERSION = '9.74';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1724,6 +1724,9 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'getErrorLog')     return getErrorLog(auth);
   if (action === 'clearErrorLog')   return clearErrorLog(data, auth);
   if (action === 'dismissSystemCard') return dismissSystemCard(data, auth);
+  if (action === 'getBackupStatus')  return getBackupStatus(auth);
+  if (action === 'setBackupEnabled') return setBackupEnabled(data, auth);
+  if (action === 'runBackupOnDemand') return runBackupOnDemand(data, auth);
   if (action === 'logClientError')  return logClientError(data, auth);
   if (action === 'loadOlderHistory') return loadOlderHistory(auth);
   throw new Error('Unknown action: ' + action);
@@ -2540,6 +2543,61 @@ function pruneOldBackups_(folder) {
 // Backup" menu item rather than onOpen(): onOpen is a SIMPLE trigger under
 // Apps Script's security model and can't call authorized services like
 // ScriptApp.newTrigger() or DriveApp — it would throw on every single open.
+// The nightly backup, controllable from inside the app.
+//
+// It could only ever be switched on from the spreadsheet menu, which means the
+// people most likely to care — an admin who lives in the app and may never open
+// the Sheet — had no way to see whether it was on, let alone turn it on. Worse,
+// the System tab said "once it is switched on from the Acopio menu" and then
+// offered no way to do it.
+//
+// Read on demand rather than in getInitialData: getProjectTriggers() is a real
+// call and every app load would pay for it, to answer a question nobody asks
+// except when they open this tab.
+function backupEnabled_() {
+  try {
+    var t = ScriptApp.getProjectTriggers();
+    for (var i = 0; i < t.length; i++) {
+      if (t[i].getHandlerFunction() === 'dailyBackupTrigger') return true;
+    }
+  } catch (e) { Logger.log('backupEnabled_: ' + e.message); }
+  return false;
+}
+
+function getBackupStatus(auth) {
+  auth = requireAuth_('ADMIN');
+  return { enabled: backupEnabled_(), retentionDays: BACKUP_RETENTION_DAYS, folder: backupFolderName_() };
+}
+
+function setBackupEnabled(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var on = !!(data && data.enabled);
+  if (on) {
+    ensureBackupTrigger_();
+  } else {
+    try {
+      ScriptApp.getProjectTriggers().forEach(function (t) {
+        if (t.getHandlerFunction() === 'dailyBackupTrigger') ScriptApp.deleteTrigger(t);
+      });
+    } catch (e) { throw new Error('Could not change the schedule: ' + e.message); }
+  }
+  // Turning the nightly backup OFF is exactly the kind of thing somebody should
+  // be able to point at afterwards.
+  auditLog_(SpreadsheetApp.getActiveSpreadsheet(), on ? 'BACKUP_SCHEDULE_ON' : 'BACKUP_SCHEDULE_OFF',
+    auth.email, 'Daily backup ' + (on ? 'enabled' : 'disabled'), '', '');
+  return { status: 'success', enabled: backupEnabled_() };
+}
+
+// Deliberately does NOT switch the schedule on as a side effect. "Back this up
+// before I do something risky" and "back it up every night from now on" are two
+// different decisions, and the menu version conflating them is why an admin
+// could have the schedule running without ever having chosen it.
+function runBackupOnDemand(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var res = runBackupNow_();
+  return { status: 'success', name: res && res.name ? res.name : '' };
+}
+
 function ensureBackupTrigger_() {
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {

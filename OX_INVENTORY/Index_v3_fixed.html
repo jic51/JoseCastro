@@ -483,6 +483,20 @@
       100%      {transform:rotate(360deg)}
     }
     .spin-hg{display:inline-block;animation:hg-flip 2.6s ease-in-out infinite;will-change:transform}
+    /* ── SWITCH ──────────────────────────────────────────────────────────────
+       For settings that are ON or OFF and take effect immediately. A checkbox
+       would work, but a checkbox reads as "part of a form I still have to
+       submit", and this one acts the moment it moves. Built on a real
+       <input type="checkbox"> so the keyboard and screen readers get it free. */
+    .sw{position:relative;display:inline-flex;align-items:center;gap:.6rem;cursor:pointer;user-select:none}
+    .sw input{position:absolute;opacity:0;width:44px;height:24px;margin:0;cursor:pointer}
+    .sw-track{width:44px;height:24px;border-radius:999px;background:var(--border);transition:background .2s ease;flex:none;position:relative}
+    .sw-track::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .2s cubic-bezier(.22,.61,.36,1)}
+    .sw input:checked + .sw-track{background:var(--green)}
+    .sw input:checked + .sw-track::after{transform:translateX(20px)}
+    .sw input:focus-visible + .sw-track{box-shadow:0 0 0 3px rgba(59,125,216,.35)}
+    .sw input:disabled + .sw-track{opacity:.5;cursor:wait}
+    .sw-text{font-size:.85rem;font-weight:600}
     /* ── BUTTONS THAT ARE WORKING ────────────────────────────────────────────
        A real spinner, drawn in CSS from the button's own text colour, so the
        same rule works on a white button and on a red one. The ⏳ it replaces was
@@ -745,6 +759,35 @@
        actual fix for the horizontal-scroll bug (setting overflow-y alone makes
        browsers compute overflow-x as "auto" too, per the CSS overflow spec, so
        any box that's ever even 1px too wide silently added a horizontal scrollbar). */
+    /* ── LOW-STOCK MONITOR ───────────────────────────────────────────────────
+       It used to open as every material in the warehouse at once — hundreds of
+       boxes, and the question "which of these do I care about?" answered by
+       scrolling. It now starts from the question a warehouse manager actually
+       asks first: WHICH CATEGORY do I want to watch something in? Nothing but
+       the category names to begin with; a category opens only when you pick it.
+       A chip is grey — the same grey the app uses for anything switched off —
+       until it is chosen, and then it takes its category's own colour. */
+    .mon-chips{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;padding:.25rem 0 .85rem;border-bottom:1px solid var(--border);margin-bottom:.6rem}
+    .mon-chip{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:999px;padding:.4rem .9rem;font-size:.76rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.18s;letter-spacing:.02em}
+    .mon-chip:hover{border-color:var(--accent);color:var(--text)}
+    .mon-chip .mon-chip-n{font-weight:600;opacity:.7;margin-left:.3rem}
+    /* Active: the badge colours the rest of the app already gives this category,
+       so the chip and the material's own badge agree without a second palette. */
+    .mon-chip.on{color:#fff;border-color:transparent}
+    .mon-chip.on.badge-blue{background:var(--accent2)}   .mon-chip.on.badge-teal{background:#0D9488}
+    .mon-chip.on.badge-navy{background:var(--navy)}      .mon-chip.on.badge-orange{background:var(--orange)}
+    .mon-chip.on.badge-pink{background:#DB2777}          .mon-chip.on.badge-purple{background:var(--purple)}
+    .mon-chip.on.badge-yellow{background:var(--yellow)}  .mon-chip.on.badge-dark{background:#334155}
+    /* Only eleven categories have a colour of their own; everything else falls
+       to badge-gray, and grey is the OFF state — an unmapped category would
+       have looked switched off while switched on. The accent is unambiguous. */
+    .mon-chip.on.badge-green{background:var(--green)}    .mon-chip.on.badge-gray{background:var(--accent)}
+    .mon-picked-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:.6rem .15rem .35rem;margin-top:.5rem;border-bottom:1px solid var(--border)}
+    .mon-empty{padding:1.4rem .5rem;text-align:center;color:var(--muted);font-size:.82rem;line-height:1.6}
+    /* Min is dead until its checkbox is ticked — a threshold on a material
+       nobody is watching is a number that does nothing. */
+    .mon-min-inp:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;opacity:.6}
+    .monitor-item.off{opacity:.72}
     .monitor-grid{max-height:50vh;overflow-y:auto;overflow-x:hidden;padding:.25rem}
     .monitor-cat-hdr{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.72rem;font-weight:700;color:var(--muted);padding:.5rem .15rem .35rem;margin-top:.4rem;border-bottom:1px solid var(--border)}
     .monitor-cat-hdr:first-child{margin-top:0}
@@ -828,23 +871,50 @@
        collapses exactly, whatever is in it. Colour alone was not enough of a
        difference: a notification holds a sentence and needs the width to show
        it, a suggestion holds one name and a pair of buttons. */
-    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s cubic-bezier(.22,.61,.36,1),transform .5s cubic-bezier(.22,.61,.36,1),opacity .3s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    /* One place for the pace of the whole pile. Jose asked for "2 out of 5" —
+       unhurried enough that the eye follows what moved, short of the point
+       where waiting for it becomes the feeling. */
+    .deck{--deck-in:.62s;--deck-out:.5s;--deck-ease:cubic-bezier(.22,.61,.36,1);--deck-step:55ms}
+    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),opacity var(--deck-out) ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    /* Fanning out: all at once, each a beat behind the one in front, so the pile
+       reads as paper being spread rather than a list appearing. --i is written
+       by _paintDeck, counting back from the card on top. */
+    .deck.open .deck-card{transition-delay:calc(var(--i, 0) * var(--deck-step))}
+    /* Open, the cards need air between them and a lighter shadow. The resting
+       shadow is tuned for ONE card lifting off the page; repeated down a fan it
+       lands in the gap between two white cards and reads as a dark bar. */
+    .deck.open .deck-card{box-shadow:0 4px 14px rgba(0,0,0,.13)}
+    .deck.open .deck-card + .deck-card{margin-top:.7rem}
+    /* Arriving from off-screen right. The card is already at its resting size
+       when it lands, so it does not grow and slide at the same time — one
+       movement at a time is what makes either of them readable. */
+    @keyframes deck-in-rest{from{transform:translateX(150%) scale(.88);opacity:0}to{transform:scale(.88);opacity:1}}
+    @keyframes deck-in-open{from{transform:translateX(150%);opacity:0}to{transform:none;opacity:1}}
+    .deck:not(.open) .deck-card.entering{animation:deck-in-rest var(--deck-in) var(--deck-ease) both}
+    .deck.open .deck-card.entering{animation:deck-in-open var(--deck-in) var(--deck-ease) both}
     /* Leaving. The card slides out to the right and gives its height back over
        the same beat, so everything below rises into the gap instead of jumping.
        margin-bottom is what moves the others: shrinking it by the card's own
        height pulls the whole column up, and because it is on the transition
        list above it does it over time rather than in one frame. */
-    .deck-card.leaving{opacity:0;transform:translateX(34px) scale(.96);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none}
+    .deck-card.leaving{opacity:0;transform:translateX(150%) scale(.9);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none;transition-delay:0s!important}
     .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
     .deck-card + .deck-card{margin-top:.45rem}
-    /* Closing is deliberately slower than opening — a pile snapping shut the
-       instant the pointer leaves reads as the app swatting you away. */
-    .deck.open .deck-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
+    /* Opening uses --deck-in and the stagger; the base rule above (--deck-out)
+       is what closing falls back to. LONGHAND on purpose: the `transition`
+       shorthand that used to live here reset transition-delay to 0s, and
+       because it sat further down the sheet it silently wiped the stagger set
+       above AND pinned the whole fan to .22s, so neither the pace Jose asked
+       for nor the stagger ever reached the screen. A shorthand and a longhand
+       for the same property, in that order, is a trap worth naming. */
+    .deck.open .deck-card{transition-duration:var(--deck-in)}
     /* Piled: every card pulled up under the next, offset a few px, rotation
        alternating for a hand-stacked look. */
-    .deck:not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:rotate(-2.4deg)}
-    .deck:not(.open) .deck-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
-    .deck:not(.open) .deck-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
+    /* Every card is scaled DOWN at rest, not just the visible one, so opening
+       the pile is one movement — they grow to full size on the way out and
+       shrink back on the way in. The hand-stacked rotations that used to live
+       here only ever applied to cards nobody could see. */
+    .deck:not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:scale(.88);transform-origin:bottom right}
     .deck:not(.open) .deck-card:first-child{margin-top:0}
     /* At rest ONE card is on screen and you can see the app through it. Two
        earlier attempts are the reason it works this way: per-card opacity
@@ -854,7 +924,24 @@
        and the front one gets a translucent BACKGROUND rather than a faded
        element, which is what keeps its badge and its ✕ crisp on top of it. */
     .deck:not(.open) .deck-card:not(:last-child){visibility:hidden;pointer-events:none;opacity:0}
-    .deck:not(.open) .deck-card:last-child{transform:rotate(0deg) scale(.88);transform-origin:bottom right}
+    /* "There are more underneath" — two strips peeking above the front card,
+       never more, however deep the pile goes; the badge already says the exact
+       number. They are DRAWN rather than being the real cards showing through:
+       the front card is deliberately see-through at rest, so a card behind it
+       would bleed through its whole face and turn the corner into the smudge
+       two earlier attempts already produced. A strip sits only in the few
+       pixels above the card, where there is nothing to muddy. */
+    .deck-card::before,.deck-card::after{content:'';position:absolute;left:50%;transform:translateX(-50%);border-radius:8px 8px 0 0;height:7px;background:var(--peek,rgba(148,163,184,.75));opacity:0;pointer-events:none;transition:opacity var(--deck-out) var(--deck-ease)}
+    /* Far enough apart to read as two sheets rather than one thick bar, and the
+       one further back is fainter — depth is what tells you it is a pile. */
+    .deck:not(.open) .deck-card:last-child::before{width:92%;top:-7px}
+    .deck:not(.open) .deck-card:last-child::after{width:82%;top:-15px}
+    .deck.stack-2:not(.open) .deck-card:last-child::before{opacity:1}
+    .deck.stack-3:not(.open) .deck-card:last-child::after{opacity:.6}
+    .sys-card{--peek:rgba(148,163,184,.72)}
+    .cfg-card{--peek:rgba(27,42,74,.5)}
+    [data-theme="dark"] .sys-card{--peek:rgba(148,163,184,.5)}
+    [data-theme="dark"] .cfg-card{--peek:rgba(148,178,230,.45)}
 
     /* A suggestion: dark card, asks a question, answered with its buttons. */
     .cfg-card{background:var(--navy);color:#fff;border:1px solid transparent}
@@ -1179,6 +1266,46 @@
     @media (max-width:520px){
       .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
       .cfg-bell-panel{left:auto;right:12px;width:calc(50vw - 18px);max-width:none}
+    }
+    /* ── TOUCH ───────────────────────────────────────────────────────────────
+       Measured across six real device widths, and the finding was the same at
+       every one of them: nothing overflows the page, but almost everything is
+       too small to hit with a thumb. The search boxes and filters were 30–32px
+       tall, the buttons 25–27px, the avatar 34px, and the connection dot — a
+       real button that reloads the data — was TEN PIXELS square. Apple asks for
+       44, Android for 48; a warehouse worker wearing gloves needs every one of
+       them.
+
+       (pointer: coarse) rather than a width breakpoint, on purpose: this is
+       about the finger, not the window. A tablet at 1024px is still a
+       touchscreen, and a narrow window on a laptop is still a mouse — a width
+       rule gets both of those backwards.
+
+       Only the hit areas grow. Nothing here changes a font size, a colour or a
+       layout, so the app looks the same and simply becomes usable. */
+    @media (pointer: coarse){
+      .toolbar input,.toolbar select,.toolbar button,
+      .btn,.btn-sm{min-height:44px}
+      /* Inside a table row the buttons stay compact — 44px each would double
+         the height of every row — but 22px is not a target either. */
+      td .btn-sm,td button,.cfg-btn{min-height:34px;min-width:34px}
+      .acct-btn{width:44px;height:44px;font-size:.85rem}
+      .cfg-bell{min-width:44px;min-height:44px}
+      .nav button{min-height:44px}
+      /* The ones with no class of their own — a bare <button> inherits none of
+         the sizing above, which is exactly why these were the smallest things
+         on the screen: the ✕ on the morning popup measured 16×19. */
+      .alert-banner-actions button,.morning-popup-hdr button,.rack-drawer-hdr button,
+      .rm-btn,.sys-card-x,.cfg-card-add,.cfg-card-skip{min-height:36px;min-width:36px}
+      .rm-btn,.alert-banner-actions button{min-height:40px}
+      /* The connection dot keeps its size and gains a 44px hit area around it.
+         A pseudo-element with no paint of its own still takes the tap, so the
+         design does not change at all — the target simply stops being the size
+         of the dot. */
+      .conn-btn{position:relative}
+      .conn-btn::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%}
+      /* Anything a finger has to land on inside a modal, too. */
+      .modal input,.modal select,.modal textarea,.modal-type-bar button{min-height:44px}
     }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
@@ -1740,12 +1867,15 @@
       <h3>⚙ Low-Stock Monitor Settings</h3>
       <button class="modal-x" onclick="closeModal('monitorOverlay')" title="Close">✕</button>
     </div>
-    <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem">
-      Select which materials appear in the alert banner, and set a minimum stock threshold per material (leave "Min" blank for no threshold). Leave all unchecked to monitor <em>all</em> materials. <strong>"wh"</strong> = units currently in the warehouse.
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">
+      Start with the category you want to watch something in. Tick a material to
+      watch it, then give it a minimum — the alert fires when available stock
+      drops below that number. <strong>"wh"</strong> = units in the warehouse now.
     </p>
-    <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
-      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(true)">✓ Select All</button>
-      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(false)">✕ Clear All</button>
+    <div class="mon-chips" id="monChips"></div>
+    <div style="display:flex;gap:.5rem;margin-bottom:.5rem;justify-content:center">
+      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(true)">✓ Watch everything</button>
+      <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(false)">✕ Clear all</button>
     </div>
     <div class="monitor-grid" id="monitorGrid"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
@@ -2328,7 +2458,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.70';
+var APP_VERSION = '9.74';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -2342,11 +2472,34 @@ var _SESSION_KEY   = 'oxwms_session_v3';
 var _sessionToken  = (function(){ try{ return localStorage.getItem(_SESSION_KEY)||''; }catch(e){return '';} })();
 // Injects the verified session token into any payload sent to processMovement.
 function _h(data){ return _sessionToken ? Object.assign({}, data||{}, {_sessionToken:_sessionToken}) : (data||{}); }
+// Errors that are not ours, and must never reach an admin's inbox.
+//
+// Browser extensions run their own code inside every page, and when theirs
+// fails the page hears about it. A crypto wallet extension threw "Failed to
+// connect to MetaMask" on Jose's browser and the app dutifully filed it as a
+// system error and emailed OX Glass about it — an alert, to a warehouse, about
+// a wallet nobody installed on purpose.
+//
+// The test is where the code CAME FROM, not what it says: anything whose stack
+// points at an extension is not ours. The name list is the second net, for
+// extensions that throw before there is a stack to read. Alerts that cry wolf
+// get filtered out by the person receiving them, which costs the real ones
+// their value — so this matters more than its size suggests.
+var _FOREIGN_ERROR_SOURCES = /chrome-extension:\/\/|moz-extension:\/\/|safari-extension:\/\/|extensions::/i;
+var _FOREIGN_ERROR_NAMES   = /metamask|ethereum provider|web3|coinbase wallet|phantom|solana|tronlink|binance chain|keplr|grammarly|lastpass|adblock/i;
+
+function _isForeignError(message, stack) {
+  if (_FOREIGN_ERROR_SOURCES.test(String(stack || ''))) return true;
+  if (_FOREIGN_ERROR_NAMES.test(String(message || ''))) return true;
+  return false;
+}
+
 // Fire-and-forget report of an unexpected client error to ERROR_LOG. Never
 // blocks or alarms the user if the report itself fails — logging is best-effort.
 function _reportClientError(action, message, stack) {
   try {
     if (!_sessionToken && userRole === 'NO_SESSION') return;
+    if (_isForeignError(message, stack)) return;
     google.script.run
       .withSuccessHandler(function(){})
       .withFailureHandler(function(){})
@@ -6673,8 +6826,8 @@ function _renderSystemTab() {
           _sysActRefHtml(a) +
         '</li>';
       }).join('') + '</ul>'
-    : '<p style="font-size:.78rem;color:var(--muted)">Nothing automatic has run yet. The daily backup runs at 2am ' +
-      'once it is switched on from the ' + _he(PRODUCT) + ' menu in the spreadsheet.</p>';
+    : '<p style="font-size:.78rem;color:var(--muted)">Nothing automatic has run yet. Switch the nightly backup on below ' +
+      'and the first one runs tonight at 2am.</p>';
 
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">System-wide maintenance — not specific to any one category.</p>' +
@@ -6692,6 +6845,10 @@ function _renderSystemTab() {
         '<span style="color:var(--muted);font-size:.75rem">Older movements stay accessible via "Load Older History".</span>' +
       '</div>' +
     '</div>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label>Backups</label>' +
+      '<div id="backupBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
+    '</div>' +
     '<div class="field">' +
       '<label>Stock totals</label>' +
       '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
@@ -6699,6 +6856,81 @@ function _renderSystemTab() {
         '<span style="color:var(--muted);font-size:.75rem">Recalculates LIVE_STOCK / SITE_STOCK / WASTED_STOCK from the current movement history. Use this if a deleted or edited movement left stale numbers behind.</span>' +
       '</div>' +
     '</div>';
+
+  _loadBackupStatus();
+}
+
+// The nightly backup used to be reachable only from the spreadsheet menu, and
+// this very tab told people so — without offering any way to do it. An admin
+// who lives in the app could not see whether their data was being backed up at
+// all, which is a strange thing for a system to keep to itself.
+function _loadBackupStatus(){
+  var box = document.getElementById('backupBox');
+  if (!box) return;
+  google.script.run
+    .withSuccessHandler(function(st){ _drawBackupBox(st || {}); })
+    .withFailureHandler(function(e){
+      var b = document.getElementById('backupBox');
+      if (b) b.innerHTML = '<span style="color:var(--red)">Could not read the backup schedule: ' + _he(e.message||e) + '</span>';
+    })
+    .processMovement('getBackupStatus', _h({}));
+}
+
+function _drawBackupBox(st){
+  var box = document.getElementById('backupBox');
+  if (!box) return;
+  var on = !!st.enabled;
+  box.innerHTML =
+    '<label class="sw" style="margin-bottom:.5rem">' +
+      '<input type="checkbox" id="backupSw"' + (on ? ' checked' : '') + ' onchange="_toggleBackup(this)">' +
+      '<span class="sw-track"></span>' +
+      '<span class="sw-text" style="color:var(--text)">Back up automatically every night at 2am</span>' +
+    '</label>' +
+    '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.35rem">' +
+      '<button id="btnBackupNow" class="btn btn-ghost btn-sm" onclick="_backupNow()">🗄 Back up now</button>' +
+      '<span style="color:var(--muted);font-size:.75rem">' +
+        (on
+          ? 'Copies are kept for ' + (st.retentionDays || 30) + ' days in a Drive folder called "' + _he(st.folder || '') + '", then deleted.'
+          : 'Nothing is being backed up on a schedule. Turn this on — it costs nothing and it is the only thing that gets your data back after a bad import or a deleted row.') +
+      '</span>' +
+    '</div>' +
+    // Deliberately separate from the switch: "back this up before I do
+    // something risky" and "back it up every night" are different decisions,
+    // and the menu version ran them together.
+    '<div style="color:var(--muted);font-size:.72rem;margin-top:.4rem">' +
+      '"Back up now" makes one extra copy immediately. It does not change the schedule.' +
+    '</div>';
+}
+
+function _toggleBackup(el){
+  var want = el.checked;
+  el.disabled = true;
+  google.script.run
+    .withSuccessHandler(function(res){
+      _drawBackupBox({ enabled: res && res.enabled, retentionDays: 30, folder: '' });
+      _loadBackupStatus();                       // re-read, so the text is the server's truth
+      showToast(want ? 'Nightly backup is on ✓' : 'Nightly backup turned off', want ? 'ok' : 'warn');
+    })
+    .withFailureHandler(function(e){
+      el.checked = !want; el.disabled = false;   // put the switch back where it was
+      showToast('Could not change it: ' + (e.message||e), 'err', 6000);
+    })
+    .processMovement('setBackupEnabled', _h({ enabled: want }));
+}
+
+function _backupNow(){
+  var btn = document.getElementById('btnBackupNow');
+  _btnBusy(btn, 'Backing up…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      _btnDone(btn, true);
+      showToast('Backup created: ' + ((res && res.name) || 'done'), 'ok', 5000);
+    })
+    .withFailureHandler(function(e){
+      _btnReset(btn);
+      showToast('Backup failed: ' + (e.message||e), 'err', 6000);
+    })
+    .processMovement('runBackupOnDemand', _h({}));
 }
 
 // ── Bulk Import (CSV) ─────────────────────────────────────────────────────────
@@ -8941,8 +9173,11 @@ function _recomputeCfgDeck(){
 
 function _unqueueCfgAdd(type, value){
   var key = _cfgKey(type, value);
-  _pendingCfgAdds = _pendingCfgAdds.filter(function(p){ return _cfgKey(p.type, p.value) !== key; });
-  _renderCfgDeck();
+  var el  = document.querySelector('.cfg-card[data-key="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+  _deckCardLeave(el, function(){
+    _pendingCfgAdds = _pendingCfgAdds.filter(function(p){ return _cfgKey(p.type, p.value) !== key; });
+    _renderCfgDeck();
+  });
 }
 
 // All of them — no cap here. The pile only ever shows _DECK_VISIBLE at a time,
@@ -8956,6 +9191,21 @@ function _unqueueCfgAdd(type, value){
 // innerHTML a second time would throw away the handlers wired after the first.
 var _cfgDeckHtml = '', _sysDeckHtml = '', _cfgDeckTotal = 0, _sysDeckTotal = 0;
 
+// Cards already shown at least once, so a background refresh cannot make the
+// whole pile fly in from the right again.
+var _deckSeenIds = {};
+
+// Every card leaves the same way, whichever kind it is and whichever control
+// removed it: out to the right, giving its height back over the same beat so
+// the ones below rise into the gap. Redrawing first would rebuild the pile and
+// leave nothing to animate, so the redraw waits for the movement to finish.
+var _DECK_LEAVE_ANIM_MS = 500;
+function _deckCardLeave(el, then){
+  if (!el){ if (then) then(); return; }
+  el.classList.add('leaving');
+  setTimeout(function(){ if (then) then(); }, _DECK_LEAVE_ANIM_MS);
+}
+
 function _paintDeck(){
   var deck = document.getElementById('cornerDeck');
   if (!deck) return;
@@ -8963,7 +9213,36 @@ function _paintDeck(){
   // something already done, the other is waiting on an answer, and the thing
   // waiting on you belongs on top.
   deck.innerHTML = _sysDeckHtml + _cfgDeckHtml;
-  if (!deck.innerHTML){ deck.classList.remove('open'); return; }
+  if (!deck.innerHTML){
+    deck.classList.remove('open', 'stack-2', 'stack-3');
+    return;
+  }
+
+  var cards = deck.querySelectorAll('.deck-card');
+
+  // Two strips above the front card say "there is more underneath" without
+  // ever showing a third. The badge already gives the exact number, so the
+  // strips only have to answer "one, or several?".
+  deck.classList.toggle('stack-2', cards.length >= 2);
+  deck.classList.toggle('stack-3', cards.length >= 3);
+
+  // Fan-out order: the card on top moves first and the ones under it follow a
+  // beat later, which is the direction paper actually spreads.
+  for (var ci = 0; ci < cards.length; ci++){
+    cards[ci].style.setProperty('--i', String(cards.length - 1 - ci));
+  }
+
+  // A card that has never been on screen slides in from off the right edge.
+  // Anything already seen must NOT re-animate: this function runs on every
+  // background refresh, and a pile that flies in again each time a movement is
+  // saved somewhere else is worse than one that never moved at all.
+  cards.forEach(function(card){
+    var id = card.getAttribute('data-card-id') || card.getAttribute('data-key');
+    if (!id || _deckSeenIds[id]) return;
+    _deckSeenIds[id] = 1;
+    card.classList.add('entering');
+    card.addEventListener('animationend', function(){ card.classList.remove('entering'); }, { once: true });
+  });
 
   // The badge counts the WHOLE pile, including the cards held back from the
   // DOM, and rides on whichever card is actually on top.
@@ -10042,52 +10321,180 @@ function toggleStockPanel() {
 // ── Monitor Settings (which materials to watch) ───────────────────────────────
 // Grouped by category (alphabetical), materials alphabetical within each category —
 // matches the physical Category → Materials mental model instead of one long mixed list.
+// ── Low-Stock Monitor ────────────────────────────────────────────────────────
+// State lives HERE, not in the DOM, because the DOM only ever holds the
+// categories that are currently open. Reading the checkboxes at save time —
+// which is what the old version did — would silently drop every material whose
+// category happened to be collapsed.
+var _monSel = {};        // NAME(upper) -> true when watched
+var _monMin = {};        // NAME(upper) -> minimum, '' for none
+var _monOpenCats = {};   // CATEGORY -> true when expanded
+var _monByCat = {};      // CATEGORY -> [stock rows], built once per open
+var _monTotal = 0;       // every material, for the "all of them = no filter" rule
+
 function openMonitorModal() {
   var monSet = {};
   if (monitoredMaterials && monitoredMaterials.length) {
-    monitoredMaterials.forEach(function(n){ monSet[(n||'').toUpperCase()] = true; });
+    monitoredMaterials.forEach(function(nm){ monSet[(nm || '').toUpperCase()] = true; });
   }
+  // The long-standing rule, kept: nothing selected means WATCH EVERYTHING. It
+  // is not obvious from a screen of empty checkboxes, so the screen now says so
+  // in as many words rather than leaving it to be discovered.
   var allMonitored = !monitoredMaterials || monitoredMaterials.length === 0;
 
-  // Group by category
-  var byCat = {};
-  Object.values(stockData).forEach(function(s){
-    var cat = nt(s.category) || 'UNCATEGORIZED';
-    (byCat[cat] = byCat[cat] || []).push(s);
+  _monSel = {}; _monMin = {}; _monOpenCats = {}; _monByCat = {}; _monTotal = 0;
+
+  Object.values(stockData).forEach(function(st){
+    var cat  = nt(st.category) || 'UNCATEGORIZED';
+    var name = (st.name || '').toUpperCase().trim();
+    if (!name) return;
+    (_monByCat[cat] = _monByCat[cat] || []).push(st);
+    _monTotal++;
+    if (!allMonitored && monSet[name]) _monSel[name] = true;
+    var mv = (config.minStock && (config.minStock[st.name] || config.minStock[name]));
+    _monMin[name] = (mv === 0 || mv) ? String(mv) : '';
   });
-  var cats = Object.keys(byCat).sort(); // alphabetical category order
-  cats.forEach(function(c){ byCat[c].sort(function(a,b){ return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); }); });
+  Object.keys(_monByCat).forEach(function(c){
+    _monByCat[c].sort(function(a, b){ return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); });
+  });
 
-  var html = cats.map(function(cat){
-    var itemsHtml = byCat[cat].map(function(s) {
-      var upperName = (s.name || '').toUpperCase().trim();
-      var checked = allMonitored || !!monSet[upperName];
-      var minVal = (config.minStock && (config.minStock[s.name] || config.minStock[upperName])) || '';
-      return '<label class="monitor-item">' +
-        '<div class="monitor-item-top">' +
-          '<input type="checkbox" class="mon-chk" value="' + upperName.replace(/"/g,'&quot;') + '"' +
-            (checked ? ' checked' : '') + '>' +
-          '<span class="monitor-item-wh" title="Units currently in the warehouse (wh = warehouse)">' + (s.warehouseQty||0) + ' wh</span>' +
-        '</div>' +
-        '<span class="monitor-item-name" title="' + _he(s.name) + '">' + _he(s.name) + '</span>' +
-        '<div class="monitor-item-min">' +
-          '<label>Min</label>' +
-          '<input type="number" class="mon-min-inp" min="0" placeholder="—" data-name="' + upperName.replace(/"/g,'&quot;') + '"' +
-            (minVal !== '' ? ' value="' + minVal + '"' : '') +
-            ' onclick="event.stopPropagation()" title="Minimum stock — alert fires when available stock drops below this">' +
-        '</div>' +
-      '</label>';
-    }).join('');
-    return '<div class="monitor-cat-hdr">' + catBadge(cat) + '<span>' + byCat[cat].length + ' item' + (byCat[cat].length!==1?'s':'') + '</span></div>' +
-           '<div class="monitor-cat-grid">' + itemsHtml + '</div>';
-  }).join('');
+  // A category that already has something watched in it opens straight away —
+  // otherwise reopening this window hides the very choices you came back to
+  // change.
+  Object.keys(_monByCat).forEach(function(c){
+    if (_monByCat[c].some(function(st){ return _monSel[(st.name || '').toUpperCase().trim()]; })) {
+      _monOpenCats[c] = true;
+    }
+  });
 
-  document.getElementById('monitorGrid').innerHTML = html;
+  _renderMonitor();
   document.getElementById('monitorOverlay').classList.add('show');
-  // Shrink long material names to fit their fixed-size box instead of overflowing
-  // (only after the modal is visible — measuring width on a display:none element gives 0).
   setTimeout(_shrinkMonitorNames, 0);
 }
+
+function _monItemHtml(st){
+  var name = (st.name || '').toUpperCase().trim();
+  var on   = !!_monSel[name];
+  var minv = _monMin[name] || '';
+  var esc  = name.replace(/"/g, '&quot;');
+  return '<label class="monitor-item' + (on ? '' : ' off') + '" data-mon-row="' + esc + '">' +
+    '<div class="monitor-item-top">' +
+      '<input type="checkbox" class="mon-chk" value="' + esc + '"' + (on ? ' checked' : '') + '>' +
+      '<span class="monitor-item-wh" title="Units currently in the warehouse">' + (st.warehouseQty || 0) + ' wh</span>' +
+    '</div>' +
+    '<span class="monitor-item-name" title="' + _he(st.name) + '">' + _he(st.name) + '</span>' +
+    '<div class="monitor-item-min">' +
+      '<label>Min</label>' +
+      '<input type="number" class="mon-min-inp" min="0" placeholder="—" data-name="' + esc + '"' +
+        (minv !== '' ? ' value="' + _escAttr(minv) + '"' : '') + (on ? '' : ' disabled') +
+        ' onclick="event.stopPropagation()"' +
+        ' title="' + (on ? 'Alert when available stock drops below this' : 'Tick the box first') + '">' +
+    '</div>' +
+  '</label>';
+}
+
+function _monSectionHtml(cat, items){
+  return '<div class="monitor-cat-hdr">' + catBadge(cat) +
+           '<span>' + items.length + ' item' + (items.length !== 1 ? 's' : '') + '</span></div>' +
+         '<div class="monitor-cat-grid">' + items.map(_monItemHtml).join('') + '</div>';
+}
+
+function _renderMonitor(){
+  var cats = Object.keys(_monByCat).sort();
+
+  var chips = cats.map(function(c){
+    var cls    = CAT_BADGE[nt(c)] || 'badge-gray';
+    var open   = !!_monOpenCats[c];
+    var picked = _monByCat[c].filter(function(st){ return _monSel[(st.name || '').toUpperCase().trim()]; }).length;
+    return '<button type="button" class="mon-chip ' + cls + (open ? ' on' : '') + '" data-mon-cat="' + _escAttr(c) + '">' +
+      _he(c) + (picked ? '<span class="mon-chip-n">' + picked + '</span>' : '') + '</button>';
+  }).join('');
+
+  var body = cats.filter(function(c){ return _monOpenCats[c]; })
+                 .map(function(c){ return _monSectionHtml(c, _monByCat[c]); }).join('');
+
+  // Everything already ticked in a CLOSED category stays on screen underneath,
+  // so collapsing a category never hides a choice you have made — it only hides
+  // the hundreds you have not.
+  var picked = [];
+  cats.forEach(function(c){
+    if (_monOpenCats[c]) return;
+    _monByCat[c].forEach(function(st){
+      if (_monSel[(st.name || '').toUpperCase().trim()]) picked.push(st);
+    });
+  });
+  if (picked.length){
+    body += '<div class="mon-picked-hdr">Also being watched — ' + picked.length + ' from other categories</div>' +
+            '<div class="monitor-cat-grid">' + picked.map(_monItemHtml).join('') + '</div>';
+  }
+
+  if (!body){
+    body = '<div class="mon-empty">Pick a category above to choose what to watch.<br>' +
+           '<span style="font-size:.78rem">With nothing selected, <strong>every</strong> material is watched.</span></div>';
+  }
+
+  document.getElementById('monChips').innerHTML  = chips;
+  document.getElementById('monitorGrid').innerHTML = body;
+  setTimeout(_shrinkMonitorNames, 0);
+}
+
+function _monToggleCat(cat){
+  if (_monOpenCats[cat]) delete _monOpenCats[cat];
+  else _monOpenCats[cat] = true;
+  _renderMonitor();
+}
+
+// Ticking a box updates the row in place rather than redrawing the list: a
+// redraw would throw away the scroll position halfway down a long category.
+function _monToggleItem(name, on){
+  if (on) _monSel[name] = true; else delete _monSel[name];
+  var row = document.querySelector('[data-mon-row="' + (window.CSS && CSS.escape ? CSS.escape(name) : name) + '"]');
+  if (row){
+    row.classList.toggle('off', !on);
+    var inp = row.querySelector('.mon-min-inp');
+    if (inp){
+      inp.disabled = !on;
+      inp.title = on ? 'Alert when available stock drops below this' : 'Tick the box first';
+      if (on) inp.focus();
+    }
+  }
+  // Only the chip's count changes, so only the chips are redrawn.
+  var chipHolder = document.getElementById('monChips');
+  if (chipHolder){
+    var cats = Object.keys(_monByCat).sort();
+    chipHolder.innerHTML = cats.map(function(c){
+      var cls    = CAT_BADGE[nt(c)] || 'badge-gray';
+      var open   = !!_monOpenCats[c];
+      var picked = _monByCat[c].filter(function(st){ return _monSel[(st.name || '').toUpperCase().trim()]; }).length;
+      return '<button type="button" class="mon-chip ' + cls + (open ? ' on' : '') + '" data-mon-cat="' + _escAttr(c) + '">' +
+        _he(c) + (picked ? '<span class="mon-chip-n">' + picked + '</span>' : '') + '</button>';
+    }).join('');
+  }
+}
+
+// One listener on the window, not one per chip and checkbox — the list is
+// rebuilt every time a category opens, and per-element listeners would have to
+// be rewired on each redraw.
+(function _wireMonitor(){
+  var ov = document.getElementById('monitorOverlay');
+  if (!ov) return;
+  ov.addEventListener('click', function(e){
+    var chip = e.target.closest('[data-mon-cat]');
+    if (chip){ e.preventDefault(); _monToggleCat(chip.getAttribute('data-mon-cat')); return; }
+  });
+  ov.addEventListener('change', function(e){
+    if (e.target.classList.contains('mon-chk')){
+      _monToggleItem(e.target.value, e.target.checked);
+    } else if (e.target.classList.contains('mon-min-inp')){
+      _monMin[e.target.getAttribute('data-name')] = e.target.value;
+    }
+  });
+  ov.addEventListener('input', function(e){
+    if (e.target.classList.contains('mon-min-inp')){
+      _monMin[e.target.getAttribute('data-name')] = e.target.value;
+    }
+  });
+})();
 
 // Progressively reduces font-size on any .monitor-item-name whose text is wider
 // than its box, until it fits (or hits a minimum floor, where ellipsis takes over).
@@ -10105,27 +10512,36 @@ function _shrinkMonitorNames(){
 }
 
 function monitorSelectAll(val) {
-  document.querySelectorAll('.mon-chk').forEach(function(c){ c.checked = val; });
+  // Operates on the state, not the checkboxes on screen: with categories
+  // collapsed, "Select all" would otherwise mean "select the handful I can
+  // currently see", which is the opposite of what it says.
+  _monSel = {};
+  if (val) {
+    Object.keys(_monByCat).forEach(function(c){
+      _monByCat[c].forEach(function(st){
+        var nm = (st.name || '').toUpperCase().trim();
+        if (nm) _monSel[nm] = true;
+      });
+    });
+  }
+  _renderMonitor();
 }
 
 function saveMonitorSettings() {
-  var selected = [];
-  document.querySelectorAll('.mon-chk:checked').forEach(function(c){
-    selected.push((c.value || '').toUpperCase().trim()); // always uppercase
-  });
-  // If everything is checked, treat as "no filter" (watch all)
-  var total = document.querySelectorAll('.mon-chk').length;
-  var names = (selected.length === 0 || selected.length === total) ? [] : selected;
+  // Read the STATE, never the DOM. Only the open categories are rendered, so
+  // querying the checkboxes would quietly forget every material sitting in a
+  // collapsed one — which, with this design, is most of them.
+  var selected = Object.keys(_monSel);
+  // Everything ticked means the same as nothing ticked: no filter, watch all.
+  var names = (selected.length === 0 || selected.length === _monTotal) ? [] : selected;
 
-  // Collect min-stock threshold changes (only send the ones that actually changed)
   var minUpdates = [];
   if (!config.minStock) config.minStock = {};
-  document.querySelectorAll('.mon-min-inp').forEach(function(inp){
-    var name    = inp.getAttribute('data-name');
-    var qty     = parseInt(inp.value) || 0;
-    var current = config.minStock[name] || 0;
-    if (qty !== current) minUpdates.push({ name: name, qty: qty });
-    config.minStock[name] = qty; // apply locally immediately regardless
+  Object.keys(_monMin).forEach(function(nm){
+    var qty     = parseInt(_monMin[nm], 10) || 0;
+    var current = config.minStock[nm] || 0;
+    if (qty !== current) minUpdates.push({ name: nm, qty: qty });
+    config.minStock[nm] = qty;
   });
 
   // Apply locally IMMEDIATELY (no server round-trip needed for UX)
@@ -11063,6 +11479,32 @@ function _enterGatedScreen(){
   _deckHover = false; _deckPinned = false;
 }
 
+// Links that reload the app as each of the browser's other signed-in Google
+// accounts. GAS web apps honour ?authuser=N (0 = first signed in, 1 = second…).
+//
+// This lived only on the "access denied" screen, which is the wrong one: denied
+// means the app KNOWS who you are and your address is not on the list. The
+// screen that actually needs it is the one that cannot identify you at all,
+// because by far the most common cause is being signed into the wrong Google
+// account in this browser — which is precisely what happened to Jose on his
+// phone and with his personal account on the laptop.
+//
+// target="_top" is required: a plain link navigates the sandboxed iframe to the
+// /exec address, which Google will not render inside itself, and the frame goes
+// white.
+function _accountSwitcherHtml(){
+  var baseUrl = window.location.href.replace(/[?&]authuser=\d/g, '');
+  var sep     = baseUrl.indexOf('?') !== -1 ? '&' : '?';
+  return [0, 1, 2, 3].map(function(nn){
+    var bg = nn === 0 ? '#F3F4F6' : nn === 1 ? '#EFF6FF' : nn === 2 ? '#F0FDF4' : '#FFF7ED';
+    return '<a href="' + baseUrl + sep + 'authuser=' + nn + '" target="_top" rel="noopener" ' +
+      'style="display:inline-flex;align-items:center;justify-content:center;background:' + bg + ';' +
+             'color:#1a1a2e;border:1px solid #E5E7EB;border-radius:8px;padding:.5rem .9rem;' +
+             'font-size:.82rem;font-weight:600;text-decoration:none;flex:1;min-width:90px">' +
+      'Account ' + (nn + 1) + '</a>';
+  }).join('');
+}
+
 function _showGoogleSignIn(clientId, redirectUri) {
   _oauthClientId    = clientId    || '';
   _oauthRedirectUri = redirectUri || '';
@@ -11101,6 +11543,16 @@ function _showGoogleSignIn(clientId, redirectUri) {
               'That is switched on separately by whoever set this system up.</p>' +
           '</div>'
       ) +
+      // Offered whether or not external sign-in is configured, because it is
+      // the fix in most cases: the browser is simply on the wrong account.
+      '<div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #E5E7EB">' +
+        '<p style="font-size:.75rem;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">' +
+          'Signed in with the wrong account?</p>' +
+        '<div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">' + _accountSwitcherHtml() + '</div>' +
+        '<p style="font-size:.72rem;color:#9CA3AF;margin-top:.6rem">' +
+          'These are the Google accounts already signed in on this device, in the order Google lists them. ' +
+          'On a phone, the company account is often not the first one.</p>' +
+      '</div>' +
     '</div></div>';
 }
 
@@ -11159,25 +11611,7 @@ function _showAccessDeniedScreen(status, email) {
   // GAS web apps respect the ?authuser=N parameter to pick which signed-in
   // Google account runs the app (0 = first, 1 = second, 2 = third…).
   // We generate links for accounts 0–3 so the user can switch without logging out.
-  var baseUrl = window.location.href.replace(/[?&]authuser=\d/g, '');
-  var sep     = baseUrl.indexOf('?') !== -1 ? '&' : '?';
-
-  var accountBtns = [0, 1, 2, 3].map(function(n) {
-    var url = baseUrl + sep + 'authuser=' + n;
-    // target="_top" is not a nicety here. The app runs inside Apps Script's
-    // sandboxed googleusercontent.com iframe, and a plain link navigates THAT
-    // FRAME to the /exec address — which Google will not render inside itself,
-    // so the frame goes blank and the only way back is a manual refresh. That
-    // is precisely the white screen Jose hit switching accounts. _top makes the
-    // browser navigate the real window instead.
-    return '<a href="' + url + '" target="_top" rel="noopener" ' +
-      'style="display:inline-flex;align-items:center;justify-content:center;gap:.35rem;' +
-             'background:' + (n === 0 ? '#F3F4F6' : n === 1 ? '#EFF6FF' : n === 2 ? '#F0FDF4' : '#FFF7ED') + ';' +
-             'color:#1a1a2e;border:1px solid #E5E7EB;border-radius:8px;' +
-             'padding:.5rem .9rem;font-size:.82rem;font-weight:600;text-decoration:none;flex:1;min-width:90px">' +
-      'Account ' + (n + 1) +
-      '</a>';
-  }).join('');
+  var accountBtns = _accountSwitcherHtml();
 
   _enterGatedScreen();
   document.querySelector('.container').innerHTML  =
@@ -11427,13 +11861,10 @@ function _dismissSysCard(id){
   // jump into the gap with no motion at all, which is what made the deck feel
   // like a list rather than a stack of paper.
   var el = document.querySelector('[data-card-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
-  var finish = function(){
+  _deckCardLeave(el, function(){
     _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
     _renderSysDeck();
-  };
-  if (!el){ finish(); return; }
-  el.classList.add('leaving');
-  setTimeout(finish, 300);
+  });
 }
 
 // A notification stays until somebody presses its ✕. It used to carry a
