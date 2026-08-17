@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.60';
+var APP_VERSION = '9.70';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -88,6 +88,92 @@ function companySettings_() {
 function publicCompany_() {
   var cs = companySettings_();
   return { name: cs.name, domain: cs.domain, logoId: cs.logoId, productName: PRODUCT_NAME };
+}
+
+// ─── UNA SOLA CARPETA MAESTRA ────────────────────────────────────────────────
+// Las tres carpetas de la app nacían sueltas en la raíz del Drive del dueño, y
+// la hoja quedaba en un cuarto sitio. Con dos o tres instalaciones de prueba
+// eso ya es un Drive imposible de ordenar — y el día que un cliente pide
+// soporte, hay que buscar en un Drive que no es el nuestro.
+//
+// Los NOMBRES no cambian, solo la ubicación. Es deliberado: el chequeo de
+// seguridad de los adjuntos compara por nombre, y renombrar la carpeta de
+// documentos es exactamente lo que dejó archivos huérfanos una vez. Mover es
+// seguro — Drive identifica por ID, no por dónde está.
+//
+//   Acopio_<Empresa>/                       ← maestra
+//   ├── <Empresa> — Acopio                  ← la hoja
+//   ├── Acopio_<Empresa>_Docs/
+//   ├── Acopio_<Empresa>_Backups/
+//   └── Acopio_<Empresa>_Feedback/
+function masterFolderName_() { return companySettings_().folderPrefix; }
+
+function getMasterFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('FOLDER_MASTER');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }   // borrada o movida a papelera
+  var f = DriveApp.createFolder(masterFolderName_());
+  try { props.setProperty('FOLDER_MASTER', f.getId()); } catch (e) {}
+  return f;
+}
+
+// Ordenar es una comodidad, nunca una razón para que falle una subida: si Drive
+// se niega a mover algo, el archivo ya está guardado y eso es lo que importa.
+function ensureUnderMaster_(item) {
+  try {
+    var master = getMasterFolder_();
+    if (item.getId() === master.getId()) return;
+    var parents = item.getParents();
+    while (parents.hasNext()) if (parents.next().getId() === master.getId()) return;
+    item.moveTo(master);
+  } catch (e) {
+    Logger.log('ensureUnderMaster_: ' + e.message);
+  }
+}
+
+// Recoge lo que ya existe suelto y lo mete en la maestra. Para instalaciones
+// anteriores a esto, y como reparación si alguien mueve algo de sitio.
+function organizeDriveFolders_() {
+  var moved = [];
+  var master = getMasterFolder_();
+
+  [docsFolderName_(), backupFolderName_(), feedbackFolderName_()].forEach(function (name) {
+    var key = 'FOLDER_' + name.replace(/\W/g, '_');
+    var id  = PropertiesService.getScriptProperties().getProperty(key);
+    if (!id) return;                       // nunca se creó: nada que mover
+    try {
+      var f = DriveApp.getFolderById(id);
+      var already = false;
+      var ps = f.getParents();
+      while (ps.hasNext()) if (ps.next().getId() === master.getId()) already = true;
+      if (!already) { f.moveTo(master); moved.push(f.getName()); }
+    } catch (e) { Logger.log('organizeDriveFolders_ ' + name + ': ' + e.message); }
+  });
+
+  // La hoja también. Es el archivo que el cliente abre a diario, así que vivir
+  // fuera de su propia carpeta es justo lo que hace difícil encontrarla.
+  try {
+    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var file = DriveApp.getFileById(ss.getId());
+    var inMaster = false;
+    var fps = file.getParents();
+    while (fps.hasNext()) if (fps.next().getId() === master.getId()) inMaster = true;
+    if (!inMaster) { file.moveTo(master); moved.push(file.getName()); }
+  } catch (e) { Logger.log('organizeDriveFolders_ sheet: ' + e.message); }
+
+  PropertiesService.getScriptProperties().setProperty('DRIVE_ORGANIZED', 'true');
+  return { master: master.getName(), moved: moved };
+}
+
+function menuOrganizeDrive() {
+  var ui = SpreadsheetApp.getUi();
+  var r = organizeDriveFolders_();
+  ui.alert('📁 ' + PRODUCT_NAME + ' — Drive',
+    r.moved.length
+      ? 'Everything now lives in one folder:\n\n' + r.master + '\n\nMoved:\n  • ' + r.moved.join('\n  • ') +
+        '\n\nNothing was renamed and nothing was lost — only the location changed.'
+      : 'Already tidy. Everything is in ' + r.master + '.',
+    ui.ButtonSet.OK);
 }
 
 function docsFolderName_()     { return companySettings_().folderPrefix + '_Docs'; }
@@ -293,11 +379,19 @@ function saveSetupWizard(data) {
 
   if (data.enableBackup) { try { ensureBackupTrigger_(); } catch (e) {} }
 
+  // Con el nombre de la empresa ya definido, la carpeta maestra puede nacer con
+  // el nombre correcto y la hoja mudarse a ella de una vez.
+  try { organizeDriveFolders_(); } catch (e) { Logger.log('organizeDriveFolders_: ' + e.message); }
+
   // Populates LIVE_STOCK / SITE_STOCK / WASTED_STOCK with their headers (and
   // any stock, on a copy that already has movements) so the first load reads a
   // valid, if empty, set of derived sheets instead of failing.
   try { refreshDerivedSheets_(ss); } catch (e) {}
 
+  // Read the acceptance off the welcome sheet BEFORE deleting it. This is the
+  // first moment the code runs WITH authorization, so it is the first moment we
+  // can record who accepted rather than only that somebody did.
+  recordTermsAcceptance_(actor);
   removeStartHereSheet_(ss);   // setup done — the welcome sheet has served its purpose
 
   p.setProperty('SETUP_COMPLETE', 'true');
@@ -496,24 +590,73 @@ function acceptedDocFolderNames_() {
   return names;
 }
 
+// The same list as acceptedDocFolderNames_(), but as folder IDs.
+//
+// An ID survives a rename; a name does not. That difference cost a full day of
+// diagnosis once already: if the customer renames Acopio_X_Docs in their own
+// Drive, the app keeps WRITING there (the ID is cached) but stops being able to
+// OPEN anything — "Requested file outside app folder" on every attachment they
+// ever uploaded. Nothing in the app warned them, and nothing they could see
+// explained it.
+//
+// getOrCreateFolder_() caches one Script Property per path segment, and the
+// first segment of every documents path IS the bare root, so the ID is already
+// there under the same key the name produces.
+function acceptedDocFolderIds_() {
+  var props = PropertiesService.getScriptProperties();
+  var ids = [];
+  acceptedDocFolderNames_().forEach(function (name) {
+    var id = String(props.getProperty('FOLDER_' + name.replace(/\W/g, '_')) || '').trim();
+    if (id && ids.indexOf(id) === -1) ids.push(id);
+  });
+  return ids;
+}
+
 // Walks up a file's parent folders looking for one of this app's own root
-// folders by name. Name-based rather than ID-based because getOrCreateFolder_()
-// caches a separate Script Property per full subfolder path (e.g. one for
-// "<prefix>_Docs/RackPhotos/A1A"), so there's no single cached ID for the bare
-// root to compare against — walking up and checking the name is simpler and
-// just as safe, since nothing in the upload path lets a caller choose where a
-// file gets created.
+// folders.
+//
+// BY ID FIRST, because that is the check that is actually correct — it is the
+// folder we created, whatever the customer has since called it. The name check
+// stays as a second chance rather than being replaced: an installation from
+// before the ID was cached, or one whose cache was cleared, has no ID to match
+// and would otherwise lose access to its whole history. Accepting either is
+// strictly more permissive than what shipped before, so nothing that opens
+// today can stop opening.
 function isFileWithinAppFolder_(file) {
-  var accepted = acceptedDocFolderNames_();
+  var acceptedNames = acceptedDocFolderNames_();
+  var acceptedIds   = acceptedDocFolderIds_();
   var folders = file.getParents();
   var depth = 0;
   while (folders.hasNext() && depth < 8) {
     var folder = folders.next();
-    if (accepted.indexOf(folder.getName()) !== -1) return true;
+    if (acceptedIds.indexOf(folder.getId()) !== -1) return true;
+    if (acceptedNames.indexOf(folder.getName()) !== -1) return true;
     folders = folder.getParents();
     depth++;
   }
   return false;
+}
+
+// Folders the app created whose name in Drive is no longer the name the app
+// expects — i.e. somebody renamed them. Nothing is broken by this any more
+// (the ID check above handles it), but it is still worth SAYING, because the
+// folder names are how a person finds their own files, and because a renamed
+// folder is a sign the customer wanted to call it something else — which is a
+// conversation to have, not a fault to hide.
+function renamedAppFolders_() {
+  var props = PropertiesService.getScriptProperties();
+  var out = [];
+  var expected = [masterFolderName_(), docsFolderName_(), backupFolderName_(), feedbackFolderName_()];
+  expected.forEach(function (name, i) {
+    var key = (i === 0) ? 'FOLDER_MASTER' : 'FOLDER_' + name.replace(/\W/g, '_');
+    var id  = String(props.getProperty(key) || '').trim();
+    if (!id) return;                                   // never created — nothing to compare
+    try {
+      var actual = DriveApp.getFolderById(id).getName();
+      if (actual !== name) out.push({ expected: name, actual: actual });
+    } catch (e) { /* trashed or gone; the create-on-demand path handles that */ }
+  });
+  return out;
 }
 
 // ─── GOOGLE SIGN-IN (hybrid, for users outside the company's Workspace) ──────
@@ -1058,7 +1201,7 @@ function getInitialData(sessionToken) {
     return {
       serverVersion:      APP_VERSION,
       company:            publicCompany_(),
-      systemActivity:     (function(){ try { return getSystemActivity(30); } catch (e) { return []; } })(),
+      systemActivity:     (function(){ try { return getSystemActivity(30, _auth.email); } catch (e) { return []; } })(),
       columnPrefs:        columnPrefs_(),
       movements:          movements,
       stock:              stock,
@@ -1570,6 +1713,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'mergeLocations')     return mergeLocations(data, auth);
   if (action === 'saveColumnPrefs')    return saveColumnPrefs(data, auth);
   if (action === 'saveCompanyProfile') return saveCompanyProfile(data, auth);
+  if (action === 'parseIncomingEmail') return parseIncomingEmail(data, auth);
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
@@ -1578,6 +1722,8 @@ function processMovementInner_(ss, action, data, auth) {
     return adminAction_(ss, data);
   }
   if (action === 'getErrorLog')     return getErrorLog(auth);
+  if (action === 'clearErrorLog')   return clearErrorLog(data, auth);
+  if (action === 'dismissSystemCard') return dismissSystemCard(data, auth);
   if (action === 'logClientError')  return logClientError(data, auth);
   if (action === 'loadOlderHistory') return loadOlderHistory(auth);
   throw new Error('Unknown action: ' + action);
@@ -3442,6 +3588,9 @@ function getOrCreateFolder_(path) {
         // folder gets created rather than the original being found. Caching
         // every level (above) is what keeps that from happening in practice.
         next = DriveApp.createFolder(parts[i]);
+        // Nace ya dentro de la carpeta maestra, así que una instalación nueva
+        // nunca deja nada suelto en la raíz.
+        ensureUnderMaster_(next);
       }
       try { props.setProperty(cacheKey, next.getId()); } catch (e) {}
     }
@@ -3901,7 +4050,52 @@ function describeMatIdFixes_(fixes) {
 // _announceSystemActivity on the client. Kept generous rather than tight: a
 // notice that disappears before it is read is the bug this whole feature was
 // meant to fix.
-function getSystemActivity(limit) {
+// WHICH CARDS THIS PERSON HAS ALREADY DISMISSED — SERVER-SIDE, ON PURPOSE.
+//
+// It used to live in the browser's localStorage, and every backup notice since
+// August came back on every load however many times the ✕ had been pressed.
+// The app is served inside Apps Script's sandboxed googleusercontent.com frame,
+// and storage there is not something to build on: it is partitioned, and the
+// frame's origin is not the customer's to rely on. A dismissal is a fact about
+// a PERSON, not about a browser — press ✕ at the desk and it should also be
+// gone on the phone — so it belongs on the server, where the rest of what the
+// app knows about that person already lives.
+function sysDismissKey_(email) {
+  return 'SYSDISM_' + String(email || '').toLowerCase().replace(/\W/g, '_').substring(0, 80);
+}
+
+function sysDismissedSet_(email) {
+  var out = {};
+  if (!email) return out;
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(sysDismissKey_(email));
+    (JSON.parse(raw || '[]') || []).forEach(function (id) { out[id] = 1; });
+  } catch (e) {}
+  return out;
+}
+
+// Capped so one property can never outgrow the 9KB a Script Property holds.
+// The oldest dismissals are the ones to drop: their events have long since
+// fallen off the end of the 30 the server returns, so they can never come back
+// anyway.
+var SYS_DISMISS_MAX = 150;
+
+function dismissSystemCard(data, auth) {
+  auth = requireAuth_();
+  var id = String((data && data.id) || '').trim();
+  if (!id) return { status: 'success' };
+  var p    = PropertiesService.getScriptProperties();
+  var key  = sysDismissKey_(auth.email);
+  var list = [];
+  try { list = JSON.parse(p.getProperty(key) || '[]') || []; } catch (e) { list = []; }
+  if (list.indexOf(id) === -1) list.push(id);
+  if (list.length > SYS_DISMISS_MAX) list = list.slice(list.length - SYS_DISMISS_MAX);
+  p.setProperty(key, JSON.stringify(list));
+  return { status: 'success', dismissed: list.length };
+}
+
+function getSystemActivity(limit, forEmail) {
+  var dismissed = sysDismissedSet_(forEmail);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
   if (!sheet) return [];
@@ -3920,6 +4114,11 @@ function getSystemActivity(limit) {
     var actor = String(rows[i][2] || '').toLowerCase().trim();
     if (!SYSTEM_ACTORS[actor]) continue;
     var action = String(rows[i][1] || '');
+    var atIso  = rows[i][0] ? new Date(rows[i][0]).toISOString() : '';
+    // Same id the browser used to build: timestamp + action. Filtered HERE so
+    // the limit above counts cards this person will actually see, instead of
+    // being spent on ones they dismissed months ago.
+    if (dismissed[atIso + '|' + action]) continue;
     // Anything the app can take you to, it should. A backup is a file in
     // Drive; a re-link happened on numbered rows of the archive. Both are
     // reachable, and "corrected automatically" is only reassuring if you can
@@ -3932,7 +4131,7 @@ function getSystemActivity(limit) {
       if (m) ref = { kind: 'rows', rows: m[1].split(','), label: 'Show the movement' + (m[1].indexOf(',') === -1 ? '' : 's') };
     }
     out.push({
-      at:     rows[i][0] ? new Date(rows[i][0]).toISOString() : '',
+      at:     atIso,
       action: action,
       label:  SYSTEM_EVENT_LABELS[action] || action.replace(/_/g, ' ').toLowerCase(),
       detail: String(rows[i][3] || ''),
@@ -4113,10 +4312,82 @@ function escHtml_(s) {
 }
 
 // ADMIN only. Returns the most recent error log entries, newest first.
+// How long an entry is worth keeping. A log that never forgets stops answering
+// the only question anyone asks of it — "what is wrong NOW" — because the
+// answer is buried under everything that was ever wrong and has since been
+// fixed. Thirty days is long enough to cover "it did this last month too" and
+// short enough that the list stays readable.
+var ERROR_LOG_KEEP_DAYS = 30;
+
+// Pruning happens when an admin OPENS the log, not on every write. The write
+// path runs inside real work (a save, a backup) and must stay cheap; the read
+// path runs once, by hand, when somebody is already waiting for a table to
+// appear. Same result, none of the cost where it would be felt.
+function pruneErrorLog_(sheet, days) {
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+  var keepDays = days || ERROR_LOG_KEEP_DAYS;
+  var cutoff = new Date().getTime() - keepDays * 86400000;
+  var stamps = sheet.getRange(2, 1, last - 1, 1).getValues();
+
+  // Rows are appended in time order, so everything to prune is at the TOP and
+  // one deleteRows() call removes it. Counting instead of filtering is what
+  // keeps this from being 300 separate deletes on a big log.
+  var oldCount = 0;
+  for (var i = 0; i < stamps.length; i++) {
+    var d = stamps[i][0];
+    var t = (d instanceof Date) ? d.getTime() : Date.parse(String(d));
+    if (isNaN(t) || t >= cutoff) break;
+    oldCount++;
+  }
+  if (oldCount > 0) sheet.deleteRows(2, oldCount);
+  return oldCount;
+}
+
+// ADMIN only. Empties the log — either the whole thing, or just the WARN rows.
+//
+// Clearing WARN alone is the one that gets used: a WARN is the app correctly
+// refusing something (a quantity that would go negative, a duplicate name), so
+// after a busy week the real ERRORs are a handful of rows hidden among hundreds
+// of those. Removing the noise is how the signal becomes readable again.
+function clearErrorLog(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var mode  = String((data && data.mode) || 'all').toLowerCase();
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ensureErrorLogSheet_(ss);
+  var last  = sheet.getLastRow();
+  if (last < 2) return { status: 'success', removed: 0 };
+
+  var removed = 0;
+  if (mode === 'warnings') {
+    var sev = sheet.getRange(2, 2, last - 1, 1).getValues();
+    // Bottom-up: deleting a row shifts everything below it, so walking
+    // downwards would make every index after the first deletion wrong.
+    for (var i = sev.length - 1; i >= 0; i--) {
+      if (String(sev[i][0] || '').toUpperCase() === 'WARN') { sheet.deleteRows(i + 2, 1); removed++; }
+    }
+  } else {
+    removed = last - 1;
+    sheet.deleteRows(2, removed);
+  }
+
+  // Recorded, because emptying the record of what went wrong is something a
+  // second admin may need to know happened — but in the AUDIT_LOG, which is
+  // where administrative actions belong. v9.64 wrote it into the ERROR_LOG
+  // itself, so clearing the log left a fresh row in the log saying the log had
+  // been cleared. Nothing broke, but it read like a new problem appearing at
+  // the exact moment you were tidying up, which is the opposite of the point.
+  auditLog_(ss, 'CLEAR_ERROR_LOG', auth.email,
+    'Error log cleared (' + mode + ')', String(removed) + ' entries', '');
+
+  return { status: 'success', removed: removed };
+}
+
 function getErrorLog(auth) {
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ensureErrorLogSheet_(ss);
+  try { pruneErrorLog_(sheet); } catch (e) { Logger.log('pruneErrorLog_: ' + e.message); }
   var last  = sheet.getLastRow();
   if (last < 2) return [];
   var rowCount = Math.min(last - 1, 300);
@@ -4273,6 +4544,7 @@ function onOpen() {
     .addItem('🧹 Normalize Status Column (run once)', 'menuNormalizeStatus')
     .addItem('Push Update Live (owner, standard Cloud project only)', 'menuActivateWebApp')
     .addSeparator()
+    .addItem('📁 Tidy up my Drive (one folder for everything)', 'menuOrganizeDrive')
     .addItem('🩺 Check this installation', 'menuCheckInstallation')
     .addItem('🔎 Check if this copy is a clean template', 'menuVerifyMasterTemplate')
     .addItem('💣 Erase everything — make this a blank template', 'menuPrepareMasterTemplate');
@@ -4302,13 +4574,101 @@ function onOpen() {
   if (!cs.setupComplete) {
     try {
       SpreadsheetApp.getActiveSpreadsheet().toast(
-        'Open the "🏭 ' + PRODUCT_NAME + '" menu above and choose "Set Up ' + PRODUCT_NAME + '".',
-        '👋 Not set up yet', 30);
+        'Go to the "👉 START HERE" tab at the bottom of this window.',
+        '👋 Welcome to ' + PRODUCT_NAME, 30);
     } catch (e) {}
-    // Still attempted: on a copy that HAS been authorized this sometimes works,
-    // and costs nothing when it does not.
-    try { showSetupWizardDialog(); } catch (e) {}
+    // NOT attempted any more: showSetupWizardDialog() from here. The old
+    // comment said trying it "costs nothing when it does not work". That was
+    // wrong, and a customer's screenshot proved it — Sheets pops up a grey
+    // "Message details / Exception: Specified permissions are not sufficient to
+    // call Ui.showModalDialog" box, and it does that even though the call sits
+    // inside a try/catch, because the permission failure is reported by Sheets
+    // itself and not only raised into the script.
+    //
+    // It could never have worked either way: a simple trigger has neither the
+    // script.container.ui scope the dialog needs nor the Session call
+    // requireOwnerContext_() makes first, and authorizing the copy does not
+    // change that — simple triggers always run restricted. So the first thing
+    // a brand-new customer saw was an exception. The welcome SHEET is the whole
+    // mechanism now, and it needs no permission at all.
+
+    // Build the welcome sheet if it is not there. It used to be created only by
+    // the template tool, which means it reached exactly the customers who got a
+    // file made from the clean template — and nobody who was handed a copy of a
+    // working system, which is how the first real copies were made. A sheet
+    // that only appears in the ideal case is not a welcome, so it is created
+    // here too, on any copy that has not finished setup.
+    try {
+      if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(START_HERE_SHEET)) {
+        createStartHereSheet_(SpreadsheetApp.getActiveSpreadsheet());
+      }
+    } catch (e) {}
   }
+}
+
+// Google's toast fades after a few seconds and there is no way to make one
+// stay. So on a copy that is not set up yet, it is re-shown when the person
+// clicks around a sheet that is not the welcome page — throttled to once every
+// five minutes, because the alternative is a toast on every single click, which
+// is worse than no toast at all.
+//
+// Best-effort by design: if PropertiesService is not reachable from a simple
+// trigger on an unauthorized copy, the throttle read throws, the catch swallows
+// it, and nothing is shown. The welcome SHEET is the notice that always works;
+// this is only a second chance for someone who has already wandered off it.
+var NUDGE_EVERY_MS = 5 * 60 * 1000;
+
+function onSelectionChange(e) {
+  try {
+    if (!e || !e.range) return;
+    if (e.range.getSheet().getName() === START_HERE_SHEET) return;
+    if (companySettings_().setupComplete) return;
+
+    var p = PropertiesService.getDocumentProperties();
+    var last = parseInt(p.getProperty('NUDGE_AT') || '0', 10) || 0;
+    if (Date.now() - last < NUDGE_EVERY_MS) return;
+    p.setProperty('NUDGE_AT', String(Date.now()));
+
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'Setup has not been done yet. Open the "👉 START HERE" tab at the bottom.',
+      '👋 Welcome to ' + PRODUCT_NAME, 15);
+  } catch (err) { /* simple trigger — never surface anything */ }
+}
+
+// ─── THE ACCEPT BUTTON ───────────────────────────────────────────────────────
+// Sheets has no way to place a real button from code — a drawing with a script
+// attached has to be drawn by hand, and Apps Script cannot create one. A
+// CHECKBOX is the closest thing that exists: it is one click, it looks like a
+// control, and ticking it fires onEdit.
+//
+// onEdit is a simple trigger, with the same handcuffs as onOpen: no
+// authorization, so no dialog and no Session call — ever, on any copy,
+// authorized or not. It does NOT try to open the wizard: that attempt is what
+// produced the grey "permissions are not sufficient to call Ui.showModalDialog"
+// box a customer hit the first time they ticked the box, and a try/catch does
+// not suppress it because Sheets reports the permission failure itself.
+//
+// So ticking the box does the two things a simple trigger CAN do, and both of
+// them last: it stamps the acceptance, and it writes the next step onto the
+// sheet, right under the box, where it stays put instead of fading like a
+// toast.
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sh = e.range.getSheet();
+    if (sh.getName() !== START_HERE_SHEET) return;
+    if (e.range.getA1Notation() !== TERMS_CHECKBOX_CELL) return;
+    if (e.range.getValue() !== true) return;
+
+    sh.getRange(TERMS_STAMP_CELL).setValue('Accepted ' + new Date().toLocaleString());
+    sh.getRange(TERMS_NEXT_CELL)
+      .setValue('→ Now open the  🏭 ' + PRODUCT_NAME + '  menu at the top of this window ' +
+                'and choose  "🚀 Set Up ' + PRODUCT_NAME + '".')
+      .setFontWeight('bold').setFontColor('#B45309');
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'Now use the "🏭 ' + PRODUCT_NAME + '" menu at the top and choose "Set Up ' + PRODUCT_NAME + '".',
+      '✓ Terms accepted', 20);
+  } catch (err) { /* a simple trigger must never surface an error to the user */ }
 }
 
 // The one instruction that reaches a customer with no authorization, no menu
@@ -4317,38 +4677,146 @@ function onOpen() {
 // done, so a working system is not left carrying a welcome mat.
 var START_HERE_SHEET = '👉 START HERE';
 
+// Fixed addresses, because onEdit has to recognise the checkbox by position —
+// it gets a cell, not a name. Change the layout below and these move with it.
+var TERMS_CHECKBOX_CELL = 'B14';
+var TERMS_LABEL_CELL    = 'C14';
+var TERMS_STAMP_CELL    = 'C15';
+var TERMS_NEXT_CELL     = 'C16';
+
+// Google's own colours are the only ones a spreadsheet can be styled with, so
+// this borrows the app's palette rather than inventing a second one.
+var SH_NAVY = '#1B2A4A', SH_ACCENT = '#3B7DD8', SH_MUTED = '#6B7280', SH_PAPER = '#FFFFFF';
+
 function createStartHereSheet_(ss) {
   var sh = ss.getSheetByName(START_HERE_SHEET);
   if (sh) ss.deleteSheet(sh);
   sh = ss.insertSheet(START_HERE_SHEET, 0);
 
-  var lines = [
-    ['Welcome — your warehouse system is ready to set up.'],
-    [''],
-    ['1.  Look at the menu bar at the top of this window.'],
-    ['2.  Click  🏭 ' + PRODUCT_NAME + '  (it sits to the right of "Help").'],
-    ['3.  Choose  "🚀 Set Up ' + PRODUCT_NAME + ' (start here)".'],
-    [''],
-    ['That opens a short setup — your company, what you store, where you store'],
-    ['it, and who works here. About 10 minutes, once.'],
-    [''],
-    ['Google will ask you to authorize the system the first time. It will warn'],
-    ['that the app is not verified — that is expected: this copy belongs to YOU,'],
-    ['and the "developer" it names is your own account. Click Advanced, then'],
-    ['"Go to ..." to continue.'],
-    [''],
-    ['Do not type anything into the other tabs at the bottom — the app fills'],
-    ['those in for you.'],
-    [''],
-    ['This sheet disappears by itself once setup is finished.']
-  ];
-  sh.getRange(1, 1, lines.length, 1).setValues(lines);
-  sh.getRange(1, 1).setFontSize(16).setFontWeight('bold');
-  sh.getRange(3, 1, 3, 1).setFontWeight('bold');
-  sh.setColumnWidth(1, 640);
+  // A page, not a grid. Column A is the left margin, B holds the checkbox, C
+  // holds every line of text, D is the right margin — which is what lets the
+  // checkbox sit BESIDE its label the way a form does, instead of above it.
   sh.setHiddenGridlines(true);
+  sh.setColumnWidth(1, 40); sh.setColumnWidth(2, 40);
+  sh.setColumnWidth(3, 620); sh.setColumnWidth(4, 40);
+  sh.getRange('A1:Z60').setBackground(SH_PAPER).setFontFamily('Arial');
+
+  function put(cell, text, opts) {
+    opts = opts || {};
+    var r = sh.getRange(cell);
+    r.setValue(text);
+    if (opts.size)   r.setFontSize(opts.size);
+    if (opts.bold)   r.setFontWeight('bold');
+    if (opts.color)  r.setFontColor(opts.color);
+    if (opts.bg)     r.setBackground(opts.bg);
+    if (opts.wrap)   r.setWrap(true);
+    return r;
+  }
+
+  // ── Masthead ──
+  sh.getRange('A1:D3').setBackground(SH_NAVY);
+  sh.setRowHeight(1, 14); sh.setRowHeight(2, 42); sh.setRowHeight(3, 26);
+  put('C2', PRODUCT_NAME, { size: 26, bold: true, color: '#FFFFFF', bg: SH_NAVY });
+  put('C3', 'Warehouse management, in your own Google Drive.',
+      { size: 11, color: '#C7D2E4', bg: SH_NAVY });
+
+  // ── Welcome ──
+  sh.setRowHeight(4, 26);
+  // 17pt in a 21px default row is clipped — the row has to be told.
+  sh.setRowHeight(5, 30);
+  put('C5', 'Welcome. This copy is yours.', { size: 17, bold: true, color: SH_NAVY });
+  sh.setRowHeight(6, 8);
+  put('C7',
+    'Everything lives in this file, in your own Google Drive. Nobody else can see it, ' +
+    'and it does not stop working if you stop paying anyone. Setting it up takes about ' +
+    'ten minutes and you only do it once.',
+    { size: 11, color: '#374151', wrap: true });
+  sh.setRowHeight(7, 56);
+
+  // ── Terms ──
+  sh.setRowHeight(8, 18);
+  put('C9', 'BEFORE YOU START', { size: 9, bold: true, color: SH_MUTED });
+  put('C10',
+    'By using ' + PRODUCT_NAME + ' you accept the Terms of Service and the Privacy Policy. ' +
+    'In short: your data stays in your Drive and is never sent anywhere else; the system is ' +
+    'provided as it is, and you are responsible for keeping your own backups (it can take one ' +
+    'for you every night). The full text is in the app under Settings → Legal.',
+    { size: 11, color: '#374151', wrap: true });
+  sh.setRowHeight(10, 74);
+
+  sh.setRowHeight(11, 10);
+  sh.getRange('B12:C12').setBackground('#EFF4FB');
+  sh.setRowHeight(12, 6);
+  sh.getRange('B13:C13').setBackground('#EFF4FB'); sh.setRowHeight(13, 6);
+  sh.getRange('B14:C17').setBackground('#EFF4FB');
+  sh.setRowHeight(14, 30);
+
+  // The nearest thing to a button that Apps Script can put on a sheet. It is
+  // one click, it looks like a control, and ticking it fires onEdit().
+  var chk = sh.getRange(TERMS_CHECKBOX_CELL);
+  chk.insertCheckboxes();
+  chk.setValue(false);
+  chk.setHorizontalAlignment('center');
+  put(TERMS_LABEL_CELL, 'I accept the Terms of Service and Privacy Policy — tick this box to begin.',
+      { size: 12, bold: true, color: SH_NAVY, bg: '#EFF4FB' });
+  sh.setRowHeight(15, 20);
+  put(TERMS_STAMP_CELL, '', { size: 10, color: SH_MUTED, bg: '#EFF4FB' });
+  // The instruction lives INSIDE the same panel as the checkbox, one line
+  // below it — the eye is already there when the box is ticked, and it is the
+  // one sentence that decides whether the customer gets any further. It starts
+  // as a grey prompt so somebody who never ticks the box still sees what the
+  // box is for.
+  sh.setRowHeight(16, 32);
+  put(TERMS_NEXT_CELL, 'Tick the box above to continue.',
+      { size: 11, color: SH_MUTED, bg: '#EFF4FB', wrap: true });
+  sh.setRowHeight(17, 8);
+
+  // ── What happens next ──
+  sh.setRowHeight(18, 22);
+  put('C19', 'WHAT HAPPENS NEXT', { size: 9, bold: true, color: SH_MUTED });
+  put('C20', '1.   Setup asks for your company name and logo.', { size: 11, color: '#374151' });
+  put('C21', '2.   You tell it what you store and where you store it.', { size: 11, color: '#374151' });
+  put('C22', '3.   You add the people who work here. That is all.', { size: 11, color: '#374151' });
+
+  // ── The warning screen, explained before they meet it ──
+  sh.setRowHeight(23, 16);
+  put('C24',
+    'Google will ask you to authorize this the first time, and will warn that the app is ' +
+    '"not verified". That is expected and it is not a problem: this copy belongs to YOU, and ' +
+    'the developer it names is your own account. Click Advanced, then "Go to…" to continue.',
+    { size: 10, color: SH_MUTED, wrap: true });
+  sh.setRowHeight(24, 56);
+
+  put('C26', 'Leave the other tabs at the bottom alone — the system fills those in for you. ' +
+             'This page disappears by itself once setup is finished.',
+      { size: 10, color: SH_MUTED, wrap: true });
+  sh.setRowHeight(26, 34);
+
+  // No frozen rows, and the cursor parks at A1. Both are the same mistake seen
+  // from two sides: freezing the masthead and then selecting the checkbox cell
+  // fourteen rows down made Sheets scroll to it, so the file opened with the
+  // welcome paragraph already hidden behind the frozen band. A page is read
+  // from the top.
   ss.setActiveSheet(sh);
+  try { sh.setActiveSelection('A1'); } catch (e) {}
   return sh;
+}
+
+// Reads the acceptance off the welcome sheet into Script Properties. Called
+// from the wizard, which is the first moment we are running WITH authorization
+// and can therefore record WHO accepted — onEdit cannot: no Session call is
+// allowed in a simple trigger, so the tick alone proves when, not who.
+function recordTermsAcceptance_(email) {
+  try {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(START_HERE_SHEET);
+    var ticked = sh ? sh.getRange(TERMS_CHECKBOX_CELL).getValue() === true : false;
+    var p = PropertiesService.getScriptProperties();
+    if (!p.getProperty('TERMS_ACCEPTED_AT')) {
+      p.setProperty('TERMS_ACCEPTED_AT', new Date().toISOString());
+      p.setProperty('TERMS_ACCEPTED_BY', String(email || ''));
+      p.setProperty('TERMS_ACCEPTED_HOW', ticked ? 'start-here-checkbox' : 'setup-wizard');
+    }
+  } catch (e) { Logger.log('recordTermsAcceptance_: ' + e.message); }
 }
 
 function removeStartHereSheet_(ss) {
@@ -4368,7 +4836,54 @@ function showSetupWizardDialog() {
   requireOwnerContext_();
   var html = HtmlService.createHtmlOutputFromFile('SetupWizard')
     .setWidth(720).setHeight(680);
-  SpreadsheetApp.getUi().showModalDialog(html, PRODUCT_NAME + ' Setup');
+  try {
+    SpreadsheetApp.getUi().showModalDialog(html, PRODUCT_NAME + ' Setup');
+  } catch (err) {
+    // "Specified permissions are not sufficient to call Ui.showModalDialog"
+    // means this copy's appsscript.json is missing script.container.ui — the
+    // permission to open a window over the sheet. The manifest that ships with
+    // Acopio has it, but the Apps Script editor HIDES appsscript.json by
+    // default, so a copy updated by pasting Code and Index keeps whatever
+    // manifest it already had, and this is the first thing that breaks.
+    //
+    // Sheets prints the raw exception no matter what we do here, so this cannot
+    // hide it. What it can do is leave the explanation and the fix somewhere
+    // the person will actually find them, instead of a stack trace and nothing.
+    explainDialogPermission_(String(err && err.message || err));
+    throw err;
+  }
+}
+
+// Writes the diagnosis onto the welcome sheet, creating it if it is not there.
+// A sheet is the only surface available: every other way of talking to the user
+// from here — alert, prompt, sidebar, dialog — needs the very permission that
+// has just been reported missing.
+function explainDialogPermission_(msg) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(START_HERE_SHEET) || createStartHereSheet_(ss);
+    var row = 30;
+    sh.getRange(row, 3).setValue('⚠  SETUP CANNOT OPEN — ONE SETTING IS MISSING')
+      .setFontWeight('bold').setFontSize(12).setFontColor('#B91C1C');
+    sh.setRowHeight(row, 28);
+    var steps = [
+      'Google says: ' + msg,
+      '',
+      'This copy is missing permission to open a window over the sheet. Fix it once:',
+      '1.  Extensions → Apps Script.',
+      '2.  ⚙ Project Settings → tick "Show appsscript.json manifest file in editor".',
+      '3.  Open appsscript.json in the file list on the left.',
+      '4.  Inside "oauthScopes", add this line:',
+      '        "https://www.googleapis.com/auth/script.container.ui",',
+      '5.  Save, come back here, reload the page, and use the 🏭 ' + PRODUCT_NAME + ' menu again.',
+      '     Google will ask you to authorize once more — that is expected.'
+    ];
+    for (var i = 0; i < steps.length; i++) {
+      sh.getRange(row + 1 + i, 3).setValue(steps[i]).setFontSize(10).setFontColor('#374151');
+    }
+    ss.setActiveSheet(sh);
+    try { sh.setActiveSelection('C' + row); } catch (e) {}
+  } catch (e) { Logger.log('explainDialogPermission_: ' + e.message); }
 }
 
 // Called by the wizard's last step once the owner says they've published the
@@ -4782,6 +5297,22 @@ function menuCheckInstallation() {
     lines.push(guesses.length ? '  • ' + guesses.join('\n  • ') : '  (none found)');
     lines.push('Set FOLDER_PREFIX to the one your attachments are in — without the "_Docs".');
     lines.push('Project Settings › Script Properties › Add.');
+  }
+
+  // Renamed folders. Not a fault — the app follows them by ID — but the person
+  // reading this is the one who has to find their own files in Drive, and being
+  // told the app knows about the rename is the difference between "it's fine"
+  // and a support call.
+  var renamed = renamedAppFolders_();
+  if (renamed.length) {
+    lines.push('');
+    lines.push('RENAMED FOLDERS (the app is still using them — nothing is lost)');
+    renamed.forEach(function (r) {
+      lines.push('  • "' + r.actual + '"\n      The app created this as "' + r.expected + '".');
+    });
+    lines.push('  Documents and photos keep opening: the app follows the folder');
+    lines.push('  itself, not its name. Rename it back only if you want the four');
+    lines.push('  folders to match each other again.');
   }
 
   ui.alert('🩺 ' + PRODUCT_NAME + ' — installation check', lines.join('\n'), ui.ButtonSet.OK);
@@ -5847,6 +6378,128 @@ function deleteIncoming(id, sessionToken) {
     }
   }
   throw new Error('Incoming item not found: ' + id);
+}
+
+// ─── READ AN EMAIL INTO EXPECTED DELIVERIES ──────────────────────────────────
+// The supplier's confirmation email already contains everything an "expected
+// delivery" record needs. Retyping it is the boring, error-prone part of the
+// job, and it is the reason the Incoming tab sits empty in most installations.
+//
+// This takes the text of the email — pasted in, no Gmail permission of any
+// kind — and returns DRAFTS for a person to check before anything is saved. It
+// never writes: extraction from prose is a guess, and a guess that saves itself
+// is how a warehouse ends up with deliveries nobody ordered.
+//
+// Reading the message the user pastes needs no scope at all. That is the whole
+// point: the alternative, searching their mailbox, needs Google's restricted
+// mail scope and an annual paid audit to distribute (see isGmailScanEnabled).
+function parseIncomingEmail(data, auth) {
+  auth = requireAuth_('ADMIN');
+  // One email is one Gemini call against the owner's paid quota.
+  requireQuota_('emailparse', auth.email, 20, 600);
+
+  var text = String((data && data.text) || '').trim();
+  if (!text) throw new Error('Paste the email first.');
+  if (text.length < 25) throw new Error('That is too short to read anything out of.');
+  if (text.length > 12000) text = text.substring(0, 12000);
+
+  var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error(
+    'This needs a Gemini API key, which has not been set up on this system.\n\n' +
+    'An admin adds it once: Apps Script editor → ⚙ Project Settings → Script Properties\n' +
+    'Property: GEMINI_API_KEY   Value: a key from aistudio.google.com\n\n' +
+    'The key is yours and the usage is billed to you by Google, not by us.'
+  );
+
+  // The customer's own categories and units, so the answer lands on the lists
+  // this installation actually uses instead of inventing new ones.
+  var cfg   = loadConfig();
+  var cats  = (cfg.categories || []).slice(0, 40);
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  var prompt =
+    'You are reading an email for a warehouse, to record what is ARRIVING and when.\n' +
+    'Today is ' + today + '. Resolve any relative date against that.\n\n' +
+    'Return ONLY a JSON array — no markdown, no explanation. One object per distinct\n' +
+    'material being delivered. If the email is not about a delivery at all, return [].\n\n' +
+    '{\n' +
+    '  "name":     "what is arriving, as specific as the email allows",\n' +
+    '  "category": ' + (cats.length ? 'one of: ' + cats.join(' | ') + ' (or null if none fit)' : 'null') + ',\n' +
+    '  "qty":      number or null,\n' +
+    '  "unit":     "UNIT | SQ FT | LN FT | PIECE | BOX | PALLET",\n' +
+    '  "supplier": "who is sending it",\n' +
+    '  "po":       "PO or order number",\n' +
+    '  "pm":       "project manager or contact named, if any",\n' +
+    '  "dateMode": "exact | window | about | unknown",\n' +
+    '  "estDate":  "YYYY-MM-DD or null",\n' +
+    '  "estDateEnd":"YYYY-MM-DD or null, only when dateMode is window",\n' +
+    '  "dateNote": "the words the email used about timing, verbatim and short",\n' +
+    '  "notes":    "tracking number, delivery instructions, anything else useful"\n' +
+    '}\n\n' +
+    'RULES ABOUT THE DATE — these matter more than anything else here:\n' +
+    '- A named day ("arriving Sept 3", "ships Monday") → "exact".\n' +
+    '- A range ("between the 5th and the 10th") → "window", with both dates.\n' +
+    '- Vague but bounded ("next week", "in about 2 weeks", "end of the month")\n' +
+    '  → "about", estDate = your best single date, dateNote = their words.\n' +
+    '- Nothing about timing, or explicitly unknown ("we will confirm", "waiting\n' +
+    '  on the factory") → "unknown", estDate = null, dateNote = why if it says.\n' +
+    '- NEVER invent a date to fill the field. "unknown" is a correct answer and\n' +
+    '  a wrong date is worse than no date — nobody can tell them apart later.\n\n' +
+    'Use null for anything the email does not say. Do not guess quantities.\n\n' +
+    'EMAIL:\n' + text;
+
+  var response = geminiFetch_({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.05, maxOutputTokens: 2048 }
+  }, apiKey);
+
+  var code = response.getResponseCode();
+  var body = response.getContentText();
+  if (code === 429) throw new Error('The AI is over its quota for now. Try again in a few minutes.');
+  if (code !== 200) {
+    Logger.log('parseIncomingEmail HTTP ' + code + ': ' + body.substring(0, 400));
+    throw new Error('The AI could not be reached (HTTP ' + code + '). Check the Gemini key in Script Properties.');
+  }
+
+  var items = [];
+  try {
+    var raw = JSON.parse(body).candidates[0].content.parts[0].text;
+    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    var start = raw.indexOf('['), end = raw.lastIndexOf(']');
+    if (start !== -1 && end !== -1) raw = raw.substring(start, end + 1);
+    items = JSON.parse(raw) || [];
+  } catch (e) {
+    Logger.log('parseIncomingEmail parse error: ' + e.message + ' | ' + body.substring(0, 400));
+    throw new Error('The AI answered in a shape this could not read. Try pasting a bit less of the email.');
+  }
+  if (!Array.isArray(items)) items = [];
+
+  // Everything the model returns is normalised here rather than trusted. A
+  // date mode outside the four we support, or an end date on something that is
+  // not a window, would be written straight into the sheet otherwise.
+  var out = items.slice(0, 20).map(function (it) {
+    it = it || {};
+    var mode = incomingDateMode_(it.dateMode);
+    if (!it.estDate) mode = (mode === 'window' || mode === 'about') ? 'unknown' : mode;
+    if (mode === 'unknown') it.estDate = '';
+    if (mode !== 'window') it.estDateEnd = '';
+    return {
+      name:       String(it.name || '').trim().substring(0, 120),
+      category:   String(it.category || '').toUpperCase().trim().substring(0, 40),
+      qty:        Number(it.qty) > 0 ? Number(it.qty) : 0,
+      unit:       String(it.unit || 'UNIT').toUpperCase().trim().substring(0, 20),
+      supplier:   String(it.supplier || '').trim().substring(0, 80),
+      po:         String(it.po || '').trim().substring(0, 40),
+      pm:         String(it.pm || '').trim().substring(0, 80),
+      dateMode:   mode,
+      estDate:    String(it.estDate || '').substring(0, 10),
+      estDateEnd: String(it.estDateEnd || '').substring(0, 10),
+      dateNote:   String(it.dateNote || '').trim().substring(0, 60),
+      notes:      String(it.notes || '').trim().substring(0, 300)
+    };
+  }).filter(function (it) { return it.name; });
+
+  return { status: 'success', items: out };
 }
 
 // ─── GMAIL SCANNER ───────────────────────────────────────────────────────────

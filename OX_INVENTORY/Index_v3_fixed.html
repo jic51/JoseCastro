@@ -52,9 +52,16 @@
        pinned to the right edge and stays there at every width. Auto margins on
        the nav absorb the free space evenly on both sides, which centres it
        without a spacer element and without unpinning the cluster. */
-    .topbar-row2{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
-    .topbar-row2 .nav{margin:0 auto}
-    .topbar-tools{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:auto}
+    /* THREE COLUMNS, not auto margins. `margin:0 auto` on the tabs and
+       `margin-left:auto` on the cluster made THREE auto margins share the free
+       space, so the tabs settled a third of the way along instead of in the
+       middle — which is the lopsided bar Jose measured with red pen. An empty
+       first column the same width as the third puts the tabs dead centre of the
+       whole bar, wherever the cluster happens to end up. minmax(0,…) lets the
+       tab bar give way first when the window narrows, as it did before. */
+    .topbar-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto) minmax(0,1fr);align-items:center;gap:10px}
+    .topbar-row2 .nav{grid-column:2;justify-self:center;margin:0}
+    .topbar-tools{grid-column:3;justify-self:end;display:flex;align-items:center;gap:10px;flex-shrink:0}
     .tools-primary{display:flex;align-items:center;gap:9px}
     /* The Acopio badge with the running version tucked under it — present
        enough to read when someone asks "what version are you on?", quiet
@@ -245,6 +252,23 @@
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
     .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:.65rem;cursor:pointer;line-height:1;padding:0}
     .overlay.show{display:flex}
+    /* ── An open window is the only thing you can touch ──────────────────────
+       The dark backdrop already covers the screen, so the MOUSE was never the
+       whole problem: the KEYBOARD was. Tab walked focus straight through the
+       dark layer into the form behind, so someone could type into — and even
+       Save — a screen they could not see, while the window in front believed
+       nothing had moved. `inert` takes an element out of the tab order, out of
+       hit-testing and out of screen readers in one go, and it composes: opening
+       Settings on top of a half-filled movement form makes that form inert too,
+       and closing Settings hands it straight back. _syncModalShield() applies
+       it to every top-level block except the front window.
+       .app-inert is the fallback for a browser without inert; it only has to
+       stop the mouse, because the backdrop is already there for the eye.
+       modal-open goes on <html>, not <body> — on the document element Chrome
+       keeps the scroll position while the page is locked, so closing the window
+       leaves the list exactly where it was. */
+    html.modal-open{overflow:hidden}
+    .app-inert{pointer-events:none}
     /* height (not max-height): the box is ALWAYS this size, tied only to the
        viewport — never shrinks for a short form, never grows for a long one.
        Short content just leaves empty space at the bottom; long content scrolls
@@ -259,6 +283,20 @@
     .modal-sm{max-width:min(480px,92vw)}
     .modal-md{max-width:min(640px,92vw)}
     .modal-lg{max-width:min(760px,92vw)}
+    /* No dialog may ever scroll SIDEWAYS. It happened because a grid item's
+       default min-width is `auto`, which means "never shrink below the widest
+       thing inside me" — one long placeholder, or a file input showing a long
+       file name, and the column refused to narrow, pushing the form past the
+       edge of the box. min-width:0 lets the column shrink; width/max-width:100%
+       makes the control follow the column instead of keeping its own intrinsic
+       size. File inputs need saying explicitly: their intrinsic width comes
+       from the chosen file's NAME, so an unconstrained one grows with whatever
+       the user picks. Checkboxes and radios are exempted — 100% would stretch
+       them into bars. Applied to every modal at once rather than only the one
+       that was reported, because the cause is the same in all of them. */
+    .modal .form-grid>*,.modal .mat-line-grid>*{min-width:0}
+    .modal input,.modal select,.modal textarea{width:100%;min-width:0;max-width:100%}
+    .modal input[type="checkbox"],.modal input[type="radio"]{width:auto;min-width:auto}
     .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
     /* Sticky modal header — stays pinned while the body scrolls, so the X is always reachable */
     .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.6rem;margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem 1rem .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
@@ -445,6 +483,22 @@
       100%      {transform:rotate(360deg)}
     }
     .spin-hg{display:inline-block;animation:hg-flip 2.6s ease-in-out infinite;will-change:transform}
+    /* ── BUTTONS THAT ARE WORKING ────────────────────────────────────────────
+       A real spinner, drawn in CSS from the button's own text colour, so the
+       same rule works on a white button and on a red one. The ⏳ it replaces was
+       a picture of an hourglass that never turned: it read as a label, not as
+       motion, which is the one thing a busy state has to do.
+       min-width is pinned to the button's OWN width at the moment it starts,
+       never to a fixed number — "Saving…" is shorter than "Save to System", and
+       a button that shrinks mid-click drags the whole row along with it. */
+    @keyframes btn-spin{to{transform:rotate(360deg)}}
+    .btn-spin{display:inline-block;width:.9em;height:.9em;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:btn-spin .7s linear infinite;vertical-align:-.1em}
+    .btn-spin + span{margin-left:.45rem}
+    button.is-busy{cursor:progress}
+    /* The tick is the whole point of the short pause after a save: without it
+       the window just vanishes and you are left wondering whether it saved. */
+    @keyframes tick-pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+    .btn-tick{display:inline-block;animation:tick-pop .28s ease;font-weight:700}
     /* ── CONNECTION INDICATOR ── */
     @keyframes pulse-stale{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{box-shadow:0 0 0 7px rgba(245,158,11,0)}}
     @keyframes pulse-offline{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0)}}
@@ -652,6 +706,18 @@
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    /* Draft rows from an email — editable before anything is saved. */
+    .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
+    .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
+    .ei-card.skipped{opacity:.4}
+    .ei-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .7rem}
+    @media(max-width:560px){.ei-grid{grid-template-columns:1fr}}
+    .ei-grid .field.full{grid-column:1/-1}
+    .ei-grid label{font-size:.66rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.2rem}
+    .ei-grid input,.ei-grid select{width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.83rem;font-family:inherit;background:var(--card);color:var(--text)}
+    .ei-grid input:focus,.ei-grid select:focus{outline:none;border-color:var(--accent)}
+    .ei-foot{display:flex;gap:.5rem;justify-content:flex-end;align-items:center;margin-top:.6rem}
+    .ei-guess{font-size:.7rem;color:var(--yellow);font-weight:700;flex:1}
     .inc-group-row td{background:var(--bg);padding:.45rem .75rem;border-top:2px solid var(--border)}
     .inc-group-lbl{font-size:.76rem;font-weight:800;color:var(--text);letter-spacing:.01em}
     .inc-group-count{font-size:.68rem;font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
@@ -751,23 +817,35 @@
        rotated corners and the badge to sit OUTSIDE the top card. */
     .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px}
     .deck:empty{display:none}
+    /* Reading the pile should not mean the page slides around underneath it.
+       Scroll only — no backdrop, no dimming: this is a corner of the screen
+       asking for a moment, not a window demanding the room. The page scrollbar
+       is already hidden (see html{scrollbar-width:none}), so nothing reflows
+       when it locks. */
+    html.deck-open{overflow:hidden}
     /* Each kind carries its own size, and the collapse is computed FROM that
        size rather than from one hardcoded number — so a mixed pile still
        collapses exactly, whatever is in it. Colour alone was not enough of a
        difference: a notification holds a sentence and needs the width to show
        it, a suggestion holds one name and a pair of buttons. */
-    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s ease,transform .5s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin .5s cubic-bezier(.22,.61,.36,1),transform .5s cubic-bezier(.22,.61,.36,1),opacity .3s ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    /* Leaving. The card slides out to the right and gives its height back over
+       the same beat, so everything below rises into the gap instead of jumping.
+       margin-bottom is what moves the others: shrinking it by the card's own
+       height pulls the whole column up, and because it is on the transition
+       list above it does it over time rather than in one frame. */
+    .deck-card.leaving{opacity:0;transform:translateX(34px) scale(.96);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none}
     .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
     .deck-card + .deck-card{margin-top:.45rem}
     /* Closing is deliberately slower than opening — a pile snapping shut the
        instant the pointer leaves reads as the app swatting you away. */
-    .deck:hover .deck-card,.deck.open .deck-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
+    .deck.open .deck-card{transition:margin .22s ease,transform .22s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease}
     /* Piled: every card pulled up under the next, offset a few px, rotation
        alternating for a hand-stacked look. */
-    .deck:not(:hover):not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:rotate(-2.4deg)}
-    .deck:not(:hover):not(.open) .deck-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
-    .deck:not(:hover):not(.open) .deck-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
-    .deck:not(:hover):not(.open) .deck-card:first-child{margin-top:0}
+    .deck:not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:rotate(-2.4deg)}
+    .deck:not(.open) .deck-card:nth-child(even){transform:rotate(1.8deg) translateX(-4px)}
+    .deck:not(.open) .deck-card:nth-child(3n){transform:rotate(-3.4deg) translateX(3px)}
+    .deck:not(.open) .deck-card:first-child{margin-top:0}
     /* At rest ONE card is on screen and you can see the app through it. Two
        earlier attempts are the reason it works this way: per-card opacity
        stacked into a smudge with the cards behind bleeding through, and muting
@@ -775,15 +853,15 @@
        the answer — the ones behind are hidden outright so nothing can stack,
        and the front one gets a translucent BACKGROUND rather than a faded
        element, which is what keeps its badge and its ✕ crisp on top of it. */
-    .deck:not(:hover):not(.open) .deck-card:not(:last-child){visibility:hidden;pointer-events:none}
-    .deck:not(:hover):not(.open) .deck-card:last-child{transform:rotate(0deg) scale(.88);transform-origin:bottom right}
+    .deck:not(.open) .deck-card:not(:last-child){visibility:hidden;pointer-events:none;opacity:0}
+    .deck:not(.open) .deck-card:last-child{transform:rotate(0deg) scale(.88);transform-origin:bottom right}
 
     /* A suggestion: dark card, asks a question, answered with its buttons. */
     .cfg-card{background:var(--navy);color:#fff;border:1px solid transparent}
-    .deck.dim:not(:hover):not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
-    .deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-lbl,
-    .deck.dim:not(:hover):not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
-    .deck.dim:not(:hover):not(.open) .cfg-card-acts{opacity:0}
+    .deck.dim:not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+    .deck.dim:not(.open) .cfg-card .cfg-card-lbl,
+    .deck.dim:not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
+    .deck.dim:not(.open) .cfg-card-acts{opacity:0}
     .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
     .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
@@ -794,10 +872,10 @@
 
     /* A notification: light card, reports a fact, dismissed with its ✕. */
     .sys-card{background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green)}
-    .deck.dim:not(:hover):not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    .deck.dim:not(:hover):not(.open) .sys-card .sys-card-title{color:var(--muted)}
-    .deck.dim:not(:hover):not(.open) .sys-card-when,
-    .deck.dim:not(:hover):not(.open) .sys-card-detail{opacity:.6}
+    .deck.dim:not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .deck.dim:not(.open) .sys-card .sys-card-title{color:var(--muted)}
+    .deck.dim:not(.open) .sys-card-when,
+    .deck.dim:not(.open) .sys-card-detail{opacity:.6}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
     .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
     .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-height:1.32}
@@ -810,7 +888,7 @@
     .sys-card-x{position:absolute;top:-9px;right:-9px;width:24px;height:24px;border-radius:12px;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.78rem;font-weight:800;cursor:pointer;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
     .sys-card-x:hover{background:var(--red)}
     .cfg-count{position:absolute;top:-9px;left:-9px;min-width:24px;height:24px;border-radius:12px;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid var(--card);box-shadow:0 2px 6px rgba(0,0,0,.35);z-index:2}
-    .deck:hover .cfg-count,.deck.open .cfg-count{display:none}
+    .deck.open .cfg-count{display:none}
     .deck.dim .cfg-count,.deck.dim .sys-card-x{opacity:1}
 
     /* ── Phone/tablet: bell in the topbar instead of the hover deck ── */
@@ -1089,9 +1167,14 @@
     /* Stacked from here down, not only on a phone: the moment the tabs need
        two rows there is height beside them going spare and no width to spare,
        so the account circle goes on top and the bell under it. */
+    /* Below this the grid goes away and the old flex row comes back unchanged —
+       tabs taking the room, cluster stacked beside them. Jose asked for the
+       small-screen behaviour to stay exactly as it is, so it is restored here
+       rather than reworked. */
     @media (max-width:720px){
-      .topbar-tools{flex-direction:column;gap:8px;align-items:center}
-      .nav{flex:1 1 auto}
+      .topbar-row2{display:flex;flex-wrap:nowrap}
+      .topbar-row2 .nav{flex:1 1 auto;margin:0}
+      .topbar-tools{flex-direction:column;gap:8px;align-items:center;margin-left:auto}
     }
     @media (max-width:520px){
       .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
@@ -1477,6 +1560,7 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
+          <button id="btnFromEmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openEmailImport()" title="Paste a supplier email and let the app fill these in">📧 From an email</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
       </div>
@@ -1505,6 +1589,39 @@
 
 </div><!-- /container -->
 
+<!-- ══ READ AN EMAIL INTO EXPECTED DELIVERIES ═══════════════════════════════
+     Paste, read, check, save. Nothing is written until a person has looked at
+     it: pulling facts out of prose is a guess, and a guess that saves itself is
+     how a warehouse ends up with deliveries nobody ordered. -->
+<div class="overlay" id="emailImportOverlay">
+  <div class="modal modal-md">
+    <div class="mhdr">
+      <h3>📧 Read an email</h3>
+      <button class="modal-x" onclick="closeModal('emailImportOverlay')" title="Close">✕</button>
+    </div>
+    <div id="emailImportStep1">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">
+        Paste the supplier's email below — the whole thing, subject and all. Nothing is
+        saved until you have checked what it found.
+      </p>
+      <textarea id="emailImportText" rows="10" placeholder="Paste the email here…"
+        style="width:100%;padding:.65rem .8rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit;resize:vertical"></textarea>
+      <div style="display:flex;gap:.6rem;align-items:center;margin-top:.75rem;flex-wrap:wrap">
+        <button class="btn btn-primary" id="btnReadEmail" onclick="runEmailImport()">Read it</button>
+        <span id="emailImportStatus" style="font-size:.8rem;color:var(--muted);flex:1;min-width:0"></span>
+      </div>
+    </div>
+    <div id="emailImportStep2" style="display:none">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.7rem">
+        <span id="emailImportFound" style="font-size:.85rem;font-weight:700"></span>
+        <button class="btn btn-ghost btn-sm" onclick="_emailImportBack()">← Paste a different email</button>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" id="btnSaveAllEmail" onclick="_emailSaveAll()">Save all</button>
+      </div>
+      <div id="emailImportResults"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MORNING POPUP ════════════════════════════════════════════════════════ -->
 <div class="morning-overlay" id="morningOverlay">
   <div class="morning-popup">
@@ -1524,7 +1641,10 @@
 
 <!-- ══ INCOMING MODAL ═══════════════════════════════════════════════════════ -->
 <div class="overlay" id="incomingOverlay">
-  <div class="modal modal-sm">
+  <!-- modal-md, not modal-sm: this is an eleven-field form in two columns, the
+       second-largest in the app. At the small tier each column was under 200px
+       and every text field was fighting for room. -->
+  <div class="modal modal-md">
     <div class="mhdr">
       <h3 id="incomingModalTitle">📦 Add Expected Material</h3>
       <button class="btn btn-ghost btn-sm" onclick="aiExtractFromIncoming()" title="Upload a PO or delivery confirmation and let AI fill the fields"
@@ -2162,7 +2282,7 @@
 <!-- One pile for both kinds of card. Tapping toggles .open — touch has no
      hover, and without that anything behind the front card would be
      unreachable on a tablet. -->
-<div class="deck" id="cornerDeck" onclick="this.classList.toggle('open')"></div>
+<div class="deck" id="cornerDeck"></div>
 
 <div class="overlay" id="reportIssueOverlay">
   <div class="modal modal-sm">
@@ -2208,7 +2328,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.60';
+var APP_VERSION = '9.70';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
@@ -3364,7 +3484,7 @@ function wizFinish(){
   _wizSyncUsers();
   _wiz.users = _wiz.users.filter(function(u){ return u.email && u.email.indexOf('@') !== -1; });
   var btn = document.getElementById('wizNext');
-  btn.disabled = true; btn.textContent = 'Setting up…';
+  _btnBusy(btn, 'Setting up…');
 
   // Same honest-approximation progress bar as the Sheet-side wizard (see
   // SetupWizard.html's saveSetup): one synchronous Apps Script call has no
@@ -3598,7 +3718,7 @@ function submitReportIssue(){
   var message = (document.getElementById('riMessage').value || '').trim();
   if (!message) { showToast('Please describe what happened.', 'warn'); return; }
   var btn = document.getElementById('riSubmitBtn');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  _btnBusy(btn, 'Sending…');
   google.script.run
     .withSuccessHandler(function(){
       btn.disabled = false; btn.textContent = 'Send Report';
@@ -4437,7 +4557,7 @@ function renderMovements(){
 function _loadOlderHistoryClicked() {
   var btn = document.getElementById('btnLoadOlderHistory');
   if (_oldHistoryLoaded) { showToast('Older history already loaded (' + oldMovements.length + ' movements).', 'ok'); return; }
-  btn.disabled = true; btn.textContent = 'Loading…';
+  _btnBusy(btn, 'Loading…');
   google.script.run
     .withSuccessHandler(function(rows) {
       oldMovements = rows || [];
@@ -5288,7 +5408,7 @@ async function submitMovement(){
 
   function _doSubmit(force) {
     payload.forceSubmit = !!force;
-    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -5296,7 +5416,11 @@ async function submitMovement(){
         var savedType = currentMoveType; // capture before modal closes
         var savedName = name;
         var savedQty  = qty;
-        closeModal('moveOverlay');
+        // The tick sits on the button for a moment before the window goes. A
+        // window that vanishes the instant you click Save looks exactly like a
+        // window that closed without saving, and the toast arrives afterwards,
+        // somewhere else on the screen, when the eye is still on the button.
+        _btnDone(btn, true, function(){ closeModal('moveOverlay'); });
         // Show cached numbers instantly (no skeleton-card flash), fresh data quietly
         // replaces them a moment later once the round-trip completes — the "reload"
         // feeling was the skeleton cards, not the actual data refresh.
@@ -5324,7 +5448,7 @@ async function submitMovement(){
         // GAS wraps errors with "Error: " prefix, so we search anywhere in msg
         var dupIdx = msg.indexOf('DUPLICATE_MOVEMENT|');
         if (dupIdx !== -1) {
-          btn.textContent = 'Save to System'; btn.disabled = false;
+          _btnReset(btn);
           _setModalBusy('moveOverlay', false);
           var dupStr  = msg.substring(dupIdx);   // "DUPLICATE_MOVEMENT|367|1.9"
           var parts   = dupStr.split('|');
@@ -5341,7 +5465,7 @@ async function submitMovement(){
         }
         // ── Any other error ────────────────────────────────────────────────
         showToast('Error: ' + msg, 'err', 6000);
-        btn.textContent = 'Save to System'; btn.disabled = false;
+        _btnReset(btn);
         _setModalBusy('moveOverlay', false);
       })
       .processMovement('addMovement', _h(payload));
@@ -6057,7 +6181,7 @@ function submitMultiExit(){
     // loading feedback ever appeared for EXIT. Also unified to the same animated
     // spinner used by ENTRY/TRANSFER/RETURN/WASTE.
     var btn = document.getElementById('moveSubmit');
-    if (btn){ btn.disabled=true; btn.innerHTML='Saving… <span class="spin-hg">⏳</span>'; }
+    if (btn){ _btnBusy(btn, 'Saving…'); }
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -6202,7 +6326,7 @@ function submitMultiEntry(){
 
   function _doMultiSubmit(force){
     payload.forceSubmit = !!force;
-    btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -6338,7 +6462,7 @@ function _saveArchiveCutoff() {
 
 function _rebuildStockNow() {
   var btn = document.getElementById('btnRebuildStock');
-  btn.disabled = true; btn.textContent = 'Rebuilding…';
+  _btnBusy(btn, 'Rebuilding…');
   google.script.run
     .withSuccessHandler(function(res){
       btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
@@ -6432,7 +6556,7 @@ function _saveCompanyProfile(){
   else if (picked) payload.logo = { fileData: picked.fileData, fileMimeType: 'image/png', fileName: 'logo.png' };
 
   var btn = document.getElementById('coSave');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  _btnBusy(btn, 'Saving…');
   google.script.run
     .withSuccessHandler(function(res){
       var c = (res && res.company) || {};
@@ -6717,7 +6841,7 @@ function _commitImport(){
   var validRows = _importParsedRows.filter(function(r){ return r.valid; });
   if (!validRows.length) return;
   var btn = document.getElementById('btnCommitImport');
-  btn.disabled = true; btn.innerHTML = 'Importing… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Importing…');
   google.script.run
     .withSuccessHandler(function(res){
       showToast('✓ Imported ' + res.rowCount + ' row(s) as new ENTRY movements.', 'ok', 6000);
@@ -6733,13 +6857,23 @@ function _commitImport(){
     .processMovement('commitImport', _h({ rows: validRows }));
 }
 
+// Marcar la pestaña activa vivía SOLO dentro de switchSettingsTab, así que
+// cualquier otra vía de entrada — una tarjeta de notificación que abre System,
+// el atajo de "Add categories" — pintaba el contenido correcto con la pestaña
+// equivocada resaltada. Ahora lo hace el renderizador, que es por donde pasan
+// todas las vías.
+function _syncSettingsTabButtons(tab){
+  document.querySelectorAll('.settings-tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+}
+
 function switchSettingsTab(tab) {
   // Edit and Delete belong to the screen they were switched on in. Carrying
   // them across meant you could leave Delete armed on four tabs at once and
   // come back to a screen already primed to remove things.
   _clearRowModes();
   _settingsTab = tab;
-  document.querySelectorAll('.settings-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === tab); });
   _renderSettingsTab(tab);
 }
 
@@ -6756,6 +6890,7 @@ function _clearRowModes(){
 }
 
 function _renderSettingsTab(tab) {
+  _syncSettingsTabButtons(tab);
   var content = document.getElementById('settingsTabContent');
   if (tab === 'materials')   { _renderMaterialsTab(); return; }
   if (tab === 'errorlog')    { _renderErrorLogTab(); return; }
@@ -7058,7 +7193,7 @@ function _wireLocMerge(){
                  'source and as a destination. This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' entr(ies) updated.', 'ok', 5000);
@@ -7154,7 +7289,7 @@ function _locMarkDirty(){
   bar.classList.add('show');
   document.getElementById('locSaveBtn').addEventListener('click', function(){
     var btn = this;
-    btn.disabled = true; btn.textContent = 'Saving…';
+    _btnBusy(btn, 'Saving…');
     google.script.run
       .withSuccessHandler(function(){
         showToast('Location layout saved ✓', 'ok');
@@ -7212,7 +7347,7 @@ function _wireManualMerge(tab, label){
                  'This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
@@ -7367,7 +7502,7 @@ function _wireSimilarGroups(tab){
                  'This rewrites history and cannot be undone automatically.',
         confirmText: 'Merge',
         onConfirm: function(){
-          btn.disabled = true; btn.textContent = 'Merging…';
+          _btnBusy(btn, 'Merging…');
           google.script.run
             .withSuccessHandler(function(res){
               showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
@@ -7468,8 +7603,23 @@ function _drawErrorLog(filterText) {
     '</tr>';
   }).join('');
 
+  // Counted, not just listed. "3 errors" and "3 errors among 240 warnings" are
+  // two different situations, and the second one is why Clear warnings exists.
+  var warnCount = 0;
+  _errorLogData.forEach(function(r){ if (String(r.severity).toUpperCase() === 'WARN') warnCount++; });
+  var errCount = _errorLogData.length - warnCount;
+
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Last '+_errorLogData.length+' entries (backend + frontend). ERROR = unexpected bug, WARN = expected validation rejection.</p>' +
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">' +
+      '<b>'+errCount+'</b> error'+(errCount===1?'':'s')+' and <b>'+warnCount+'</b> warning'+(warnCount===1?'':'s')+' ' +
+      '(backend + frontend). ERROR = unexpected bug, WARN = the app correctly refusing something. ' +
+      'Entries older than 30 days are removed on their own.</p>' +
+    '<div style="display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap">' +
+      '<button class="btn btn-sm" onclick="_clearErrorLog(\'warnings\')"' + (warnCount ? '' : ' disabled') + '>' +
+        '🧹 Clear '+warnCount+' warning'+(warnCount===1?'':'s')+'</button>' +
+      '<button class="btn btn-sm btn-danger" onclick="_clearErrorLog(\'all\')"' + (_errorLogData.length ? '' : ' disabled') + '>' +
+        '🗑 Clear everything</button>' +
+    '</div>' +
     '<input type="text" id="errLogSearch" placeholder="Search message, action, user, or ID…" ' +
       'style="width:100%;margin-bottom:.6rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:var(--bg);color:var(--text)" ' +
       'oninput="_drawErrorLog(this.value)" value="'+_he(filterText||'')+'">' +
@@ -7488,6 +7638,47 @@ function _drawErrorLog(filterText) {
     '</div>';
   var inp = document.getElementById('errLogSearch');
   if (inp) { inp.focus(); var v = inp.value; inp.value=''; inp.value=v; }
+}
+
+// Clearing the log is not undoable and it is not urgent, so it asks first —
+// with the count in the question, because "clear the log" and "delete 240
+// entries" feel like different decisions and only the second one is accurate.
+function _clearErrorLog(mode) {
+  var warnings = mode === 'warnings';
+  var n = warnings
+    ? _errorLogData.filter(function(r){ return String(r.severity).toUpperCase() === 'WARN'; }).length
+    : _errorLogData.length;
+  if (!n) return;
+
+  _showConfirm({
+    icon: warnings ? '🧹' : '🗑️',
+    danger: !warnings,
+    title: warnings ? 'Clear warnings?' : 'Clear the whole log?',
+    message: warnings
+      ? 'Removes ' + n + ' warning' + (n===1?'':'s') + ' and keeps every error. Warnings are the app refusing '
+        + 'something on purpose — clearing them makes real problems easier to see. This cannot be undone.'
+      : 'Removes all ' + n + ' entries, errors included. Only do this once the problems in the list are '
+        + 'actually fixed — it is the record of what went wrong. This cannot be undone.',
+    confirmText: warnings ? 'Clear warnings' : 'Clear everything',
+    onConfirm: function(){
+      google.script.run
+        .withSuccessHandler(function(res){
+          showToast((res && res.removed ? res.removed : 0) + ' entries removed', 'ok');
+          // Drop the rows here and redraw. The first version threw the whole
+          // list away and asked the server for it again, which blanked the
+          // panel to "Loading…" and rebuilt it — a screen flash and a round
+          // trip to show a list we could already work out ourselves. What was
+          // removed is exactly what we asked to remove, so the screen should
+          // only lose those rows and nothing else should move.
+          _errorLogData = (mode === 'warnings')
+            ? _errorLogData.filter(function(r){ return String(r.severity).toUpperCase() !== 'WARN'; })
+            : [];
+          _drawErrorLog();
+        })
+        .withFailureHandler(function(e){ showToast('Could not clear the log: ' + (e.message||e), 'err'); })
+        .processMovement('clearErrorLog', _h({ mode: mode }));
+    }
+  });
 }
 
 var _pmDirectoryData = null;
@@ -7904,18 +8095,18 @@ function submitAttachment() {
     return;
   }
 
-  btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>'; btn.disabled = true;
+  _btnBusy(btn, 'Saving…');
   _setModalBusy('attachOverlay', true);
   google.script.run
     .withSuccessHandler(function() {
       _setModalBusy('attachOverlay', false);
-      closeModal('attachOverlay');
+      _btnDone(btn, true, function(){ closeModal('attachOverlay'); });
       showToast('Documents updated ✓', 'ok');
       loadDataFromGoogle(false);
     })
     .withFailureHandler(function(err) {
       showToast('Save failed: ' + (err.message || err), 'err', 6000);
-      btn.textContent = 'Save Changes'; btn.disabled = false;
+      _btnReset(btn);
       _setModalBusy('attachOverlay', false);
     })
     .processMovement('updateDocument', _h({
@@ -7926,6 +8117,131 @@ function submitAttachment() {
       docGroups: docs,
       files:     []
     }));
+}
+
+// ── Window shield — the front window is the only live part of the app ────────
+// Every popup in the app announces itself the same way: the class "show" goes
+// on its overlay. Rather than change the twenty-odd places that add and remove
+// it — and rather than trust that the next new window will remember to call
+// something — a single MutationObserver watches that one class on every overlay
+// and recomputes the shield. A window opened from anywhere, by any path, is
+// covered; one that is never closed properly cannot leave the app stuck either,
+// because the state is derived from what is on screen, never accumulated.
+var _SHIELD_SEL = '.overlay,.wiz-overlay,.morning-overlay,.media-preview-overlay,.cconfirm-overlay';
+// Left alone no matter what: toasts float above every window on purpose and
+// must stay readable, and the splash is the app's own loading screen.
+var _SHIELD_SKIP = { toastContainer: 1, appSplash: 1 };
+
+function _shieldOverlays(){
+  return Array.prototype.slice.call(document.querySelectorAll(_SHIELD_SEL));
+}
+
+// Which window is in front. Same rule the browser itself paints by: the higher
+// z-index wins, and when two tie the one further down the document wins — which
+// is why Settings, declared after the movement form, lands on top of it.
+function _topOpenOverlay(){
+  var best = null, bestZ = -1;
+  _shieldOverlays().forEach(function(el){
+    if (!el.classList.contains('show')) return;
+    var z = parseInt(window.getComputedStyle(el).zIndex, 10);
+    if (isNaN(z)) z = 0;
+    if (z >= bestZ){ bestZ = z; best = el; }
+  });
+  return best;
+}
+
+// EVERY WRITE BELOW IS GUARDED BY A CHECK, AND THAT IS NOT AN OPTIMISATION —
+// IT IS THE WHOLE CORRECTNESS OF THIS FUNCTION.
+//
+// The observer watches the `class` attribute of the overlays, and the shield
+// puts a class ON those same overlays. classList.add/remove rewrite the class
+// attribute even when the token was already there — or already absent — and a
+// rewrite is a mutation, which wakes the observer, which runs this again, and
+// again. Observer callbacks are microtasks, so that chain never yields to the
+// browser: nothing paints, no server response is ever processed, and the splash
+// spins for ever on a blank screen. That is precisely what v9.63 shipped, and
+// the reason it was invisible to every check we run is that it is not a syntax
+// error and not a missing function — it is valid code that never stops.
+//
+// Testing before writing makes the second pass do nothing at all, so the chain
+// ends after one round. The observer is ALSO disconnected while the shield
+// runs, which discards anything the shield's own writes would have queued. Two
+// independent defences on purpose: a hang leaves no error message to debug
+// from, so this must not be able to come back.
+var _shieldObs = null;
+
+function _shieldObserve(){
+  if (!_shieldObs) return;
+  _shieldOverlays().forEach(function(el){
+    _shieldObs.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+}
+
+function _syncModalShield(){
+  if (_shieldObs) _shieldObs.disconnect();
+  try {
+    var top = _topOpenOverlay();
+    Array.prototype.slice.call(document.body.children).forEach(function(el){
+      if (el.tagName === 'SCRIPT' || _SHIELD_SKIP[el.id]) return;
+      // The front window must be actively RELEASED, not merely skipped. A
+      // window that was behind another one is already carrying inert, so
+      // skipping it the moment it becomes the front window leaves it frozen:
+      // open Settings over a movement form and Settings itself is dead, close
+      // Settings and the form never comes back. Deciding a state for every
+      // element on every pass — instead of only touching the ones being
+      // blocked — is what makes the stack work in both directions.
+      var block = !!top && el !== top;
+      if (block){
+        if (!el.hasAttribute('inert'))           el.setAttribute('inert', '');
+        if (!el.classList.contains('app-inert')) el.classList.add('app-inert');
+      } else {
+        if (el.hasAttribute('inert'))            el.removeAttribute('inert');
+        if (el.classList.contains('app-inert'))  el.classList.remove('app-inert');
+      }
+    });
+    var html = document.documentElement;
+    var want = !!top;
+    if (html.classList.contains('modal-open') !== want){
+      html.classList[want ? 'add' : 'remove']('modal-open');
+    }
+  } finally {
+    _shieldObserve();
+  }
+}
+
+// Escape closes the front window — but ONLY the windows where pressing it can
+// cost nothing. A form that has been half filled in is not on this list, for
+// the same reason clicking the backdrop stopped closing them: an accidental key
+// throwing away five minutes of typing is a worse bug than having to reach for
+// the ✕. Reading windows and yes/no questions are safe, and there Escape is
+// what every user already expects.
+var _ESC_CLOSES = {
+  confirmOverlay:      function(){ _confirmCancel(); },
+  promptOverlay:       function(){ _promptCancel(); },
+  mediaPreviewOverlay: function(){ closeMediaPreview(); },
+  morningOverlay:      function(){ closeMorningPopup(); },
+  legalOverlay:        function(){ closeModal('legalOverlay'); },
+  usersOverlay:        function(){ closeModal('usersOverlay'); }
+};
+
+function _onShieldKeydown(e){
+  if (e.key !== 'Escape' && e.keyCode !== 27) return;
+  var top = _topOpenOverlay();
+  if (!top) return;
+  if (top.classList.contains('busy')) return;   // saving — the window is frozen
+  var fn = _ESC_CLOSES[top.id];
+  if (!fn) return;
+  e.preventDefault();
+  try { fn(); } catch (err) {}
+}
+
+function _initModalShield(){
+  try {
+    _shieldObs = new MutationObserver(_syncModalShield);
+    _shieldObserve();
+    _syncModalShield();
+    document.addEventListener('keydown', _onShieldKeydown);
+  } catch (e) {}
 }
 
 // ── Close / Open helpers ──────────────────────────────────────────────────────
@@ -7941,10 +8257,11 @@ function closeModal(id){
     try { _refreshCatHelpers(); } catch (e) {}
     setTimeout(_updateMoveSubmitState, 0);
   }
-  var bm = document.getElementById('moveSubmit');
-  var ba = document.getElementById('attachSubmit');
-  if (bm){ bm.textContent = 'Save to System'; bm.disabled = false; }
-  if (ba){ ba.textContent = 'Save Changes'; ba.disabled = false; }
+  // Restored through the helper, which puts back each button's own captured
+  // label — so these two strings no longer live in a second place where they
+  // can drift away from the buttons they belong to.
+  _btnReset(document.getElementById('moveSubmit'));
+  _btnReset(document.getElementById('attachSubmit'));
   // Reset attach builder when the attach modal closes
   if (id === 'attachOverlay') resetAttachDocBuilder();
 }
@@ -8734,7 +9051,7 @@ function _renderCfgDeck(){
     if (!_cfgSeenKeys[k]) { _cfgSeenKeys[k] = 1; isNew = true; }
   });
 
-  if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
+  if (deck.classList.contains('open')) _cfgWake();
   else if (isNew) { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
   else deck.classList.add('dim');   // a re-render on its own never wakes it
 }
@@ -8794,7 +9111,7 @@ function _cfgCardAction(act, key, btn){
     return;
   }
 
-  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  if (btn){ _btnBusy(btn, 'Adding…'); }
   _cfgAddValue(p.type, p.value, function(ok, err){
     if (ok){
       showToast('Added to your ' + (p.type === 'suppliers' ? 'suppliers' : 'projects') + ' ✓', 'ok');
@@ -8888,11 +9205,65 @@ function _cfgWake(){
   if (deck) deck.classList.remove('dim');
 }
 
+// ── The pile opens and closes from HERE, not from CSS :hover ─────────────────
+// :hover fed back into itself. Opening the pile makes it grow upward and the
+// front card jump from scale(.88) to full size, which moves the geometry out
+// from under the pointer; :hover is then false, so it shuts; the pointer is
+// over it again, so it opens. That is the card "changing size three times" in
+// Jose's video — not a transition to be tuned, a loop to be cut.
+//
+// Driving it from JS with a delay on the way out breaks the loop: a momentary
+// loss of hover while the pile is still settling no longer closes anything.
+// Clicking PINS it open, so reading a long notice does not depend on holding
+// the mouse still.
+var _deckHover = false, _deckPinned = false, _deckLeaveTimer = null;
+var _DECK_LEAVE_MS = 280;
+
+function _deckApply(){
+  var deck = document.getElementById('cornerDeck');
+  if (!deck) return;
+  var open = _deckHover || _deckPinned;
+  deck.classList.toggle('open', open);
+  // The page behind must hold still while somebody is reading the pile — but
+  // NOT dim. A modal darkens because it wants your whole attention; this only
+  // wants the words under the pointer to stop sliding away. The page scrollbar
+  // is already hidden, so locking it shifts no layout.
+  document.documentElement.classList.toggle('deck-open', open);
+  if (open) _cfgWake(); else _cfgScheduleDim(_CFG_REDIM_MS);
+}
+
+function _deckEnter(){
+  clearTimeout(_deckLeaveTimer);
+  _deckHover = true;
+  _deckApply();
+}
+
+function _deckLeave(){
+  clearTimeout(_deckLeaveTimer);
+  _deckLeaveTimer = setTimeout(function(){ _deckHover = false; _deckApply(); }, _DECK_LEAVE_MS);
+}
+
+function _deckTogglePin(){
+  _deckPinned = !_deckPinned;
+  _deckApply();
+}
+
 (function _wireCfgDeckFade(){
   var deck = document.getElementById('cornerDeck');
   if (!deck) return;
-  deck.addEventListener('mouseenter', _cfgWake);
-  deck.addEventListener('mouseleave', function(){ _cfgScheduleDim(_CFG_REDIM_MS); });
+  deck.addEventListener('mouseenter', _deckEnter);
+  deck.addEventListener('mouseleave', _deckLeave);
+  // Touch has no hover at all, so a tap has to do the whole job.
+  deck.addEventListener('click', function(e){
+    if (e.target.closest('[data-sys-x],[data-sys-open],button')) return;  // real controls win
+    _deckTogglePin();
+  });
+  // Unpin by clicking anywhere else, the way any other open panel behaves.
+  document.addEventListener('click', function(e){
+    if (!_deckPinned) return;
+    if (deck.contains(e.target)) return;
+    _deckPinned = false; _deckApply();
+  });
 })();
 
 // Above the breakpoint the corner decks take over and the bell disappears — but
@@ -8947,7 +9318,7 @@ function _cfgAddValue(type, value, done){
 
 function _cfgAddInline(type, value, hintEl){
   var btn = hintEl.querySelector('.cfg-new-add');
-  if (btn){ btn.disabled = true; btn.textContent = 'Adding…'; }
+  if (btn){ _btnBusy(btn, 'Adding…'); }
   _cfgAddValue(type, value, function(ok, err){
     if (!ok){
       if (btn){ btn.disabled = false; btn.textContent = '+ Add it'; }
@@ -9550,7 +9921,7 @@ function submitLockMaterial(){
   };
 
   var btn = document.getElementById('lockMatSubmit');
-  btn.disabled = true; btn.innerHTML = 'Locking… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Locking…');
 
   google.script.run
     .withSuccessHandler(function(res){
@@ -10061,22 +10432,21 @@ function saveIncomingItem() {
   var btn = document.getElementById('incomingOverlay').querySelector('.btn-primary');
   function _send(){
     var action = id ? 'updateIncoming' : 'addIncoming';
-    btn.textContent = 'Saving… ⏳'; btn.disabled = true;
+    _btnBusy(btn, 'Saving…');
     google.script.run
       .withSuccessHandler(function(){
-        btn.textContent = '💾 Save'; btn.disabled = false;
-        closeModal('incomingOverlay');
+        _btnDone(btn, true, function(){ closeModal('incomingOverlay'); });
         loadDataFromGoogle(false);
       })
       .withFailureHandler(function(err){
-        btn.textContent = '💾 Save'; btn.disabled = false;
+        _btnReset(btn);
         showToast('Error: ' + err.message, 'err', 5000);
       })
       .processMovement(action, _h(payload));
   }
 
   if (hasFile){
-    btn.textContent = 'Reading file… ⏳'; btn.disabled = true;
+    _btnBusy(btn, 'Reading file…');
     _readFileAsBase64(fileInput.files[0], function(b64, mime){
       if (b64){ payload.docFile = { fileData: b64, fileMimeType: mime, fileName: fileInput.files[0].name }; }
       _send();
@@ -10122,6 +10492,170 @@ function _doDeleteIncomingItem(id){
     })
     .withFailureHandler(function(err){ showToast('Error: ' + err.message, 'err', 5000); })
     .processMovement('deleteIncoming', _h({ id: id }));
+}
+
+// ── Read an email into expected deliveries ──────────────────────────────────
+// Three states: paste, check, saved. Nothing reaches the sheet until somebody
+// has looked at it — see parseIncomingEmail() in Code.gs for why.
+var _emailDrafts = [];
+
+function openEmailImport(){
+  _emailDrafts = [];
+  document.getElementById('emailImportText').value = '';
+  document.getElementById('emailImportStatus').textContent = '';
+  document.getElementById('emailImportStep1').style.display = '';
+  document.getElementById('emailImportStep2').style.display = 'none';
+  document.getElementById('emailImportOverlay').classList.add('show');
+  setTimeout(function(){ document.getElementById('emailImportText').focus(); }, 60);
+}
+
+function _emailImportBack(){
+  document.getElementById('emailImportStep1').style.display = '';
+  document.getElementById('emailImportStep2').style.display = 'none';
+  document.getElementById('emailImportStatus').textContent = '';
+}
+
+function runEmailImport(){
+  var text = (document.getElementById('emailImportText').value || '').trim();
+  var status = document.getElementById('emailImportStatus');
+  if (text.length < 25){ status.textContent = 'Paste a bit more of the email first.'; return; }
+
+  var btn = document.getElementById('btnReadEmail');
+  _btnBusy(btn, 'Reading…');
+  status.innerHTML = '<span class="spin-hg">⏳</span> Reading the email — a few seconds.';
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.textContent = 'Read it';
+      _emailDrafts = (res && res.items) || [];
+      if (!_emailDrafts.length){
+        status.textContent = 'Nothing about a delivery in that one. Try another email, or add it by hand.';
+        return;
+      }
+      status.textContent = '';
+      document.getElementById('emailImportFound').textContent =
+        _emailDrafts.length + ' item' + (_emailDrafts.length === 1 ? '' : 's') + ' found — check them before saving';
+      document.getElementById('emailImportStep1').style.display = 'none';
+      document.getElementById('emailImportStep2').style.display = '';
+      _renderEmailDrafts();
+    })
+    .withFailureHandler(function(err){
+      btn.disabled = false; btn.textContent = 'Read it';
+      status.textContent = (err && err.message ? err.message : String(err)).replace(/^Error:\s*/i, '');
+    })
+    .processMovement('parseIncomingEmail', _h({ text: text }));
+}
+
+function _renderEmailDrafts(){
+  var cats = (config.categories || []);
+  document.getElementById('emailImportResults').innerHTML = _emailDrafts.map(function(d, i){
+    var catOpts = '<option value="">—</option>' + cats.map(function(c){
+      return '<option value="' + _escAttr(c) + '"' + (c.toUpperCase() === d.category ? ' selected' : '') + '>' + _he(c) + '</option>';
+    }).join('');
+    var modeOpts = [['exact','On a known date'],['window','Between two dates'],['about','Around a date'],['unknown','Not known yet']]
+      .map(function(m){ return '<option value="' + m[0] + '"' + (d.dateMode === m[0] ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('');
+    return '<div class="ei-card" id="ei-' + i + '">' +
+      '<div class="ei-grid">' +
+        '<div class="field full"><label>What is arriving</label><input id="ei-name-' + i + '" value="' + _escAttr(d.name) + '"></div>' +
+        '<div class="field"><label>Category</label><select id="ei-cat-' + i + '">' + catOpts + '</select></div>' +
+        '<div class="field"><label>Qty</label><input type="number" id="ei-qty-' + i + '" value="' + (d.qty || '') + '" min="0"></div>' +
+        '<div class="field"><label>Supplier</label><input id="ei-sup-' + i + '" value="' + _escAttr(d.supplier) + '"></div>' +
+        '<div class="field"><label>PO #</label><input id="ei-po-' + i + '" value="' + _escAttr(d.po) + '"></div>' +
+        '<div class="field"><label>When</label><select id="ei-mode-' + i + '" onchange="_eiSyncMode(' + i + ')">' + modeOpts + '</select></div>' +
+        '<div class="field"><label id="ei-datelbl-' + i + '">Date</label><input type="date" id="ei-date-' + i + '" value="' + _escAttr(d.estDate) + '"></div>' +
+        '<div class="field" id="ei-endwrap-' + i + '"><label>…and</label><input type="date" id="ei-end-' + i + '" value="' + _escAttr(d.estDateEnd) + '"></div>' +
+        '<div class="field full" id="ei-notewrap-' + i + '"><label>What the email said about timing</label><input id="ei-note-' + i + '" value="' + _escAttr(d.dateNote) + '"></div>' +
+        '<div class="field full"><label>Notes</label><input id="ei-notes-' + i + '" value="' + _escAttr(d.notes) + '"></div>' +
+      '</div>' +
+      '<div class="ei-foot">' +
+        (d.dateMode === 'unknown' ? '<span class="ei-guess">The email did not give a date — saved as "not known yet" rather than a guess.</span>' : '<span class="ei-guess"></span>') +
+        '<button class="btn btn-ghost btn-sm" onclick="_eiSkip(' + i + ')">Skip</button>' +
+        '<button class="btn btn-primary btn-sm" id="ei-save-' + i + '" onclick="_eiSave(' + i + ')">Save</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  _emailDrafts.forEach(function(d, i){ _eiSyncMode(i); });
+}
+
+// Same rule as the Add Expected form: only the fields that mode uses.
+function _eiSyncMode(i){
+  var mode = (document.getElementById('ei-mode-' + i) || {}).value || 'exact';
+  var show = function(id, on){ var el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('ei-endwrap-' + i,  mode === 'window');
+  show('ei-notewrap-' + i, mode === 'about' || mode === 'unknown');
+  var dateWrap = document.getElementById('ei-date-' + i);
+  if (dateWrap) dateWrap.parentNode.style.display = (mode === 'unknown') ? 'none' : '';
+  var lbl = document.getElementById('ei-datelbl-' + i);
+  if (lbl) lbl.textContent = mode === 'window' ? 'Any time between' : mode === 'about' ? 'Roughly around' : 'Date';
+}
+
+function _eiPayload(i){
+  var v = function(id){ var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+  var mode = v('ei-mode-' + i) || 'exact';
+  return {
+    name:       v('ei-name-' + i) || '(from email)',
+    category:   v('ei-cat-' + i),
+    qty:        Number(v('ei-qty-' + i)) || 0,
+    unit:       (_emailDrafts[i] && _emailDrafts[i].unit) || 'UNIT',
+    supplier:   v('ei-sup-' + i),
+    po:         v('ei-po-' + i),
+    pm:         (_emailDrafts[i] && _emailDrafts[i].pm) || '',
+    notes:      v('ei-notes-' + i),
+    status:     'Pending',
+    dateMode:   mode,
+    estDate:    mode === 'unknown' ? '' : v('ei-date-' + i),
+    estDateEnd: mode === 'window'  ? v('ei-end-' + i) : '',
+    dateNote:   v('ei-note-' + i)
+  };
+}
+
+function _eiSkip(i){
+  var card = document.getElementById('ei-' + i);
+  if (card) card.classList.add('skipped');
+}
+
+function _eiSave(i, done){
+  var card = document.getElementById('ei-' + i);
+  if (!card || card.classList.contains('saved') || card.classList.contains('skipped')){ if (done) done(); return; }
+  var payload = _eiPayload(i);
+  if (payload.dateMode !== 'unknown' && !payload.estDate){
+    showToast('Item ' + (i + 1) + ' needs a date, or set it to "Not known yet".', 'warn');
+    if (done) done();
+    return;
+  }
+  var btn = document.getElementById('ei-save-' + i);
+  if (btn){ _btnBusy(btn, 'Saving…'); }
+  google.script.run
+    .withSuccessHandler(function(){
+      card.classList.add('saved');
+      if (btn){ btn.textContent = 'Saved ✓'; }
+      if (done) done();
+    })
+    .withFailureHandler(function(err){
+      if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+      showToast('Could not save item ' + (i + 1) + ': ' + ((err && err.message) || err), 'err', 6000);
+      if (done) done();
+    })
+    .processMovement('addIncoming', _h(payload));
+}
+
+// One at a time rather than all at once: each save is a server execution, and
+// firing a dozen together is what trips "too many scripts running".
+function _emailSaveAll(){
+  var btn = document.getElementById('btnSaveAllEmail');
+  _btnBusy(btn, 'Saving…');
+  var i = 0;
+  (function next(){
+    if (i >= _emailDrafts.length){
+      btn.disabled = false; btn.textContent = 'Save all';
+      showToast('Saved. Closing — the list will refresh.', 'ok');
+      closeModal('emailImportOverlay');
+      loadDataFromGoogle(true, true);   // quiet refresh
+      return;
+    }
+    var idx = i++;
+    _eiSave(idx, next);
+  })();
 }
 
 // ── Morning Popup ─────────────────────────────────────────────────────────────
@@ -10460,14 +10994,14 @@ function saveUser() {
   if (!email) { _userFormMsg('Email is required.', 'error'); return; }
 
   var btn = document.getElementById('btnSaveUser');
-  btn.textContent = 'Saving…'; btn.disabled = true;
+  _btnBusy(btn, 'Saving…');
 
   var action  = _editingUser ? 'updateUser' : 'addUser';
   var payload = { email: email, name: name, role: role, active: true };
 
   google.script.run
     .withSuccessHandler(function() {
-      btn.textContent = 'Save User'; btn.disabled = false;
+      _btnDone(btn, true);
       _userFormMsg(_editingUser ? 'User updated.' : 'User added successfully.', 'ok');
       // The row is patched in place rather than the whole list being fetched
       // again: the browser already knows exactly what changed, and re-reading
@@ -10481,7 +11015,7 @@ function saveUser() {
       _renderUsersTable();
     })
     .withFailureHandler(function(err) {
-      btn.textContent = 'Save User'; btn.disabled = false;
+      _btnReset(btn);
       _userFormMsg(err.message || String(err), 'error');
     })
     .processMovement(action, _h(payload));
@@ -10510,12 +11044,30 @@ function deactivateUser(email) {
 // ── Identity Picker (for non-org users when GAS can't detect email) ──────────
 // Sign-in screen for non-org users. Company users never reach this (auto-detected).
 var _oauthClientId = '', _oauthRedirectUri = '';
+
+// Everything that is not the gate has to go, not just the topbar.
+//
+// Both gate screens replaced .container and hid the topbar, and stopped there —
+// but the notification pile, the bell panel and the footer are siblings of
+// .container, not children, so they stayed on screen. The result was a sign-in
+// page with the company's backup notices stacked over it: information about the
+// system, shown to somebody the system has not identified yet.
+function _enterGatedScreen(){
+  ['.topbar', '.system-footer', '#cfgBellPanel', '#cornerDeck', '#rackDrawer', '#rackDrawerOverlay']
+    .forEach(function(sel){
+      var el = document.querySelector(sel);
+      if (el) el.style.display = 'none';
+    });
+  // Nothing is left to hover, so nothing should still be holding the scroll.
+  document.documentElement.classList.remove('deck-open');
+  _deckHover = false; _deckPinned = false;
+}
+
 function _showGoogleSignIn(clientId, redirectUri) {
   _oauthClientId    = clientId    || '';
   _oauthRedirectUri = redirectUri || '';
-  var topbar    = document.querySelector('.topbar');
   var container = document.querySelector('.container');
-  if (topbar)    topbar.style.display = 'none';
+  _enterGatedScreen();
   if (!container) return;
 
   var configured = _oauthClientId && _oauthRedirectUri;
@@ -10612,7 +11164,13 @@ function _showAccessDeniedScreen(status, email) {
 
   var accountBtns = [0, 1, 2, 3].map(function(n) {
     var url = baseUrl + sep + 'authuser=' + n;
-    return '<a href="' + url + '" ' +
+    // target="_top" is not a nicety here. The app runs inside Apps Script's
+    // sandboxed googleusercontent.com iframe, and a plain link navigates THAT
+    // FRAME to the /exec address — which Google will not render inside itself,
+    // so the frame goes blank and the only way back is a manual refresh. That
+    // is precisely the white screen Jose hit switching accounts. _top makes the
+    // browser navigate the real window instead.
+    return '<a href="' + url + '" target="_top" rel="noopener" ' +
       'style="display:inline-flex;align-items:center;justify-content:center;gap:.35rem;' +
              'background:' + (n === 0 ? '#F3F4F6' : n === 1 ? '#EFF6FF' : n === 2 ? '#F0FDF4' : '#FFF7ED') + ';' +
              'color:#1a1a2e;border:1px solid #E5E7EB;border-radius:8px;' +
@@ -10621,7 +11179,7 @@ function _showAccessDeniedScreen(status, email) {
       '</a>';
   }).join('');
 
-  document.querySelector('.topbar').style.display = 'none';
+  _enterGatedScreen();
   document.querySelector('.container').innerHTML  =
     '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:var(--bg)">' +
     '<div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:2.5rem 2rem;max-width:480px;width:100%;text-align:center">' +
@@ -10842,23 +11400,40 @@ function _fmtWhen(iso){
   return sameDay ? 'today at ' + time : d.toLocaleDateString() + ' at ' + time;
 }
 
-var _SYSACT_DISMISS_KEY = 'acopio_sysact_dismissed';
 var _sysCards = [];
 
-function _loadSysDismissed(){
-  try { return JSON.parse(localStorage.getItem(_SYSACT_DISMISS_KEY) || '{}') || {}; }
-  catch (e) { return {}; }
-}
+// Dismissals are the SERVER's memory now, not this browser's.
+//
+// They lived in localStorage, and every backup notice since August came back on
+// every load however many times the ✕ had been pressed. The app runs inside
+// Apps Script's sandboxed googleusercontent.com frame and storage there is not
+// something to build on. It is also the wrong place in principle: pressing ✕ is
+// a fact about a person, so it should hold on their phone too.
+//
+// This set is only a same-session mirror, so a dismissed card cannot flicker
+// back before the next load answers.
+var _sysDismissedNow = {};
+
 function _dismissSysCard(id){
-  var d = _loadSysDismissed();
-  d[id] = 1;
-  // Only the recent ones are ever shown, so this map cannot grow unbounded in
-  // any way that matters, but trim it anyway rather than letting it creep.
-  var keys = Object.keys(d);
-  if (keys.length > 200) keys.slice(0, keys.length - 200).forEach(function(k){ delete d[k]; });
-  try { localStorage.setItem(_SYSACT_DISMISS_KEY, JSON.stringify(d)); } catch (e) {}
-  _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
-  _renderSysDeck();
+  _sysDismissedNow[id] = 1;
+  google.script.run
+    .withFailureHandler(function(){ /* the card is already gone on screen; the
+        next load will bring it back, which is the honest outcome if the write
+        did not land */ })
+    .processMovement('dismissSystemCard', _h({ id: id }));
+
+  // Animate it out first, THEN redraw. Redrawing immediately rebuilds the pile
+  // from scratch and the card simply blinks out of existence — the cards below
+  // jump into the gap with no motion at all, which is what made the deck feel
+  // like a list rather than a stack of paper.
+  var el = document.querySelector('[data-card-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  var finish = function(){
+    _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
+    _renderSysDeck();
+  };
+  if (!el){ finish(); return; }
+  el.classList.add('leaving');
+  setTimeout(finish, 300);
 }
 
 // A notification stays until somebody presses its ✕. It used to carry a
@@ -10874,9 +11449,8 @@ function _dismissSysCard(id){
 // backup a day that is a month of ignoring it, which is long enough to mean
 // nobody was ever going to read it.
 function _announceSystemActivity(){
-  var dismissed = _loadSysDismissed();
   _sysCards = (systemActivity || []).filter(function(a){
-    return a.at && !dismissed[a.at + '|' + a.action];
+    return a.at && !_sysDismissedNow[a.at + '|' + a.action];
   }).map(function(a){
     return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
@@ -10892,7 +11466,7 @@ function _renderSysDeck(){
 
   // Newest painted last so it sits nearest the top of the pile.
   _sysDeckHtml = _sysCards.slice(0, 5).reverse().map(function(c){
-    return '<div class="deck-card sys-card" data-sys-open="' + _he(c.id) + '" title="Click for the full record">' +
+    return '<div class="deck-card sys-card" data-card-id="' + _he(c.id) + '" data-sys-open="' + _he(c.id) + '" title="Click for the full record">' +
       '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
       '<div class="sys-card-title">✓ ' + _he(c.label) + '</div>' +
       '<div class="sys-card-when">' + _he(_fmtWhen(c.at)) + '</div>' +
@@ -10910,6 +11484,52 @@ function _renderSysDeck(){
 }
 
 
+
+// ── One busy state for every button that writes something ────────────────────
+// Before this, roughly twenty-five places each did it their own way: some set
+// textContent, some set innerHTML with an ⏳, some forgot to disable the button
+// at all, and the restore was written out by hand in every success and failure
+// handler — which is how a button ends up stuck saying "Saving…" after an error
+// nobody thought about. One pair of functions instead, so a button behaves the
+// same everywhere and a new one gets it for free.
+//
+// The original label is kept ON the element rather than in a lookup, so it
+// survives anything else that redraws around it, and _btnReset is safe to call
+// on a button that was never made busy.
+function _btnBusy(btn, label){
+  if (!btn) return;
+  // Remember the label only when the button is not ALREADY showing a spinner.
+  // Not a nicety: several call sites still restore their own button by hand, so
+  // this can be entered a second time, and a naive capture would "remember" the
+  // spinner as the button's real label and never give the text back.
+  if (btn.innerHTML.indexOf('btn-spin') === -1) btn._acHtml = btn.innerHTML;
+  // Pin the width BEFORE the label changes, or it is already the wrong width.
+  try { btn.style.minWidth = btn.getBoundingClientRect().width + 'px'; } catch (e) {}
+  btn.disabled = true;
+  btn.classList.add('is-busy');
+  btn.innerHTML = '<span class="btn-spin"></span>' + (label ? '<span>' + _he(label) + '</span>' : '');
+}
+
+function _btnReset(btn){
+  if (!btn) return;
+  if (btn._acHtml != null) btn.innerHTML = btn._acHtml;
+  btn._acHtml = null;
+  btn.disabled = false;
+  btn.style.minWidth = '';
+  btn.classList.remove('is-busy');
+}
+
+// ok=true holds a tick for a moment before handing control back. That pause is
+// deliberate: a save that closes its window instantly is indistinguishable from
+// a save that did nothing. `then` runs after the tick, so callers close the
+// window there rather than racing it.
+function _btnDone(btn, ok, then){
+  if (!btn){ if (then) then(); return; }
+  btn.classList.remove('is-busy');
+  if (!ok){ _btnReset(btn); if (then) then(); return; }
+  btn.innerHTML = '<span class="btn-tick">✓</span>';
+  setTimeout(function(){ _btnReset(btn); if (then) then(); }, 700);
+}
 
 function showToast(msg, type, duration) {
   type     = type     || 'ok';
@@ -10952,12 +11572,18 @@ function toggleDarkMode() {
   _setDarkUI(!isDark);
   try { localStorage.setItem('oxwms_theme', next); } catch(e) {}
 }
+// Light unless the person asked for dark IN THIS APP. It used to follow the
+// operating system, which meant anyone whose laptop is set to dark — most
+// people now — met the app in dark for the very first time, before it had a
+// chance to look like anything. Dark mode is a preference somebody chooses once
+// they already know the product; it is a bad first impression, and first
+// impressions are the one thing that cannot be retried.
+//
+// The toggle is untouched: choose dark and it is remembered for ever. What is
+// gone is the app guessing on somebody's behalf before they have seen it.
 (function initTheme() {
   var saved;
   try { saved = localStorage.getItem('oxwms_theme'); } catch(e) {}
-  if (!saved) {
-    saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
   if (saved === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
     _setDarkUI(true);
@@ -11023,6 +11649,10 @@ function _safeOn(id, event, fn) {
 
 document.addEventListener('DOMContentLoaded', function(){
   try {
+
+  // First thing, before any window can be opened: nothing behind an open
+  // window may be clicked, tabbed into or scrolled.
+  _initModalShield();
 
   // Nav
   _safeOn('btn-dashboard','click', function(){ showTab('dashboard','btn-dashboard'); });
@@ -11118,6 +11748,8 @@ function applyRoleUI(){
   // Admin-only: Incoming button + Monitor settings gear
   var addInc = document.getElementById('btnAddIncoming');
   if (addInc) addInc.style.display = isAdmin ? '' : 'none';
+  var fromEmail = document.getElementById('btnFromEmail');
+  if (fromEmail) fromEmail.style.display = isAdmin ? '' : 'none';
   var gear = document.getElementById('btnMonitorSettings');
   if (gear) gear.style.display = isAdmin ? '' : 'none';
   var gearToolbar = document.getElementById('btnMonitorSettingsToolbar');
@@ -11604,7 +12236,7 @@ function saveEditMov() {
   if (!payload.name) { showToast('Material name cannot be empty.', 'warn'); return; }
 
   var btn = document.getElementById('btnSaveEditMov');
-  btn.disabled = true; btn.innerHTML = 'Saving… <span class="spin-hg">⏳</span>';
+  _btnBusy(btn, 'Saving…');
   _setModalBusy('editMovOverlay', true);
 
   google.script.run
