@@ -875,11 +875,21 @@
        unhurried enough that the eye follows what moved, short of the point
        where waiting for it becomes the feeling. */
     .deck{--deck-in:.62s;--deck-out:.5s;--deck-ease:cubic-bezier(.22,.61,.36,1);--deck-step:55ms}
-    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),opacity var(--deck-out) ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    /* transform-origin lives HERE, unconditionally, not only on the resting
+       rule below. It used to be set only while the pile was closed, so the
+       instant the pile opened that rule stopped matching and the origin
+       snapped back to the CSS default (dead centre) one frame before the
+       scale transition even started — which is exactly the "jump toward the
+       middle, then grow" Jose caught on video. One constant anchor for every
+       state is what makes a card grow from the corner it actually sits in. */
+    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transform-origin:bottom right;transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),opacity var(--deck-out) ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
     /* Fanning out: all at once, each a beat behind the one in front, so the pile
        reads as paper being spread rather than a list appearing. --i is written
-       by _paintDeck, counting back from the card on top. */
-    .deck.open .deck-card{transition-delay:calc(var(--i, 0) * var(--deck-step))}
+       by _paintDeck, counting back from the card on top. Unconditional now —
+       not scoped to .open — so CLOSING fans back in on the same stagger
+       instead of every card snapping shut in lockstep the instant the pointer
+       leaves. */
+    .deck-card{transition-delay:calc(var(--i, 0) * var(--deck-step))}
     /* Open, the cards need air between them and a lighter shadow. The resting
        shadow is tuned for ONE card lifting off the page; repeated down a fan it
        lands in the gap between two white cards and reads as a dark bar. */
@@ -900,21 +910,19 @@
     .deck-card.leaving{opacity:0;transform:translateX(150%) scale(.9);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none;transition-delay:0s!important}
     .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
     .deck-card + .deck-card{margin-top:.45rem}
-    /* Opening uses --deck-in and the stagger; the base rule above (--deck-out)
-       is what closing falls back to. LONGHAND on purpose: the `transition`
-       shorthand that used to live here reset transition-delay to 0s, and
-       because it sat further down the sheet it silently wiped the stagger set
-       above AND pinned the whole fan to .22s, so neither the pace Jose asked
-       for nor the stagger ever reached the screen. A shorthand and a longhand
-       for the same property, in that order, is a trap worth naming. */
-    .deck.open .deck-card{transition-duration:var(--deck-in)}
-    /* Piled: every card pulled up under the next, offset a few px, rotation
-       alternating for a hand-stacked look. */
+    /* --deck-in already governs margin/transform unconditionally, from the
+       base rule above, so it needs no separate re-statement here for opening —
+       closing uses the exact same duration, which is the "en el mismo tiempo"
+       Jose asked for. (An earlier version DID re-state it here, redundantly;
+       removed rather than left as decoration a reader might mistake for load-
+       bearing — see the shorthand-vs-longhand trap noted further down for why
+       that kind of redundant rule is worth being suspicious of, not comforted
+       by.) */
     /* Every card is scaled DOWN at rest, not just the visible one, so opening
        the pile is one movement — they grow to full size on the way out and
        shrink back on the way in. The hand-stacked rotations that used to live
        here only ever applied to cards nobody could see. */
-    .deck:not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:scale(.88);transform-origin:bottom right}
+    .deck:not(.open) .deck-card{margin-top:calc(6px - var(--card-h));transform:scale(.88)}
     .deck:not(.open) .deck-card:first-child{margin-top:0}
     /* At rest ONE card is on screen and you can see the app through it. Two
        earlier attempts are the reason it works this way: per-card opacity
@@ -923,7 +931,31 @@
        the answer — the ones behind are hidden outright so nothing can stack,
        and the front one gets a translucent BACKGROUND rather than a faded
        element, which is what keeps its badge and its ✕ crisp on top of it. */
-    .deck:not(.open) .deck-card:not(:last-child){visibility:hidden;pointer-events:none;opacity:0}
+    /* CLOSING, the back cards must visibly shrink and fade before they vanish
+       — not vanish and then (invisibly) shrink. visibility is not on the
+       transition list on any other rule, so switching to hidden is instant the
+       moment this selector starts matching; it used to fire on the very first
+       frame of closing, blanking every card but the front one before their
+       margin/transform/opacity had moved at all. That is the "just disappears"
+       Jose described.
+       The fix is a delayed, zero-duration transition on visibility ALONE, so
+       the switch to hidden waits for the shrink to actually finish — including
+       its own stagger, so a card delayed behind the front one is not hidden
+       before its delayed turn has even started. This has to be its own full
+       `transition` shorthand (not an addition to the base rule): a shorthand
+       here replaces the whole list for elements it matches, and since only the
+       CLOSING target state needs the extra visibility entry, scoping it to
+       this selector — rather than the base .deck-card rule — is also what
+       keeps OPENING un-delayed: cards must turn visible on the very first
+       frame there, or the fan-out motion would be hidden behind its own
+       entrance. */
+    .deck:not(.open) .deck-card:not(:last-child){
+      visibility:hidden;pointer-events:none;opacity:0;
+      transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),
+                 opacity var(--deck-out) ease,
+                 visibility 0s calc(var(--i, 0) * var(--deck-step) + var(--deck-in)),
+                 background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease;
+    }
     /* "There are more underneath" — two strips peeking above the front card,
        never more, however deep the pile goes; the badge already says the exact
        number. They are DRAWN rather than being the real cards showing through:
@@ -2458,7 +2490,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.74';
+var APP_VERSION = '9.75';
 var userRole = 'WAREHOUSE';
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
