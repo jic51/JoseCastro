@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.76';
+var APP_VERSION = '9.77';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -393,6 +393,13 @@ function saveSetupWizard(data) {
   // can record who accepted rather than only that somebody did.
   recordTermsAcceptance_(actor);
   removeStartHereSheet_(ss);   // setup done — the welcome sheet has served its purpose
+
+  // Stamped ONCE, not on every re-save. saveSetupWizard also runs whenever an
+  // existing admin re-opens setup to tweak a company setting — if this were
+  // overwritten each time, "days since setup" would reset on every unrelated
+  // change and the check-in below would never reach its milestones.
+  if (!p.getProperty('SETUP_COMPLETED_AT')) p.setProperty('SETUP_COMPLETED_AT', new Date().toISOString());
+  try { ensureCheckinTrigger_(); } catch (e) { Logger.log('ensureCheckinTrigger_: ' + e.message); }
 
   p.setProperty('SETUP_COMPLETE', 'true');
   auditLog_(ss, 'SETUP_COMPLETED', actor, companyName, '', '');
@@ -2670,6 +2677,116 @@ function ensureBackupTrigger_() {
     if (triggers[i].getHandlerFunction() === 'dailyBackupTrigger') return;
   }
   ScriptApp.newTrigger('dailyBackupTrigger').timeBased().everyDays(1).atHour(2).create();
+}
+
+// ─── CHECK-IN — CATCH A STUCK CUSTOMER BEFORE THEY QUIETLY LEAVE ─────────────
+// Jose's own problem statement: a customer pays, doesn't understand it, and
+// cancels without ever saying why — which costs the sale AND the feedback that
+// would have prevented the next one. The fix isn't more software for the
+// customer; it's Jose finding out FAST that someone is stuck, instead of
+// finding out when they don't renew.
+//
+// This is a private signal to JOSE, not a nudge to the customer. It reads two
+// counts (movements, users), sends a plain email describing what it found, and
+// touches nothing else in this file. It cannot ever crash a customer's app: it
+// runs from its own daily trigger, wrapped in try/catch, same as the backup.
+//
+// WHAT IT SENDS AND WHY IT MATTERS: an email carrying the company name, the
+// admin's address and a movement count leaves this installation and reaches
+// Jose. That is real — no inventory contents, no costs, no names of materials,
+// just "0 movements in 3 days" — but it is still data leaving the customer's
+// Drive, and the Privacy Policy currently promises data never does. That
+// promise needs one honest line added for this before it ships to a real
+// customer; flagged to Jose rather than quietly worded around.
+//
+// OFF unless two things are both true: SUPPORT_EMAIL is set (Jose's own
+// address — nothing to send it to otherwise) and CHECKIN_ALERTS_ENABLED has
+// not been explicitly turned off. Auto-armed at the end of setup because it
+// benefits Jose, not the customer, and costs the customer nothing to have
+// running — but it never actually mails anyone until SUPPORT_EMAIL exists,
+// which today is true for zero installations.
+var CHECKIN_MILESTONE_DAYS = [3, 7];
+
+function ensureCheckinTrigger_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'dailyCheckinTrigger') return;
+  }
+  // A different hour than the 2am backup, on purpose — this one is meant to
+  // land in Jose's inbox at a time he might actually be reading it.
+  ScriptApp.newTrigger('dailyCheckinTrigger').timeBased().everyDays(1).atHour(9).create();
+}
+
+function dailyCheckinTrigger() {
+  try { runCheckin_(); } catch (e) { Logger.log('dailyCheckinTrigger: ' + e.message); }
+}
+
+function runCheckin_() {
+  var p = PropertiesService.getScriptProperties();
+  if (!companySettings_().setupComplete) return;      // nothing to check in on yet
+  if (p.getProperty('CHECKIN_ALERTS_ENABLED') === 'false') return;
+
+  // Backfill rather than assume day zero: an installation that finished setup
+  // before this feature existed (OX Glass's own copy, first) must not fire an
+  // alarm the instant this ships, computed against a start date it never had.
+  var startedIso = p.getProperty('SETUP_COMPLETED_AT');
+  if (!startedIso) {
+    startedIso = new Date().toISOString();
+    p.setProperty('SETUP_COMPLETED_AT', startedIso);
+  }
+  var daysSince = Math.floor((Date.now() - new Date(startedIso).getTime()) / 86400000);
+
+  var sentRaw = p.getProperty('CHECKIN_MILESTONES_SENT') || '';
+  var sent    = sentRaw.split(',').filter(function (s) { return s; });
+
+  // Only the milestones actually reached AND not yet handled — one run can
+  // catch up on several at once (the trigger was paused, say), but only ever
+  // emails about the ONE that matters most: the latest. Every reached
+  // milestone is marked handled in the same pass either way, so a gap in the
+  // trigger's own uptime can never queue up a backlog of alerts.
+  var due = CHECKIN_MILESTONE_DAYS.filter(function (d) {
+    return daysSince >= d && sent.indexOf(String(d)) === -1;
+  });
+  if (!due.length) return;
+
+  due.forEach(function (d) { sent.push(String(d)); });
+  p.setProperty('CHECKIN_MILESTONES_SENT', sent.join(','));
+
+  var support = String(p.getProperty('SUPPORT_EMAIL') || '').trim();
+  if (!support) return;   // nowhere to send it — the feature is effectively off
+
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  var movementCount = archive ? Math.max(0, archive.getLastRow() - 1) : 0;
+  if (movementCount > 0) return;   // the good outcome — nothing to say
+
+  var milestone = due[due.length - 1];
+  var cs      = companySettings_();
+  var cfg     = loadConfig();
+  var users   = ss.getSheetByName('USERS_V3');
+  var userCount = users && users.getLastRow() > 1 ? users.getLastRow() - 1 : 0;
+  var url = String(savedWebAppUrl_() || '');
+
+  MailApp.sendEmail({
+    to: support,
+    subject: '👀 ' + (cs.name || 'A new install') + ' — nothing recorded ' + milestone + ' days in',
+    htmlBody:
+      '<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">' +
+      '<p><b>' + escHtml_(cs.name || '(no company name set)') + '</b> finished setup ' + daysSince +
+        ' days ago and has not recorded a single movement yet.</p>' +
+      '<table cellpadding="6" style="border-collapse:collapse;font-size:13px">' +
+        '<tr><td style="color:#666">Admin</td><td>' + escHtml_(cfg.adminEmail || '(not set)') + '</td></tr>' +
+        '<tr><td style="color:#666">Users registered</td><td>' + userCount + '</td></tr>' +
+        '<tr><td style="color:#666">Movements recorded</td><td>0</td></tr>' +
+        '<tr><td style="color:#666">Days since setup</td><td>' + daysSince + '</td></tr>' +
+        (url ? '<tr><td style="color:#666">Their app</td><td><a href="' + escHtml_(url) + '">' + escHtml_(url) + '</a></td></tr>' : '') +
+      '</table>' +
+      '<p style="font-size:13px">This is the moment to reach out — a short call in the first two weeks is ' +
+        'the biggest thing that predicts whether an install turns into a renewal.</p>' +
+      '<p style="font-size:12px;color:#666">This is a private check-in, sent only to you — the customer never ' +
+        'sees it. To turn it off for this installation: Apps Script → Project Settings → Script Properties → ' +
+        'CHECKIN_ALERTS_ENABLED = false</p></div>'
+  });
 }
 
 // ADMIN only. Returns movements older than the cutoff, for on-demand viewing/
@@ -5316,6 +5433,15 @@ var PROPERTY_GUIDE = [
   { key:'ROLE_PERMS_WAREHOUSE', sev:'OPTIONAL',
     what:'Extra permissions an admin turned on for the WAREHOUSE role (Settings → Permissions).',
     lost:'Nothing missing — absent just means every toggle is at its default.' },
+  { key:'SUPPORT_EMAIL', sev:'OPTIONAL',
+    what:'Where bug reports and check-in alerts go, in addition to this installation\'s own admin.',
+    lost:'Nothing breaks — reports go to the admin only, and check-in alerts have nowhere to go so they never send.' },
+  { key:'SETUP_COMPLETED_AT', sev:'AUTO',
+    what:'When setup finished — used only to time the check-in alerts above.',
+    lost:'Recreated automatically as "now" the next time the check-in runs.' },
+  { key:'CHECKIN_MILESTONES_SENT', sev:'OPTIONAL',
+    what:'Which check-in alerts have already been sent, so none repeats.',
+    lost:'Nothing lost by its absence; if cleared, past milestones could re-fire once.' },
   { key:'WEB_APP_URL', sev:'IMPORTANT',
     what:'The /exec address your team opens.',
     lost:'Setup shows the wrong link again, and bug reports cannot say where the app lives.' },
