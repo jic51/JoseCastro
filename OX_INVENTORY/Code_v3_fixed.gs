@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.75';
+var APP_VERSION = '9.76';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -938,6 +938,70 @@ function requireAuth_(minRole) {
   return a;
 }
 
+// ─── PER-INSTALLATION PERMISSIONS ────────────────────────────────────────────
+// Everything used to be binary: ADMIN can do a thing, WAREHOUSE cannot, full
+// stop, decided in the code rather than by the customer. That is correct for
+// most of what the app does — but a warehouse of three people run by an owner
+// who trusts their lead hand is a real, common shape, and for those customers
+// "only the owner can add a supplier" is a wall with no door.
+//
+// Three roles stay exactly as they are (Jose: "los mismos 3 roles, con
+// interruptores nuevos") — this does not add a fourth tier or per-person
+// permissions. It adds toggles ADMIN can flip for the WAREHOUSE role only;
+// VIEWER stays exactly what it always was, read-only, no exceptions, because
+// nothing about "can view" needs a permission to widen.
+//
+// Each flag's DEFAULT matters as much as what it gates: it must reproduce
+// TODAY's behaviour exactly on every installation that never touches this
+// screen, so shipping this changes nothing until an admin deliberately opts
+// in. canEditMovements/canManageCatalog default to false because WAREHOUSE
+// could not do either of those before this existed — false is a no-op.
+// canExportData is the opposite case: WAREHOUSE (and VIEWER) could ALREADY
+// export, so its default is true — anything else would quietly take away
+// something every existing customer already has the moment they update.
+// canSeeCosts has no UI to gate yet (there is no cost data in the app yet) —
+// it exists now so the pricing feature, when it ships, has a home to read
+// from on day one instead of needing this exact same plumbing built twice.
+var DEFAULT_ROLE_PERMS = {
+  canSeeCosts:      false,
+  canEditMovements: false,
+  canManageCatalog: false,
+  canExportData:    true
+};
+
+function rolePerms_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('ROLE_PERMS_WAREHOUSE');
+  var stored = {};
+  try { stored = JSON.parse(raw || '{}') || {}; } catch (e) { stored = {}; }
+  var out = {};
+  Object.keys(DEFAULT_ROLE_PERMS).forEach(function (k) {
+    out[k] = (stored[k] === true || stored[k] === false) ? stored[k] : DEFAULT_ROLE_PERMS[k];
+  });
+  return out;
+}
+
+function setRolePerms(data, auth) {
+  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  var next = {};
+  Object.keys(DEFAULT_ROLE_PERMS).forEach(function (k) { next[k] = !!(data && data[k]); });
+  PropertiesService.getScriptProperties().setProperty('ROLE_PERMS_WAREHOUSE', JSON.stringify(next));
+  auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'UPDATE_ROLE_PERMS', auth.email,
+    'Permissions changed for the WAREHOUSE role', '', JSON.stringify(next));
+  return { status: 'success', perms: next };
+}
+
+// The check every gated action actually calls. ADMIN passes everything,
+// unconditionally — permissions only ever widen WAREHOUSE, never narrow an
+// admin. VIEWER never passes, regardless of what is turned on; the flags exist
+// to let a trusted WAREHOUSE user do more, not to let a read-only visitor do
+// anything at all.
+function requirePerm_(auth, permKey) {
+  if (auth.role === 'ADMIN') return auth;
+  if (auth.role === 'WAREHOUSE' && rolePerms_()[permKey] === true) return auth;
+  throw new Error('This requires a permission your admin has not turned on for your role. ' +
+    'Ask them to check Settings → Permissions.');
+}
+
 // Gate for entry points that legitimately have no session token: the daily
 // time-based trigger and the developer diagnostics run from the Apps Script
 // editor. Both of those execute AS THE OWNER, so getEffectiveUser() and
@@ -1208,6 +1272,7 @@ function getInitialData(sessionToken) {
       config:             config,
       reservations:       reservations,
       userRole:           auth.role,
+      rolePerms:          rolePerms_(),
       userName:           auth.name || '',
       userEmail:          auth.email,
       activeUsers:        activeUsers,
@@ -1724,6 +1789,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'getErrorLog')     return getErrorLog(auth);
   if (action === 'clearErrorLog')   return clearErrorLog(data, auth);
   if (action === 'dismissSystemCard') return dismissSystemCard(data, auth);
+  if (action === 'setRolePerms')     return setRolePerms(data, auth);
   if (action === 'getBackupStatus')  return getBackupStatus(auth);
   if (action === 'setBackupEnabled') return setBackupEnabled(data, auth);
   if (action === 'runBackupOnDemand') return runBackupOnDemand(data, auth);
@@ -5247,6 +5313,9 @@ var PROPERTY_GUIDE = [
     lost:'Staff are asked to sign in with Google instead of being recognised.' },
   { key:'COMPANY_LOGO_ID', sev:'COSMETIC',
     what:'Your logo.', lost:'No logo. Upload it again in Settings › Company.' },
+  { key:'ROLE_PERMS_WAREHOUSE', sev:'OPTIONAL',
+    what:'Extra permissions an admin turned on for the WAREHOUSE role (Settings → Permissions).',
+    lost:'Nothing missing — absent just means every toggle is at its default.' },
   { key:'WEB_APP_URL', sev:'IMPORTANT',
     what:'The /exec address your team opens.',
     lost:'Setup shows the wrong link again, and bug reports cannot say where the app lives.' },
@@ -5758,7 +5827,15 @@ function removeUser(email, auth) {
 // suppliers, and locations. Renaming a category also updates MASTER_ARCHIVE_V3.
 
 function getSettings(auth) {
-  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  // A READ, not a write — the actual writes (updateConfig) still decide who
+  // may CHANGE a category, project, supplier or location, via requirePerm_.
+  // This only has to answer "what are they right now", which is exactly what
+  // a WAREHOUSE user needs before they can manage the catalog at all — the
+  // Categories/Projects/Suppliers/Locations tabs cannot show a current list
+  // without it. Was ADMIN-only, which meant a WAREHOUSE user granted
+  // canManageCatalog could open Settings (the UI now lets them in) and get an
+  // error on the very first thing it tried to load.
+  auth = requireAuth_('WRITE');
   var c = loadConfig();
   return {
     categories: c.categories,
@@ -6054,12 +6131,20 @@ function mergeConfigValues(data, auth) {
 }
 
 function updateConfig(data, auth) {
-  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  // Split gate, not a single ADMIN wall any more. archiveCutoffMonths is a
+  // system-wide retention setting — stays ADMIN-only, unconditionally, same as
+  // System tab always has been. The catalog ops below it (categories, projects,
+  // suppliers, locations — the four tabs literally labelled "Catalog" in
+  // Settings) are what "Manage catalog" in Settings → Permissions actually
+  // grants; requireAuth_('WRITE') here only establishes "authenticated, not a
+  // VIEWER" — requirePerm_ below is what actually decides.
+  auth = requireAuth_('WRITE');
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) throw new Error('CONFIG sheet not found.');
 
   if (data.type === 'archiveCutoffMonths') {
+    requireAuth_('ADMIN');   // re-checked deliberately: this branch is admin-only regardless of any catalog permission
     var months = Number(data.value);
     if ([6, 12, 18].indexOf(months) === -1) throw new Error('Cutoff must be 6, 12, or 18 months.');
     cfg.getRange(2, 14).setValue(months);
@@ -6068,6 +6153,8 @@ function updateConfig(data, auth) {
     auditLog_(ss, 'UPDATE_CONFIG', auth.email, 'archiveCutoffMonths', 'set', String(months) + 'mo');
     return { status: 'success', reconcile: res };
   }
+
+  requirePerm_(auth, 'canManageCatalog');
 
   // Column index in CONFIG sheet (0-based array index = col number - 1)
   var colMap = { categories: 1, projects: 0, suppliers: 2, locations: 3 };
@@ -6570,7 +6657,12 @@ function parseIncomingEmail(data, auth) {
 // ─── MODIFY MOVEMENT ────────────────────────────────────────────────────────
 // Admin only. Updates a row in MASTER_ARCHIVE_V3, logs to AUDIT_LOG, emails admin.
 function modifyMovement(data, auth) {
-  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  // Was flatly ADMIN-only. Now: ADMIN always, or WAREHOUSE if the admin has
+  // switched on "Edit movements" for their role in Settings → Permissions —
+  // see requirePerm_. VIEWER never reaches here: requireAuth_('WRITE')
+  // refuses it before the permission is even checked.
+  auth = requireAuth_('WRITE');
+  requirePerm_(auth, 'canEditMovements');
 
   var rowIdx = parseInt(data.rowIdx || 0);
   if (rowIdx < 2) throw new Error('Invalid row index.');

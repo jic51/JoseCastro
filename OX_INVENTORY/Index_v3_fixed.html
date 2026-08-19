@@ -2333,6 +2333,7 @@
       <nav class="settings-sidebar" aria-label="Settings sections">
         <div class="settings-sidebar-label">Company</div>
         <button class="settings-tab"        data-tab="company"     onclick="switchSettingsTab('company')">🏷 <span>Name &amp; Logo</span></button>
+        <button class="settings-tab"        data-tab="permissions" onclick="switchSettingsTab('permissions')">🔑 <span>Permissions</span></button>
         <div class="settings-sidebar-label">Catalog</div>
         <button class="settings-tab active" data-tab="categories"  onclick="switchSettingsTab('categories')">📦 <span>Categories</span></button>
         <button class="settings-tab"        data-tab="projects"    onclick="switchSettingsTab('projects')">📁 <span>Projects</span></button>
@@ -2490,8 +2491,14 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.75';
+var APP_VERSION = '9.76';
 var userRole = 'WAREHOUSE';
+// Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
+// DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
+// anything that matters: every action this gates in the UI is re-checked by
+// requirePerm_ on the server, which is the only copy of this that a browser
+// console cannot lie about.
+var rolePerms = { canSeeCosts:false, canEditMovements:false, canManageCatalog:false, canExportData:true };
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
 // Company identity, filled from getInitialData on every load (including the
@@ -4625,7 +4632,12 @@ function renderMovements(){
   // Which columns, in which order, is the reader's — see COL_TABLES. Each row
   // builds every cell and then emits the ones this reader asked for, rather
   // than a fixed sequence of conditionals.
-  var isAdmin   = userRole === 'ADMIN';
+  // Despite the name, this now means "can edit/delete movements" — ADMIN
+  // always, or WAREHOUSE when the admin has switched that on in Settings →
+  // Permissions (see requirePerm_/canEditMovements server-side, which is what
+  // actually enforces this; hiding the buttons here is just so a WAREHOUSE
+  // user without the flag never sees a control that would fail on the save).
+  var isAdmin   = userRole === 'ADMIN' || (userRole === 'WAREHOUSE' && !!rolePerms.canEditMovements);
   var order     = _colOrder('mov');
   var hiddenNow = {};
   _colHidden('mov').forEach(function(k){ hiddenNow[k] = 1; });
@@ -6571,8 +6583,42 @@ var _matListAll   = [];   // full material list for Materials tab
 function openSettingsModal() {
   _clearRowModes();
   document.getElementById('settingsMsgBar').style.display = 'none';
+  _filterSettingsSidebar();
   document.getElementById('settingsOverlay').classList.add('show');
   _loadSettings();
+}
+
+// Reaching this modal at all now means ADMIN, or WAREHOUSE with
+// canManageCatalog — see applyRoleUI's canOpenSettings. The second case must
+// only ever see the four Catalog tabs: Company, Materials, Directory, Import,
+// Permissions and Diagnostics stay admin business regardless of that one
+// permission, because none of them are "the catalog" — Materials in
+// particular can rename or merge a name across the ENTIRE movement history,
+// which is a different order of risk than adding a supplier.
+var SETTINGS_CATALOG_TABS = { categories:1, projects:1, suppliers:1, locations:1 };
+
+function _filterSettingsSidebar(){
+  var isAdmin = (userRole === 'ADMIN');
+  var nav = document.querySelector('.settings-sidebar');
+  if (!nav) return;
+  nav.querySelectorAll('.settings-tab').forEach(function(btn){
+    var tab = btn.getAttribute('data-tab');
+    btn.style.display = (isAdmin || SETTINGS_CATALOG_TABS[tab]) ? '' : 'none';
+  });
+  // The section labels ("Company", "Diagnostics") read oddly sitting above an
+  // empty space once their only buttons are hidden.
+  nav.querySelectorAll('.settings-sidebar-label').forEach(function(lbl){
+    var next = lbl.nextElementSibling, anyVisible = false;
+    while (next && next.classList && next.classList.contains('settings-tab')) {
+      if (next.style.display !== 'none') anyVisible = true;
+      next = next.nextElementSibling;
+    }
+    lbl.style.display = anyVisible ? '' : 'none';
+  });
+  // A non-admin landing on a tab they can no longer see (e.g. Settings was
+  // last closed on "System" by an admin using the same browser profile) gets
+  // dropped onto the first catalog tab instead of a blank pane.
+  if (!isAdmin && !SETTINGS_CATALOG_TABS[_settingsTab]) _settingsTab = 'categories';
 }
 
 function _loadSettings() {
@@ -6686,6 +6732,69 @@ function _coLogoBoxHtml(){
   return '<div class="co-logo-box"><img src="' + _escAttr(url) + '" alt=""></div>' +
     (_coLogo ? '<div class="co-hint">New image, ' + _coLogo.w + '×' + _coLogo.h +
                ' — click Save changes to apply it.</div>' : '');
+}
+
+// What each switch grants, in plain language — this text is the ONLY place a
+// customer decides whether to turn one on, so it has to say the real
+// consequence, not just repeat the flag's name.
+var PERM_DEFS = [
+  { key:'canEditMovements', label:'Edit movements',
+    desc:'Warehouse staff can fix or delete a movement someone already saved, the same way an admin can today. Off by default: until now only an admin could.' },
+  { key:'canManageCatalog', label:'Manage catalog',
+    desc:'Warehouse staff can add, rename or remove categories, projects, suppliers and locations — the four Catalog tabs here in Settings. Off by default.' },
+  { key:'canExportData', label:'Export data',
+    desc:'Warehouse staff (and viewers) can use the ⬇ CSV button in Movements. On by default — this is what everyone could already do; turn it off to route exports through an admin instead.' },
+  { key:'canSeeCosts', label:'See costs',
+    desc:'Reserved for when pricing ships — there is no cost data in the app yet, so this does nothing today. Turning it on now costs nothing and saves a step later.' }
+];
+
+function _renderPermissionsTab(){
+  // The global, not _settingsData — getSettings() doesn't carry this (it is
+  // not catalog data), and the global is already kept fresh: getInitialData
+  // sets it on every load, and _savePermSwitch updates it the moment a switch
+  // is actually saved.
+  var perms = rolePerms || {};
+  var rows = PERM_DEFS.map(function(d){
+    var on = !!perms[d.key];
+    return '<div class="field" style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--border)">' +
+      '<label class="sw">' +
+        '<input type="checkbox" class="perm-sw" data-perm="' + d.key + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="sw-track"></span>' +
+        '<span class="sw-text" style="color:var(--text)">' + _he(d.label) + '</span>' +
+      '</label>' +
+      '<p style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0 54px">' + _he(d.desc) + '</p>' +
+    '</div>';
+  }).join('');
+
+  document.getElementById('settingsTabContent').innerHTML =
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">' +
+      'What the WAREHOUSE role can do, beyond recording movements and viewing stock. ' +
+      'Admins can already do all of this — these switches only ever widen WAREHOUSE, never narrow an admin. ' +
+      'Viewers stay read-only no matter what is on here.</p>' +
+    rows;
+
+  document.querySelectorAll('.perm-sw').forEach(function(sw){
+    sw.addEventListener('change', function(){ _savePermSwitch(sw); });
+  });
+}
+
+function _savePermSwitch(sw){
+  var key = sw.getAttribute('data-perm');
+  var want = sw.checked;
+  sw.disabled = true;
+  var next = {};
+  PERM_DEFS.forEach(function(d){ next[d.key] = (d.key === key) ? want : !!rolePerms[d.key]; });
+  google.script.run
+    .withSuccessHandler(function(res){
+      sw.disabled = false;
+      rolePerms = res.perms;
+      showToast('Saved ✓', 'ok');
+    })
+    .withFailureHandler(function(e){
+      sw.checked = !want; sw.disabled = false;   // put it back
+      showToast('Could not save: ' + (e.message || e), 'err', 6000);
+    })
+    .processMovement('setRolePerms', _h(next));
 }
 
 function _renderCompanyTab(){
@@ -7163,6 +7272,7 @@ function _renderSettingsTab(tab) {
   if (tab === 'import')      { _renderImportTab(); return; }
   if (tab === 'locations')   { _renderLocationsTab(); return; }
   if (tab === 'company')     { _renderCompanyTab(); return; }
+  if (tab === 'permissions') { _renderPermissionsTab(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -11805,6 +11915,7 @@ function _applyData(data) {
   config             = data.config             || config;
   reservations       = data.reservations       || [];
   userRole           = data.userRole           || 'WAREHOUSE';
+  if (data.rolePerms) rolePerms = data.rolePerms;
   userEmail          = data.userEmail          || '';
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
@@ -12222,8 +12333,26 @@ function applyRoleUI(){
   // to the email; both are rows in the menu now.
   var mu = document.getElementById('btnUsersMgmt');
   if (mu) mu.style.display = isAdmin ? '' : 'none';
+
+  // Settings opens for ADMIN always, and for a non-admin ONLY when they hold
+  // the one permission that has a Settings surface at all — canManageCatalog
+  // (Categories/Projects/Suppliers/Locations). canExportData and canSeeCosts
+  // live outside Settings entirely (a toolbar button; nothing yet), so they
+  // grant nothing here. _filterSettingsSidebar (called when Settings actually
+  // opens) is what keeps a catalog-only visitor OUT of Users, Error Log,
+  // System and the rest even though the button itself is now visible to them.
+  var canOpenSettings = isAdmin || (userRole === 'WAREHOUSE' && !!rolePerms.canManageCatalog);
   var st = document.getElementById('btnSettings');
-  if (st) st.style.display = isAdmin ? '' : 'none';
+  if (st) st.style.display = canOpenSettings ? '' : 'none';
+
+  // Export existed for everyone, always — canExportData defaults to true for
+  // exactly that reason (see DEFAULT_ROLE_PERMS server-side). This is NOT a
+  // security boundary: the data behind it is already sitting in this page's
+  // memory for any signed-in user, admin or not. Hiding the button only
+  // removes the one-click convenience for an admin who has decided exporting
+  // should go through them — it is a process control, not a lock.
+  var exp = document.getElementById('btnExportCSV');
+  if (exp) exp.style.display = (isAdmin || rolePerms.canExportData !== false) ? '' : 'none';
 
   // Only people who signed in with Google (rather than being recognised by
   // their company domain) have another account to switch to.
