@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.82';
+var APP_VERSION = '9.85';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2760,14 +2760,47 @@ function backupEnabled_() {
 function getBackupStatus(auth) {
   auth = requireAuth_('ADMIN');
   var p = PropertiesService.getScriptProperties();
+  var lastAt   = p.getProperty('LAST_BACKUP_AT');
+  var lastName = p.getProperty('LAST_BACKUP_NAME');
+  var lastId   = p.getProperty('LAST_BACKUP_FILE_ID');
+  // Nothing recorded yet doesn't mean nothing ever ran — an install that was
+  // backing up before this feature shipped has real files sitting in Drive
+  // with no property pointing at them. One folder scan finds the newest one
+  // and remembers it, so this only ever happens once per install rather than
+  // on every Settings → System load.
+  if (!lastAt) {
+    try {
+      var found = _findMostRecentBackup_();
+      if (found) {
+        lastAt = found.date.toISOString();
+        lastName = found.name;
+        lastId = found.id;
+        p.setProperty('LAST_BACKUP_AT', lastAt);
+        p.setProperty('LAST_BACKUP_NAME', lastName);
+        p.setProperty('LAST_BACKUP_FILE_ID', lastId);
+      }
+    } catch (e) { Logger.log('getBackupStatus backfill: ' + e.message); }
+  }
   return {
-    enabled:         backupEnabled_(),
-    retentionDays:   BACKUP_RETENTION_DAYS,
-    folder:          backupFolderName_(),
-    lastBackupAt:    p.getProperty('LAST_BACKUP_AT') || '',
-    lastBackupName:  p.getProperty('LAST_BACKUP_NAME') || '',
-    lastBackupFileId: p.getProperty('LAST_BACKUP_FILE_ID') || ''
+    enabled:          backupEnabled_(),
+    retentionDays:    BACKUP_RETENTION_DAYS,
+    folder:           backupFolderName_(),
+    lastBackupAt:     lastAt || '',
+    lastBackupName:   lastName || '',
+    lastBackupFileId: lastId || ''
   };
+}
+
+function _findMostRecentBackup_() {
+  var folder = getOrCreateFolder_(backupFolderName_());
+  var files = folder.getFiles();
+  var best = null;
+  while (files.hasNext()) {
+    var f = files.next();
+    var created = f.getDateCreated();
+    if (!best || created > best.date) best = { date: created, name: f.getName(), id: f.getId() };
+  }
+  return best;
 }
 
 function setBackupEnabled(data, auth) {

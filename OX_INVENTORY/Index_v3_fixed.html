@@ -5,6 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acopio — Warehouse Management</title>
+  <!-- Default tab icon — the Acopio mark (same one on the splash screen), a
+       navy tile with the stacked-layers glyph. Web apps served through Apps
+       Script otherwise fall back to a generic Apps Script icon, which is what
+       Jose was seeing. applyCompanyBranding() swaps this for the company's
+       own uploaded logo once one exists — see the c.logoId branch there. -->
+  <link rel="icon" id="appFavicon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%231B2A4A'/%3E%3Cpath d='M12 4L4 8l8 4 8-4-8-4zM4 15l8 4 8-4M4 11l8 4 8-4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -71,7 +77,14 @@
     .ver-bad{color:#fff;background:rgba(255,0,0,.55);border-radius:4px;padding:2px 6px;font-size:.62rem}
     .topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
     .topbar-brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .app-logo{height:30px;max-width:150px;object-fit:contain;border-radius:4px;flex-shrink:0}
+    /* A framed light card, not the raw upload floating on navy — most
+       logos customers upload have a white or light background of their own,
+       and showing that background directly against navy read as a mistake.
+       Framing it neutrally is what the wizard's own logo preview and the
+       Company tab's preview box already do; the header/splash were the two
+       spots that still showed the raw image. */
+    .app-logo{height:24px;max-width:150px;object-fit:contain;border-radius:4px;flex-shrink:0;
+      background:#F3F4F6;padding:4px 7px;box-sizing:content-box}
     .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}
     .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem clamp(.4rem,1.5vw,1rem);border-radius:6px;font-size:clamp(.68rem,1.2vw,.8rem);font-weight:600;transition:.2s;white-space:nowrap}
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
@@ -1037,7 +1050,8 @@
     .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
     .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
-    .splash-logo{max-width:min(350px,72vw);max-height:120px;object-fit:contain}
+    .splash-logo{max-width:min(310px,68vw);max-height:96px;object-fit:contain;
+      background:#F3F4F6;padding:14px 20px;border-radius:10px;box-sizing:content-box}
     /* Deliberately quiet: the customer's name is the headline, ours is a
        credit line under the bar. */
     .splash-by{font-size:.68rem;color:#8fa0bd;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem}
@@ -1097,9 +1111,17 @@
     .tip{position:relative}
     .tip::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%) translateY(-4px);
       background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;letter-spacing:0;text-transform:none;
-      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:normal;width:max-content;max-width:240px;
+      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:pre-line;width:max-content;max-width:240px;
       opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:60}
     .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* Centered-on-the-icon is wrong the moment the icon sits near either edge
+       of the screen — the box (up to 240px wide) runs past it and gets cut
+       off by the viewport. _positionTip (JS) measures the anchor against the
+       window and adds one of these instead of the centered default. */
+    .tip.tip-edge-l::after{left:0;transform:translateX(0) translateY(-4px)}
+    .tip.tip-edge-l:hover::after,.tip.tip-edge-l:focus-visible::after{transform:translateX(0) translateY(0)}
+    .tip.tip-edge-r::after{left:auto;right:0;transform:translateX(0) translateY(-4px)}
+    .tip.tip-edge-r:hover::after,.tip.tip-edge-r:focus-visible::after{transform:translateX(0) translateY(0)}
     /* The small "i" badge that replaces a paragraph of always-visible help text —
        same explanation, available on demand instead of taking up the window. */
     .info-ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
@@ -1458,7 +1480,7 @@
          everything you can do to the app itself lives behind it, instead of
          being scattered across the topbar. -->
     <div class="acct-wrap" id="acctWrap">
-      <button class="acct-btn" id="acctBtn" onclick="toggleAccountMenu(event)" title="Your account">
+      <button class="acct-btn tip" id="acctBtn" onclick="toggleAccountMenu(event)" data-tip="Your account">
         <span id="acctInitials">·</span>
       </button>
       <div class="acct-menu" id="acctMenu">
@@ -2496,7 +2518,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.82';
+var APP_VERSION = '9.85';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3295,6 +3317,9 @@ function getBase64(file){
 // copy can complete it — the backend enforces that (see getSetupState); this
 // side just renders what it is told.
 var PRODUCT = 'Acopio';
+// Read from the <link> itself rather than duplicating the data: URI as a
+// second literal — one source of truth for the default mark.
+var APP_FAVICON_DEFAULT = (document.getElementById('appFavicon') || {}).href || '';
 var _wizStep = 0;
 var _wizSkipped = {};
 // Set the moment setup succeeds, so the reload it kicks off doesn't race the
@@ -3868,6 +3893,7 @@ function applyCompanyBranding(c){
       logo.src = dataUrl;
       logo.alt = name || '';
       logo.style.display = '';
+      _setFavicon(dataUrl);
       // Kept for the next load's splash. Anything big enough to be worth
       // worrying about is left out: a logo that does not fit is simply not
       // remembered, and the splash falls back to the company name.
@@ -3878,8 +3904,17 @@ function applyCompanyBranding(c){
                                            // thumbnail would drop its transparency
   } else if (logo && !c.logoId){
     logo.style.display = 'none';
+    _setFavicon(APP_FAVICON_DEFAULT);
     try { localStorage.removeItem('acopio_brand_logo'); } catch (e) {}   // a removed logo must not linger on the splash
   }
+}
+
+// The company's own uploaded logo becomes the browser tab icon too, once
+// there is one — same file, no extra upload. Falls back to the default
+// Acopio mark when there isn't (or isn't yet) a company logo.
+function _setFavicon(href){
+  var link = document.getElementById('appFavicon');
+  if (link && href) link.href = href;
 }
 
 // ── Report a Problem (floating button) ──────────────────────────────────────
@@ -5125,7 +5160,15 @@ function validateTransferRows(){
     var dest = (row.querySelector('.tr-dest').value || '').trim().toUpperCase();
     var qty  = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
     var chip = row.querySelector('.exit-avail');
-    if (!rack || qty <= 0){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
+    // Available should show the moment a rack is picked — that's the whole
+    // point of the tap-to-fill-qty shortcut, which needs a number to tap
+    // BEFORE qty has anything in it. Requiring qty > 0 first made this show
+    // nothing until the user had already typed the number it was supposed to
+    // save them from typing (Jose's report: picking a rack from the map's
+    // Rack Drawer, which leaves qty blank on purpose, showed no "avail" at
+    // all until qty was filled by hand). qty only matters now for the
+    // over-limit warning below, not for whether anything shows at all.
+    if (!rack){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
     // Locked-with-a-destination-list: this row's transfer will be rejected by the
     // backend unless the chosen destination is on the allow-list — warn early.
     var lock = _findLock(key, rack);
@@ -5140,7 +5183,7 @@ function validateTransferRows(){
     var avail = locs[rack] !== undefined ? locs[rack] : null;
     if (avail === null){
       chip.textContent = '? unknown rack'; chip.className = 'exit-avail neutral';
-    } else if (qty > avail){
+    } else if (qty > 0 && qty > avail){
       chip.textContent = '⚠ only ' + avail + ' avail'; chip.className = 'exit-avail warn';
     } else {
       chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok'; chip.dataset.avail = avail;
@@ -5217,11 +5260,20 @@ function openMoveModal(type){
   currentMoveType = (type || 'ENTRY').toUpperCase();
 
   // Reset form
-  ['mName','mQty','mSrc','mDest','mSup','mGC','mPO','mProj','mResp','mPM','mComm',
+  // mExitDest used to be left out of this list — after two EXITs in a row the
+  // destination box would silently still hold the FIRST one's value, which is
+  // information the person never typed into this movement. Nothing here
+  // should ever show data the user hasn't entered for this specific save.
+  ['mName','mQty','mSrc','mDest','mExitDest','mSup','mGC','mPO','mProj','mResp','mPM','mComm',
    'mNotifyEmails','mNotifyName','mNotifyMsg'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.value = (id === 'mQty' ? '1' : '');
   });
+  // Same reasoning for the single-material category select (WASTE/TRANSFER/
+  // RETURN) — it has no blank option, so "reset" means back to the first
+  // category rather than leaving whatever was chosen last time.
+  var mTypeSel = document.getElementById('mType');
+  if (mTypeSel) mTypeSel.selectedIndex = 0;
   // Reset multi-location rows (always start with one empty row)
   document.getElementById('locRowsContainer').innerHTML  = '';
   document.getElementById('exitRowsContainer').innerHTML = '';
@@ -8557,6 +8609,30 @@ function _infoIc(text){
 function _statLabel(text, tip){
   return '<label style="display:flex;align-items:center;gap:.32rem">' + _infoIc(tip) + text + '</label>';
 }
+
+// ── Tooltip edge avoidance ────────────────────────────────────────────────────
+// .tip's default centers its bubble on the anchor, which is wrong the instant
+// the anchor sits near the left or right edge of the window — a stat tile's
+// info icon at the end of the row, for instance. Delegated on mouseenter
+// (capture, since it doesn't bubble) and focusin so it works for every .tip
+// added anywhere, including ones rendered long after this file loaded.
+var TIP_MAX_WIDTH = 240, TIP_EDGE_MARGIN = 8;
+function _positionTip(el){
+  el.classList.remove('tip-edge-l', 'tip-edge-r');
+  var r = el.getBoundingClientRect();
+  var cx = r.left + r.width / 2;
+  var half = TIP_MAX_WIDTH / 2;
+  if (cx - half < TIP_EDGE_MARGIN) el.classList.add('tip-edge-l');
+  else if (cx + half > window.innerWidth - TIP_EDGE_MARGIN) el.classList.add('tip-edge-r');
+}
+document.addEventListener('mouseenter', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.tip');
+  if (el) _positionTip(el);
+}, true);
+document.addEventListener('focusin', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.tip');
+  if (el) _positionTip(el);
+});
 
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
@@ -12132,6 +12208,29 @@ function _applyData(data) {
   if (data.columnPrefs) { columnPrefs = data.columnPrefs; _applyColumnPrefs(); }
   _rebuildLocksIndex();
   if (data.users && data.users.length) _usersData = data.users;
+  _refreshOpenRackDrawer();
+}
+
+// Jose's report: exit a rack's last material, re-enter the drawer before the
+// background refresh lands, and it kept showing the material that's already
+// gone — because openRackDrawer only ever re-reads stockData when something
+// EXPLICITLY re-opens it, never when fresh data quietly arrives underneath an
+// already-open drawer. loadDataFromGoogle only ever runs _applyData after a
+// real change (there is no idle polling in this app — see the heartbeat
+// comment below), so this can only fire when something legitimately moved.
+function _refreshOpenRackDrawer(){
+  var drawer = document.getElementById('rackDrawer');
+  if (!drawer || !drawer.classList.contains('open') || !_openRackName) return;
+  var items = (_buildRackMap('', '')[_openRackName] || []);
+  if (!items.length){
+    // The map itself refuses to open a drawer for an empty location fresh —
+    // an already-open one should not keep showing one either once the data
+    // catches up.
+    closeRackDrawer();
+    showToast(_openRackName + ' is now empty.', 'info', 3000);
+  } else {
+    openRackDrawer(_openRackName);   // re-render in place with fresh contents
+  }
 }
 
 // Pushes the admin's custom WAREHOUSE-role label into the one place it's baked
@@ -12385,20 +12484,64 @@ function toggleDarkMode() {
 // round trip reports no progress, so it eases toward 90% and only completes
 // when data actually lands.
 var _splashTimer = null, _splashPct = 8;
+
+// A single "almost there" message read the same whether the load takes 3
+// seconds or 20 — a real wait deserves more than one sentence. Rotates every
+// 3.5s (Jose: 2.5s read as too fast) — the last one stays up and stops
+// rotating rather than looping, since repeating "taking longer than
+// expected" over and over reads as broken, not as still trying.
+var SPLASH_NOTES = [
+  'Connecting to your spreadsheet…',
+  'Reading your inventory…',
+  'Almost there — this can take a few seconds the first time.',
+  'Still working on it…',
+  'This is taking longer than usual.',
+  'This is taking longer than expected.'
+];
+var _splashNoteTimer = null, _splashNoteIdx = 0;
+
 (function _startSplash(){
   _splashTimer = setInterval(function(){
     _splashPct = Math.min(90, _splashPct + (90 - _splashPct) * 0.12 + 1);
     var f = document.getElementById('splashFill');
     if (f) f.style.width = _splashPct + '%';
-    if (_splashPct > 55) {
-      var n = document.getElementById('splashNote');
-      if (n) n.textContent = 'Almost there — this can take a few seconds the first time.';
-    }
   }, 400);
+
+  _splashNoteTimer = setInterval(function(){
+    _splashNoteIdx++;
+    var n = document.getElementById('splashNote');
+    if (_splashNoteIdx >= SPLASH_NOTES.length - 1) {
+      // Out of phrases. Rather than guess a "definitely stuck" timeout and
+      // auto-reload on it — this app's OWN normal load time is documented at
+      // up to 10-20 seconds elsewhere (loadDataFromGoogle), so anything
+      // shorter risks reloading a load that was seconds from succeeding —
+      // offer a manual way out instead and let the person decide.
+      clearInterval(_splashNoteTimer);
+      if (n) n.textContent = SPLASH_NOTES[SPLASH_NOTES.length - 1];
+      _showSplashReload();
+      return;
+    }
+    if (n) n.textContent = SPLASH_NOTES[_splashNoteIdx];
+  }, 3500);
 })();
+
+function _showSplashReload(){
+  if (document.getElementById('splashReload')) return;
+  var n = document.getElementById('splashNote');
+  if (!n) return;
+  var btn = document.createElement('button');
+  btn.id = 'splashReload';
+  btn.type = 'button';
+  btn.textContent = '↻ Reload';
+  btn.style.cssText = 'margin-top:.6rem;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);' +
+    'color:#fff;border-radius:6px;padding:.4rem .9rem;font-size:.78rem;font-weight:600;cursor:pointer';
+  btn.onclick = function(){ window.location.reload(); };
+  n.insertAdjacentElement('afterend', btn);
+}
 
 function _hideSplash(){
   clearInterval(_splashTimer);
+  clearInterval(_splashNoteTimer);
   var sp = document.getElementById('appSplash');
   if (!sp || sp.classList.contains('gone')) return;
   var f = document.getElementById('splashFill');
@@ -12825,7 +12968,15 @@ function _setAccountIdentity(name, email, role, stale){
   var btn = document.getElementById('acctBtn');
   var ini = document.getElementById('acctInitials');
   if (ini) ini.textContent = initials;
-  if (btn) btn.style.background = color;
+  if (btn) {
+    btn.style.background = color;
+    // Name over role, not "Your account" — the button already IS the
+    // account, saying so back is not information; who's signed in and as
+    // what is.
+    var tipName = (name && String(name).trim()) ? name : (email || '');
+    var tipRole = role ? _displayRole(role) : '';
+    btn.setAttribute('data-tip', tipRole ? (tipName + '\n' + tipRole) : tipName);
+  }
 
   var av = document.getElementById('acctAvatar');
   if (av){ av.textContent = initials; av.style.background = color; }
