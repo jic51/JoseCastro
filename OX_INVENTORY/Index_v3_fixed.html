@@ -2497,7 +2497,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.80';
+var APP_VERSION = '9.81';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4078,6 +4078,18 @@ function renderStats(){
     if (c && s.warehouseQty > 0) { invValue += c.avg * s.warehouseQty; pricedCount++; }
   });
 
+  // Waste in dollars: sum of the cost STAMPED on each WASTE movement at the
+  // time it was recorded (movements[].totalCost — the server-computed average
+  // on record then, never recalculated from today's average). Same honesty
+  // pattern as Inventory Value: shows "X of Y waste records priced" instead
+  // of pretending an unpriced WASTE row cost $0.
+  var wasteCost = 0, wastePriced = 0, wasteRows = 0;
+  movements.forEach(function(m){
+    if (normMT(m.moveType) !== 'WASTE') return;
+    wasteRows++;
+    if (m.totalCost !== null && m.totalCost !== undefined) { wasteCost += m.totalCost; wastePriced++; }
+  });
+
   // ── Low-stock alert: apply monitored filter, then find zero + below-min ────
   // monitoredMaterials = null  → watch everything
   // monitoredMaterials = []    → watching nothing (no alerts)
@@ -4147,7 +4159,10 @@ function renderStats(){
     '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
     '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
     '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>'+
-    (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280"><label>Total Wasted</label><div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'');
+    (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280"><label>Total Wasted</label><div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'')+
+    (_canSeeCosts() && wastePriced > 0 ?
+      '<div class="stat" style="border-left-color:var(--red)"><label>Waste Cost</label><div class="val" style="color:var(--red)">$'+
+        Math.round(wasteCost).toLocaleString()+'</div><div class="sub">'+wastePriced+' of '+wasteRows+' waste records priced</div></div>' : '');
 }
 
 // ── Dashboard: Document Map (for stock doc panel) ────────────────────────────
