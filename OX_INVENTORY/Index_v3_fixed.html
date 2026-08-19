@@ -497,8 +497,6 @@
     .sw input:focus-visible + .sw-track{box-shadow:0 0 0 3px rgba(59,125,216,.35)}
     .sw input:disabled + .sw-track{opacity:.5;cursor:wait}
     .sw-text{font-size:.85rem;font-weight:600}
-    .perm-info{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:.8rem;line-height:1;color:var(--muted);cursor:help;flex:none}
-    .perm-info:hover,.perm-info:focus-visible{color:var(--accent2)}
     /* ── BUTTONS THAT ARE WORKING ────────────────────────────────────────────
        A real spinner, drawn in CSS from the button's own text colour, so the
        same rule works on a white button and on a red one. The ⏳ it replaces was
@@ -1094,10 +1092,16 @@
        decided by the operating system, not by the page. */
     .tip{position:relative}
     .tip::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%) translateY(-4px);
-      background:var(--navy);color:#fff;font-size:.72rem;font-weight:600;line-height:1.35;letter-spacing:0;text-transform:none;
-      padding:.4rem .55rem;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:normal;width:max-content;max-width:190px;
+      background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;letter-spacing:0;text-transform:none;
+      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:normal;width:max-content;max-width:240px;
       opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:60}
-    .tip:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* The small "i" badge that replaces a paragraph of always-visible help text —
+       same explanation, available on demand instead of taking up the window. */
+    .info-ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+      border-radius:50%;background:var(--border);color:var(--muted);font:italic 700 .68rem/1 Georgia,'Times New Roman',serif;
+      cursor:help;flex:none}
+    .info-ic:hover,.info-ic:focus-visible{background:var(--accent2);color:#fff;outline:none}
     /* A table heading that carries a tooltip must still stick.
        .tip sets position:relative to anchor its bubble, and a class beats the
        `thead th` rule that makes headings sticky whatever the order — so every
@@ -2493,7 +2497,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.79';
+var APP_VERSION = '9.80';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6786,11 +6790,10 @@ function _coLogoBoxHtml(){
                ' — click Save changes to apply it.</div>' : '');
 }
 
-// What each switch grants, in plain language — this text is the ONLY place a
-// customer decides whether to turn one on, so it has to say the real
-// consequence, not just repeat the flag's name. Also shown via the ⓘ icon
-// next to each switch (same text, on hover), for anyone who collapses the
-// page and just wants a reminder.
+// What each switch grants, in plain language. Shown ONLY via the "i" icon next
+// to each switch (hover or focus) — not as always-visible text, so the tab
+// stays short — but it has to say the real consequence, not just repeat the
+// flag's name, since the icon is the only place a customer ever sees it.
 var PERM_DEFS = [
   { key:'canEditMovements', label:'Edit movements',
     desc:'Warehouse staff can fix or delete a movement someone already saved, the same way an admin can today. Off by default: until now only an admin could.' },
@@ -6817,23 +6820,23 @@ function _renderPermissionsTab(){
           '<span class="sw-track"></span>' +
           '<span class="sw-text" style="color:var(--text)">' + _he(d.label) + '</span>' +
         '</label>' +
-        '<span class="perm-info" tabindex="0" title="' + _escAttr(d.desc) + '">ⓘ</span>' +
+        _infoIc(d.desc) +
       '</div>' +
-      '<p style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0 54px">' + _he(d.desc) + '</p>' +
     '</div>';
   }).join('');
 
   document.getElementById('settingsTabContent').innerHTML =
     '<div class="field" style="margin-bottom:1.4rem;padding-bottom:1.4rem;border-bottom:1px solid var(--border)">' +
-      '<label class="co-label" for="warehouseRoleLabelInput">What you call this role</label>' +
+      '<label class="co-label" for="warehouseRoleLabelInput" style="display:flex;align-items:center;gap:.4rem">' +
+        'What you call this role ' + _infoIc('Shown as this name everywhere in the app: the user list, the account ' +
+          'menu, the Add User form. Use whatever your team already calls this person, e.g. "Supervisor" or "Manager". ' +
+          'It never changes what they can actually do.') +
+      '</label>' +
       '<div style="display:flex;gap:.5rem;align-items:center;max-width:320px">' +
         '<input type="text" id="warehouseRoleLabelInput" class="co-input" maxlength="30" ' +
           'value="' + _escAttr(warehouseRoleLabel) + '" placeholder="Warehouse">' +
         '<button type="button" class="btn btn-ghost btn-sm" id="btnSaveRoleLabel" onclick="_saveWarehouseRoleLabel()">Save</button>' +
       '</div>' +
-      '<p style="font-size:.78rem;color:var(--muted);margin-top:.4rem">' +
-        'The role everything below applies to — shown as this name everywhere in the app: the user list, the account menu, the Add User form. ' +
-        'Use whatever your team already calls this person, e.g. "Supervisor" or "Manager". It never changes what they can actually do.</p>' +
     '</div>' +
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">' +
       'What the ' + _he(warehouseRoleLabel) + ' role can do, beyond recording movements and viewing stock. ' +
@@ -6888,15 +6891,20 @@ function _renderCompanyTab(){
   var c = (_settingsData && _settingsData.company) || {};
   document.getElementById('settingsTabContent').innerHTML =
     '<div class="co-form">' +
-      '<label class="co-label" for="coName">Company name</label>' +
+      '<label class="co-label" for="coName" style="display:flex;align-items:center;gap:.4rem">Company name ' +
+        _infoIc('Shown in the header, on the browser tab, on the loading screen, and as the sender name on every email this system sends.') +
+      '</label>' +
       '<input type="text" id="coName" class="co-input" maxlength="60" value="' + _escAttr(c.name || '') + '">' +
-      '<p class="co-hint">Shown in the header, on the browser tab, on the loading screen, and as the sender name on every email this system sends.</p>' +
 
-      '<label class="co-label" for="coDomain">Email domain <span class="co-opt">(optional)</span></label>' +
+      '<label class="co-label" for="coDomain" style="display:flex;align-items:center;gap:.4rem">' +
+        'Email domain <span class="co-opt">(optional)</span> ' +
+        _infoIc('People with an email at this domain are recognised as staff. Everyone still has to be on the user list to get in — this only saves them the extra sign-in step. Leave it blank if your team uses personal Gmail accounts.') +
+      '</label>' +
       '<input type="text" id="coDomain" class="co-input" maxlength="60" placeholder="yourcompany.com" value="' + _escAttr(c.domain || '') + '">' +
-      '<p class="co-hint">People with an email at this domain are recognised as staff. Everyone still has to be on the user list to get in — this only saves them the extra sign-in step. Leave it blank if your team uses personal Gmail accounts.</p>' +
 
-      '<label class="co-label">Logo</label>' +
+      '<label class="co-label" style="display:flex;align-items:center;gap:.4rem">Logo ' +
+        _infoIc('Any size or shape works — it is resized automatically. Appears beside the company name in the header and on the loading screen.') +
+      '</label>' +
       '<div id="coLogoWrap">' + _coLogoBoxHtml() + '</div>' +
       '<div class="co-logo-acts">' +
         '<input type="file" id="coLogoFile" accept="image/*" style="display:none" onchange="_coLogoPick(this)">' +
@@ -6907,7 +6915,6 @@ function _renderCompanyTab(){
         (_coLogoRemove || _coLogo
           ? '<button type="button" class="btn btn-ghost btn-sm" onclick="_coUndoLogo()">Undo</button>' : '') +
       '</div>' +
-      '<p class="co-hint">Any size or shape works — it is resized automatically. Appears beside the company name in the header and on the loading screen.</p>' +
 
       '<div class="co-save"><button type="button" class="btn btn-primary" id="coSave" onclick="_saveCompanyProfile()">Save changes</button></div>' +
     '</div>';
@@ -7063,14 +7070,15 @@ function _renderSystemTab() {
       '<label>What the system did on its own</label>' + actHtml +
     '</div>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
-      '<label>Archive movements older than</label>' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Archive movements older than ' +
+        _infoIc('Older movements stay accessible via "Load Older History" — this only moves them out of the main table for speed.') +
+      '</label>' +
       '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
         '<select id="archiveCutoffSel" onchange="_saveArchiveCutoff()" style="padding:.4rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
           '<option value="6"'  + (months==='6'  ? ' selected' : '') + '>6 months</option>' +
           '<option value="12"' + (months==='12' ? ' selected' : '') + '>12 months</option>' +
           '<option value="18"' + (months==='18' ? ' selected' : '') + '>18 months</option>' +
         '</select>' +
-        '<span style="color:var(--muted);font-size:.75rem">Older movements stay accessible via "Load Older History".</span>' +
       '</div>' +
     '</div>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
@@ -7078,10 +7086,11 @@ function _renderSystemTab() {
       '<div id="backupBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
     '</div>' +
     '<div class="field">' +
-      '<label>Stock totals</label>' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Stock totals ' +
+        _infoIc('Recalculates every stock total from the current movement history. Use this if a deleted or edited movement left stale numbers behind.') +
+      '</label>' +
       '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
         '<button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>' +
-        '<span style="color:var(--muted);font-size:.75rem">Recalculates LIVE_STOCK / SITE_STOCK / WASTED_STOCK from the current movement history. Use this if a deleted or edited movement left stale numbers behind.</span>' +
       '</div>' +
     '</div>';
 
@@ -8475,6 +8484,13 @@ function _applyMatChangeLocally(p){
 // simply stopped part-way through its first render.
 function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// The "i" badge used everywhere a field used to carry a paragraph of always-
+// visible help text: same explanation, shown on hover/focus instead of taking
+// up the window. See .info-ic / .tip in the stylesheet.
+function _infoIc(text){
+  return '<span class="info-ic tip" tabindex="0" data-tip="' + _escAttr(text) + '">i</span>';
+}
 
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
