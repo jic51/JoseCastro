@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.81';
+var APP_VERSION = '9.82';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2693,6 +2693,16 @@ function runBackupNow_() {
     pruneOldBackups_(folder);
 
     auditLog_(ss, 'BACKUP_CREATED', 'system', copyName, '', copyFile.getId());
+    // Remembered directly, not just logged: AUDIT_LOG only keeps its last ~1500
+    // rows readable from the app (getSystemActivity), and on a busy install
+    // ADD_MOVEMENT alone can push yesterday's BACKUP_CREATED out of that window
+    // in well under a day — the backup itself is still safe in Drive, but the
+    // System tab would show "nothing has run" for a backup that plainly did.
+    // A Script Property can't be scrolled past.
+    var p = PropertiesService.getScriptProperties();
+    p.setProperty('LAST_BACKUP_AT', new Date().toISOString());
+    p.setProperty('LAST_BACKUP_NAME', copyName);
+    p.setProperty('LAST_BACKUP_FILE_ID', copyFile.getId());
     return { status: 'success', name: copyName, id: copyFile.getId() };
   } catch (e) {
     logError_(ss, 'ERROR', 'backend', 'runBackupNow', 'system', e.message, null, newRequestId_());
@@ -2749,7 +2759,15 @@ function backupEnabled_() {
 
 function getBackupStatus(auth) {
   auth = requireAuth_('ADMIN');
-  return { enabled: backupEnabled_(), retentionDays: BACKUP_RETENTION_DAYS, folder: backupFolderName_() };
+  var p = PropertiesService.getScriptProperties();
+  return {
+    enabled:         backupEnabled_(),
+    retentionDays:   BACKUP_RETENTION_DAYS,
+    folder:          backupFolderName_(),
+    lastBackupAt:    p.getProperty('LAST_BACKUP_AT') || '',
+    lastBackupName:  p.getProperty('LAST_BACKUP_NAME') || '',
+    lastBackupFileId: p.getProperty('LAST_BACKUP_FILE_ID') || ''
+  };
 }
 
 function setBackupEnabled(data, auth) {
@@ -5600,6 +5618,15 @@ var PROPERTY_GUIDE = [
   { key:'CHECKIN_MILESTONES_SENT', sev:'OPTIONAL',
     what:'Which check-in alerts have already been sent, so none repeats.',
     lost:'Nothing lost by its absence; if cleared, past milestones could re-fire once.' },
+  { key:'LAST_BACKUP_AT', sev:'AUTO',
+    what:'When the most recent backup ran — shown in Settings → System so "is this actually backing up?" doesn\'t depend on scrolling far enough back in the audit log.',
+    lost:'The System tab just stops showing a last-backup time until the next one runs. The backups themselves live in Drive and are untouched.' },
+  { key:'LAST_BACKUP_NAME', sev:'AUTO',
+    what:'The file name of the most recent backup, shown next to LAST_BACKUP_AT.',
+    lost:'Same as LAST_BACKUP_AT — cosmetic only, recreated on the next backup.' },
+  { key:'LAST_BACKUP_FILE_ID', sev:'AUTO',
+    what:'Drive file ID of the most recent backup, used for the "Open in Drive" link in Settings → System.',
+    lost:'That one link stops working until the next backup; every backup file in Drive is still there and still openable by hand.' },
   { key:'WEB_APP_URL', sev:'IMPORTANT',
     what:'The /exec address your team opens.',
     lost:'Setup shows the wrong link again, and bug reports cannot say where the app lives.' },

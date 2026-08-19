@@ -175,11 +175,15 @@
     .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
     .rack-drawer-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.85rem}
-    .rack-drawer-actions{display:flex;gap:.5rem;padding:.75rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0}
     .rack-drawer-body{flex:1;overflow-y:auto;padding:.5rem}
     .rdw-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;border-radius:7px;margin-bottom:3px;transition:background .12s}
     .rdw-item:hover{background:#F8FAFC}
-    .rdw-name{flex:1;font-size:.83rem;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .rdw-name{flex:1;font-size:.83rem;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+    .rdw-name:after{content:'▾';margin-left:.35rem;font-size:.7rem;color:var(--muted);display:inline-block;transition:transform .15s}
+    .rdw-name.rdw-name-open:after{transform:rotate(180deg)}
+    .rdw-item-wrap{margin-bottom:3px}
+    .rdw-item-wrap .rdw-item{margin-bottom:0}
+    .rdw-actions{display:none;gap:.4rem;padding:.1rem .65rem .6rem 1.6rem;flex-wrap:wrap}
     .rdw-rack-qty{font-size:.82rem;font-weight:700;color:var(--red);flex-shrink:0}
     .rdw-total-qty{font-size:.72rem;color:var(--muted);flex-shrink:0}
     .rdw-lock-badge{flex-shrink:0;font-size:.9rem;cursor:default}
@@ -357,6 +361,10 @@
     .exit-avail.ok{color:var(--green);background:var(--green-bg)}
     .exit-avail.warn{color:var(--red);background:var(--red-bg)}
     .exit-avail.neutral{color:var(--muted);background:#F3F4F6}
+    /* Tap the green available number to fill the qty field with it — only the
+       "ok" state is a real number worth one-tapping into place. */
+    .exit-avail.ok, .el-avail.ok, .mstock-avail.ok{cursor:pointer}
+    .exit-avail.ok:hover, .el-avail.ok:hover{text-decoration:underline}
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     /* ── MULTI-PAIR TRANSFER ── */
@@ -637,10 +645,6 @@
     @media (hover:none){.rack-photo-card .rpc-btn{opacity:1}}
     [data-theme="dark"] .rack-photo-card{background:#0F172A}
     /* Rack drawer keeps the large photo — it's a panel about one rack. */
-    .rdp-img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer;background:#F3F4F6;border-radius:8px}
-    .rdp-empty{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.75rem;background:#F3F4F6;flex-direction:column;gap:.3rem;border-radius:8px}
-    .rdp-btn{font-size:.72rem;background:var(--border);color:var(--text);border:none;border-radius:6px;padding:.3rem .6rem;cursor:pointer;transition:.15s;margin-top:.4rem}
-    .rdp-btn:hover{background:var(--accent);color:#fff}
     /* ── SETTINGS MODAL — vertical sidebar layout ──
        .settings-tab keeps its base look (used by JS toggling .active) but now
        lays out as a full-width sidebar row instead of an inline pill, so a long
@@ -2053,11 +2057,6 @@
     <h3 id="rackDrawerTitle">📦 Rack</h3>
     <button onclick="closeRackDrawer()">✕</button>
   </div>
-  <div class="rack-drawer-actions">
-    <button class="btn btn-danger btn-sm" id="rackDrawerExitBtn" onclick="openExitFromRack()" style="display:none">↑ Exit from here</button>
-    <button class="btn btn-ghost btn-sm" id="rackDrawerTransferBtn" onclick="openTransferFromRack()">⇄ Transfer from here</button>
-  </div>
-  <div id="rackDrawerPhotoBox" style="padding:.6rem .75rem 0"></div>
   <div class="rack-drawer-body" id="rackDrawerBody">
     <p style="color:var(--muted);padding:1rem;font-size:.85rem">Select a rack to see its contents.</p>
   </div>
@@ -2497,7 +2496,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.81';
+var APP_VERSION = '9.82';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4151,17 +4150,17 @@ function renderStats(){
   }
 
   document.getElementById('statsRow').innerHTML =
-    '<div class="stat"><label>SKUs Tracked</label><div class="val">'+items.length+'</div><div class="sub">'+inStock+' with stock</div></div>'+
+    '<div class="stat">'+_statLabel('SKUs Tracked','Every distinct category + material combination the system has ever seen — including ones with zero stock right now. The line below shows how many currently have stock.')+'<div class="val">'+items.length+'</div><div class="sub">'+inStock+' with stock</div></div>'+
     (_canSeeCosts() && pricedCount > 0 ?
-      '<div class="stat" style="border-left-color:var(--green)"><label>Inventory Value</label><div class="val">$'+
+      '<div class="stat" style="border-left-color:var(--green)">'+_statLabel('Inventory Value','Average cost × quantity in warehouse, added up across every material that has a recorded cost. Materials with no cost on record are left out rather than counted as $0 — see how many are priced below.')+'<div class="val">$'+
         Math.round(invValue).toLocaleString()+'</div><div class="sub">'+pricedCount+' of '+items.length+' SKUs priced</div></div>' : '')+
-    '<div class="stat" style="border-left-color:var(--green)"><label>In Warehouse</label><div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
-    '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
-    '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
-    '<div class="stat" style="border-left-color:var(--yellow)"><label>Zero Stock</label><div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>'+
-    (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280"><label>Total Wasted</label><div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'')+
+    '<div class="stat" style="border-left-color:var(--green)">'+_statLabel('In Warehouse','Total units currently sitting in any rack or location, added up across every material.')+'<div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
+    '<div class="stat" style="border-left-color:var(--red)">'+_statLabel('Dispatched','Total units currently sent out to a project or site and not yet back in the warehouse.')+'<div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
+    '<div class="stat" style="border-left-color:var(--orange)">'+_statLabel('Active Projects','Number of distinct projects that have at least one movement recorded against them.')+'<div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
+    '<div class="stat" style="border-left-color:var(--yellow)">'+_statLabel('Zero Stock','Materials with nothing left in the warehouse and nothing at any site. "Below min" counts materials that still have some stock but less than the minimum you set in the Low-Stock Monitor.')+'<div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>'+
+    (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280">'+_statLabel('Total Wasted','Total units ever recorded as WASTE, all-time — this never resets.')+'<div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'')+
     (_canSeeCosts() && wastePriced > 0 ?
-      '<div class="stat" style="border-left-color:var(--red)"><label>Waste Cost</label><div class="val" style="color:var(--red)">$'+
+      '<div class="stat" style="border-left-color:var(--red)">'+_statLabel('Waste Cost','Sum of the cost recorded at the moment each WASTE happened — never recalculated from today\'s price, so last year\'s waste doesn\'t change value later.')+'<div class="val" style="color:var(--red)">$'+
         Math.round(wasteCost).toLocaleString()+'</div><div class="sub">'+wastePriced+' of '+wasteRows+' waste records priced</div></div>' : '');
 }
 
@@ -4884,12 +4883,12 @@ function renderProjectView(){
   });
 
   stats.innerHTML =
-    '<div class="stat" style="border-left-color:var(--green)"><label>Total Received</label><div class="val">'+totalIn+'</div></div>'+
-    '<div class="stat" style="border-left-color:var(--red)"><label>Total Dispatched</label><div class="val">'+totalOut+'</div></div>'+
-    '<div class="stat" style="border-left-color:var(--accent)"><label>Still in Bodega</label><div class="val">'+(totalIn-totalOut)+'</div></div>'+
-    '<div class="stat" style="border-left-color:var(--orange)"><label>SKUs</label><div class="val">'+Object.keys(summary).length+'</div></div>' +
+    '<div class="stat" style="border-left-color:var(--green)">'+_statLabel('Total Received','Sum of everything received, transferred in, or returned for this project (all non-EXIT, non-WASTE movements).')+'<div class="val">'+totalIn+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--red)">'+_statLabel('Total Dispatched','Sum of everything that left as EXIT or WASTE for this project.')+'<div class="val">'+totalOut+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--accent)">'+_statLabel('Still in Warehouse','Total Received minus Total Dispatched — the net still on hand for this project.')+'<div class="val">'+(totalIn-totalOut)+'</div></div>'+
+    '<div class="stat" style="border-left-color:var(--orange)">'+_statLabel('SKUs','Number of distinct materials with any movement recorded for this project.')+'<div class="val">'+Object.keys(summary).length+'</div></div>' +
     (_canSeeCosts() && hasCost ?
-      '<div class="stat" style="border-left-color:var(--green)"><label>Project Cost</label><div class="val">$'+Math.round(projectCost).toLocaleString()+'</div></div>' : '');
+      '<div class="stat" style="border-left-color:var(--green)">'+_statLabel('Project Cost','Sum of what actually left the warehouse for this project (EXIT only), priced at cost at the moment each one was recorded.')+'<div class="val">$'+Math.round(projectCost).toLocaleString()+'</div></div>' : '');
 
   body.innerHTML = Object.values(summary).map(function(s,i){
     var net = s.in - s.out;
@@ -5095,6 +5094,14 @@ function addTransferRow(rack, qty, dest){
   var destInp = row.querySelector('.tr-dest');
   rackInp.addEventListener('input', function(){ validateTransferRows(); renderTransferLocPicker(); });
   qtyInp.addEventListener('input',  validateTransferRows);
+  // Same tap-the-green-number shortcut as the EXIT rows.
+  row.querySelector('.exit-avail').addEventListener('click', function(){
+    if (!this.classList.contains('ok')) return;
+    var avail = this.dataset.avail;
+    if (!avail) return;
+    qtyInp.value = avail;
+    validateTransferRows();
+  });
 
   container.appendChild(row);
   validateTransferRows();
@@ -5136,7 +5143,7 @@ function validateTransferRows(){
     } else if (qty > avail){
       chip.textContent = '⚠ only ' + avail + ' avail'; chip.className = 'exit-avail warn';
     } else {
-      chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok';
+      chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok'; chip.dataset.avail = avail;
     }
   });
 }
@@ -5420,13 +5427,24 @@ function checkStock(){
       warn.innerHTML = '⚠️ Low stock: '+s.availableQty+' available @ '+_he(locSummary(s.warehouseLocs));
       warn.style.cssText = 'background:#FEF3C7;color:var(--yellow);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
     } else {
-      warn.innerHTML = '✓ Available: '+s.availableQty+' units | '+_he(locSummary(s.warehouseLocs));
+      // The number itself is tappable — same shortcut as the EXIT/TRANSFER rows,
+      // so WASTE (which has one plain Qty field instead of per-rack rows) gets it too.
+      warn.innerHTML = '✓ Available: <span class="mstock-avail ok" data-avail="'+s.availableQty+'" onclick="_fillQtyFromAvail(this)">'+s.availableQty+'</span> units | '+_he(locSummary(s.warehouseLocs));
       warn.style.cssText = 'background:#D1FAE5;color:var(--green);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
     }
   } else {
     warn.innerHTML = '⚠️ Item not found in stock — will create new SKU on ENTRY';
     warn.style.cssText = 'background:#FEF3C7;color:var(--yellow);padding:.5rem .75rem;border-radius:6px;font-size:.82rem';
   }
+}
+
+// Tap the green available number in the single-field WASTE stock check (the
+// EXIT/TRANSFER per-row equivalent is wired directly on those rows instead).
+function _fillQtyFromAvail(el){
+  var avail = el.getAttribute('data-avail');
+  if (!avail) return;
+  var q = document.getElementById('mQty');
+  if (q) q.value = avail;
 }
 
 // ── Notification Helpers ──────────────────────────────────────────────────────
@@ -6197,6 +6215,15 @@ function addExitLocRowMat(n, rack, qty, silent){
     '<button type="button" class="el-rm" onclick="removeExitLocRowMat('+n+',this)" title="Remove">×</button>';
   row.querySelector('.el-rack').addEventListener('input', function(){ syncExitRackAvail(n); syncExitMatTotal(n); });
   row.querySelector('.el-qty').addEventListener('input',  function(){ syncExitRackAvail(n); syncExitMatTotal(n); });
+  // Tap the green "✓ N avail" figure to put that same number straight into
+  // Qty to Take, instead of retyping a number the app is already showing.
+  row.querySelector('.el-avail').addEventListener('click', function(){
+    if (!this.classList.contains('ok')) return;
+    var avail = this.dataset.avail;
+    if (!avail) return;
+    row.querySelector('.el-qty').value = avail;
+    syncExitRackAvail(n); syncExitMatTotal(n);
+  });
   locsDiv.appendChild(row);
   if (!silent){ syncExitRackAvail(n); if (locsDiv.querySelectorAll('.exit-loc-row').length===1) row.querySelector('.el-rack').focus(); }
 }
@@ -6245,7 +6272,7 @@ function syncExitRackAvail(n){
     var lock = _findLock(key, rack);
     if (lock){ chip.className='el-avail warn'; chip.textContent='🔒 locked — ' + lock.reason; return; }
     if (qty > avail){ chip.className='el-avail warn'; chip.textContent='⚠ only '+avail; }
-    else { chip.className='el-avail ok'; chip.textContent='✓ '+avail+' avail'; }
+    else { chip.className='el-avail ok'; chip.textContent='✓ '+avail+' avail'; chip.dataset.avail = avail; }
   });
 }
 
@@ -7132,6 +7159,21 @@ function _drawBackupBox(st){
   var box = document.getElementById('backupBox');
   if (!box) return;
   var on = !!st.enabled;
+  // Read straight from a Script Property (see runBackupNow_), not from the
+  // audit log the way "What the system did on its own" above does — that
+  // list only shows the last ~1500 audit rows, and on a busy install that
+  // window can scroll past yesterday's backup in well under a day even
+  // though the file is sitting safely in Drive the whole time. This line
+  // can't be scrolled past.
+  var lastHtml = '';
+  if (st.lastBackupAt) {
+    var link = st.lastBackupFileId
+      ? '<a target="_blank" href="https://drive.google.com/file/d/' + _he(st.lastBackupFileId) + '/view">' +
+        _he(st.lastBackupName || 'Open in Drive') + ' ↗</a>'
+      : _he(st.lastBackupName || '');
+    lastHtml = '<div style="font-size:.75rem;margin-top:.35rem">Last backup: ' + _he(_fmtWhen(st.lastBackupAt)) +
+      (link ? ' — ' + link : '') + '</div>';
+  }
   box.innerHTML =
     '<label class="sw" style="margin-bottom:.5rem">' +
       '<input type="checkbox" id="backupSw"' + (on ? ' checked' : '') + ' onchange="_toggleBackup(this)">' +
@@ -7146,6 +7188,7 @@ function _drawBackupBox(st){
           : 'Nothing is being backed up on a schedule. Turn this on — it costs nothing and it is the only thing that gets your data back after a bad import or a deleted row.') +
       '</span>' +
     '</div>' +
+    lastHtml +
     // Deliberately separate from the switch: "back this up before I do
     // something risky" and "back it up every night" are different decisions,
     // and the menu version ran them together.
@@ -7175,7 +7218,7 @@ function _backupNow(){
   _btnBusy(btn, 'Backing up…');
   google.script.run
     .withSuccessHandler(function(res){
-      _btnDone(btn, true);
+      _btnDone(btn, true, function(){ _loadBackupStatus(); });   // refresh "Last backup" line
       showToast('Backup created: ' + ((res && res.name) || 'done'), 'ok', 5000);
     })
     .withFailureHandler(function(e){
@@ -8507,6 +8550,14 @@ function _infoIc(text){
   return '<span class="info-ic tip" tabindex="0" data-tip="' + _escAttr(text) + '">i</span>';
 }
 
+// A stat-tile <label> with a leading info icon — the icon comes first here
+// because the tile's own numbers stay fully visible either way; nothing is
+// being removed for it to replace. See _infoIc for the trailing-icon case,
+// used where an icon took the place of text that used to be shown.
+function _statLabel(text, tip){
+  return '<label style="display:flex;align-items:center;gap:.32rem">' + _infoIc(tip) + text + '</label>';
+}
+
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
 // instead of inline  onclick="fn('+value+')".  The payload is read with
@@ -8546,6 +8597,10 @@ function _infoIc(text){
       openLockModal(el.getAttribute('data-matid'), el.getAttribute('data-cat'), el.getAttribute('data-name'), el.getAttribute('data-rack'));
     } else if (a === 'unlock-material') {
       unlockMaterialConfirm(el.getAttribute('data-lock-id'), el.getAttribute('data-lock-name'));
+    } else if (a === 'toggle-rdw') {
+      _toggleRdwActions(parseInt(el.getAttribute('data-idx'), 10));
+    } else if (a === 'rdw-move') {
+      _rdwMoveFromDrawer(el.getAttribute('data-type'), parseInt(el.getAttribute('data-idx'), 10));
     }
   }
   document.addEventListener('click', function(e){
@@ -10167,22 +10222,21 @@ function openRackDrawer(rackName) {
 
   document.getElementById('rackDrawerTitle').textContent = '📦 ' + rackName;
 
-  // Show Exit button only for admins/warehouse users
-  var exitBtn = document.getElementById('rackDrawerExitBtn');
-  if (exitBtn) exitBtn.style.display = (userRole !== 'VIEWER') ? '' : 'none';
-
-  _renderRackDrawerPhoto();
-
   if (!items.length) {
+    _rdwItems = [];
     document.getElementById('rackDrawerBody').innerHTML =
       '<p style="padding:1rem;color:var(--muted);font-size:.85rem">No items in this rack.</p>';
   } else {
     var isAdmin = userRole === 'ADMIN';
+    // Indexed here rather than re-read from the DOM when a Exit/Transfer/Waste
+    // button is clicked — a material name can contain quotes (36" GLASS,
+    // O'BRIEN), so it travels through a JS array instead of an HTML attribute.
+    _rdwItems = items.map(function(item){ return { category: item.category, name: item.name, rack: rackName }; });
     document.getElementById('rackDrawerBody').innerHTML =
       '<div style="padding:.35rem .5rem .15rem;display:flex;justify-content:space-between;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">'+
-        '<span>Material</span><span>In Rack&nbsp;/&nbsp;Total WH</span>'+
+        '<span>Material — tap for actions</span><span>In Rack&nbsp;/&nbsp;Total WH</span>'+
       '</div>'+
-      items.map(function(item){
+      items.map(function(item, idx){
         var col  = CAT_DOT_COLORS[nt(item.category)] || '#9CA3AF';
         var lock = _findLock(item.matId, rackName);
         var lockBtn = '';
@@ -10192,12 +10246,19 @@ function openRackDrawer(rackName) {
         } else if (isAdmin) {
           lockBtn = '<button class="rdw-lock-btn" data-action="open-lock-modal" data-matid="'+_he(item.matId)+'" data-cat="'+_he(item.category)+'" data-name="'+_he(item.name)+'" data-rack="'+_he(rackName)+'" title="Lock this material at this rack">🔒 Lock</button>';
         }
-        return '<div class="rdw-item">'+
-          '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
-          '<span class="rdw-name" title="'+_he(item.name)+'">'+_he(item.name)+'</span>'+
-          '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
-          '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
-          lockBtn +
+        return '<div class="rdw-item-wrap">'+
+          '<div class="rdw-item">'+
+            '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
+            '<span class="rdw-name" data-action="toggle-rdw" data-idx="'+idx+'" title="'+_he(item.name)+'">'+_he(item.name)+'</span>'+
+            '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
+            '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
+            lockBtn +
+          '</div>'+
+          '<div class="rdw-actions" id="rdw-actions-'+idx+'">'+
+            '<button type="button" class="btn btn-danger btn-sm" data-action="rdw-move" data-type="EXIT" data-idx="'+idx+'">↑ Exit</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="rdw-move" data-type="TRANSFER" data-idx="'+idx+'">⇄ Transfer</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="rdw-move" data-type="WASTE" data-idx="'+idx+'">✕ Waste</button>'+
+          '</div>'+
         '</div>';
       }).join('');
   }
@@ -10206,36 +10267,82 @@ function openRackDrawer(rackName) {
   document.getElementById('rackDrawerOverlay').classList.add('open');
 }
 
+// This rack drawer's items, indexed for the Exit/Transfer/Waste action menu —
+// see the comment in openRackDrawer for why a JS array instead of DOM attrs.
+var _rdwItems = [];
+
+function _toggleRdwActions(idx){
+  var el = document.getElementById('rdw-actions-' + idx);
+  if (!el) return;
+  var opening = el.style.display !== 'flex';
+  // Only one open at a time — keeps a long rack's list from turning into a
+  // wall of buttons.
+  document.querySelectorAll('.rdw-actions').forEach(function(a){ a.style.display = 'none'; });
+  document.querySelectorAll('.rdw-name').forEach(function(n){ n.classList.remove('rdw-name-open'); });
+  if (opening){
+    el.style.display = 'flex';
+    var nameEl = document.querySelector('.rdw-name[data-idx="' + idx + '"]');
+    if (nameEl) nameEl.classList.add('rdw-name-open');
+  }
+}
+
+// Opens the EXIT/TRANSFER/WASTE modal with this material's category, name,
+// and source rack already filled in — only qty, destination and comments are
+// left for the user to type, per Jose's spec: tap a material in the rack
+// drawer instead of retyping what the app already knows.
+function _rdwMoveFromDrawer(type, idx){
+  var item = _rdwItems[idx];
+  if (!item) return;
+  closeRackDrawer();
+  openMoveModal(type);
+  setTimeout(function(){ _prefillMoveModalMaterial(type, item.category, item.name, item.rack); }, 300);
+}
+
+function _prefillMoveModalMaterial(type, cat, name, rack){
+  if (type === 'WASTE'){
+    var catSel = document.getElementById('mType');
+    var nameInp = document.getElementById('mName');
+    var srcInp = document.getElementById('mSrc');
+    var qtyInp = document.getElementById('mQty');
+    if (catSel) catSel.value = cat;
+    if (nameInp) nameInp.value = name;
+    if (srcInp) srcInp.value = rack;
+    if (qtyInp) qtyInp.value = '';    // qty is the one thing NOT auto-filled
+    checkStock();
+  } else if (type === 'TRANSFER'){
+    var catSel2 = document.getElementById('mType');
+    var nameInp2 = document.getElementById('mName');
+    if (catSel2) catSel2.value = cat;
+    if (nameInp2) nameInp2.value = name;
+    addTransferRow(rack, '', '');     // qty and destination left blank
+    renderTransferLocPicker();
+  } else if (type === 'EXIT'){
+    // openMoveModal(EXIT) already seeded Material 1 with one empty loc row —
+    // fill that one in rather than adding a second.
+    var catSel3 = document.getElementById('exit-cat-1');
+    var nameInp3 = document.getElementById('exit-name-1');
+    if (catSel3) catSel3.value = cat;
+    if (nameInp3) nameInp3.value = name;
+    var locsDiv = document.getElementById('exit-locs-1');
+    var rackInp = locsDiv && locsDiv.querySelector('.el-rack');
+    if (rackInp) rackInp.value = rack;   // qty left blank
+    updateExitMatNameList(1);
+    syncExitRackAvail(1);
+    syncExitMatTotal(1);
+  }
+}
+
 function closeRackDrawer() {
   document.getElementById('rackDrawer').classList.remove('open');
   document.getElementById('rackDrawerOverlay').classList.remove('open');
 }
 
 // ── Rack Photos ────────────────────────────────────────────────────────────────
-// One reference photo per physical location, uploaded/viewed from either the Rack
-// Drawer (Warehouse Map) or the Photos|Documents split panel on a Dashboard row.
+// One reference photo per physical location — used to live in the Rack Drawer
+// too, but Jose asked for it out (v9.82): "está de más" for a popup whose job
+// is picking a material fast, not looking at a photo. Still uploadable/viewable
+// from the Photos|Documents split panel on a Dashboard row.
 var _rackPhotoUploadTarget = '';
-
-function _renderRackDrawerPhoto(){
-  var box = document.getElementById('rackDrawerPhotoBox');
-  if (!box) return;
-  var photo = rackPhotos[String(_openRackName || '').toUpperCase()];
-  var canUpload = userRole !== 'VIEWER';
-
-  // Own classes, not .rpc-* — those are now the compact 52px chips used in the
-  // expanded stock row. The drawer is the one place a big photo still belongs:
-  // it's a whole panel about a single rack, not one cell in a grid of them.
-  var img = photo
-    ? _privImgTag(photo.url, 'class="rdp-img" data-action="preview-media" data-url="'+_he(photo.url)+'" data-label="'+_he(_openRackName)+'" title="Click to view full size"', _openRackName)
-    : '<div class="rdp-empty">' +
-        '<span style="font-size:1.3rem">📷</span><span>No photo yet</span>' +
-      '</div>';
-  var action = canUpload
-    ? '<button class="rdp-btn" data-action="rack-photo-upload" data-rack="'+_he(_openRackName)+'">' + (photo ? '🔄 Replace Photo' : '+ Add Photo') + '</button>'
-    : '';
-
-  box.innerHTML = img + (action ? '<div style="text-align:center">'+action+'</div>' : '');
-}
 
 // Large-preview lightbox for a document OR a rack photo. Fetches through
 // _fetchPrivateFile (google.script.run — see the comment on that function for
@@ -10422,7 +10529,6 @@ function _handleRackPhotoFileChange(){
         var openIds = Array.prototype.map.call(document.querySelectorAll('.stock-detail-row.open'), function(el){ return el.id; });
         renderStock();
         openIds.forEach(function(id){ var el = document.getElementById(id); if (el) el.classList.add('open'); });
-        if (_openRackName === rack) _renderRackDrawerPhoto();
         renderWarehouseMap();
         showToast('📷 Photo saved for ' + rack, 'ok');
       })
@@ -10506,25 +10612,6 @@ function _doUnlockMaterial(lockId){
     })
     .withFailureHandler(function(err){ showToast('Error: ' + (err.message || err), 'err', 6000); })
     .processMovement('unlockMaterial', _h({ id: lockId }));
-}
-
-function openExitFromRack() {
-  closeRackDrawer();
-  // Open EXIT modal pre-set — user picks material and auto-fill will use this rack
-  openMoveModal('EXIT');
-  // Small delay so modal is rendered, then trigger autofill for this rack
-  setTimeout(function(){
-    showToast('Select the material, then click "↗ Auto-fill Racks" to pull from ' + _openRackName, 'ok', 4000);
-  }, 300);
-}
-
-function openTransferFromRack() {
-  closeRackDrawer();
-  openMoveModal('TRANSFER');
-  setTimeout(function(){
-    var src = document.getElementById('mSrc');
-    if (src) { src.value = _openRackName; src.dispatchEvent(new Event('input')); }
-  }, 300);
 }
 
 // ── Render All ────────────────────────────────────────────────────────────────
