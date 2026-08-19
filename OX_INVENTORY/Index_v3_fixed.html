@@ -2491,7 +2491,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.77';
+var APP_VERSION = '9.78';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -2499,6 +2499,12 @@ var userRole = 'WAREHOUSE';
 // requirePerm_ on the server, which is the only copy of this that a browser
 // console cannot lie about.
 var rolePerms = { canSeeCosts:false, canEditMovements:false, canManageCatalog:false, canExportData:true };
+// ADMIN always; WAREHOUSE only with the switch on; VIEWER never — VIEWER
+// cannot even open the Entry form (btnEntry is hidden for them in
+// applyRoleUI), so this only really has to distinguish the other two.
+function _canSeeCosts(){
+  return userRole === 'ADMIN' || (userRole === 'WAREHOUSE' && !!rolePerms.canSeeCosts);
+}
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
 // Company identity, filled from getInitialData on every load (including the
@@ -4050,6 +4056,18 @@ function renderStats(){
   var totalWasted = items.reduce(function(a,s){ return a + Math.max(0, s.wastedQty||0); }, 0);
   var activeProjects = new Set(movements.map(function(m){ return m.project; }).filter(Boolean)).size;
 
+  // Inventory value: sum of (avg cost × warehouse qty) over materials that
+  // actually HAVE a cost on record. Cost is opt-in (see addMovementsBatch_'s
+  // WAC blend), so this is honest about the gap rather than treating an
+  // unpriced material as worth $0 — pricedCount is shown alongside the total
+  // for exactly that reason: "$48,200 across 34 of 61 SKUs" says something
+  // true, "$48,200" alone implies a total that isn't.
+  var invValue = 0, pricedCount = 0;
+  items.forEach(function(s){
+    var c = config.avgCost && config.avgCost[_normKey(s.category) + '|||' + _normKey(s.name)];
+    if (c && s.warehouseQty > 0) { invValue += c.avg * s.warehouseQty; pricedCount++; }
+  });
+
   // ── Low-stock alert: apply monitored filter, then find zero + below-min ────
   // monitoredMaterials = null  → watch everything
   // monitoredMaterials = []    → watching nothing (no alerts)
@@ -4112,6 +4130,9 @@ function renderStats(){
 
   document.getElementById('statsRow').innerHTML =
     '<div class="stat"><label>SKUs Tracked</label><div class="val">'+items.length+'</div><div class="sub">'+inStock+' with stock</div></div>'+
+    (_canSeeCosts() && pricedCount > 0 ?
+      '<div class="stat" style="border-left-color:var(--green)"><label>Inventory Value</label><div class="val">$'+
+        Math.round(invValue).toLocaleString()+'</div><div class="sub">'+pricedCount+' of '+items.length+' SKUs priced</div></div>' : '')+
     '<div class="stat" style="border-left-color:var(--green)"><label>In Warehouse</label><div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
     '<div class="stat" style="border-left-color:var(--red)"><label>Dispatched</label><div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
     '<div class="stat" style="border-left-color:var(--orange)"><label>Active Projects</label><div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
@@ -5717,6 +5738,17 @@ function _matLineTpl(n){
         '<label class="mat-line-lbl-sm">Unit</label>' +
         '<select id="mat-unit-' + n + '">' + _matLineUnitOpts() + '</select>' +
       '</div>' +
+      // Optional, and hidden entirely from anyone without canSeeCosts — not
+      // just left blank for them, since a field they cannot use but can see
+      // is a worse experience than one that simply is not there. Never shown
+      // on anything but ENTRY: EXIT/TRANSFER/WASTE/RETURN price themselves
+      // from the running average, server-side, and a field here would invite
+      // someone to type a number that the save would just ignore.
+      (_canSeeCosts() ?
+      '<div class="field">' +
+        '<label class="mat-line-lbl-sm">Unit Cost <span style="text-transform:none;opacity:.7">(optional)</span></label>' +
+        '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00">' +
+      '</div>' : '') +
     '</div>' +
     '<div class="mat-loc-box">' +
       '<div style="display:flex;gap:.4rem;margin-bottom:.25rem">' +
@@ -6479,6 +6511,13 @@ function submitMultiEntry(){
     }
 
     var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty };
+    // Per-material always, unlike Supplier/PO/etc below — cost belongs to the
+    // material being bought, never to the "same info for all" grouping, and
+    // the field doesn't exist in the DOM at all for someone without
+    // canSeeCosts, so this naturally reads '' and the batch is priced by
+    // reading the current average later, same as any other unpriced entry.
+    var costEl = document.getElementById('mat-cost-' + n);
+    if (costEl && String(costEl.value || '').trim() !== '') matEntry.unitCost = costEl.value;
     if (!sameInfo) {
       matEntry.supplier    = ((document.getElementById('mat-sup-'  + n) || {}).value || '').trim();
       matEntry.gc          = ((document.getElementById('mat-gc-'   + n) || {}).value || '').trim();

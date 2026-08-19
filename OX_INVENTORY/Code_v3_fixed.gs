@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.77';
+var APP_VERSION = '9.78';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -56,8 +56,20 @@ var AC = {
   TIMESTAMP:0,  CATEGORY:1,  NAME:2,     GC:3,        PO:4,
   QTY:5,        UNIT:6,      DATE_REC:7, SRC_LOC:8,   SUPPLIER:9,
   COMMENTS:10,  STATUS:11,   RESPONSIBLE:12, PROJECT:13, MAT_ID:14,
-  DOC_LINKS:15, USER_EMAIL:16, DEST_LOC:17,  MOVETYPE:18, PM:19
+  DOC_LINKS:15, USER_EMAIL:16, DEST_LOC:17,  MOVETYPE:18, PM:19,
+  // Added for pricing. Appended at the end, not inserted among the columns
+  // above, on purpose: every other index in AC is a POSITION some existing
+  // sheet already has data in, and inserting would shift every column after
+  // it on every installation that has ever saved a movement. Appending is the
+  // only change here that is safe on data that already exists.
+  UNIT_COST:20, TOTAL_COST:21
 };
+// The archive row's true width. Every fixed-size read or write of the whole
+// row uses this constant, not a literal — four different places in this file
+// used to each spell out `20` by hand, which is exactly the kind of duplicated
+// magic number that gets fixed in three places and shipped broken in the
+// fourth. One constant, so adding a column here again means changing ONE line.
+var AC_WIDTH = 22;
 
 // ═══ COMPANY IDENTITY ════════════════════════════════════════════════════════
 // Everything that used to say "OX Glass" reads from here instead, so one copy
@@ -239,11 +251,11 @@ function ensureCoreSheets_(ss) {
     { name: SHEETS.ARCHIVE, header: [
         'System Date','Type','Name','GC','PO#','Qty','Unit','Date Received','Source Location',
         'Supplier','Comments','Status','Received By','Project','Mat ID','Doc Links','User Email',
-        'Destination Location','MoveType','PM'] },
+        'Destination Location','MoveType','PM','Unit Cost','Total Cost'] },
     { name: SHEETS.CONFIG, header: [
         'Projects','Categories','Suppliers','Locations','Location Type','User Email','User Role',
         'Admin Email','Truck','Truck Person','Truck Status','Min Stock Material','Min Stock Qty',
-        'Archive Cutoff Months'] },
+        'Archive Cutoff Months','Cost Category','Cost Material','Avg Cost'] },
     { name: SHEETS.RESERVATIONS, header: [
         'ID','Category','Name','Project','Qty','Reserved By','Date','Status','Release Date'] },
     { name: SHEETS.AUDIT, header: ['Timestamp','Action','User','Details','Old Value','New Value'] },
@@ -1085,7 +1097,7 @@ function loadConfig() {
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
   if (!cfg) return {};
   var data = cfg.getDataRange().getValues();
-  var c = { projects: [], categories: [], suppliers: [], locations: [], users: [], trucks: [], minStock: {} };
+  var c = { projects: [], categories: [], suppliers: [], locations: [], users: [], trucks: [], minStock: {}, avgCost: {} };
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
@@ -1110,6 +1122,14 @@ function loadConfig() {
       c.minStock[String(row[11]).toUpperCase().trim()] = Number(row[12]) || 0;
     }
     if (row[13] && i === 1) c.archiveCutoffMonths = Number(row[13]) || 12;
+    // Keyed by matId (category+name), not by name alone like Min Stock above —
+    // deliberately more precise: two categories can legitimately share a
+    // material name at different price points, and cost is exactly the field
+    // where conflating them would produce a wrong number nobody would notice.
+    if (row[14] && row[15] && row[16] !== '' && row[16] !== null) {
+      var costCat = String(row[14]).trim(), costName = String(row[15]).trim();
+      c.avgCost[getMaterialId(costCat, costName)] = { category: costCat, name: costName, avg: Number(row[16]) || 0 };
+    }
   }
   
   if (!c.archiveCutoffMonths) c.archiveCutoffMonths = 12;
@@ -1169,6 +1189,14 @@ function safeStr_(val) {
   if (val === null || val === undefined || val === '') return '';
   if (val instanceof Date) return '';  // don't show garbled dates where text is expected
   return String(val).trim();
+}
+
+// Money, rounded to the cent. Plain floating-point division (unit_cost * qty,
+// the weighted-average blend) drifts past two decimals almost immediately —
+// this is the one place that matters, since every cost figure downstream
+// (inventory value, cost per project) is a sum of numbers that came from here.
+function round2_(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
 }
 
 function getMaterialId(cat, name) {
@@ -1615,6 +1643,7 @@ function processMovementInner_(ss, action, data, auth) {
           comments:         data.comments,
           responsible:      data.responsible,
           pm:               data.pm,
+          unitCost:         data.unitCost,
           // Shared docs + notify go only on the first location row.
           files:            entryRows.length === 0 ? (data.files     || []) : [],
           docGroups:        entryRows.length === 0 ? (data.docGroups || []) : [],
@@ -1855,6 +1884,14 @@ function addMovementsBatch_(ss, archive, movements, auth) {
     var newRows = [];   // arrays for setValues
     var rowMeta = [];   // parallel metadata for post-write steps
 
+    // ── Cost bookkeeping (weighted-average) for this batch ────────────────────
+    // Loaded once, mutated in memory as ENTRY rows are processed below, and
+    // written back to CONFIG only after the archive write is VERIFIED further
+    // down — never before, so a cost blend can never be recorded for a
+    // movement that did not actually save.
+    var avgCostMap  = loadConfig().avgCost || {};
+    var costTouched = {};   // matId -> true, for the ones this batch actually changes
+
     // ── Validate every movement against the live snapshot, build its row ─────
     for (var i = 0; i < movements.length; i++) {
       var d  = movements[i];
@@ -1913,12 +1950,46 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         throw new Error('WASTE movements require a reason in comments.');
       }
 
+      // Captured before the snapshot mutates below — the weighted-average
+      // formula blends the incoming quantity into what was ALREADY on hand,
+      // not into what will be on hand once this row is applied.
+      var whBeforeThisRow = snap.wh;
+
       // Mutate snapshot so subsequent rows in this batch see the effect.
       applyMovementToSnapshot_(snap, mt, qty, srcKey, destKey);
 
       var statusVal = statusForMoveType_(mt);
 
-      var row = new Array(20);
+      // ── Cost: optional on ENTRY, always server-computed otherwise ──────────
+      // ENTRY: a cost typed by the user blends into the material's running
+      // average — bootstrapping it if this is the first cost that material has
+      // ever had. Leaving it blank changes nothing: cost is opt-in on purpose,
+      // so adopting the app never requires pricing 400 materials on day one.
+      // Everything else NEVER trusts a client-supplied cost — it reads
+      // whatever average is on record right now and stamps that, blank if the
+      // material has never been priced. A WASTE of an unpriced item has no
+      // honest dollar figure to give it, so it gets none, not a zero that
+      // would misread as "this cost nothing."
+      var unitCost = null, totalCost = null;
+      if (mt === 'ENTRY') {
+        var enteredCost = (d.unitCost !== undefined && d.unitCost !== null && String(d.unitCost).trim() !== '')
+          ? Number(d.unitCost) : NaN;
+        if (!isNaN(enteredCost) && enteredCost >= 0) {
+          unitCost  = round2_(enteredCost);
+          totalCost = round2_(unitCost * qty);
+          var priorCost = avgCostMap[matId];
+          var newAvg = (!priorCost || whBeforeThisRow <= 0)
+            ? unitCost
+            : round2_((whBeforeThisRow * priorCost.avg + qty * unitCost) / (whBeforeThisRow + qty));
+          avgCostMap[matId] = { category: cleanDisplay_(d.category), name: cleanDisplay_(d.name), avg: newAvg };
+          costTouched[matId] = true;
+        }
+      } else if (avgCostMap[matId]) {
+        unitCost  = avgCostMap[matId].avg;
+        totalCost = round2_(unitCost * qty);
+      }
+
+      var row = new Array(AC_WIDTH);
       row[AC.TIMESTAMP]   = now;
       row[AC.CATEGORY]    = sheetSafe_(cleanDisplay_(d.category));  // stored as typed (keeps , - /)
       row[AC.NAME]        = sheetSafe_(cleanDisplay_(d.name));      // matId above still uses normalized form
@@ -1945,6 +2016,8 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       row[AC.DEST_LOC]    = sheetSafe_(dest);
       row[AC.MOVETYPE]    = mt;
       row[AC.PM]          = sheetSafe_(String(d.pm || '').trim());
+      row[AC.UNIT_COST]   = (unitCost  === null) ? '' : unitCost;
+      row[AC.TOTAL_COST]  = (totalCost === null) ? '' : totalCost;
 
       newRows.push(row);
       rowMeta.push({
@@ -1961,7 +2034,7 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
     // ── ONE write of all rows ────────────────────────────────────────────────
     var startRow = archive.getLastRow() + 1;
-    archive.getRange(startRow, 1, newRows.length, 20).setValues(newRows);
+    archive.getRange(startRow, 1, newRows.length, AC_WIDTH).setValues(newRows);
     archive.getRange(startRow, AC.TIMESTAMP + 1, newRows.length, 1).setNumberFormat('mm/dd/yyyy hh:mm');
 
     // ── ONE write-verify read of the whole block ─────────────────────────────
@@ -1971,6 +2044,15 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         throw new Error('WRITE_VERIFY_FAIL: row ' + (startRow + v) +
           ' could not be confirmed in the archive. Please reload and check before retrying.');
       }
+    }
+
+    // ── Persist the cost blend — only now, with the archive write verified ───
+    // Best-effort, same philosophy as the derived-sheet refresh below: a
+    // failure here must never undo or block a movement that has already,
+    // successfully, saved.
+    if (Object.keys(costTouched).length) {
+      try { saveAvgCostUpdates_(ss, costTouched, avgCostMap); }
+      catch (ce) { Logger.log('saveAvgCostUpdates_: ' + ce.message); }
     }
 
     // ── File / document uploads (per row carrying docs) ──────────────────────
@@ -2245,6 +2327,10 @@ function addMultiEntry(ss, archive, data, auth) {
         comments:         mat.comments    || data.comments    || '',
         responsible:      mat.responsible || data.responsible || '',
         pm:               mat.pm          || data.pm          || '',
+        // Per-material always, unlike the fields above — cost belongs to the
+        // material being purchased, not to the "same info for all" grouping,
+        // so it never falls back to a shared data.unitCost.
+        unitCost:         mat.unitCost,
         files:            [],
         // Shared docs + notify go only on the very first archive row.
         docGroups:        isFirstRow ? (data.docGroups       || []) : [],
@@ -2440,7 +2526,7 @@ function ensureArchiveHistorySheet_(ss) {
   var sheet = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
   if (!sheet) {
     var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-    var headers = archive.getRange(1, 1, 1, 20).getValues()[0];
+    var headers = archive.getRange(1, 1, 1, AC_WIDTH).getValues()[0];
     sheet = ss.insertSheet(SHEETS.ARCHIVE_HISTORY);
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
@@ -3932,6 +4018,51 @@ function updateMinStockBulk(data, auth) {
   }
   auditLog_(ss, 'UPDATE_MIN_STOCK_BULK', auth.email, updates.length + ' material(s)', '', '');
   return { status: 'success', updated: updates.length };
+}
+
+// Same find-or-append shape as updateMinStockBulk just above, for the cost
+// columns (O/P/Q — Cost Category, Cost Material, Avg Cost). Deliberately its
+// own function rather than a shared one: the KEY is different. Min Stock is
+// keyed by material name alone; this is keyed by category+name (matId),
+// because two categories can legitimately share a name at different price
+// points, and conflating them is exactly the kind of thing nobody would
+// notice until the dollar figures were already wrong.
+//
+// Called from inside addMovementsBatch_, after the archive write is verified —
+// never before — so a cost blend can never be recorded for a movement that
+// did not actually save. `touched` names which matIds this batch changed;
+// `avgCostMap` (already mutated in memory by the caller) holds the values.
+function saveAvgCostUpdates_(ss, touched, avgCostMap) {
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg) return;
+  var matIds = Object.keys(touched);
+  if (!matIds.length) return;
+
+  var rows = cfg.getDataRange().getValues();
+  var rowByMatId = {};
+  for (var i = 1; i < rows.length; i++) {
+    var rCat = String(rows[i][14] || '').trim();
+    var rNm  = String(rows[i][15] || '').trim();
+    if (rCat || rNm) rowByMatId[getMaterialId(rCat, rNm)] = i + 1;   // 1-based sheet row
+  }
+
+  var appended = [];
+  matIds.forEach(function (mid) {
+    var c = avgCostMap[mid];
+    if (!c) return;
+    if (rowByMatId[mid] !== undefined) {
+      cfg.getRange(rowByMatId[mid], 17).setValue(c.avg);   // column Q — Avg Cost only; category/name already match
+    } else {
+      // 14 blank cells (columns A–N) then Cost Category / Cost Material / Avg
+      // Cost — built with Array(14), not typed out by hand, because a
+      // hand-counted run of empty strings is exactly the kind of thing that
+      // is off by one and silent about it.
+      appended.push(new Array(14).fill('').concat([sheetSafe_(c.category), sheetSafe_(c.name), c.avg]));
+    }
+  });
+  if (appended.length) {
+    cfg.getRange(cfg.getLastRow() + 1, 1, appended.length, 17).setValues(appended);
+  }
 }
 
 // ─── BULK IMPORT (CSV) ────────────────────────────────────────────────────────
@@ -6804,7 +6935,7 @@ function modifyMovement(data, auth) {
   if (rowIdx > lastRow) throw new Error('Row #' + rowIdx + ' does not exist (last row: ' + lastRow + ').');
 
   // Read current row (20 cols)
-  var range   = archive.getRange(rowIdx, 1, 1, 20);
+  var range   = archive.getRange(rowIdx, 1, 1, AC_WIDTH);
   var rowVals = range.getValues()[0];
 
   // Row numbers shift whenever archiveOldMovements() reconciles the sheet —
