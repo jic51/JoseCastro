@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.78';
+var APP_VERSION = '9.79';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -1009,6 +1009,26 @@ function setRolePerms(data, auth) {
   return { status: 'success', perms: next };
 }
 
+// The WAREHOUSE role's internal value (USERS_V3, every role check) never
+// changes — only what a customer sees on screen for it. A store or restaurant
+// often already calls this person "Supervisor" or "Manager"; forcing "WAREHOUSE"
+// on them is the kind of mismatch that makes customers distrust the whole app.
+function warehouseRoleLabel_() {
+  var v = String(PropertiesService.getScriptProperties().getProperty('WAREHOUSE_ROLE_LABEL') || '').trim();
+  return v || 'Warehouse';
+}
+
+function setWarehouseRoleLabel(data, auth) {
+  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  var label = String((data && data.label) || '').trim().slice(0, 30);
+  var p = PropertiesService.getScriptProperties();
+  if (label) p.setProperty('WAREHOUSE_ROLE_LABEL', label);
+  else p.deleteProperty('WAREHOUSE_ROLE_LABEL');
+  auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'UPDATE_ROLE_LABEL', auth.email,
+    'Display name for the WAREHOUSE role changed', '', label || '(default) Warehouse');
+  return { status: 'success', label: warehouseRoleLabel_() };
+}
+
 // The check every gated action actually calls. ADMIN passes everything,
 // unconditionally — permissions only ever widen WAREHOUSE, never narrow an
 // admin. VIEWER never passes, regardless of what is turned on; the flags exist
@@ -1308,6 +1328,7 @@ function getInitialData(sessionToken) {
       reservations:       reservations,
       userRole:           auth.role,
       rolePerms:          rolePerms_(),
+      warehouseRoleLabel: warehouseRoleLabel_(),
       userName:           auth.name || '',
       userEmail:          auth.email,
       activeUsers:        activeUsers,
@@ -1374,7 +1395,9 @@ function parseArchiveRow(row, rowIdx) {
     matId:       String(row[AC.MAT_ID]     || ''),
     docLinks:    String(row[AC.DOC_LINKS]  || ''),
     userEmail:   String(row[AC.USER_EMAIL] || ''),
-    pm:          String(row[AC.PM]         || '')
+    pm:          String(row[AC.PM]         || ''),
+    unitCost:    (row[AC.UNIT_COST]  === '' || row[AC.UNIT_COST]  === null || row[AC.UNIT_COST]  === undefined) ? null : Number(row[AC.UNIT_COST]),
+    totalCost:   (row[AC.TOTAL_COST] === '' || row[AC.TOTAL_COST] === null || row[AC.TOTAL_COST] === undefined) ? null : Number(row[AC.TOTAL_COST])
   };
 }
 
@@ -1826,6 +1849,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'clearErrorLog')   return clearErrorLog(data, auth);
   if (action === 'dismissSystemCard') return dismissSystemCard(data, auth);
   if (action === 'setRolePerms')     return setRolePerms(data, auth);
+  if (action === 'setWarehouseRoleLabel') return setWarehouseRoleLabel(data, auth);
   if (action === 'getBackupStatus')  return getBackupStatus(auth);
   if (action === 'setBackupEnabled') return setBackupEnabled(data, auth);
   if (action === 'runBackupOnDemand') return runBackupOnDemand(data, auth);
@@ -5564,6 +5588,9 @@ var PROPERTY_GUIDE = [
   { key:'ROLE_PERMS_WAREHOUSE', sev:'OPTIONAL',
     what:'Extra permissions an admin turned on for the WAREHOUSE role (Settings → Permissions).',
     lost:'Nothing missing — absent just means every toggle is at its default.' },
+  { key:'WAREHOUSE_ROLE_LABEL', sev:'OPTIONAL',
+    what:'The display name an admin chose for the WAREHOUSE role (e.g. "Supervisor"), Settings → Permissions.',
+    lost:'Nothing missing — absent just means the role shows as "Warehouse", the default.' },
   { key:'SUPPORT_EMAIL', sev:'OPTIONAL',
     what:'Where bug reports and check-in alerts go, in addition to this installation\'s own admin.',
     lost:'Nothing breaks — reports go to the admin only, and check-in alerts have nowhere to go so they never send.' },

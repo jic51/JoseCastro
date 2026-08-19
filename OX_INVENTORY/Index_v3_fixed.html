@@ -497,6 +497,8 @@
     .sw input:focus-visible + .sw-track{box-shadow:0 0 0 3px rgba(59,125,216,.35)}
     .sw input:disabled + .sw-track{opacity:.5;cursor:wait}
     .sw-text{font-size:.85rem;font-weight:600}
+    .perm-info{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:.8rem;line-height:1;color:var(--muted);cursor:help;flex:none}
+    .perm-info:hover,.perm-info:focus-visible{color:var(--accent2)}
     /* ── BUTTONS THAT ARE WORKING ────────────────────────────────────────────
        A real spinner, drawn in CSS from the button's own text colour, so the
        same rule works on a white button and on a red one. The ⏳ it replaces was
@@ -2491,7 +2493,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.78';
+var APP_VERSION = '9.79';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -2499,6 +2501,10 @@ var userRole = 'WAREHOUSE';
 // requirePerm_ on the server, which is the only copy of this that a browser
 // console cannot lie about.
 var rolePerms = { canSeeCosts:false, canEditMovements:false, canManageCatalog:false, canExportData:true };
+// The internal role value is always 'WAREHOUSE' (USERS_V3, every role check) —
+// this is only what an admin has chosen to call it on screen, e.g. "Supervisor".
+var warehouseRoleLabel = 'Warehouse';
+function _displayRole(role){ return role === 'WAREHOUSE' ? warehouseRoleLabel : role; }
 // ADMIN always; WAREHOUSE only with the switch on; VIEWER never — VIEWER
 // cannot even open the Entry form (btnEntry is hidden for them in
 // applyRoleUI), so this only really has to distinguish the other two.
@@ -4841,7 +4847,7 @@ function renderProjectView(){
     return;
   }
   var summary = {};
-  var totalIn = 0, totalOut = 0;
+  var totalIn = 0, totalOut = 0, projectCost = 0, hasCost = false;
   movements.filter(function(m){ return (m.project||'') === proj; }).forEach(function(m){
     var name = displayName(m);
     var norm = normMT(m.moveType);
@@ -4850,6 +4856,11 @@ function renderProjectView(){
     var isOut = (norm === 'EXIT' || norm === 'WASTE');
     if (isOut){ summary[name].out += q; totalOut += q; }
     else       { summary[name].in  += q; totalIn  += q; }
+    // What this project actually consumed, in dollars: sum of what left for it
+    // (EXIT only — a RETURN or WASTE is a separate story, not "project cost").
+    if (norm === 'EXIT' && m.totalCost !== null && m.totalCost !== undefined) {
+      projectCost += m.totalCost; hasCost = true;
+    }
     summary[name].history.push({date:m.dateRec||m.timestamp, qty:q, isOut:isOut, loc:m.sourceLoc||m.destLoc||'—', user:m.userEmail||'—', comment:m.comments||''});
   });
 
@@ -4857,7 +4868,9 @@ function renderProjectView(){
     '<div class="stat" style="border-left-color:var(--green)"><label>Total Received</label><div class="val">'+totalIn+'</div></div>'+
     '<div class="stat" style="border-left-color:var(--red)"><label>Total Dispatched</label><div class="val">'+totalOut+'</div></div>'+
     '<div class="stat" style="border-left-color:var(--accent)"><label>Still in Bodega</label><div class="val">'+(totalIn-totalOut)+'</div></div>'+
-    '<div class="stat" style="border-left-color:var(--orange)"><label>SKUs</label><div class="val">'+Object.keys(summary).length+'</div></div>';
+    '<div class="stat" style="border-left-color:var(--orange)"><label>SKUs</label><div class="val">'+Object.keys(summary).length+'</div></div>' +
+    (_canSeeCosts() && hasCost ?
+      '<div class="stat" style="border-left-color:var(--green)"><label>Project Cost</label><div class="val">$'+Math.round(projectCost).toLocaleString()+'</div></div>' : '');
 
   body.innerHTML = Object.values(summary).map(function(s,i){
     var net = s.in - s.out;
@@ -6775,7 +6788,9 @@ function _coLogoBoxHtml(){
 
 // What each switch grants, in plain language — this text is the ONLY place a
 // customer decides whether to turn one on, so it has to say the real
-// consequence, not just repeat the flag's name.
+// consequence, not just repeat the flag's name. Also shown via the ⓘ icon
+// next to each switch (same text, on hover), for anyone who collapses the
+// page and just wants a reminder.
 var PERM_DEFS = [
   { key:'canEditMovements', label:'Edit movements',
     desc:'Warehouse staff can fix or delete a movement someone already saved, the same way an admin can today. Off by default: until now only an admin could.' },
@@ -6784,7 +6799,7 @@ var PERM_DEFS = [
   { key:'canExportData', label:'Export data',
     desc:'Warehouse staff (and viewers) can use the ⬇ CSV button in Movements. On by default — this is what everyone could already do; turn it off to route exports through an admin instead.' },
   { key:'canSeeCosts', label:'See costs',
-    desc:'Reserved for when pricing ships — there is no cost data in the app yet, so this does nothing today. Turning it on now costs nothing and saves a step later.' }
+    desc:'Warehouse staff can enter a unit cost when receiving material, see the Inventory Value tile on the dashboard, and see cost totals per project. Off by default — many businesses keep pricing admin-only.' }
 ];
 
 function _renderPermissionsTab(){
@@ -6796,25 +6811,58 @@ function _renderPermissionsTab(){
   var rows = PERM_DEFS.map(function(d){
     var on = !!perms[d.key];
     return '<div class="field" style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--border)">' +
-      '<label class="sw">' +
-        '<input type="checkbox" class="perm-sw" data-perm="' + d.key + '"' + (on ? ' checked' : '') + '>' +
-        '<span class="sw-track"></span>' +
-        '<span class="sw-text" style="color:var(--text)">' + _he(d.label) + '</span>' +
-      '</label>' +
+      '<div style="display:flex;align-items:center;gap:.4rem">' +
+        '<label class="sw">' +
+          '<input type="checkbox" class="perm-sw" data-perm="' + d.key + '"' + (on ? ' checked' : '') + '>' +
+          '<span class="sw-track"></span>' +
+          '<span class="sw-text" style="color:var(--text)">' + _he(d.label) + '</span>' +
+        '</label>' +
+        '<span class="perm-info" tabindex="0" title="' + _escAttr(d.desc) + '">ⓘ</span>' +
+      '</div>' +
       '<p style="font-size:.78rem;color:var(--muted);margin:.4rem 0 0 54px">' + _he(d.desc) + '</p>' +
     '</div>';
   }).join('');
 
   document.getElementById('settingsTabContent').innerHTML =
+    '<div class="field" style="margin-bottom:1.4rem;padding-bottom:1.4rem;border-bottom:1px solid var(--border)">' +
+      '<label class="co-label" for="warehouseRoleLabelInput">What you call this role</label>' +
+      '<div style="display:flex;gap:.5rem;align-items:center;max-width:320px">' +
+        '<input type="text" id="warehouseRoleLabelInput" class="co-input" maxlength="30" ' +
+          'value="' + _escAttr(warehouseRoleLabel) + '" placeholder="Warehouse">' +
+        '<button type="button" class="btn btn-ghost btn-sm" id="btnSaveRoleLabel" onclick="_saveWarehouseRoleLabel()">Save</button>' +
+      '</div>' +
+      '<p style="font-size:.78rem;color:var(--muted);margin-top:.4rem">' +
+        'The role everything below applies to — shown as this name everywhere in the app: the user list, the account menu, the Add User form. ' +
+        'Use whatever your team already calls this person, e.g. "Supervisor" or "Manager". It never changes what they can actually do.</p>' +
+    '</div>' +
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">' +
-      'What the WAREHOUSE role can do, beyond recording movements and viewing stock. ' +
-      'Admins can already do all of this — these switches only ever widen WAREHOUSE, never narrow an admin. ' +
+      'What the ' + _he(warehouseRoleLabel) + ' role can do, beyond recording movements and viewing stock. ' +
+      'Admins can already do all of this — these switches only ever widen ' + _he(warehouseRoleLabel) + ', never narrow an admin. ' +
       'Viewers stay read-only no matter what is on here.</p>' +
     rows;
 
   document.querySelectorAll('.perm-sw').forEach(function(sw){
     sw.addEventListener('change', function(){ _savePermSwitch(sw); });
   });
+}
+
+function _saveWarehouseRoleLabel(){
+  var inp = document.getElementById('warehouseRoleLabelInput');
+  var btn = document.getElementById('btnSaveRoleLabel');
+  var label = (inp.value || '').trim();
+  _btnBusy(btn, 'Saving…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      warehouseRoleLabel = res.label;
+      _applyWarehouseRoleLabel();
+      _setAccountIdentity(_lastUserName, userEmail, userRole, false);
+      _btnDone(btn, true, function(){ _renderPermissionsTab(); });
+    })
+    .withFailureHandler(function(e){
+      _btnDone(btn, false);
+      showToast('Could not save: ' + (e.message || e), 'err', 6000);
+    })
+    .processMovement('setWarehouseRoleLabel', _h({ label: label }));
 }
 
 function _savePermSwitch(sw){
@@ -11518,7 +11566,7 @@ function _loadUsersTable() {
 
 function _roleBadge(role) {
   var cls = { ADMIN: 'admin', WAREHOUSE: 'warehouse', VIEWER: 'viewer' }[role] || 'viewer';
-  return '<span class="role-badge-' + cls + '">' + role + '</span>';
+  return '<span class="role-badge-' + cls + '">' + _he(_displayRole(role)) + '</span>';
 }
 
 function _renderUsersTable() {
@@ -11955,6 +12003,8 @@ function _applyData(data) {
   reservations       = data.reservations       || [];
   userRole           = data.userRole           || 'WAREHOUSE';
   if (data.rolePerms) rolePerms = data.rolePerms;
+  if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;
+  _applyWarehouseRoleLabel();
   userEmail          = data.userEmail          || '';
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
@@ -11964,6 +12014,15 @@ function _applyData(data) {
   if (data.columnPrefs) { columnPrefs = data.columnPrefs; _applyColumnPrefs(); }
   _rebuildLocksIndex();
   if (data.users && data.users.length) _usersData = data.users;
+}
+
+// Pushes the admin's custom WAREHOUSE-role label into the one place it's baked
+// into static HTML (the Add/Edit User role dropdown) rather than built by JS.
+// Everywhere else (badges, account tag) reads the `warehouseRoleLabel` global
+// directly at render time via _displayRole(), so nothing else needs patching.
+function _applyWarehouseRoleLabel(){
+  var opt = document.querySelector('#uRole option[value="WAREHOUSE"]');
+  if (opt) opt.textContent = warehouseRoleLabel + ' — Record movements';
 }
 
 // Warn if the backend (Code.gs) and this page (Index.html) were not deployed
@@ -12661,7 +12720,7 @@ function _setAccountIdentity(name, email, role, stale){
   var tags = document.getElementById('acctTags');
   if (tags){
     var html = '';
-    if (role) html += '<span class="acct-tag" style="' + (_ROLE_TAG_STYLE[role] || _ROLE_TAG_STYLE.VIEWER) + '">' + _he(role) + '</span>';
+    if (role) html += '<span class="acct-tag" style="' + (_ROLE_TAG_STYLE[role] || _ROLE_TAG_STYLE.VIEWER) + '">' + _he(_displayRole(role)) + '</span>';
     if (role === 'VIEWER') html += '<span class="acct-tag" style="background:#FEF3C7;color:#92400E">👁 VIEW ONLY</span>';
     if (stale) html += '<span class="acct-tag" style="background:var(--border);color:var(--muted)">REFRESHING…</span>';
     tags.innerHTML = html;
