@@ -1268,6 +1268,17 @@
     .sysact-detail{color:var(--muted);font-size:.72rem;width:100%;padding-left:1.3rem;line-height:1.5}
     .sysact-link{display:inline-block;margin:.3rem 0 0 1.3rem;background:none;border:none;padding:0;font-family:inherit;font-size:.72rem;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:none}
     .sysact-link:hover{text-decoration:underline}
+    /* The full backup list, collapsed. ~30 near-identical rows on a healthy
+       install: worth having, not worth opening the tab into. */
+    .bk-all{margin-top:.4rem}
+    .bk-all summary{font-size:.75rem;color:var(--accent);cursor:pointer;font-weight:700;list-style:revert}
+    .bk-all summary:hover{text-decoration:underline}
+    .bk-list{list-style:none;margin:.4rem 0 0;padding:0;display:flex;flex-direction:column;gap:.2rem;max-height:260px;overflow-y:auto}
+    .bk-list li{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;justify-content:space-between;
+      background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .55rem;font-size:.75rem}
+    .bk-list a{color:var(--accent);text-decoration:none;min-width:0;overflow-wrap:anywhere}
+    .bk-list a:hover{text-decoration:underline}
+    .bk-when{color:var(--muted);font-size:.72rem;flex:none}
     /* Lands you on the exact entry you clicked through from. */
     @keyframes spotlight{0%{background:var(--yellow-bg)}100%{background:transparent}}
     .sysact-spot{animation:spotlight 6s ease-out both;border-radius:8px}
@@ -2610,7 +2621,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.92';
+var APP_VERSION = '9.93';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7406,6 +7417,27 @@ function _drawBackupBox(st){
     lastHtml = '<div style="font-size:.75rem;margin-top:.35rem">Last backup: ' + _he(_fmtWhen(st.lastBackupAt)) +
       (link ? ' — ' + link : '') + '</div>';
   }
+
+  // EVERY backup, not just the newest — Jose: "what if the customer wants
+  // yesterday's backup? do they have to go hunting in Drive?" They did.
+  // st.backups comes from the folder itself (listBackups_), so a backup that
+  // was deleted or moved simply is not listed, rather than being listed with
+  // a link that lands on Drive's "unable to open the file at this time".
+  // Collapsed by default: on a healthy install this is ~30 near-identical
+  // rows, and the answer to "is it backing up?" is the one line above.
+  var allHtml = '';
+  if (st.backups && st.backups.length > 1) {
+    allHtml =
+      '<details class="bk-all">' +
+        '<summary>All backups in Drive (' + st.backups.length + ')</summary>' +
+        '<ul class="bk-list">' +
+          st.backups.map(function(b){
+            return '<li><a target="_blank" href="https://drive.google.com/file/d/' + _he(b.id) + '/view">' +
+              _he(b.name) + ' ↗</a><span class="bk-when">' + _he(_fmtWhen(b.at)) + '</span></li>';
+          }).join('') +
+        '</ul>' +
+      '</details>';
+  }
   box.innerHTML =
     '<label class="sw" style="margin-bottom:.5rem">' +
       '<input type="checkbox" id="backupSw"' + (on ? ' checked' : '') + ' onchange="_toggleBackup(this)">' +
@@ -7421,6 +7453,7 @@ function _drawBackupBox(st){
       '</span>' +
     '</div>' +
     lastHtml +
+    allHtml +
     // Deliberately separate from the switch: "back this up before I do
     // something risky" and "back it up every night" are different decisions,
     // and the menu version ran them together.

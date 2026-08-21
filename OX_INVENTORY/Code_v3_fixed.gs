@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.92';
+var APP_VERSION = '9.93';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -2787,8 +2787,41 @@ function getBackupStatus(auth) {
     folder:           backupFolderName_(),
     lastBackupAt:     lastAt || '',
     lastBackupName:   lastName || '',
-    lastBackupFileId: lastId || ''
+    lastBackupFileId: lastId || '',
+    // The whole list, straight from Drive — see listBackups_ for why it is
+    // not read from AUDIT_LOG like the rest of the System tab.
+    backups:          (function(){ try { return listBackups_(); } catch (e) { Logger.log('listBackups_: ' + e.message); return []; } })()
   };
+}
+
+// EVERY backup currently sitting in the folder, newest first.
+//
+// Read from Drive, NOT from AUDIT_LOG, and that difference is the whole
+// point. AUDIT_LOG answers "what happened", and it fails this job twice
+// over: only its last ~1500 rows are readable from the app, which ordinary
+// ADD_MOVEMENT traffic can scroll a backup past in under a day; and it keeps
+// reporting a backup the customer has since deleted or moved, so the link
+// leads to Drive's "Sorry, unable to open the file at this time".
+//
+// The folder answers "what still exists", which is the question actually
+// being asked when someone opens this list to go and restore something. A
+// deleted backup simply stops being listed, which is the honest outcome.
+//
+// Costs one folder scan, paid only when Settings → System is opened (that
+// tab already calls getBackupStatus), never on an ordinary app load.
+function listBackups_() {
+  var folder = getOrCreateFolder_(backupFolderName_());
+  var files  = folder.getFiles();
+  var out    = [];
+  // Bounded: retention prunes at 30 days so this is normally ~30 files, but
+  // an install whose schedule was off and on, or one restored by hand, can
+  // hold more, and this runs while someone waits on a settings tab.
+  while (files.hasNext() && out.length < 120) {
+    var f = files.next();
+    out.push({ id: f.getId(), name: f.getName(), at: f.getDateCreated().toISOString() });
+  }
+  out.sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
+  return out;
 }
 
 function _findMostRecentBackup_() {
