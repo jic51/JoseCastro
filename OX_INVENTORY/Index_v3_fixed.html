@@ -90,6 +90,49 @@
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
     .nav button.active{background:var(--accent);color:#fff}
     .author-badge{background:rgba(0,0,0,.2);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.7rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
+    /* Left-aligned identity stack — logo, company name, the Acopio badge
+       right under it, tight. Jose: this reads as a lockup, not three
+       separate things scattered in a row, and (v9.89, emphatic) Acopio has
+       to stay under the company name on EVERY screen size, never beside it
+       — so unlike the header-merge below, this one is NOT gated to wide
+       screens; a phone stacks the same three lines too now. */
+    .topbar-brand{flex-direction:column;align-items:flex-start;gap:3px}
+    .brand-mark{align-items:flex-start}
+    @media (min-width:769px){
+      /* Jose (v9.89, image reference): the brand block used to sit in its own
+         full-width row above the tabs, leaving that whole row mostly empty
+         space to the right of it. Bringing it down to sit beside the tabs
+         instead removes that row entirely on a screen with room to spare.
+         Below this breakpoint the merge never even attempts — row1 stays
+         exactly where it always was, above row2. Whether it ACTUALLY merges
+         above this breakpoint is JS's call, not this media query's — see
+         .topbar.merged below and _syncBrandWidth's fit check, since a
+         longer company name (a future customer, not just "OX Glass") needs
+         more room before it fits beside five tabs than a short one does. */
+      /* Jose also caught the tabs landing off-centre once brand shared the
+         row — reasonable: sizing row2 against "whatever's left after
+         brand" made its own centred nav track the MIDDLE OF THAT LEFTOVER
+         SPACE, not the middle of the page, and brand (logo+name+Acopio) is
+         never the same width as the avatar cluster on the right. Taking
+         row1 out of flow with position:absolute is what actually fixes it:
+         row2 goes back to spanning the full topbar width — the exact same
+         box test-topbar-deck.js already measures as centred at
+         1024/1440px — with brand floated on top of its left edge instead
+         of eating into it. min-height on .topbar reserves room for
+         brand's tallest case (logo + name + Acopio stacked) since it no
+         longer contributes to the topbar's own flow height once it's out
+         of flow. */
+      .topbar.merged{position:relative;min-height:74px;gap:.4rem 1.25rem}
+      .topbar.merged .topbar-row1{position:absolute;left:1.5rem;top:50%;transform:translateY(-50%);z-index:1}
+      /* row2 itself stays full-width (unpadded) so its centring math is
+         still exactly "middle of the page" — the fix isn't in row2's box,
+         it's in giving column 1 the SAME minimum width as brand actually
+         needs, via --brand-w (see _syncBrandWidth). Column 3 gets that same
+         minimum for free since both share one minmax() — which is exactly
+         what keeps them equal and nav centred, the same reason column 1 was
+         an empty spacer matching column 3's width in the first place. */
+      .topbar.merged .topbar-row2{grid-template-columns:minmax(var(--brand-w,180px),1fr) minmax(0,auto) minmax(var(--brand-w,180px),1fr)}
+    }
     /* ── LAYOUT ── */
     .container{max-width:1400px;margin:0 auto;padding:1.25rem;flex-grow:1;width:100%}
     .section{display:none}.section.active{display:block}
@@ -183,7 +226,11 @@
     .rack-card.rack-dim{opacity:.22}
     [data-theme="dark"] .map-letter-hdr{color:#cfe0ff}
     /* Rack Detail Drawer */
-    .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,100vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:500;transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
+    /* Jose: on a phone this was hitting the 100vw side of the min() and
+       covering almost the whole screen — capped at two-thirds of the
+       viewport instead, same as the "not on your lists" bell panel. Still
+       400px max on anything wider than a phone, unchanged from before. */
+    .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,66.667vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:500;transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
     .rack-drawer.open{transform:translateX(0)}
     .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
@@ -400,6 +447,14 @@
     .mat-line-lbl-sm{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
     .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    /* Price-change alert on ENTRY's Unit Cost — "this supplier charged 18%
+       more than last time", the exact thing a manager only notices weeks
+       later otherwise. Same shape as the stock-check warning elsewhere in
+       this modal, so it reads as "the app is telling you something", not
+       as a validation error. */
+    .mat-cost-alert{font-size:.78rem;padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
+    .mat-cost-alert.warn{background:#FEF3C7;color:var(--yellow)}
+    .mat-cost-alert.info{background:#DBEAFE;color:var(--accent2)}
     .mat-loc-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:.55rem .7rem;margin-top:.35rem}
     /* Freezes a modal while its save is in flight — blocks EVERY click anywhere in
        the overlay (header, X, click-outside-to-close, a second click on Save) and
@@ -586,7 +641,10 @@
     .lg-table th,.lg-table td{border:1px solid var(--border);padding:.4rem .55rem;text-align:left;vertical-align:top}
     .lg-table th{background:var(--bg);font-weight:700}
     @media(max-width:640px){
-      .acct-menu{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:calc(100vw - 2rem);max-width:360px;max-height:84vh;overflow-y:auto;animation:none}
+      /* Jose: 3/4 of the screen, not nearly the whole thing (v9.89) — the
+         bell panel and Rack Drawer went to 2/3 in v9.86; this one is
+         explicitly wider than those, at his request. */
+      .acct-menu{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:75vw;max-width:420px;max-height:84vh;overflow-y:auto;animation:none}
     }
     .presence-user{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;font-size:.78rem;border-bottom:1px solid var(--border)}
     .presence-user:last-child{border-bottom:none}
@@ -1083,7 +1141,14 @@
     .rm-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
     .rm-btn.rm-del:hover{border-color:var(--red)}
     .rm-btn.rm-del.on{background:var(--red);border-color:var(--red);color:#fff}
-    .rm-hint{font-size:.74rem;color:var(--muted)}
+    /* flex-basis:100% forces the hint onto its own line the moment it has
+       text, instead of sitting beside the buttons and, once long enough,
+       widening the bar past what fits next to the "Columns" button beside
+       it — which was pushing Edit/Delete down to a whole new toolbar row
+       the instant a hint appeared. Text always renders below the buttons
+       now, and the buttons themselves stay put since the bar's own width
+       no longer grows with the hint's length. */
+    .rm-hint{font-size:.74rem;color:var(--muted);flex-basis:100%}
     .row-mode-bar.is-del .rm-hint{color:var(--red);font-weight:600}
     /* Only ever ADDS display:none — when the mode is on the rule stops matching
        and each control keeps whatever display it had. */
@@ -1114,6 +1179,13 @@
       padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:pre-line;width:max-content;max-width:240px;
       opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:60}
     .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* The account button's own tooltip (name + role) waits 4s before showing
+       — Jose: unlike the info icons, this one is meant for someone who
+       lingers, not a quick glance, so it should not compete with the
+       instant tooltips everywhere else. Delay only on the way IN: leaving
+       still uses the base .tip::after transition above (no delay), so
+       dismissing it stays snappy. */
+    #acctBtn.tip:hover::after,#acctBtn.tip:focus-visible::after{transition-delay:4s}
     /* Centered-on-the-icon is wrong the moment the icon sits near either edge
        of the screen — the box (up to 240px wide) runs past it and gets cut
        off by the viewport. _positionTip (JS) measures the anchor against the
@@ -1326,10 +1398,23 @@
       .topbar-row2{display:flex;flex-wrap:nowrap}
       .topbar-row2 .nav{flex:1 1 auto;margin:0}
       .topbar-tools{flex-direction:column;gap:8px;align-items:center;margin-left:auto}
+      /* v9.88 pushed the tooltip down to clear the bell here; Jose (v9.90)
+         asked for it back at its natural spot instead — most people won't
+         hold the hover long enough to read a tooltip shoved down into the
+         page below. The actual problem was never the position, it was that
+         the bell rendered THROUGH the tooltip's text. Fading the bell out
+         while the tooltip is up removes that fight outright, timed to the
+         same 4s delay the tooltip itself already waits on so nothing here
+         needs a second number to stay in sync. pointer-events:none with it
+         so an invisible bell can't still eat a stray tap underneath. */
+      .topbar-tools:has(#acctBtn.tip:hover) #cfgBellBtn,
+      .topbar-tools:has(#acctBtn.tip:focus-visible) #cfgBellBtn{opacity:0;pointer-events:none;transition:opacity .15s ease 4s}
     }
     @media (max-width:520px){
       .setup-nudge{left:12px;right:auto;width:calc(50vw - 18px);max-width:none}
-      .cfg-bell-panel{left:auto;right:12px;width:calc(50vw - 18px);max-width:none}
+      /* Jose: on his phone this read as too small at half the screen —
+         two-thirds instead, still right-anchored. */
+      .cfg-bell-panel{left:auto;right:12px;width:calc(66.667vw - 18px);max-width:none}
     }
     /* ── TOUCH ───────────────────────────────────────────────────────────────
        Measured across six real device widths, and the finding was the same at
@@ -1697,8 +1782,15 @@
         </span>
         <button class="btn btn-primary btn-sm" id="btnColDone_mov" style="display:none" onclick="finishColEdit('mov')">Done</button>
         <button class="btn btn-ghost btn-sm" id="btnColReset_mov" style="display:none" onclick="resetColEdit('mov')">Reset</button>
-        <span id="rowModeSlot_mov"></span>
       </div>
+      <!-- On its own line, not sharing the "Columns" toolbar row above: Edit and
+           Delete used to sit beside "⚙ Columns" until the hint text below them
+           got long enough to not fit anymore, which shoved both buttons down
+           onto a whole new toolbar row the moment Jose clicked one — a
+           different top position every time (bug report). Giving this its own
+           row from the start means that row never happens; the buttons never
+           move again regardless of the hint's length. -->
+      <div id="rowModeSlot_mov"></div>
       <div class="table-wrapper" id="tableContainer" data-rowscope="mov"></div>
     </div>
   </div>
@@ -2099,11 +2191,11 @@
 
     <!-- Move Type Selector -->
     <div class="modal-type-bar" id="moveTypeBar">
-      <button data-type="ENTRY"    onclick="setModalType('ENTRY')">↓ Entry</button>
-      <button data-type="EXIT"     onclick="setModalType('EXIT')">↑ Exit</button>
-      <button data-type="TRANSFER" onclick="setModalType('TRANSFER')">⇄ Transfer</button>
-      <button data-type="RETURN"   onclick="setModalType('RETURN')">↩ Return</button>
-      <button data-type="WASTE"    onclick="setModalType('WASTE')">✕ Waste</button>
+      <button data-type="ENTRY"    onclick="_moveTypeBarClick('ENTRY')">↓ Entry</button>
+      <button data-type="EXIT"     onclick="_moveTypeBarClick('EXIT')">↑ Exit</button>
+      <button data-type="TRANSFER" onclick="_moveTypeBarClick('TRANSFER')">⇄ Transfer</button>
+      <button data-type="RETURN"   onclick="_moveTypeBarClick('RETURN')">↩ Return</button>
+      <button data-type="WASTE"    onclick="_moveTypeBarClick('WASTE')">✕ Waste</button>
     </div>
 
     <!-- Stock Warning -->
@@ -2518,7 +2610,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.85';
+var APP_VERSION = '9.92';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3900,6 +3992,7 @@ function applyCompanyBranding(c){
       try {
         if (dataUrl.length < 400000) localStorage.setItem('acopio_brand_logo', dataUrl);
       } catch (e) {}
+      _syncBrandWidth();   // the logo arrives async and changes brand's width
     }, 'full');                            // full file: a logo is already tiny, and the
                                            // thumbnail would drop its transparency
   } else if (logo && !c.logoId){
@@ -3907,6 +4000,7 @@ function applyCompanyBranding(c){
     _setFavicon(APP_FAVICON_DEFAULT);
     try { localStorage.removeItem('acopio_brand_logo'); } catch (e) {}   // a removed logo must not linger on the splash
   }
+  _syncBrandWidth();
 }
 
 // The company's own uploaded logo becomes the browser tab icon too, once
@@ -3915,6 +4009,43 @@ function applyCompanyBranding(c){
 function _setFavicon(href){
   var link = document.getElementById('appFavicon');
   if (link && href) link.href = href;
+}
+
+// The header-merge layout (≥769px) takes the brand block out of flow with
+// position:absolute so the tabs stay mathematically centred on the page —
+// see .topbar-row1's rule — but that means .topbar-row2 has to be told by
+// hand how much room to leave for it, since an out-of-flow element no
+// longer pushes anything over on its own. Brand's width varies with the
+// company name and whether a logo is showing, so this is measured, not
+// guessed: a static number that happened to fit "OX Glass" would just be
+// the same off-centre bug again for a longer name.
+//
+// Whether the merge actually HAPPENS is also decided here, not by the
+// media query alone: forcing it on and then checking whether the tabs
+// wrapped is the only way to know it really fits, for the same reason a
+// fixed pixel breakpoint keeps being wrong — this is a measure-then-verify
+// pass, not a guess, exactly like _positionTip's edge avoidance elsewhere
+// in this file.
+function _syncBrandWidth(){
+  var brandEl = document.querySelector('.topbar-brand');
+  var topbarEl = document.querySelector('.topbar');
+  if (!brandEl || !topbarEl) return;
+  document.documentElement.style.setProperty('--brand-w', brandEl.getBoundingClientRect().width + 'px');
+
+  if (window.innerWidth < 769) { topbarEl.classList.remove('merged'); return; }
+  topbarEl.classList.add('merged');
+  var buttons = document.querySelectorAll('.topbar-row2 .nav button');
+  var wrapped = false;
+  if (buttons.length > 1) {
+    var firstTop = buttons[0].getBoundingClientRect().top;
+    buttons.forEach(function(b){
+      if (Math.abs(b.getBoundingClientRect().top - firstTop) > 2) wrapped = true;
+    });
+  }
+  // A tab spilling onto its own line under the rest, inside what was
+  // supposed to be one merged row, means there wasn't really room for the
+  // merge — fall back to the original two full-width rows instead.
+  if (wrapped) topbarEl.classList.remove('merged');
 }
 
 // ── Report a Problem (floating button) ──────────────────────────────────────
@@ -5259,6 +5390,12 @@ function openMoveModal(type){
   }
   currentMoveType = (type || 'ENTRY').toUpperCase();
 
+  // Every fresh open starts as a normal, unrestricted movement — the Rack
+  // Drawer flow (_rdwMoveFromDrawer) re-arms this right after this call
+  // returns, once it has its own material to prefill.
+  _rdwPrefillActive = null;
+  _syncMoveTypeBarForRdw();
+
   // Reset form
   // mExitDest used to be left out of this list — after two EXITs in a row the
   // destination box would silently still hold the FIRST one's value, which is
@@ -5828,12 +5965,12 @@ function _matLineTpl(n){
     '<div class="mat-line-grid">' +
       '<div class="field">' +
         '<label class="mat-line-lbl-sm">Category</label>' +
-        '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ')">' + catOpts + '</select>' + _catHelperHtml() +
+        '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ');_checkPriceChange(' + n + ')">' + catOpts + '</select>' + _catHelperHtml() +
       '</div>' +
       '<div class="field" style="grid-column:span 1;position:relative">' +
         '<label class="mat-line-lbl-sm">Name / Description</label>' +
         '<input type="text" id="mat-name-' + n + '" placeholder="Type material name..." autocomplete="off"' +
-        ' oninput="_checkIncomingSuggest(' + n + ', this)">' +
+        ' oninput="_checkIncomingSuggest(' + n + ', this);_checkPriceChange(' + n + ')">' +
         '<div class="inc-suggest-box" id="inc-suggest-' + n + '" style="display:none"></div>' +
       '</div>' +
       '<div class="field">' +
@@ -5849,9 +5986,11 @@ function _matLineTpl(n){
       (_canSeeCosts() ?
       '<div class="field">' +
         '<label class="mat-line-lbl-sm">Unit Cost <span style="text-transform:none;opacity:.7">(optional)</span></label>' +
-        '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00">' +
+        '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00" oninput="_checkPriceChange(' + n + ')">' +
       '</div>' : '') +
     '</div>' +
+    (_canSeeCosts() ?
+      '<div class="mat-cost-alert" id="mat-cost-alert-' + n + '" style="display:none"></div>' : '') +
     '<div class="mat-loc-box">' +
       '<div style="display:flex;gap:.4rem;margin-bottom:.25rem">' +
         '<span style="flex:2;font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase">Rack / Location</span>' +
@@ -6028,6 +6167,40 @@ function _stockMatchesFor(typed, cat){
     .slice(0, 5);
 }
 
+// "This supplier charged 18% more than last time" — cheap to compute (the
+// average is already sitting in config.avgCost, sent on every load) and
+// exactly the kind of thing that otherwise only shows up weeks later, once
+// someone happens to eyeball a report. Flags BOTH directions — a price drop
+// worth knowing about too, not just increases — even though Jose's own
+// example was an increase.
+var PRICE_CHANGE_ALERT_PCT = 15;
+
+function _checkPriceChange(n){
+  var alertEl = document.getElementById('mat-cost-alert-' + n);
+  if (!alertEl) return;   // canSeeCosts is off — the field, and this alert, don't exist
+  var costEl = document.getElementById('mat-cost-' + n);
+  var catEl  = document.getElementById('mat-cat-' + n);
+  var nameEl = document.getElementById('mat-name-' + n);
+  if (!costEl || !catEl || !nameEl) return;
+
+  var cost = parseFloat(costEl.value);
+  var name = (nameEl.value || '').trim();
+  if (!name || isNaN(cost) || cost <= 0) { alertEl.style.display = 'none'; return; }
+
+  var matId = _normKey(catEl.value) + '|||' + _normKey(name);
+  var prior = config.avgCost && config.avgCost[matId];
+  if (!prior || !prior.avg) { alertEl.style.display = 'none'; return; }   // nothing to compare against yet
+
+  var pctChange = ((cost - prior.avg) / prior.avg) * 100;
+  if (Math.abs(pctChange) < PRICE_CHANGE_ALERT_PCT) { alertEl.style.display = 'none'; return; }
+
+  var higher = pctChange > 0;
+  alertEl.className = 'mat-cost-alert ' + (higher ? 'warn' : 'info');
+  alertEl.innerHTML = (higher ? '⚠️ ' : 'ℹ️ ') + Math.abs(Math.round(pctChange)) + '% ' + (higher ? 'higher' : 'lower') +
+    ' than the average on record ($' + prior.avg.toFixed(2) + ' → $' + cost.toFixed(2) + ')';
+  alertEl.style.display = '';
+}
+
 function _checkIncomingSuggest(n, inputEl){
   var typed = (inputEl.value || '').trim().toLowerCase();
   var box = document.getElementById('inc-suggest-' + n);
@@ -6092,6 +6265,7 @@ function _clickStockMatchSuggest(el) {
   if (nameEl) nameEl.value = name;
   var box = document.getElementById('inc-suggest-' + n);
   if (box) box.style.display = 'none';
+  _checkPriceChange(n);   // programmatic value, so oninput never fired on its own
 }
 
 // Safe bridge: reads data-n and data-inc-id from the clicked element
@@ -6131,6 +6305,7 @@ function _applyIncomingSuggest(n, incId){
   // Hide box
   var box = document.getElementById('inc-suggest-' + n);
   if (box) box.style.display = 'none';
+  _checkPriceChange(n);   // programmatic value, so oninput never fired on its own
 }
 
 // Fill shared ENTRY form fields from any data source (only overwrites empty fields)
@@ -7146,6 +7321,11 @@ function _renderSystemTab() {
   // The scheduled jobs already ran and already logged; this is the first place
   // the app has ever shown it. Answers "is this thing actually backing up?"
   // without anyone having to open the Sheet and read AUDIT_LOG by hand.
+  //
+  // Deliberately NOT filtered by `dismissed`, unlike the corner deck. Pressing
+  // ✕ on a backup notice means "I have read this", not "this never happened" —
+  // conflating the two is what emptied this list out and made it claim nothing
+  // automatic had ever run, directly above a "Last backup: today" line.
   var actHtml = (systemActivity && systemActivity.length)
     ? '<ul class="sysact-list">' + systemActivity.map(function(a){
         return '<li id="sysact-' + _he(_sysActId(a)) + '"><span class="sysact-dot">✓</span>' +
@@ -9946,6 +10126,7 @@ window.addEventListener('resize', function(){
     if (panel) panel.classList.remove('show');
   }
 });
+window.addEventListener('resize', _debounce(_syncBrandWidth, 150));
 
 function toggleCfgBell(e){
   if (e) e.stopPropagation();
@@ -10366,12 +10547,59 @@ function _toggleRdwActions(idx){
 // and source rack already filled in — only qty, destination and comments are
 // left for the user to type, per Jose's spec: tap a material in the rack
 // drawer instead of retyping what the app already knows.
+//
+// Set for the life of that one material's modal session: which material this
+// modal is about, so switching between EXIT/TRANSFER/WASTE inside the SAME
+// open modal (the type bar at the top) can re-apply the same prefill instead
+// of losing it — those three types keep completely separate fields
+// (exit-cat-1/exit-name-1 for EXIT, the shared mType/mName for TRANSFER and
+// WASTE), so switching between them with no data to carry over meant the
+// second type just showed empty. openMoveModal() clears this back to null on
+// every fresh, non-Rack-Drawer open.
+var _rdwPrefillActive = null;
+
 function _rdwMoveFromDrawer(type, idx){
   var item = _rdwItems[idx];
   if (!item) return;
   closeRackDrawer();
   openMoveModal(type);
-  setTimeout(function(){ _prefillMoveModalMaterial(type, item.category, item.name, item.rack); }, 300);
+  // Same synchronous tick, not a setTimeout — openMoveModal's own
+  // setModalType() already finishes building every field it needs
+  // (exit-cat-1, mType, the transfer rows...) before it returns, so there is
+  // nothing left to wait for. The old delay was long enough that the type
+  // bar visibly showed all 5 buttons for a moment before narrowing to 3 —
+  // restricting it here instead, before the browser ever paints the modal,
+  // is what actually fixes that flash.
+  _rdwPrefillActive = { category: item.category, name: item.name, rack: item.rack };
+  _syncMoveTypeBarForRdw();
+  _prefillMoveModalMaterial(type, item.category, item.name, item.rack);
+}
+
+// A material tapped from a specific rack only ever makes sense leaving that
+// rack (EXIT), moving from it (TRANSFER), or being written off from it
+// (WASTE) — ENTRY (new stock in) and RETURN (coming back from a site, not a
+// rack) don't have a "from this exact rack+material" reading at all, so they
+// stay hidden while a Rack Drawer material is active instead of being two
+// dead ends that also happened to wipe the prefill if clicked.
+function _syncMoveTypeBarForRdw(){
+  var bar = document.getElementById('moveTypeBar');
+  if (!bar) return;
+  var restrict = !!_rdwPrefillActive;
+  bar.querySelectorAll('button').forEach(function(b){
+    var t = b.getAttribute('data-type');
+    b.style.display = (restrict && (t === 'ENTRY' || t === 'RETURN')) ? 'none' : '';
+  });
+}
+
+// Every click on the modal's own type bar (Entry/Exit/Transfer/Return/Waste)
+// goes through here instead of calling setModalType directly, so a Rack
+// Drawer material session survives switching between its three allowed
+// types instead of the second type opening blank.
+function _moveTypeBarClick(type){
+  setModalType(type);
+  if (_rdwPrefillActive) {
+    _prefillMoveModalMaterial(type, _rdwPrefillActive.category, _rdwPrefillActive.name, _rdwPrefillActive.rack);
+  }
 }
 
 function _prefillMoveModalMaterial(type, cat, name, rack){
@@ -12338,8 +12566,14 @@ function _dismissSysCard(id){
 // backup a day that is a month of ignoring it, which is long enough to mean
 // nobody was ever going to read it.
 function _announceSystemActivity(){
+  // a.dismissed is the server's answer (this person pressed ✕ on a previous
+  // load); _sysDismissedNow is the same-session mirror so a card just
+  // dismissed cannot flicker back before the next load. The deck wants
+  // neither — Settings → System, which reads the same list, deliberately
+  // shows both (see _renderSystemTab): a notice is something you dismiss,
+  // a maintenance record is not.
   _sysCards = (systemActivity || []).filter(function(a){
-    return a.at && !_sysDismissedNow[a.at + '|' + a.action];
+    return a.at && !a.dismissed && !_sysDismissedNow[a.at + '|' + a.action];
   }).map(function(a){
     return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
@@ -12586,6 +12820,11 @@ document.addEventListener('DOMContentLoaded', function(){
   // First thing, before any window can be opened: nothing behind an open
   // window may be clicked, tabbed into or scrolled.
   _initModalShield();
+
+  // Before the real company name arrives, so the header-merge decision
+  // (see _syncBrandWidth) already has something to measure instead of
+  // defaulting to "not merged" for the first paint.
+  _syncBrandWidth();
 
   // Nav
   _safeOn('btn-dashboard','click', function(){ showTab('dashboard','btn-dashboard'); });
@@ -13253,11 +13492,15 @@ document.addEventListener('visibilitychange', function(){
 });
 
 // ── Version tag — set by JS so we can confirm script is running ───────────────
+// Its real job was always the failure canary: "JS NOT LOADED" stays on
+// screen, in alarming red, for as long as this code never runs at all — that
+// part is untouched. Once it DOES run, the version number used to replace
+// that text in the topbar; Jose asked for it out of there (it's one click
+// away in the account menu — see acctFoot) rather than shown twice.
 (function(){
   var t = document.getElementById('jsVersionTag');
   if (!t) return;
-  t.textContent = 'v' + APP_VERSION;
-  t.className = 'ver-tag';       // the alarm styling was only for "never ran"
+  t.style.display = 'none';
 })();
 
 // A JavaScript error anywhere in the first render used to leave the splash up
