@@ -828,6 +828,16 @@
     .morning-item:last-child{border-bottom:none}
     .morning-item-name{font-weight:600}
     .morning-item-meta{color:var(--muted);font-size:.75rem}
+    /* Status and the shortcut stack on the right, so a long material name
+       cannot squeeze the button down to nothing. */
+    .morning-item-right{display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0;margin-left:.5rem}
+    .morning-arrived{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;
+      padding:.2rem .5rem;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
+    .morning-arrived:hover{background:var(--accent);color:#fff}
+    /* Briefly marks the one field a shortcut just changed on the reader's
+       behalf, so nothing is altered invisibly. */
+    @keyframes field-flag{0%{box-shadow:0 0 0 3px rgba(59,130,246,.45)}100%{box-shadow:0 0 0 3px rgba(59,130,246,0)}}
+    .field-flagged{animation:field-flag 2.6s ease-out both;border-color:var(--accent)!important}
     .morning-popup-footer{padding:.75rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
     /* ── MONITOR MODAL ── */
     /* Outer container: the ONLY scrollbar is vertical — overflow-x:hidden is the
@@ -2621,7 +2631,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.93';
+var APP_VERSION = '9.94';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8868,6 +8878,8 @@ document.addEventListener('focusin', function(e){
       openRackDrawer(el.getAttribute('data-rack'));
     } else if (a === 'edit-incoming') {
       openIncomingModal(el.getAttribute('data-id'));
+    } else if (a === 'morning-arrived') {
+      _markArrivedFromPopup(el.getAttribute('data-id'));
     } else if (a === 'edit-user') {
       editUser(el.getAttribute('data-email'));
     } else if (a === 'deact-user') {
@@ -11811,7 +11823,13 @@ function showMorningPopup(items, todayStr) {
   var todayItems = items.filter(function(i){ return _incOnDay(i, todayStr); });
   var restItems  = items.filter(function(i){ return !_incOnDay(i, todayStr); });
 
+  // Same rule as the Incoming table's own edit pencil (_incRowHtml): only an
+  // ADMIN gets to change an expected delivery, so only an ADMIN is offered the
+  // shortcut to it. Anything already marked Arrived has nothing left to do.
+  var canMarkArrived = (userRole === 'ADMIN');
+
   function itemRow(item) {
+    var done = String(item.status || '').toLowerCase() === 'arrived';
     return '<div class="morning-item">' +
       '<div style="flex:1;min-width:0">' +
         '<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.15rem">' +
@@ -11823,7 +11841,12 @@ function showMorningPopup(items, todayStr) {
           (item.notes ? _he(item.notes) : '') +
         '</div>' +
       '</div>' +
-      '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '" style="flex-shrink:0;margin-left:.5rem">' + (item.status||'Pending') + '</span>' +
+      '<div class="morning-item-right">' +
+        '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>' +
+        (canMarkArrived && !done
+          ? '<button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button>'
+          : '') +
+      '</div>' +
     '</div>';
   }
 
@@ -11843,6 +11866,33 @@ function showMorningPopup(items, todayStr) {
   var noShowLbl = document.getElementById('noShowTodayLabel');
   if (noShowLbl) noShowLbl.style.display = (userRole === 'ADMIN') ? 'flex' : 'none';
   document.getElementById('morningOverlay').classList.add('show');
+}
+
+// "Mark arrived →" on a morning-popup card. Jose: from the card, go straight
+// to the exact place where you record that it turned up — which is the
+// Incoming item's own edit window, since that is where Status lives.
+//
+// It does NOT save on its own. Status is pre-selected as Arrived and the
+// field is flagged so it is obvious what changed, but the person still
+// presses Save — a delivery marked received by one stray tap, with nobody
+// having looked at it, is worse than one extra click.
+function _markArrivedFromPopup(id){
+  if (userRole !== 'ADMIN') return;              // same gate as the button itself
+  var item = incoming.find(function(i){ return i.id === id; });
+  if (!item) { showToast('That expected delivery is no longer on the list.', 'warn'); return; }
+  closeMorningPopup();
+  // The Incoming tab has to be the one on screen behind the modal: closing the
+  // window and landing on the Dashboard would leave no trace of what just
+  // happened.
+  showTab('incoming', 'btn-incoming');
+  openIncomingModal(id);
+  var sel = document.getElementById('incStatus');
+  if (sel){
+    sel.value = 'Arrived';
+    sel.classList.add('field-flagged');
+    sel.focus();
+    setTimeout(function(){ sel.classList.remove('field-flagged'); }, 2600);
+  }
 }
 
 function closeMorningPopup() {
