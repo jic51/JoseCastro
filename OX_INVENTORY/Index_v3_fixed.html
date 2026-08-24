@@ -75,7 +75,16 @@
     .brand-mark{display:flex;flex-direction:column;align-items:center;gap:2px}
     .ver-tag{font-size:.55rem;font-weight:700;letter-spacing:.05em;line-height:1;color:rgba(255,255,255,.4)}
     .ver-bad{color:#fff;background:rgba(255,0,0,.55);border-radius:4px;padding:2px 6px;font-size:.62rem}
-    .topbar h1{color:#fff;font-size:1.1rem;font-weight:700}
+    /* The customer's name, set apart from the interface around it. Everything
+       else on this page is Inter; this is the one string that belongs to THEM,
+       and a different face is what makes it read as a name rather than another
+       label. A system stack rather than a webfont on purpose — a warehouse app
+       should not wait on fonts.googleapis.com to render its own header, and a
+       font that fails to load would leave the one line that matters looking
+       like a fallback. Optical sizing, not decoration: slightly tighter
+       tracking and a touch more weight than the UI text. */
+    .topbar h1{color:#fff;font-size:1.12rem;font-weight:600;letter-spacing:.01em;
+      font-family:"Trebuchet MS","Lucida Grande","Segoe UI",Candara,Optima,sans-serif}
     .topbar-brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     /* A framed light card, not the raw upload floating on navy — most
        logos customers upload have a white or light background of their own,
@@ -83,13 +92,24 @@
        Framing it neutrally is what the wizard's own logo preview and the
        Company tab's preview box already do; the header/splash were the two
        spots that still showed the raw image. */
-    .app-logo{height:24px;max-width:150px;object-fit:contain;border-radius:4px;flex-shrink:0;
-      background:#F3F4F6;padding:4px 7px;box-sizing:content-box}
+    /* A logo cannot be fitted by height alone. A fixed 24px height is right for
+       a wide wordmark and turns a tall or square mark into an 8px smudge —
+       every customer uploads a different shape and the box has to follow the
+       shape, not the other way round. _fitAppLogo (JS) measures the image the
+       moment it loads and adds one of the three classes below; the base rule
+       is the wide case, since that is what most company logos are. */
+    .app-logo{max-height:26px;max-width:170px;width:auto;height:auto;object-fit:contain;
+      border-radius:4px;flex-shrink:0;background:#F3F4F6;padding:4px 7px;box-sizing:content-box}
+    .app-logo.logo-square{max-height:36px;max-width:36px}
+    .app-logo.logo-tall{max-height:44px;max-width:34px}
     .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}
     .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem clamp(.4rem,1.5vw,1rem);border-radius:6px;font-size:clamp(.68rem,1.2vw,.8rem);font-weight:600;transition:.2s;white-space:nowrap}
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
     .nav button.active{background:var(--accent);color:#fff}
-    .author-badge{background:rgba(0,0,0,.2);padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.7rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
+    /* Trimmed from 4px/.7rem: this badge is the bottom of the brand stack, so
+       every pixel it loses is a pixel of clearance from the blue edge it was
+       crossing. It is a signature, not a heading — smaller suits it anyway. */
+    .author-badge{background:rgba(0,0,0,.2);padding:3px 9px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.66rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
     /* Left-aligned identity stack — logo, company name, the Acopio badge
        right under it, tight. Jose: this reads as a lockup, not three
        separate things scattered in a row, and (v9.89, emphatic) Acopio has
@@ -122,7 +142,16 @@
          brand's tallest case (logo + name + Acopio stacked) since it no
          longer contributes to the topbar's own flow height once it's out
          of flow. */
-      .topbar.merged{position:relative;min-height:74px;gap:.4rem 1.25rem}
+      /* The 74px was a guess that held only while the logo was a fixed 26px.
+         Now that the logo box follows its own shape, the stack can be 44px of
+         logo plus the name plus the Acopio badge — taller than 74px — and a
+         block that is centred inside a box smaller than itself overflows at
+         BOTH ends: the logo touched the browser chrome and the Acopio badge
+         crossed the blue edge into the white. That is what Jose photographed.
+         --brand-h is measured by _syncBrandWidth from the real block, so the
+         bar fits whatever this customer's logo turned out to be, plus room to
+         breathe above and below. */
+      .topbar.merged{position:relative;min-height:max(78px, calc(var(--brand-h, 60px) + 26px));gap:.4rem 1.25rem}
       .topbar.merged .topbar-row1{position:absolute;left:1.5rem;top:50%;transform:translateY(-50%);z-index:1}
       /* row2 itself stays full-width (unpadded) so its centring math is
          still exactly "middle of the page" — the fix isn't in row2's box,
@@ -2643,7 +2672,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.1';
+var APP_VERSION = '11.2';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2655,7 +2684,7 @@ var APP_VERSION = '11.1';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'ee7a589a';
+var APP_BUILD = 'a4d2df73';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3993,6 +4022,34 @@ function _dismissNudge(){
   _nudgeQuietFor(_NUDGE_WEEK, null);     // "Later" is the one that buys a week
 }
 
+// A logo cannot be fitted by height alone, and every customer uploads a
+// different shape. A wide wordmark wants to be short and long; a square mark at
+// the same height reads as a stamp; a tall one at 26px is an unreadable smudge.
+//
+// So the box follows the shape. Measured from the image itself once it has
+// decoded — naturalWidth/naturalHeight are 0 before that, which is why this
+// waits rather than reading them straight away.
+//
+// The thresholds are deliberately loose: 1.6 and 0.85 leave a wide middle band
+// that gets the square treatment, because a logo that is only slightly wider
+// than it is tall looks wrong stretched along a wide box.
+function _fitAppLogo(img){
+  if (!img) return;
+  function apply(){
+    var w = img.naturalWidth, h = img.naturalHeight;
+    img.classList.remove('logo-square', 'logo-tall');
+    if (w && h){
+      var ratio = w / h;
+      if (ratio < 0.85)      img.classList.add('logo-tall');
+      else if (ratio <= 1.6) img.classList.add('logo-square');
+      // wider than 1.6 keeps the base rule, which is the wide case
+    }
+    _syncBrandWidth();   // the class just changed how much room brand needs
+  }
+  if (img.complete && img.naturalWidth) apply();
+  else img.addEventListener('load', apply, { once: true });
+}
+
 // Paints the customer's own identity over the app. Called on every load, and
 // again right after setup, so nothing anywhere says "OX Glass" to someone else.
 function applyCompanyBranding(c){
@@ -4030,6 +4087,7 @@ function applyCompanyBranding(c){
       logo.src = dataUrl;
       logo.alt = name || '';
       logo.style.display = '';
+      _fitAppLogo(logo);
       _setFavicon(dataUrl);
       // Kept for the next load's splash. Anything big enough to be worth
       // worrying about is left out: a logo that does not fit is simply not
@@ -4075,7 +4133,14 @@ function _syncBrandWidth(){
   var brandEl = document.querySelector('.topbar-brand');
   var topbarEl = document.querySelector('.topbar');
   if (!brandEl || !topbarEl) return;
-  document.documentElement.style.setProperty('--brand-w', brandEl.getBoundingClientRect().width + 'px');
+  var box = brandEl.getBoundingClientRect();
+  document.documentElement.style.setProperty('--brand-w', box.width + 'px');
+  // Height as well as width, and for the same reason: the merged bar reserves
+  // room for a block that is out of flow, so it cannot discover that height by
+  // itself. A hardcoded reserve was right until the logo box started following
+  // the logo's shape; now a tall logo makes this stack taller than any fixed
+  // number, and a centred block inside too small a box spills out of both ends.
+  document.documentElement.style.setProperty('--brand-h', box.height + 'px');
 
   if (window.innerWidth < 769) { topbarEl.classList.remove('merged'); return; }
   topbarEl.classList.add('merged');
