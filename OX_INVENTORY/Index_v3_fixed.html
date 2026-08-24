@@ -2672,7 +2672,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.2';
+var APP_VERSION = '11.4';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2684,7 +2684,7 @@ var APP_VERSION = '11.2';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a4d2df73';
+var APP_BUILD = '35870a4d';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6375,13 +6375,21 @@ function _checkIncomingSuggest(n, inputEl){
   _positionSuggestBox(box, inputEl);
 }
 
-// Safe bridge for a stock-match click: just fills the name (and category, if
-// empty) — informational only, the user still picks the destination rack.
+// Picking a material out of "📦 Already In Stock" used to fill the NAME and
+// nothing else — the person then retyped the supplier, the GC, the PO and the
+// project that the app already knew from the last time that exact material came
+// in. It is the same material from the same supplier; making somebody type it
+// again is the app forgetting on purpose.
+//
+// The destination rack is still theirs to choose, and nothing already typed is
+// touched. What gets filled is only what is blank.
 function _clickStockMatchSuggest(el) {
   var n    = parseInt(el.getAttribute('data-n'), 10);
   var name = el.getAttribute('data-stock-name');
   var nameEl = document.getElementById('mat-name-' + n);
   if (nameEl) nameEl.value = name;
+  var catEl = document.getElementById('mat-cat-' + n);
+  _fillSharedFromHistory(name, (catEl || {}).value || '', n);
   var box = document.getElementById('inc-suggest-' + n);
   if (box) box.style.display = 'none';
   _checkPriceChange(n);   // programmatic value, so oninput never fired on its own
@@ -6414,12 +6422,14 @@ function _applyIncomingSuggest(n, incId){
     syncMatLineQty(n);
   }
 
-  // ── Shared form fields (fill if empty) ──
+  // ── Supplier / project / GC / PO / PM (fill if empty) ──
+  // `n` matters: with "All materials share the same…" unticked these have to
+  // land on THIS line's own fields, not the hidden shared ones.
   _fillSharedFromData({ supplier: item.supplier, project: item.project,
-                        gc: item.gc, po: item.po, pm: item.pm });
+                        gc: item.gc, po: item.po, pm: item.pm }, n);
 
   // Also try to fill from movement history for fields incoming doesn't have
-  _fillSharedFromHistory(item.name, item.category);
+  _fillSharedFromHistory(item.name, item.category, n);
 
   // Hide box
   var box = document.getElementById('inc-suggest-' + n);
@@ -6427,19 +6437,47 @@ function _applyIncomingSuggest(n, incId){
   _checkPriceChange(n);   // programmatic value, so oninput never fired on its own
 }
 
-// Fill shared ENTRY form fields from any data source (only overwrites empty fields)
-function _fillSharedFromData(d) {
-  var map = { mSup: d.supplier, mProj: d.project, mGC: d.gc, mPO: d.po, mPM: d.pm };
+// Fill the ENTRY form's supplier / project / GC / PO / PM from any source, only
+// ever into fields the person has left empty.
+//
+// WHICH fields those are depends on the "All materials share the same…"
+// checkbox, and that is the bug Jose found. Ticked, one shared set at the
+// bottom of the form serves every line. UNTICKED, each material line grows its
+// own copy with different ids — and this function only ever knew the shared
+// ones, so picking an existing material filled nothing at all. The autofill
+// looked broken when what was actually happening is that it was writing into
+// five boxes that were hidden at the time.
+//
+// `n` is the material line that was just filled in. Passing it is what lets
+// this reach the right line's own fields; without it there is no way to tell
+// which of five lines the person is working on.
+function _fillSharedFromData(d, n) {
+  var shared = { mSup: d.supplier, mProj: d.project, mGC: d.gc, mPO: d.po, mPM: d.pm };
+  var perLine = {
+    'mat-sup-':  d.supplier, 'mat-proj-': d.project,
+    'mat-gc-':   d.gc,       'mat-po-':   d.po,   'mat-pm-': d.pm
+  };
+  var chk = document.getElementById('mSameEntryInfoChk');
+  var same = !chk || chk.checked;
+
+  var map = {};
+  if (same) map = shared;
+  else if (n !== undefined && n !== null) {
+    Object.keys(perLine).forEach(function(prefix){ map[prefix + n] = perLine[prefix]; });
+  }
+
   Object.keys(map).forEach(function(id) {
     var val = map[id];
     if (!val) return;
     var el = document.getElementById(id);
+    // Never overwrite something a person typed. Autofill is a shortcut, not an
+    // opinion about what they meant.
     if (el && !el.value) el.value = val;
   });
 }
 
 // Look up the most recent movement for this material and auto-fill shared fields
-function _fillSharedFromHistory(name, category) {
+function _fillSharedFromHistory(name, category, n) {
   if (!name) return;
   var nameUp = name.trim().toUpperCase();
   var catNt  = nt(category || '');
@@ -6448,7 +6486,7 @@ function _fillSharedFromHistory(name, category) {
     var m = movements[i];
     if (m.name.toUpperCase() === nameUp && (!catNt || nt(m.category) === catNt)) {
       _fillSharedFromData({ supplier: m.supplier, project: m.project !== 'GENERIC' ? m.project : '',
-                            gc: m.gc, po: m.po, pm: m.pm });
+                            gc: m.gc, po: m.po, pm: m.pm }, n);
       return; // only use the most recent
     }
   }

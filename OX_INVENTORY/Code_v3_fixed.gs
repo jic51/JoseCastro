@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.2';
+var APP_VERSION = '11.4';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.2';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a4d2df73';
+var APP_BUILD = '35870a4d';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -838,6 +838,47 @@ function geminiModels_() {
 
 function geminiUrl_(model, apiKey) {
   return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+}
+
+// Google's own wording, turned into something a warehouse manager can act on.
+//
+// "Gemini API error 503: This model is currently experiencing high demand" is
+// accurate and useless: it names a system the reader has never heard of, and
+// says nothing about whether they did something wrong, whether it will fix
+// itself, or what to do in the meantime. Jose hit exactly that and had to ask
+// what it meant — which is the definition of a bad error message.
+//
+// Every case below answers the same three questions: is it me, will it pass,
+// and what do I do now. And every one of them says the work can still be done
+// by hand, because it can, and nobody should be left staring at a dead screen
+// waiting for Google.
+function geminiErrorText_(code, googleMessage) {
+  if (code === 503 || code === 429) {
+    return 'The AI reader is busy right now — this is on Google\'s side, not yours, ' +
+           'and nothing was lost.\n\n' +
+           'It usually clears in a few minutes. Try again shortly, or just type the ' +
+           'details in by hand.\n\n' +
+           (code === 429
+             ? 'If it keeps happening, you are hitting the limits of a free Google AI key. ' +
+               'Adding billing to that key in Google AI Studio raises them.'
+             : 'Free Google AI keys are served after paying ones, so this happens more ' +
+               'often on a free key. Adding billing to it in Google AI Studio makes it rarer.') +
+           '\n\n(Google said: ' + googleMessage + ')';
+  }
+  if (code === 400 || code === 403) {
+    return 'Google would not accept the AI key on this system.\n\n' +
+           'Usually the key was copied incompletely, or the "Generative Language API" ' +
+           'is not switched on for the Google project it belongs to. An admin can ' +
+           'replace it in Settings → System → Document reader.\n\n' +
+           '(Google said: ' + googleMessage + ')';
+  }
+  if (code >= 500) {
+    return 'Google\'s AI service had a problem. Nothing was lost and nothing is wrong ' +
+           'with your data — try again in a few minutes, or enter the details by hand.\n\n' +
+           '(Google said: ' + googleMessage + ')';
+  }
+  return 'The AI reader could not finish (error ' + code + '). You can still enter the ' +
+         'details by hand.\n\n(Google said: ' + googleMessage + ')';
 }
 
 // ─── THE AI KEY, SET FROM INSIDE THE APP ────────────────────────────────────
@@ -5566,7 +5607,22 @@ function onEdit(e) {
     var sh = e.range.getSheet();
     if (sh.getName() !== START_HERE_SHEET) return;
     if (e.range.getA1Notation() !== TERMS_CHECKBOX_CELL) return;
-    if (e.range.getValue() !== true) return;
+
+    // Un-ticking has to undo what ticking wrote. It used to only handle the
+    // TRUE case, so clearing the box left "Accepted 8/24/2026, 2:30:03 PM" and
+    // the next-step line sitting there — a sheet claiming someone accepted
+    // terms they had just visibly declined. On a page whose entire job is
+    // recording consent, that is the one thing it must not get wrong.
+    if (e.range.getValue() !== true) {
+      sh.getRange(TERMS_STAMP_CELL).clearContent();
+      // Back to the grey prompt rather than an empty panel — the line explains
+      // what the box is for, and someone who unticked it is exactly the person
+      // who needs that sentence again.
+      sh.getRange(TERMS_NEXT_CELL)
+        .setValue(TERMS_PROMPT)
+        .setFontWeight('normal').setFontColor(SH_MUTED);
+      return;
+    }
 
     sh.getRange(TERMS_STAMP_CELL).setValue('Accepted ' + new Date().toLocaleString());
     sh.getRange(TERMS_NEXT_CELL)
@@ -5591,6 +5647,10 @@ var TERMS_CHECKBOX_CELL = 'B14';
 var TERMS_LABEL_CELL    = 'C14';
 var TERMS_STAMP_CELL    = 'C15';
 var TERMS_NEXT_CELL     = 'C16';
+// One constant for the grey prompt, because it is written in two places now —
+// when the panel is first drawn, and again when somebody unticks the box. Two
+// copies of the same sentence is how they drift apart.
+var TERMS_PROMPT = 'Tick the box above to continue.';
 
 // Google's own colours are the only ones a spreadsheet can be styled with, so
 // this borrows the app's palette rather than inventing a second one.
@@ -5675,7 +5735,7 @@ function createStartHereSheet_(ss) {
   // as a grey prompt so somebody who never ticks the box still sees what the
   // box is for.
   sh.setRowHeight(16, 32);
-  put(TERMS_NEXT_CELL, 'Tick the box above to continue.',
+  put(TERMS_NEXT_CELL, TERMS_PROMPT,
       { size: 11, color: SH_MUTED, bg: '#EFF4FB', wrap: true });
   sh.setRowHeight(17, 8);
 
@@ -8197,7 +8257,7 @@ function extractDocumentInfo(fileData, mimeType, sessionToken) {
   if (code !== 200) {
     var errObj = {};
     try { errObj = JSON.parse(body); } catch(e) {}
-    throw new Error('Gemini API error ' + code + ': ' + (errObj.error ? errObj.error.message : body.substring(0, 200)));
+    throw new Error(geminiErrorText_(code, errObj.error ? errObj.error.message : body.substring(0, 200)));
   }
 
   var result = JSON.parse(body);
