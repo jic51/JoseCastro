@@ -1270,6 +1270,18 @@
     .sim-group:last-child{margin-bottom:0}
     .sim-opt{display:flex;align-items:center;gap:.45rem;font-size:.8rem;color:var(--text);padding:.15rem 0;cursor:pointer}
     .sim-acts{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+    /* Storage bar. The percentage sits ON the bar rather than beside it, so
+       the one number that matters is where the eye already is. Centred over
+       the whole track, not over the filled part, so it stays readable at 2%
+       and at 98% alike. */
+    .space-bar{position:relative;height:22px;border-radius:11px;background:var(--bg);
+               border:1px solid var(--border);overflow:hidden}
+    .space-bar-fill{position:absolute;inset:0 auto 0 0;transition:width .5s ease}
+    .space-bar-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                   font-size:.72rem;font-weight:700;color:var(--text);
+                   /* The label crosses both the filled and empty halves, so it
+                      needs to stay legible against either. */
+                   text-shadow:0 0 3px var(--card),0 0 3px var(--card),0 0 2px var(--card)}
     .sysact-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
     .sysact-list li{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;font-size:.78rem}
     .sysact-dot{color:var(--green);font-weight:800}
@@ -2631,7 +2643,19 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '9.94';
+var APP_VERSION = '10.9';
+// Build fingerprint — a short hash of the two shipped files, written by
+// tools/build-fingerprint.js and shown next to the version in the app.
+//
+// It DETECTS drift, it does not prevent it. Nothing inside a copy running in
+// the customer's own account can stop them editing it. What this buys: it
+// tells "they are behind" apart from "they changed it", it lets Jose ask
+// "what does your footer say?" instead of asking for the file, and it makes
+// concealing an edit a deliberate act rather than an accident — which is the
+// part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
+//
+// Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
+var APP_BUILD = '98fe9346';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7339,16 +7363,21 @@ function _movRowIndexAt(i){ return _movRenderedRows[i]; }
 function _renderSystemTab() {
   var content = document.getElementById('settingsTabContent');
   var months = String((_settingsData && _settingsData.archiveCutoffMonths) || 12);
-  // The scheduled jobs already ran and already logged; this is the first place
-  // the app has ever shown it. Answers "is this thing actually backing up?"
-  // without anyone having to open the Sheet and read AUDIT_LOG by hand.
+  // Everything the app did on its own EXCEPT backups. Backups have their own
+  // section below, built from the Drive folder itself, and listing them twice
+  // was worse than pointless: this copy is the unreliable one — read from
+  // AUDIT_LOG, whose readable tail a busy install scrolls past in under a
+  // day, and which keeps advertising backups the customer has since deleted
+  // with links that land on Drive's "unable to open the file". Jose asked why
+  // there were two areas showing the same thing; this is the answer.
   //
   // Deliberately NOT filtered by `dismissed`, unlike the corner deck. Pressing
-  // ✕ on a backup notice means "I have read this", not "this never happened" —
+  // ✕ on a notice means "I have read this", not "this never happened" —
   // conflating the two is what emptied this list out and made it claim nothing
   // automatic had ever run, directly above a "Last backup: today" line.
-  var actHtml = (systemActivity && systemActivity.length)
-    ? '<ul class="sysact-list">' + systemActivity.map(function(a){
+  var sysActs = (systemActivity || []).filter(function(a){ return a.action !== 'BACKUP_CREATED'; });
+  var actHtml = (sysActs.length)
+    ? '<ul class="sysact-list">' + sysActs.map(function(a){
         return '<li id="sysact-' + _he(_sysActId(a)) + '"><span class="sysact-dot">✓</span>' +
           '<span class="sysact-label">' + _he(a.label) + '</span>' +
           '<span class="sysact-when">' + _he(_fmtWhen(a.at)) + '</span>' +
@@ -7356,8 +7385,11 @@ function _renderSystemTab() {
           _sysActRefHtml(a) +
         '</li>';
       }).join('') + '</ul>'
-    : '<p style="font-size:.78rem;color:var(--muted)">Nothing automatic has run yet. Switch the nightly backup on below ' +
-      'and the first one runs tonight at 2am.</p>';
+    // No longer mentions backups: they are not counted here any more, so
+    // "nothing has run" next to a nightly backup that plainly did run would
+    // be the same contradiction in a new place.
+    : '<p style="font-size:.78rem;color:var(--muted)">Nothing so far. Repairs the app makes on its own — ' +
+      'a movement re-linked to the right material, an archive run — get listed here. Backups have their own section below.</p>';
 
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">System-wide maintenance — not specific to any one category.</p>' +
@@ -7380,6 +7412,18 @@ function _renderSystemTab() {
       '<label>Backups</label>' +
       '<div id="backupBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
     '</div>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Storage ' +
+        _infoIc('Google caps a spreadsheet at 10 million cells across all its tabs. This is how much of that your file uses.') +
+      '</label>' +
+      '<div id="spaceBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Measuring…</div>' +
+    '</div>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Document reader (AI) ' +
+        _infoIc('Reads a pasted supplier email and pulls out what is arriving, how much and when. It runs on your own Google AI key — Google bills the usage to you, not to us.') +
+      '</label>' +
+      '<div id="aiBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
+    '</div>' +
     '<div class="field">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Stock totals ' +
         _infoIc('Recalculates every stock total from the current movement history. Use this if a deleted or edited movement left stale numbers behind.') +
@@ -7390,6 +7434,188 @@ function _renderSystemTab() {
     '</div>';
 
   _loadBackupStatus();
+  _loadSpaceUsage();
+  _loadAiStatus();
+}
+
+// ── The AI key, set from inside the app ─────────────────────────────────────
+// Until now the only way to switch the document reader on was to open the Apps
+// Script editor and add a Script Property with the exact right name. That is a
+// developer's instruction printed inside a warehouse app, and it is why the
+// feature was off everywhere it shipped.
+//
+// The key itself never comes back from the server — only whether one exists
+// and its last four characters, which is enough to recognise which key you
+// pasted and useless to anybody else.
+function _loadAiStatus(){
+  var box = document.getElementById('aiBox');
+  if (!box) return;
+  google.script.run
+    .withSuccessHandler(function(st){ _drawAiBox(st || {}); })
+    .withFailureHandler(function(e){
+      var b = document.getElementById('aiBox');
+      if (b) b.innerHTML = '<span style="color:var(--red)">Could not read the AI setting: ' + _he(e.message||e) + '</span>';
+    })
+    .processMovement('getAiStatus', _h({}));
+}
+
+function _drawAiBox(st){
+  var box = document.getElementById('aiBox');
+  if (!box) return;
+  box.innerHTML = st.configured
+    ? '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
+        '<span style="color:var(--green);font-weight:700">● On</span>' +
+        '<span>Key ending ' + _he(st.hint) + ' · model ' + _he(st.model || '') + '</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="_aiShowForm()">Replace key</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="_aiRemoveKey()">Remove</button>' +
+      '</div>'
+    : '<div>' +
+        '<div style="margin-bottom:.5rem">Off. Add a Google AI key to turn on reading supplier emails.</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="_aiShowForm()">Add key</button>' +
+      '</div>';
+}
+
+function _aiShowForm(){
+  var box = document.getElementById('aiBox');
+  if (!box) return;
+  box.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:.5rem;max-width:520px">' +
+      '<div>Get a free key at <b>aistudio.google.com</b> → "Get API key". ' +
+         'It stays on this system and Google bills any usage to you, not to us.</div>' +
+      // type=password so a key does not sit readable on a screen in a warehouse
+      // where anyone walking past can see it.
+      '<input type="password" id="aiKeyInp" placeholder="Paste the key here" autocomplete="off" ' +
+        'style="padding:.45rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
+      '<div style="display:flex;gap:.5rem;flex-wrap:wrap">' +
+        '<button class="btn btn-primary btn-sm" id="aiSaveBtn" onclick="_aiSaveKey()">Check and save</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="_loadAiStatus()">Cancel</button>' +
+      '</div>' +
+      '<div id="aiMsg" style="color:var(--muted)"></div>' +
+    '</div>';
+  var inp = document.getElementById('aiKeyInp');
+  if (inp) inp.focus();
+}
+
+function _aiSaveKey(){
+  var inp = document.getElementById('aiKeyInp');
+  var msg = document.getElementById('aiMsg');
+  var btn = document.getElementById('aiSaveBtn');
+  var key = inp ? inp.value.trim() : '';
+  if (!key) { if (inp) inp.focus(); return; }
+  // The server spends one real call on the key before saving it, so this wait
+  // is a second or two and worth saying out loud — a wrong key that saves
+  // silently fails days later in front of somebody trying to read an email.
+  if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Checking the key with Google…'; }
+  _btnBusy(btn, 'Checking…');
+  google.script.run
+    .withSuccessHandler(function(){
+      if (inp) inp.value = '';
+      showToast('Document reader is on.', 'ok');
+      _loadAiStatus();
+    })
+    .withFailureHandler(function(e){
+      _btnDone(btn, false);   // false = no tick, just give the button back
+      if (msg) { msg.style.color = 'var(--red)'; msg.textContent = (e && e.message) || String(e); }
+    })
+    .processMovement('setAiKey', _h({ key: key }));
+}
+
+// From the "Read an email" screen straight to the setting that turns it on,
+// landing on the System tab rather than dropping the person at the front door
+// of Settings to go hunting.
+function _aiSetupFromEmail(){
+  closeModal('emailImportOverlay');
+  _settingsTab = 'system';
+  openSettingsModal();
+}
+
+function _aiRemoveKey(){
+  _showConfirm({
+    icon:'🔑', danger:true, title:'Remove the AI key?',
+    message:'Reading supplier emails will stop working until a key is added again. Nothing else is affected.',
+    confirmText:'Remove',
+    onConfirm: function(){
+      google.script.run
+        .withSuccessHandler(function(){ showToast('Key removed.', 'ok'); _loadAiStatus(); })
+        .withFailureHandler(function(e){ showToast('Could not remove it: ' + (e.message||e), 'err', 6000); })
+        .processMovement('setAiKey', _h({ remove: true }));
+    }
+  });
+}
+
+// ── How full the spreadsheet is ──────────────────────────────────────────────
+// A Google spreadsheet stops at 10 million cells across all tabs, and Acopio
+// spends 22 of them per movement. Most customers will never come close; a busy
+// warehouse gets there in a few years, and that is the customer paying the most
+// and shouting the loudest. A number on its own ("1,847,322 cells") means
+// nothing to anyone — a bar at 18% is understood without explanation.
+function _loadSpaceUsage(){
+  var box = document.getElementById('spaceBox');
+  if (!box) return;
+  google.script.run
+    .withSuccessHandler(function(st){ _drawSpaceBox(st || {}); })
+    .withFailureHandler(function(e){
+      var b = document.getElementById('spaceBox');
+      if (b) b.innerHTML = '<span style="color:var(--red)">Could not measure the file: ' + _he(e.message||e) + '</span>';
+    })
+    .processMovement('getSpaceUsage', _h({}));
+}
+
+function _fmtInt(n){ return Math.round(Number(n)||0).toLocaleString('en-US'); }
+
+// Rounded to whole years, and never below 1. "6.83 years" invites a trust the
+// number has not earned; "~7 years" says what it actually knows.
+function _fmtYears(y){
+  if (!isFinite(y)) return null;
+  if (y < 1) return 'under a year';
+  if (y > 50) return 'over 50 years';
+  return '~' + Math.round(y) + (Math.round(y) === 1 ? ' year' : ' years');
+}
+
+function _drawSpaceBox(st){
+  var box = document.getElementById('spaceBox');
+  if (!box) return;
+  var pct = Math.max(0, Math.min(100, Number(st.pct) || 0));
+  // Green below 60, amber to 85, red above. By PERCENTAGE, not by the
+  // estimate: how full the file is, is a fact; how long it has left is a
+  // projection, and a projection should not be what turns the bar red.
+  var color = pct >= 85 ? 'var(--red)' : (pct >= 60 ? 'var(--yellow)' : 'var(--green)');
+  // One decimal below 10% so an early install sees 1.8% instead of a bar that
+  // reads 2% for its first two years.
+  var shown = pct < 10 ? pct.toFixed(1) : String(Math.round(pct));
+
+  var e = st.estimate;
+  var line;
+  if (!e) {
+    line = 'No movements recorded yet.';
+  } else if (e.tooEarly) {
+    line = 'Time estimate available after 60 days of use (' + e.daysOfUse + ' so far) — the first weeks are mostly the opening inventory, which would make any projection wrong.';
+  } else if (e.idle) {
+    line = 'No movements in the last 90 days, so there is no pace to project from.';
+  } else {
+    var y = _fmtYears(e.years);
+    line = 'At about ' + (e.perDay < 1 ? e.perDay.toFixed(1) : Math.round(e.perDay)) +
+           ' movements a day, room for ' + y;
+    var g = _fmtYears(e.yearsIfGrowing);
+    if (g && g !== y) line += ' — or ' + g + ' if your pace keeps growing like it did last year';
+    line += '.';
+  }
+
+  box.innerHTML =
+    '<div class="space-bar" role="img" aria-label="' + _he(shown + '% of the spreadsheet used') + '">' +
+      '<div class="space-bar-fill" style="width:' + pct.toFixed(2) + '%;background:' + color + '"></div>' +
+      '<span class="space-bar-pct">' + _he(shown) + '% used</span>' +
+    '</div>' +
+    '<div style="margin-top:.45rem">' + _fmtInt(st.cellsUsed) + ' of ' + _fmtInt(st.cellLimit) +
+      ' cells · ' + _fmtInt(st.movements) + ' movements · ' + _he(String(st.tabs || 0)) + ' tabs</div>' +
+    '<div style="margin-top:.25rem">' + _he(line) + '</div>' +
+    (pct >= 60
+      ? '<div style="margin-top:.45rem;color:' + (pct >= 85 ? 'var(--red)' : 'var(--yellow)') + '">' +
+        (pct >= 85
+          ? '⚠ Getting close to the limit. Contact support to move older movements into a separate archive file before it fills.'
+          : 'Worth planning ahead: past 85% we should move older movements into a separate archive file.') +
+        '</div>'
+      : '');
 }
 
 // The nightly backup used to be reachable only from the spreadsheet menu, and
@@ -7728,7 +7954,21 @@ function _renderSettingsTab(tab) {
   }).join('');
 
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. Renaming a category updates all existing movements automatically.' +
+    // One sentence used to serve all four tabs: "Renaming a category updates
+    // all existing movements automatically." True on Categories, FALSE on the
+    // other three — the app was telling people it would do something it does
+    // not do. And the difference is not an oversight, it is the design (see
+    // the note above updateConfig in Code.gs): a category is a CLASSIFICATION
+    // and correcting its spelling does not change what a 2024 window was,
+    // while a supplier, a project and a location are HISTORICAL FACTS. Who we
+    // bought from, which job it went to and which rack it sat in were true
+    // under the name in use at the time, and those names are already printed
+    // on PDFs and emails that went out. Rewriting them would make the app
+    // disagree with paperwork the customer is holding.
+    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Manage '+label.toLowerCase()+'s. ' +
+      (tab === 'categories'
+        ? 'Renaming a category updates all existing movements automatically.'
+        : 'Renaming updates the list only — existing movements keep the name they were recorded with.') +
       (mergeable ? ' Tick two or more to merge them by hand.' : '') + '</p>' +
     (mergeable ? _renderSimilarGroups(tab, items, label) : '') +
     (mergeable ? '<div class="cfg-pickbar" id="cfgPickBar"></div>' : '') +
@@ -7793,6 +8033,10 @@ function _renderLocationsTab(){
       '<p style="font-size:.8rem;color:var(--muted);margin:0;flex:1">' +
         'Drag a location into a group to file it there. Grouping is for organising only — every location still counts toward stock, ' +
         'and the Warehouse Map shows these same groups.' +
+        // Said here for the same reason it is said on the other catalog tabs:
+        // where a thing WAS is a fact about the past, and renaming the rack
+        // today cannot make January's material have sat somewhere else.
+        '<br>Renaming a location updates the list only — existing movements keep the name they were recorded with.' +
         '<br><b>Dragging needs a mouse</b> — on a phone this list is read-only for now.' +
       '</p>' +
       '<div class="loc-plus-wrap">' +
@@ -8011,6 +8255,16 @@ function _wireLocMerge(){
               bar.innerHTML = ''; bar.classList.remove('show');
               _redrawLocGroups();
               refreshDropdowns();
+              // The patches above fix the LISTS. They cannot fix the stock,
+              // which is where a location merge actually shows: the Warehouse
+              // Map and the location column read the derived totals, and the
+              // server has just rebuilt those. Without this the merged rack
+              // went on sitting in the map with its old contents until the page
+              // was reloaded by hand — Jose merged A5C into A6C, saw the map
+              // still showing both, and only a manual refresh put the 227 units
+              // in one place. Same fix, same reason, as the category rename in
+              // v10.2.
+              loadDataFromGoogle(true, true);   // skipCache, quiet
             })
             .withFailureHandler(function(e){
               btn.disabled = false; btn.textContent = 'Merge';
@@ -8156,6 +8410,12 @@ function _wireManualMerge(tab, label){
               showToast('Merged ✓ — ' + res.rowsChanged + ' movement(s) updated.', 'ok', 5000);
               _applyMergeLocally(tab, from, into);
               bar.innerHTML = ''; bar.classList.remove('show');
+              // Same reason as the location merge below: the local patch fixes
+              // the catalog list, but the movements and the project/supplier
+              // totals were rewritten server-side and the derived sheets
+              // rebuilt. Ask for them rather than trying to reproduce the
+              // rebuild in the browser.
+              loadDataFromGoogle(true, true);   // skipCache, quiet
             })
             .withFailureHandler(function(e){
               btn.disabled = false; btn.textContent = 'Merge';
@@ -8568,7 +8828,11 @@ function _cfgSaveRename(tab, i) {
   var oldV = li ? li.dataset.val : '';
   var inp  = document.getElementById('cfgInp-'+tab+'-'+i);
   var newV = inp ? inp.value.trim() : '';
-  if (!newV || newV === oldV) { _cfgCancelEdit(tab, i); return; }
+  // Uppercased for the same reason _cfgAdd does it, and so the list patched
+  // locally shows exactly what the server stored — not a mixed-case copy that
+  // only corrects itself on the next full load.
+  newV = newV.toUpperCase();
+  if (!newV || newV === oldV.toUpperCase()) { _cfgCancelEdit(tab, i); return; }
   _cfgCall({ type: tab, op: 'rename', value: oldV, newValue: newV });
 }
 
@@ -8602,13 +8866,42 @@ function _cfgAdd(tab) {
 // "Loading…", then rebuilt the whole list — seconds of churn to show one new
 // row. The server call is the only part that has to happen; the browser already
 // knows exactly what changed.
+// One catalog edit at a time, and say so while it runs.
+//
+// Renaming a category rewrites every matching row in the archive and then
+// rebuilds the stock cache. That is fast now, but never instant — and this
+// button used to give no sign it was working. The natural thing to do with a
+// button that appears to have done nothing is press it again, and the second
+// press asked the server to rename a value the first press had already
+// renamed, so it came back '"IGU" not found in categories' — a red error for
+// an operation that had actually succeeded. That is a worse outcome than
+// waiting, and it was the app's fault, not the user's.
+var _cfgBusy = false;
+function _cfgSetBusy(on) {
+  _cfgBusy = on;
+  var scope = document.getElementById('settingsTabContent');
+  if (!scope) return;
+  var btns = scope.querySelectorAll('.cfg-btn, .cfg-add-row button');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].disabled = on;
+    btns[i].style.opacity = on ? '.5' : '';
+    btns[i].style.cursor  = on ? 'wait' : '';
+  }
+}
 function _cfgCall(payload, onDone) {
+  if (_cfgBusy) return;              // the guard itself; the greying-out is only the explanation
+  _cfgSetBusy(true);
+  _settingMsg('Saving…', 'info');
+  function done() { _cfgSetBusy(false); }
   google.script.run
     .withSuccessHandler(function() {
+      done();
       if (onDone) onDone();
-      _applyCfgChangeLocally(payload);
+      _applyCfgChangeLocally(payload);   // re-renders the tab, rebuilding the buttons enabled
+      _settingMsg('Saved ✓', 'ok');
     })
     .withFailureHandler(function(e){
+      done();
       var msg = (e && e.message) || String(e);
       // A duplicate is not a failure worth a red banner — the value is on the
       // list, which is what was asked for.
@@ -8654,6 +8947,27 @@ function _applyCfgChangeLocally(p) {
   if (p.op === 'add') {
     var box = document.getElementById('cfgNewVal');
     if (box) { box.value = ''; box.focus(); }
+  }
+
+  // Renaming a CATEGORY is the one catalog edit that rewrites the movements
+  // themselves, so it is the one where patching locally is not enough.
+  //
+  // Everything else on this screen only adds or removes a value from a list,
+  // and the browser genuinely does know what changed. A category rename does
+  // not: the server rewrote the Category cell of every archive row and rebuilt
+  // the stock cache, while `movements` and `oldMovements` in this tab still
+  // hold the OLD name. The filter dropdown gets the new name from the catalog
+  // and renderMovements() compares it against rows that still say the old one,
+  // so filtering by the renamed category returned NOTHING until the page was
+  // reloaded by hand. Found in production, v10.1.
+  //
+  // It is also more than the visible text: a material's MatID is built from
+  // its category, so a rename leaves every MatID this tab is holding stale.
+  // Patching four arrays and hoping to catch every derived field is more code
+  // and more ways to be subtly wrong than simply asking the server again.
+  // Renaming a category happens a few times a year; correct beats instant.
+  if (p.type === 'categories' && p.op === 'rename' && typeof loadDataFromGoogle === 'function') {
+    loadDataFromGoogle(true, true);   // skipCache, quiet — no spinner over the whole app
   }
 }
 
@@ -8766,15 +9080,48 @@ function _matMergeConfirm(name, cat, nvTrimmed){
 // does NOT have to happen is the app blinking: the list on screen and the
 // movements already loaded are patched immediately, and the server refresh
 // runs underneath without the loading state.
+// The refresh was already here and correct. What was missing was any sign that
+// anything was happening: Jose renamed a material, the button did nothing
+// visible for a few seconds, and there was no way to tell whether to wait or
+// click again. That is the same complaint that produced the duplicate-rename
+// error on the Categories tab, arriving from a different screen — a slow
+// operation with a silent button invites a second press, and a second press is
+// where the damage is.
 function _matCall(payload) {
+  if (_matBusy) return;
+  _matSetBusy(true);
   google.script.run
     .withSuccessHandler(function(res) {
+      _matSetBusy(false);
       _applyMatChangeLocally(payload);
       showToast('Done ✓ — ' + (res.updated || res.merged || 1) + ' row(s) updated.', 'ok');
       loadDataFromGoogle(true, true);   // skipCache, quiet
     })
-    .withFailureHandler(function(e){ _settingMsg('Error: '+(e.message||e), 'error'); })
+    .withFailureHandler(function(e){
+      _matSetBusy(false);
+      _settingMsg('Error: '+(e.message||e), 'error');
+    })
     .processMovement('manageMaterial', _h(payload));
+}
+
+var _matBusy = false;
+function _matSetBusy(on) {
+  _matBusy = on;
+  var scope = document.getElementById('settingsTabContent');
+  if (scope) {
+    var btns = scope.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].disabled = on;
+      btns[i].style.opacity = on ? '.5' : '';
+      btns[i].style.cursor  = on ? 'wait' : '';
+    }
+  }
+  // Says what is happening AND roughly how long, because "Saving…" on
+  // something that rewrites every matching row in the archive and then
+  // rebuilds the stock totals is not the same promise as "Saving…" on a
+  // one-cell edit.
+  if (on) _settingMsg('Updating every matching movement and rebuilding stock totals — this can take a few seconds…', 'info');
+  else    _settingMsg('Done ✓', 'ok');
 }
 
 function _applyMatChangeLocally(p){
@@ -11653,7 +12000,29 @@ function runEmailImport(){
     })
     .withFailureHandler(function(err){
       btn.disabled = false; btn.textContent = 'Read it';
-      status.textContent = (err && err.message ? err.message : String(err)).replace(/^Error:\s*/i, '');
+      var msg = (err && err.message ? err.message : String(err)).replace(/^Error:\s*/i, '');
+      // A feature that was never switched on is not a broken feature, and it
+      // should not look like one. The server sends NO_AI_KEY as a marker; this
+      // turns it into an explanation and a way forward, in the tone of an
+      // unconfigured setting rather than a failure. An admin gets the button;
+      // anybody else gets told who to ask, because sending a warehouse hand to
+      // a settings screen they cannot open is its own dead end.
+      if (msg === 'NO_AI_KEY') {
+        var admin = (userRole === 'ADMIN');
+        status.innerHTML =
+          '<div style="line-height:1.5">' +
+            '<b>Reading emails is not switched on yet.</b><br>' +
+            'It needs a free Google AI key, added once. The key stays on this ' +
+            'system and Google bills any usage to you, not to us.' +
+            (admin
+              ? '<br><button class="btn btn-primary btn-sm" style="margin-top:.55rem" ' +
+                'onclick="_aiSetupFromEmail()">Set it up</button>'
+              : '<br><span style="color:var(--muted)">Ask an admin to turn it on in Settings → System.</span>') +
+            '<div style="color:var(--muted);margin-top:.5rem">You can still add what is arriving by hand.</div>' +
+          '</div>';
+        return;
+      }
+      status.textContent = msg;
     })
     .processMovement('parseIncomingEmail', _h({ text: text }));
 }
@@ -12443,7 +12812,7 @@ function loadDataFromGoogle(skipCache, quiet){
         _announceSystemActivity();
         lastLoadTime = Date.now();
         setConnStatus('online');
-        _checkVersionMatch(data.serverVersion);
+        _checkVersionMatch(data.serverVersion, data.serverBuild);
         _setAccountIdentity(data.userName, userEmail, userRole, false);
         if (data.activeUsers) renderActiveUsers(data.activeUsers);
         applyRoleUI();
@@ -12555,9 +12924,16 @@ function _applyWarehouseRoleLabel(){
 
 // Warn if the backend (Code.gs) and this page (Index.html) were not deployed
 // together. A mismatch is the usual cause of "feature X silently doesn't work".
-function _checkVersionMatch(serverVersion) {
+function _checkVersionMatch(serverVersion, serverBuild) {
   var existing = document.getElementById('versionMismatchBanner');
-  if (!serverVersion || serverVersion === APP_VERSION) {
+  var verBad   = serverVersion && serverVersion !== APP_VERSION;
+  // The build catches what the version number cannot: two files from DIFFERENT
+  // releases that happen to carry the same version, which is what a
+  // half-finished paste produces. Only checked when BOTH sides are actually
+  // stamped, so an unstamped build never raises a false alarm.
+  var buildBad = !verBad && APP_BUILD && serverBuild && serverBuild !== APP_BUILD;
+
+  if (!verBad && !buildBad) {
     if (existing) existing.remove();
     return;
   }
@@ -12567,11 +12943,14 @@ function _checkVersionMatch(serverVersion) {
   bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;' +
     'color:#fff;font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;' +
     'box-shadow:0 2px 8px rgba(0,0,0,.3)';
-  bar.innerHTML = '⚠ Version mismatch — App v' + APP_VERSION + ' vs Server v' + serverVersion +
+  bar.innerHTML = (verBad
+      ? '⚠ Version mismatch — App v' + APP_VERSION + ' vs Server v' + serverVersion
+      : '⚠ These two files are from different builds — App ' + APP_BUILD + ' vs Server ' + serverBuild) +
     '. Redeploy BOTH files (Code.gs and Index.html) with a <b>New version</b>. ' +
     '<span style="cursor:pointer;text-decoration:underline" onclick="this.parentNode.remove()">dismiss</span>';
   document.body.appendChild(bar);
-  console.warn('VERSION MISMATCH: frontend=' + APP_VERSION + ' backend=' + serverVersion);
+  console.warn('MISMATCH: frontend=' + APP_VERSION + '/' + APP_BUILD +
+               ' backend=' + serverVersion + '/' + serverBuild);
 }
 
 // ── Toast Notifications ───────────────────────────────────────────────────────
@@ -13073,12 +13452,12 @@ setInterval(function(){
 
 // ── Privacy Policy / Terms of Service ────────────────────────────────────────
 var LEGAL_DOCS = {
-  privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 6 August 2026</p>
+  privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 21 August 2026</p>
 <p>Acopio is warehouse-management software provided by Jose Castro ("we", "us"). This policy explains what happens to data when you use it.</p>
 <p>Read the first section before anything else — it is the part that makes the rest of this document short.</p>
 <hr>
 <h3>1. Where your data lives — and who holds it</h3>
-<p><strong>Acopio does not host your data. We never receive a copy of it.</strong></p>
+<p><strong>Acopio does not host your business data. We never receive a copy of it.</strong></p>
 <p>Acopio runs entirely inside <strong>your own Google account</strong>. When you install it, a Google Sheet and a Google Apps Script project are created <strong>in your Google Drive</strong>, owned by you. Every inventory record, photo, document and user list the software creates is written to that spreadsheet and that Drive folder — both yours.</p>
 <p>There is no Acopio server. There is no Acopio database. We operate no infrastructure that your business data passes through or is stored on.</p>
 <p>Practically, this means:</p>
@@ -13086,7 +13465,7 @@ var LEGAL_DOCS = {
 <li>We cannot read your inventory, your suppliers, your prices or your documents.</li>
 <li>We cannot lose your data in a breach of our systems, because it is not on our systems.</li>
 <li>If you stop paying us, your data does not go anywhere. It stays in your Drive and your spreadsheet keeps working.</li>
-<li>A subpoena served on us produces nothing about your business, because we hold nothing.</li>
+<li>A subpoena served on us produces nothing about your inventory, because we hold none of it. The only business information we may hold is your company name and your administrator's email address, and only in the one case described in section 3 — the setup check-in.</li>
 </ul>
 <p>Your data is governed by <strong>your</strong> agreement with Google (Google Workspace Terms or the Google Terms of Service, as applicable to your account).</p>
 <h3>2. What the software accesses, and why</h3>
@@ -13106,11 +13485,13 @@ var LEGAL_DOCS = {
 <li>Every permission above is granted by you, to software running in your own account. None of it grants us access.</li>
 </ul>
 <h3>3. What we collect</h3>
-<p><strong>In normal operation: nothing.</strong></p>
-<p>Two features send data to us, and only when you choose to use them:</p>
+<p><strong>We never receive your inventory data.</strong> Three things can send us something else, and they are listed here in full.</p>
 <ul>
 <li><strong>"Report a problem" (the 🐞 button).</strong> When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see.</li>
 <li><strong>Support you initiate.</strong> If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards.</li>
+<li><strong>The setup check-in — the one thing that sends without you asking.</strong> If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup <strong>when no inventory movement has been recorded at all</strong>. It is there so a customer who got stuck during setup hears from us instead of quietly giving up.
+<br><br>That email contains exactly four things: <strong>your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.</strong> Nothing else — no inventory, no materials, no suppliers, no prices, no documents.
+<br><br>It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all.</li>
 </ul>
 <p>We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell.</p>
 <h3>4. The optional AI add-on</h3>
@@ -13318,7 +13699,12 @@ function _setAccountIdentity(name, email, role, stale){
   }
 
   var foot = document.getElementById('acctFoot');
-  if (foot) foot.textContent = (_companyName ? _companyName + ' · ' : '') + PRODUCT + ' v' + APP_VERSION;
+  // The build goes next to the version, quietly. It is not for the customer —
+  // it is so Jose can ask "what does this line say?" and know exactly which
+  // bytes they are running, without asking anyone to open the script editor or
+  // send a file. Shown only once it has actually been stamped.
+  if (foot) foot.textContent = (_companyName ? _companyName + ' · ' : '') + PRODUCT + ' v' + APP_VERSION +
+                               (APP_BUILD ? ' · build ' + APP_BUILD : '');
 }
 
 function renderActiveUsers(users){

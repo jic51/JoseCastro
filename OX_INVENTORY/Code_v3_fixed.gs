@@ -33,7 +33,67 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '9.94';
+var APP_VERSION = '10.9';
+// Build fingerprint — a short hash of the two shipped files, written by
+// tools/build-fingerprint.js and shown next to the version in the app.
+//
+// It DETECTS drift, it does not prevent it. Nothing inside a copy running in
+// the customer's own account can stop them editing it. What this buys: it
+// tells "they are behind" apart from "they changed it", it lets Jose ask
+// "what does your footer say?" instead of asking for the file, and it makes
+// concealing an edit a deliberate act rather than an accident — which is the
+// part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
+//
+// Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
+var APP_BUILD = '98fe9346';
+
+// The browser-tab icon every installation gets unless it sets FAVICON_URL.
+// See the note in doGet for why one shared mark rather than each customer's
+// own logo.
+//
+// This is the SQUARE stacked-boxes mark, out of Jose's own Drive — no customer
+// file is published, so nothing of theirs becomes public. It moves to
+// acopio.com/favicon.png once the domain exists; this line is the only change.
+//
+// ─── THE `#.png` ON THE END IS LOAD-BEARING. DO NOT TIDY IT AWAY. ───────────
+// The docs spell out the rule in one clause that is easy to read past:
+//
+//   iconUrl — "The URL of the favicon image, WITH THE IMAGE EXTENSION
+//              indicating the image type."
+//
+// Google decides the image type from how the URL ENDS, not from what the
+// server sends back. A Drive URL ends in a file id, so there is no extension
+// to read and the icon is rejected — Apps Script issue 36756649 comment #22
+// reports the exact message, "The favicon icon image type is not supported",
+// for precisely this case, and comment #23 gives the fix used here: append a
+// fragment so the URL ends in the extension.
+//
+// A fragment is the right tool because browsers never send it to the server.
+// Google reads ".png" off the end; Drive receives the identical request it
+// received before. Nothing about the image changes — only what Google can tell
+// about it.
+//
+// Two versions of this were deployed with no extension and no icon appeared,
+// which is consistent with the rule above and was the missing piece rather
+// than proof that the whole approach was impossible. setTitle() working on the
+// same object was always the sign that Apps Script CAN reach the outer page.
+//
+// lh3.googleusercontent.com/d/ID is kept over drive.google.com/uc?export=view
+// because Jose confirmed this exact URL renders an image in an incognito
+// window — so it is public and it serves image bytes to a browser. That is the
+// half already proven; the extension is the half that was missing.
+//
+// ⚠ STILL UNVERIFIED: this is not the SQUARE logo. Jose sent three links with
+// three images and confirmed the second is not the square one. The wrong shape
+// squeezed into 16 pixels is a smear, so this has to be swapped for the square
+// file's id — but it is left in place deliberately for now, because ANY icon
+// appearing proves the mechanism, and swapping the id afterwards is trivial.
+// The id is the only thing that changes.
+//
+// Long term this moves to acopio.com/favicon.png: a plain file at a plain URL
+// needs none of the above, and Drive is a poor host for something every
+// customer fetches on every load.
+var ACOPIO_FAVICON_URL = 'https://lh3.googleusercontent.com/d/1pvA5GEBHLkJMIx6SYpvoL0WscfRXyBsB#.png';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
@@ -44,7 +104,10 @@ var SHEETS = {
   CONFIG: 'CONFIG',
   AUDIT: 'AUDIT_LOG',
   ERRORS: 'ERROR_LOG',
-  ARCHIVE_HISTORY: 'ARCHIVE_HISTORY'
+  ARCHIVE_HISTORY: 'ARCHIVE_HISTORY',
+  // Only ever created inside a BACKUP COPY, never in the live file — see
+  // writeConfigSnapshot_.
+  CONFIG_SNAPSHOT: 'ACOPIO_CONFIG_SNAPSHOT'
 };
 
 // Column map matches the ACTUAL sheet structure (19 columns, 0-indexed):
@@ -440,10 +503,52 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.code && e.parameter.state) {
     return handleOAuthCallback_(e.parameter.code, e.parameter.state);
   }
-  return HtmlService.createHtmlOutputFromFile('Index')
+  var out = HtmlService.createHtmlOutputFromFile('Index')
     .setTitle((companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+
+  // THE TAB ICON HAS TO BE SET HERE, NOT IN THE PAGE.
+  //
+  // v9.84 shipped a `<link rel="icon">` swap inside Index (_setFavicon) and it
+  // was wrong — Jose ran two installations for weeks and both kept Apps
+  // Script's generic icon. The reason is the same sandbox that already
+  // defeated inline PDFs and direct file requests: what Index renders is an
+  // IFRAME on googleusercontent.com, and a browser tab takes its icon from
+  // the TOP-LEVEL document, which belongs to Google. Nothing the page does to
+  // its own <head> can reach it. setTitle works precisely because it is this
+  // same server-side call, applied to the outer page — which is why the tab
+  // says the company name while the icon never changed.
+  //
+  // setFaviconUrl needs a URL Google itself can fetch, so it cannot be a
+  // data: URI and cannot be a private Drive file. It reads a Script Property
+  // so an installation can be pointed at the Acopio mark, or at the
+  // customer's own, without a code change. Unset simply leaves Google's
+  // default — the behaviour everyone has today.
+  // Decided with Jose (v10.3): the DEFAULT is Acopio's own mark, the same on
+  // every installation, and no customer ever touches it. The earlier plan —
+  // upload a square PNG, publish it, build a Drive URL, paste it into Script
+  // Properties — was a to-do list, not a feature. No customer would do it, and
+  // Jose did not want to ask them to.
+  //
+  // One mark for everyone is also the better product decision, not a
+  // concession: every tab open in every warehouse showing the Acopio icon is
+  // the difference between looking like a product and looking like a
+  // spreadsheet.
+  //
+  // Per-customer icons are deliberately deferred (BACKLOG: "Level 2"). Doing
+  // it properly means publishing a file out of the customer's own Drive, which
+  // needs explicit consent AND fails silently on Workspace domains that forbid
+  // link-sharing — a whole feature, not a line.
+  //
+  // FAVICON_URL still wins when set, so a customer who wants their own is one
+  // property away and nothing here has to change.
+  var favicon = String(PropertiesService.getScriptProperties().getProperty('FAVICON_URL') || '').trim();
+  if (!favicon) favicon = ACOPIO_FAVICON_URL;
+  if (/^https:\/\//i.test(favicon)) {
+    try { out.setFaviconUrl(favicon); } catch (e) { Logger.log('setFaviconUrl: ' + e.message); }
+  }
+  return out;
 }
 
 // ─── PRIVATE DOCUMENT ACCESS ──────────────────────────────────────────────
@@ -731,6 +836,76 @@ function geminiModels_() {
 
 function geminiUrl_(model, apiKey) {
   return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+}
+
+// ─── THE AI KEY, SET FROM INSIDE THE APP ────────────────────────────────────
+// The document reader runs on the customer's own Gemini key, billed to them by
+// Google. Until now the only way to supply one was: open the Apps Script
+// editor, find Project Settings, add a Script Property with the exact right
+// name. That is a developer's instruction printed inside a warehouse app, and
+// it is why the feature was effectively off everywhere.
+//
+// The key NEVER travels back to the browser. getAiStatus returns whether one
+// exists and its last four characters, which is enough for a person to
+// recognise which key they pasted and useless to anyone else.
+function getAiStatus(auth) {
+  auth = requireAuth_('ADMIN');
+  var k = String(PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') || '').trim();
+  return {
+    configured: !!k,
+    hint: k ? ('…' + k.slice(-4)) : '',
+    model: geminiModel_()
+  };
+}
+
+function setAiKey(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var key = String((data && data.key) || '').trim();
+  var p   = PropertiesService.getScriptProperties();
+
+  if (data && data.remove) {
+    p.deleteProperty('GEMINI_API_KEY');
+    auditLog_(ss, 'AI_KEY', auth.email, 'GEMINI_API_KEY', 'remove', '');
+    return { status: 'success', configured: false };
+  }
+
+  if (!key) throw new Error('Paste your key first.');
+  // Cheap shape check before spending a network call. Google's keys start
+  // AIza and are around 39 characters; a pasted URL or an email address is the
+  // usual mistake and this catches it without pretending to validate.
+  if (/\s/.test(key)) throw new Error('That has a space in it — paste just the key, nothing around it.');
+  if (key.length < 20) throw new Error('That looks too short to be an API key.');
+
+  // Actually USE it once before saving. A key that is wrong, expired, or has
+  // the Generative Language API switched off fails identically to no key at
+  // all — days later, in front of somebody trying to read an email. Better to
+  // find out here, in the one place where the person can still fix it.
+  var probe;
+  try {
+    probe = geminiFetch_({
+      contents: [{ parts: [{ text: 'Reply with the single word: ok' }] }],
+      generationConfig: { maxOutputTokens: 5 }
+    }, key);
+  } catch (e) {
+    throw new Error('Could not reach Google to check the key: ' + e.message);
+  }
+
+  var code = probe.getResponseCode();
+  if (code !== 200) {
+    var why = 'Google rejected that key (HTTP ' + code + ').';
+    if (code === 400 || code === 403) {
+      why += '\n\nThe usual causes: the key was copied incompletely, or the ' +
+             '"Generative Language API" is not enabled on the Google project ' +
+             'the key belongs to.';
+    }
+    throw new Error(why);
+  }
+
+  p.setProperty('GEMINI_API_KEY', key);
+  // Never the key itself, not even partially, into a sheet anyone can open.
+  auditLog_(ss, 'AI_KEY', auth.email, 'GEMINI_API_KEY', 'set', 'verified against Google');
+  return { status: 'success', configured: true, hint: '…' + key.slice(-4) };
 }
 
 // One call, trying each model until one answers. Returns the HTTPResponse of
@@ -1319,6 +1494,7 @@ function getInitialData(sessionToken) {
 
     return {
       serverVersion:      APP_VERSION,
+      serverBuild:        APP_BUILD,
       company:            publicCompany_(),
       systemActivity:     (function(){ try { return getSystemActivity(30, _auth.email); } catch (e) { return []; } })(),
       columnPrefs:        columnPrefs_(),
@@ -1855,6 +2031,9 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'runBackupOnDemand') return runBackupOnDemand(data, auth);
   if (action === 'logClientError')  return logClientError(data, auth);
   if (action === 'loadOlderHistory') return loadOlderHistory(auth);
+  if (action === 'getSpaceUsage')   return getSpaceUsage(auth);
+  if (action === 'getAiStatus')     return getAiStatus(auth);
+  if (action === 'setAiKey')        return setAiKey(data, auth);
   throw new Error('Unknown action: ' + action);
 }
 
@@ -1873,6 +2052,37 @@ function processMovementInner_(ss, action, data, auth) {
 //
 // `movements` = array of normalized movement objects (same shape _addMovement
 // accepts). Each row may carry its own docGroups/files/notifyRecipients/forceSubmit.
+// ─── THE STOCK LOCK ──────────────────────────────────────────────────────────
+// One door, one person at a time.
+//
+// Stock is not a stored number — it is replayed from the movement archive. So
+// anything that reads the archive, works out a new value and writes it back is
+// a read-modify-write, and two of those overlapping silently lose one of the
+// two changes: both executions read "100", both write "90", and 20 units left
+// the building while the system says 10 did. Nobody sees an error. That is the
+// whole danger — not the collision, the silence.
+//
+// Deliberately NOT re-entrant, because it does not need to be. Every risky
+// path calls refreshDerivedSheets_ from INSIDE itself, so locking the outer
+// call covers the inner one for free. Re-entrancy machinery guarding a case
+// that does not arise would be more moving parts, not fewer.
+//
+// Two rules for using it: never call it from something that already holds the
+// lock, and never wrap a block that calls archiveOldMovements — that takes
+// this same lock and would find it held.
+//
+// Apps Script releases a script lock when the execution ends, so even a bug
+// that skipped releaseLock could only hold others up until this request
+// finishes, never permanently.
+function withStockLock_(fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    throw new Error('System busy — someone else is saving right now. Please try again in a moment.');
+  }
+  try { return fn(); }
+  finally { try { lock.releaseLock(); } catch (e) {} }
+}
+
 function addMovementsBatch_(ss, archive, movements, auth) {
   var EMPTY = { status: 'success', firstRowIdx: null, rowCount: 0, fileError: null, emailError: null, availableByMat: {} };
   if (!movements || !movements.length) return EMPTY;
@@ -2690,6 +2900,17 @@ function runBackupNow_() {
       copyFile.moveTo(folder);                   // ours now, so this is allowed
     }
 
+    // The copy carries the configuration with it. Without this a restore
+    // brings back every movement and NONE of the settings — Script
+    // Properties belong to the Apps Script project, not to the spreadsheet,
+    // so a copy is born with them empty. The one that hurts is FOLDER_PREFIX:
+    // without it every photo and document ever attached silently stops
+    // opening, because the app looks in a folder that is not where they are.
+    // Written into the COPY only, never the live file, and into the
+    // customer's own Drive — we never hold any of it.
+    try { writeConfigSnapshot_(copyFile.getId()); }
+    catch (eSnap) { Logger.log('config snapshot: ' + eSnap.message); }  // a backup without it still beats no backup
+
     pruneOldBackups_(folder);
 
     auditLog_(ss, 'BACKUP_CREATED', 'system', copyName, '', copyFile.getId());
@@ -2722,6 +2943,58 @@ function runBackupNow_() {
 
 // Deletes backups older than the retention window. Runs every time a new
 // backup is made, so retention stays enforced without a separate trigger.
+// Four properties are deliberately left OUT of the snapshot, each for its
+// own reason. Keeping this as a named list rather than a comment means the
+// next person to add a property has to decide which side it falls on.
+var SNAPSHOT_EXCLUDE = {
+  // Not the customer's secret — it is ours, and it is the SAME one across
+  // every installation. Copying it into a file in each customer's Drive
+  // spreads it to far more people than can read the live script's settings.
+  OAUTH_CLIENT_SECRET: 'Ours, not yours, and shared across installations — re-enter it by hand.',
+  // The customer's own paid key. Let them paste it back deliberately.
+  GEMINI_API_KEY: 'A paid key of yours — paste it back yourself.',
+  // Regenerates itself on first use. Copying it only extends its life.
+  SESSION_SECRET: 'Recreated automatically. Everyone signs in once more.',
+  // Meaningless by tomorrow.
+  WMS_SESSIONS: 'Who was signed in at the time. Not worth restoring.'
+};
+
+// Writes every Script Property worth restoring into a sheet inside the
+// backup copy. See RESTAURAR-UN-BACKUP.md for the procedure that reads it.
+function writeConfigSnapshot_(copyFileId) {
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var rows = [];
+  Object.keys(props).sort().forEach(function (k) {
+    if (SNAPSHOT_EXCLUDE[k]) return;
+    rows.push([k, String(props[k])]);
+  });
+
+  var copy  = SpreadsheetApp.openById(copyFileId);
+  var sheet = copy.getSheetByName(SHEETS.CONFIG_SNAPSHOT) || copy.insertSheet(SHEETS.CONFIG_SNAPSHOT);
+  sheet.clear();
+
+  var header = [
+    ['ACOPIO — CONFIGURATION SNAPSHOT', 'Taken ' + new Date().toISOString()],
+    ['Restoring? Copy these into the new copy\'s Script Properties BEFORE anything else.', ''],
+    ['FOLDER_PREFIX goes first — without it, attachments do not open.', ''],
+    ['', ''],
+    ['NOT included, on purpose — put these back by hand:', ''],
+  ];
+  Object.keys(SNAPSHOT_EXCLUDE).forEach(function (k) {
+    header.push(['  ' + k, SNAPSHOT_EXCLUDE[k]]);
+  });
+  header.push(['', '']);
+  header.push(['PROPERTY', 'VALUE']);
+
+  var all = header.concat(rows.length ? rows : [['(nothing stored yet)', '']]);
+  sheet.getRange(1, 1, all.length, 2).setValues(all);
+  sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
+  sheet.getRange(header.length, 1, 1, 2).setFontWeight('bold');
+  sheet.setColumnWidth(1, 260);
+  sheet.setColumnWidth(2, 620);
+  return rows.length;
+}
+
 function pruneOldBackups_(folder) {
   var cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - BACKUP_RETENTION_DAYS);
@@ -2755,6 +3028,140 @@ function backupEnabled_() {
     }
   } catch (e) { Logger.log('backupEnabled_: ' + e.message); }
   return false;
+}
+
+// ─── HOW FULL IS THE SPREADSHEET ────────────────────────────────────────────
+// Google caps a spreadsheet at 10 million cells ACROSS ALL TABS. Acopio uses
+// 22 columns per movement, so the practical ceiling is roughly 250,000–300,000
+// movements once CONFIG, USERS, AUDIT_LOG, the derived sheets and
+// ARCHIVE_HISTORY have taken their share — and things get slow well before
+// that, around 100,000 rows.
+//
+// Most customers will never come close. A busy warehouse at 300 movements a
+// day gets there in about three and a half years, and that customer is the one
+// paying the most and shouting the loudest. This turns an invisible ceiling
+// into a visible one with years of warning, which is the cheap half of the
+// answer; the expensive half (closing a period into a separate file) is
+// designed in docs/CUANDO-SE-LLENE-EL-SHEET.md and not built.
+//
+// NOTE ON WHAT GOOGLE COUNTS: the limit is on GRID cells, not filled ones. A
+// tab with 1,000 blank rows still spends 1,000 × its column count. So this
+// multiplies getMaxRows by getMaxColumns rather than counting data — reporting
+// only filled cells would tell the customer they have room they do not have.
+var SHEET_CELL_LIMIT = 10000000;
+
+function getSpaceUsage(auth) {
+  auth = requireAuth_('ADMIN');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+  var cellsUsed = 0, biggest = null;
+  for (var i = 0; i < sheets.length; i++) {
+    var c = sheets[i].getMaxRows() * sheets[i].getMaxColumns();
+    cellsUsed += c;
+    if (!biggest || c > biggest.cells) biggest = { name: sheets[i].getName(), cells: c };
+  }
+
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  var history = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
+  var liveRows = archive ? Math.max(0, archive.getLastRow() - 1) : 0;
+  var histRows = history ? Math.max(0, history.getLastRow() - 1) : 0;
+
+  return {
+    cellsUsed:  cellsUsed,
+    cellLimit:  SHEET_CELL_LIMIT,
+    pct:        Math.min(100, (cellsUsed / SHEET_CELL_LIMIT) * 100),
+    tabs:       sheets.length,
+    biggestTab: biggest,
+    movements:  liveRows + histRows,
+    estimate:   spaceEstimate_(archive, history, cellsUsed)
+  };
+}
+
+// The estimate, with the two guards that keep it from lying.
+//
+// 1. THE FIRST MONTHS LIE. Loading the opening inventory puts hundreds of
+//    movements in a few days. Projecting from that tells a workshop with
+//    fifteen years of room that it fills in eight months. So the rate is
+//    measured over the LAST 90 DAYS, which drops the initial load on its own
+//    without a special case, and nothing is shown at all before 60 days of
+//    use.
+// 2. EXTRAPOLATING GROWTH COMPOUNDS. A 12% rise in one quarter projected
+//    forward five years produces an absurd number; a real warehouse's curve
+//    flattens and the formula does not know that. So growth is used only to
+//    BRACKET a second scenario — "~7 years, or ~5 if the pace keeps
+//    growing" — never to draw a curve.
+//
+// Returns null when there is not enough history to say anything honest, and
+// the caller says so rather than filling the space with a guess.
+function spaceEstimate_(archive, history, cellsUsed) {
+  var DAY = 86400000, now = Date.now();
+
+  // Oldest movement anywhere: history first, since that is where old rows go.
+  var oldest = null;
+  [history, archive].forEach(function (sh) {
+    if (oldest !== null || !sh || sh.getLastRow() < 2) return;
+    var t = sh.getRange(2, AC.TIMESTAMP + 1).getValue();
+    var d = t instanceof Date ? t.getTime() : Date.parse(t);
+    if (!isNaN(d)) oldest = d;
+  });
+  if (oldest === null) return null;
+
+  var daysOfUse = (now - oldest) / DAY;
+  if (daysOfUse < 60) return { tooEarly: true, daysOfUse: Math.floor(daysOfUse) };
+
+  // One column read, not the whole sheet. Only the live archive is needed:
+  // the cutoff is at least 6 months, so the last 180 days are all in here.
+  if (!archive || archive.getLastRow() < 2) return null;
+  var stamps = archive.getRange(2, AC.TIMESTAMP + 1, archive.getLastRow() - 1, 1).getValues();
+  var recent = 0, previous = 0;
+  for (var i = 0; i < stamps.length; i++) {
+    var v = stamps[i][0];
+    var ms = v instanceof Date ? v.getTime() : Date.parse(v);
+    if (isNaN(ms)) continue;
+    // Strictly less-than on both, so the two windows are exactly 90 days each.
+    // With <= the recent window quietly covered 91 days and every steady
+    // installation looked like it was growing 1% — which is how the "growing"
+    // sentence would have shown up on screens that had no business seeing it.
+    var age = (now - ms) / DAY;
+    if (age < 90) recent++;
+    else if (age < 180) previous++;
+  }
+
+  // Divide by the days actually available, so an installation at 70 days is
+  // not made to look half as busy as it is by a fixed 90-day denominator.
+  var window1 = Math.min(90, daysOfUse);
+  var perDay  = recent / window1;
+  if (perDay <= 0) return { idle: true, daysOfUse: Math.floor(daysOfUse) };
+
+  var remaining = Math.max(0, SHEET_CELL_LIMIT - cellsUsed);
+  var years = remaining / (perDay * AC_WIDTH * 365);
+
+  // The faster scenario, only when there is a real second window to compare
+  // against and the pace rose by enough to mean something.
+  //
+  // GROWTH_FLOOR exists because a warehouse's month-to-month volume is noisy:
+  // a couple of percent either way is weather, not a trend, and offering "or
+  // ~7 years if your pace keeps growing" against "~7 years" is a sentence that
+  // says nothing while sounding like a warning. Below the floor there is one
+  // number, which is the honest answer.
+  var GROWTH_FLOOR = 15;
+  var yearsIfGrowing = null, growthPct = null;
+  if (daysOfUse >= 180 && previous > 0) {
+    var prevPerDay = previous / 90;
+    var rise = (perDay - prevPerDay) / prevPerDay;
+    if (rise * 100 >= GROWTH_FLOOR) {
+      growthPct = rise * 100;
+      yearsIfGrowing = remaining / (perDay * (1 + rise) * AC_WIDTH * 365);
+    }
+  }
+
+  return {
+    perDay: perDay,
+    years: years,
+    yearsIfGrowing: yearsIfGrowing,
+    growthPct: growthPct,
+    daysOfUse: Math.floor(daysOfUse)
+  };
 }
 
 function getBackupStatus(auth) {
@@ -5688,6 +6095,9 @@ var PROPERTY_GUIDE = [
     lost:'Staff are asked to sign in with Google instead of being recognised.' },
   { key:'COMPANY_LOGO_ID', sev:'COSMETIC',
     what:'Your logo.', lost:'No logo. Upload it again in Settings › Company.' },
+  { key:'FAVICON_URL', sev:'COSMETIC',
+    what:'The browser-tab icon. Must be a PUBLIC https:// image — Google fetches it itself, so a private Drive file or a data: URI will not work. Unset means Google\'s own default icon.',
+    lost:'The tab shows the generic Apps Script icon again. Nothing else changes.' },
   { key:'ROLE_PERMS_WAREHOUSE', sev:'OPTIONAL',
     what:'Extra permissions an admin turned on for the WAREHOUSE role (Settings → Permissions).',
     lost:'Nothing missing — absent just means every toggle is at its default.' },
@@ -6264,6 +6674,15 @@ function getSettings(auth) {
 // where it went TO, and a location can appear in either.
 //
 // data = { from: ['A1A','A1 A'], into: 'A1A' }
+// Merging locations moves stock between them, so it takes the stock lock —
+// step 2 of the concurrency fix.
+//
+// Unlike manageMaterial this one was already in good shape: it writes each
+// column in a single setValues and it already rebuilds the derived sheets. The
+// only gap besides the lock was ARCHIVE_HISTORY, closed below.
+//
+// Validation stays outside the lock so a bad request is refused without
+// queueing behind whoever is saving.
 function mergeLocations(data, auth) {
   auth = requireAuth_('ADMIN');
   var into = String(data.into || '').trim();
@@ -6271,26 +6690,30 @@ function mergeLocations(data, auth) {
   var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
                               .filter(function (v) { return v && v.toUpperCase() !== into.toUpperCase(); });
   if (!from.length) throw new Error('Pick at least one other location to merge in.');
+  return withStockLock_(function () { return mergeLocationsLocked_(data, auth, into, from); });
+}
 
+function mergeLocationsLocked_(data, auth, into, from) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var wanted = {};
   from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
 
-  var rowsChanged = 0;
-  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-  if (archive && archive.getLastRow() > 1) {
-    var n = archive.getLastRow() - 1;
-    [AC.SRC_LOC, AC.DEST_LOC].forEach(function (col) {
-      var range = archive.getRange(2, col + 1, n, 1);
-      var vals  = range.getValues();
-      var hit = 0;
-      for (var i = 0; i < vals.length; i++) {
-        var cur = String(vals[i][0] || '').trim();
-        if (cur && wanted[cur.toUpperCase()]) { vals[i][0] = sheetSafe_(into); hit++; }
-      }
-      if (hit) { range.setValues(vals); rowsChanged += hit; }
-    });
+  // Source AND destination columns, on BOTH sheets. ARCHIVE_HISTORY was
+  // missing: once a customer's archive fills and old rows move out, a merged
+  // location would go on living in the history under its old name, and
+  // refreshDerivedSheets_ reads the two concatenated — so the location would
+  // reappear as a place stock still sits.
+  var storedInto = sheetSafe_(into);
+  function keep(row, col) {
+    var cur = String(row[col] || '').trim();
+    return (cur && wanted[cur.toUpperCase()]) ? storedInto : null;
   }
+  var rowsChanged = 0;
+  [ss.getSheetByName(SHEETS.ARCHIVE), ensureArchiveHistorySheet_(ss)].forEach(function (sheet) {
+    [AC.SRC_LOC, AC.DEST_LOC].forEach(function (col) {
+      rowsChanged += rewriteArchiveColumn_(sheet, col, function (row) { return keep(row, col); });
+    });
+  });
 
   // Drop the merged-away names from CONFIG, keeping each surviving location
   // with the group it was already filed under.
@@ -6469,6 +6892,15 @@ function saveLocationLayout(data, auth) {
 // rows keep the old text, so this rewrites the movement rows too.
 //
 // data = { type: 'projects'|'suppliers', from: ['A','B'], into: 'C' }
+// Merging two spellings of a project or supplier rewrites archive rows, so it
+// takes the stock lock — step 2 of the concurrency fix. Like mergeLocations and
+// unlike manageMaterial, this one already wrote in bulk and already rebuilt the
+// derived sheets; the lock and ARCHIVE_HISTORY were the gaps.
+//
+// Note this is a MERGE, not a rename, and that is why it is allowed to rewrite
+// history where renaming a supplier is not (see the note above updateConfig).
+// A merge says "these two spellings were always the same company" — it corrects
+// a record that was wrong, rather than restating a true one under a new name.
 function mergeConfigValues(data, auth) {
   auth = requireAuth_('ADMIN');
   var type = String(data.type || '');
@@ -6479,25 +6911,25 @@ function mergeConfigValues(data, auth) {
   var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
                               .filter(function (v) { return v && v.toUpperCase() !== into.toUpperCase(); });
   if (!from.length) throw new Error('Pick at least one other name to merge in.');
+  return withStockLock_(function () { return mergeConfigValuesLocked_(data, auth, type, into, from); });
+}
 
+function mergeConfigValuesLocked_(data, auth, type, into, from) {
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var col = (type === 'projects') ? AC.PROJECT : AC.SUPPLIER;
 
   var wanted = {};
   from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
 
-  // 1. Rewrite the archive so history reads as one project.
+  // 1. Rewrite both archives so history reads as one project.
+  var storedInto = sheetSafe_(into);
   var rowsChanged = 0;
-  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-  if (archive && archive.getLastRow() > 1) {
-    var range  = archive.getRange(2, col + 1, archive.getLastRow() - 1, 1);
-    var values = range.getValues();
-    for (var i = 0; i < values.length; i++) {
-      var cur = String(values[i][0] || '').trim();
-      if (cur && wanted[cur.toUpperCase()]) { values[i][0] = sheetSafe_(into); rowsChanged++; }
-    }
-    if (rowsChanged) range.setValues(values);
-  }
+  [ss.getSheetByName(SHEETS.ARCHIVE), ensureArchiveHistorySheet_(ss)].forEach(function (sheet) {
+    rowsChanged += rewriteArchiveColumn_(sheet, col, function (row) {
+      var cur = String(row[col] || '').trim();
+      return (cur && wanted[cur.toUpperCase()]) ? storedInto : null;
+    });
+  });
 
   // 2. Drop the merged-away spellings from CONFIG, and make sure the survivor
   //    is actually on the list — it may only ever have existed as free text.
@@ -6526,6 +6958,90 @@ function mergeConfigValues(data, auth) {
   return { status: 'success', rowsChanged: rowsChanged, removed: removed, into: into };
 }
 
+// Rewrites the Category column of one archive-shaped sheet in ONE round trip.
+//
+// It used to be a setValue() per matching row — one network call to Google per
+// row. On a real archive that is minutes, and it showed: the button gave no
+// feedback, so it got clicked again, and the second click reported
+// '"IGU" not found in categories' for a rename that had in fact worked.
+//
+// Worse, minutes of work meant a real chance of hitting the 6-minute execution
+// ceiling PART WAY THROUGH, leaving half the archive renamed and half not —
+// one category silently split in two. Read once, change in memory, write once
+// removes that failure mode entirely: either the whole column lands or none
+// of it does.
+//
+// The cost of the bulk write is that untouched cells get their own value
+// written back. That is safe here and only here: this app never writes a
+// formula (there is no setFormula anywhere in this file), the column holds
+// plain text, and setValues does not disturb formatting. It also writes
+// nothing at all when nothing matched.
+//
+// Guarded by tools/test-category-rename.js, which runs this exact function
+// over a fake sheet and asserts that every non-matching cell comes out
+// byte-identical — because the flip side of one big write is that a mistake
+// lands everywhere at once instead of slowly.
+//
+// `decide(row)` receives the WHOLE row and returns the new value for `col`, or
+// null to leave that cell exactly as it is. The whole row, because the callers
+// that matter do not match on the column they write: renaming a material
+// matches on category AND name and writes the name; moving one to another
+// category matches on the same pair and writes the category. Matching only on
+// the target column would rename every "GE SILPRUF" in the building instead of
+// the one in the category the admin was looking at.
+function rewriteArchiveColumn_(sheet, col, decide) {
+  if (!sheet) return 0;
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+  var width = Math.max(sheet.getLastColumn(), col + 1);
+  var rows  = sheet.getRange(2, 1, last - 1, width).getValues();
+  var out = [], changed = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var nv = decide(rows[i]);
+    if (nv === null || nv === undefined) out.push([rows[i][col]]);
+    else { out.push([nv]); changed++; }
+  }
+  if (changed) sheet.getRange(2, col + 1, last - 1, 1).setValues(out);
+  return changed;
+}
+
+function renameCategoryColumn_(sheet, oldVal, newValStored) {
+  var want = String(oldVal || '').trim().toUpperCase();
+  return rewriteArchiveColumn_(sheet, AC.CATEGORY, function (row) {
+    return String(row[AC.CATEGORY] || '').trim().toUpperCase() === want ? newValStored : null;
+  });
+}
+
+// ─── WHY ONLY CATEGORIES ARE REWRITTEN INTO THE ARCHIVE ─────────────────────
+// Renaming a category rewrites every matching movement. Renaming a supplier, a
+// project or a location does not. That asymmetry looks like an oversight and
+// is not — it is the design, and it is written down here because the next
+// person to notice it (this file's own author included) will otherwise
+// "fix" it.
+//
+// A CATEGORY is a CLASSIFICATION. "WINDOW" describes what the thing IS, and
+// that did not stop being true because the spelling was corrected. Renaming
+// IGU to "IGU (ISOLATED GLASS UNIT)" says nothing new about the glass; it
+// tidies up how it is written. Carrying it into the archive is right.
+//
+// There is also no choice about it: stock is grouped by category+name, so a
+// category renamed in the catalog but not in the archive splits one material
+// into two and THE NUMBERS COME OUT WRONG. Categories must carry.
+//
+// A SUPPLIER, a PROJECT and a LOCATION are HISTORICAL FACTS. Who we bought it
+// from, which job it left for, which rack it sat in — each was true under the
+// name in use on that day. Rack A3B was called A3B until yesterday; saying
+// January's material sat in "B7C" is not a correction, it is false.
+//
+// The practical half of the argument, which is the half that settles it:
+// supplier and project names are printed on PDFs and emails that have already
+// been sent. A customer comparing an old PDF against the screen and finding
+// they disagree does not conclude "somebody renamed something" — they conclude
+// the system cannot be trusted. An inventory system sells traceability;
+// rewriting the past is the one thing it must not do.
+//
+// The Settings screen now says which is which, per tab, so a customer meets
+// this rule before renaming rather than after — see _renderSettingsTab.
 function updateConfig(data, auth) {
   // Split gate, not a single ADMIN wall any more. archiveCutoffMonths is a
   // system-wide retention setting — stays ADMIN-only, unconditionally, same as
@@ -6579,24 +7095,61 @@ function updateConfig(data, auth) {
     if (!val) throw new Error('Current value required for rename.');
     if (!nv)  throw new Error('New value required for rename.');
     var renamed = 0;
+    // Uppercased, like every other write to this list. It was the one path
+    // that stored the value exactly as typed: _cfgAdd uppercases in the
+    // browser, the wizard uppercases, the chip inputs uppercase, and the
+    // archive rewrite below uppercases — so renaming a category to
+    // "IGU (isolated glass unit)" put THAT in CONFIG and
+    // "IGU (ISOLATED GLASS UNIT)" in the archive, and the two stopped
+    // matching each other. Found by renaming a real category for the first
+    // time, in production, which is exactly where a mismatch like this
+    // finally shows up.
+    var nvStored = sheetSafe_(nv.toUpperCase());
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][col] || '').trim().toUpperCase() === val.toUpperCase()) {
-        cfg.getRange(i + 1, col + 1).setValue(sheetSafe_(nv));
+        cfg.getRange(i + 1, col + 1).setValue(nvStored);
         renamed++;
       }
     }
     if (!renamed) throw new Error('"' + val + '" not found in ' + data.type + '.');
-    // Also rename in MASTER_ARCHIVE_V3 when renaming a category
+    // Also rename in MASTER_ARCHIVE_V3 when renaming a category.
+    //
+    // This reads as a settings change and is anything but: it walks the WHOLE
+    // archive rewriting the Category cell of every matching row — thousands of
+    // writes on a real installation, with the floor still saving movements
+    // throughout. It was the last unlocked stock-writer found, and it was
+    // found by tools/test-concurrency.js rather than by reading the code,
+    // precisely because it does not look like one.
+    //
+    // Only THIS block takes the lock, not the whole of updateConfig: the
+    // archiveCutoffMonths branch above calls archiveOldMovements, which takes
+    // the same lock and would find it already held.
     if (data.type === 'categories') {
-      var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-      if (archive) {
-        var aData = archive.getDataRange().getValues();
-        for (var j = 1; j < aData.length; j++) {
-          if (String(aData[j][AC.CATEGORY] || '').trim().toUpperCase() === val.toUpperCase()) {
-            archive.getRange(j + 1, AC.CATEGORY + 1).setValue(sheetSafe_(nv.toUpperCase()));
-          }
-        }
-      }
+      withStockLock_(function () {
+        // BOTH sheets. The rename used to touch MASTER_ARCHIVE_V3 only, and
+        // refreshDerivedSheets_ reads the archive and ARCHIVE_HISTORY
+        // concatenated — so the first time archiveOldMovements moved rows out,
+        // one category would have silently split into two materials: the
+        // recent rows under the new name, the old ones under the old. Nobody
+        // had hit it yet only because no installation has filled up.
+        var n  = renameCategoryColumn_(ss.getSheetByName(SHEETS.ARCHIVE), val, nvStored);
+        n     += renameCategoryColumn_(ensureArchiveHistorySheet_(ss), val, nvStored);
+
+        // LIVE_STOCK / SITE_STOCK / WASTED_STOCK are a cache of the archive,
+        // and every screen in the app reads the cache, not the archive. Without
+        // this the rename was invisible until somebody happened to save a
+        // movement — the category list showed the new name while the whole
+        // inventory still showed the old one.
+        //
+        // It also repairs the MatIDs. A material's id is built from its
+        // category, so renaming the category makes every stored MatID stale;
+        // refreshDerivedSheets_ recomputes and rewrites them as it goes.
+        //
+        // Inside the lock on purpose: the rewrite above and the rebuild are one
+        // operation, and a save landing between them would be replayed against
+        // a half-renamed archive.
+        if (n) refreshDerivedSheets_(ss);
+      });
     }
 
   } else if (data.op === 'delete') {
@@ -6636,8 +7189,34 @@ function listMaterials(auth) {
 }
 
 // data.op values: 'rename' | 'changeCategory' | 'merge' | 'deleteRow'
+// Every op here changes what the stock numbers come out as, so the whole thing
+// runs behind the stock lock (step 2 of the concurrency fix).
+//
+// Reviewing it to add that lock turned up four more problems, all older than
+// the lock and all the same ones renaming a category had — this is the same
+// family of code and it had drifted the same way. Locking a slow, half-correct
+// function would only have held everyone else out for longer, so they are
+// fixed together rather than in sequence:
+//
+//   • setValue PER ROW on rename / changeCategory / merge. Minutes on a real
+//     archive, and a live chance of hitting the 6-minute ceiling part way
+//     through — leaving a material half-renamed, which is to say split in two.
+//   • refreshDerivedSheets_ was NEVER called by those three. Only deleteRow
+//     did. Every screen reads LIVE_STOCK, so renaming a material appeared to
+//     do nothing at all until somebody happened to save a movement. Exactly
+//     what Jose hit renaming a category, still waiting to be hit here.
+//   • ARCHIVE_HISTORY was untouched. Once a customer's archive fills and old
+//     rows move out, a renamed material would split into two: recent rows
+//     under the new name, old rows under the old.
+//   • changeCategory changes what a material's MatID IS, since the id is built
+//     from category+name. Without the rebuild, every stored MatID for it went
+//     stale; refreshDerivedSheets_ repairs them as it goes.
 function manageMaterial(data, auth) {
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  return withStockLock_(function () { return manageMaterialLocked_(data, auth); });
+}
+
+function manageMaterialLocked_(data, auth) {
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   if (!archive) throw new Error('Archive sheet not found.');
@@ -6646,60 +7225,59 @@ function manageMaterial(data, auth) {
   var cat = String(data.category || '').trim().toUpperCase();
   var nm  = String(data.name     || '').trim().toUpperCase();
 
+  // Both sheets, every time. Returns the total so the count reported to the
+  // admin covers the rows that were archived out as well as the live ones.
+  function rewriteBoth(col, decide) {
+    return rewriteArchiveColumn_(archive, col, decide) +
+           rewriteArchiveColumn_(ensureArchiveHistorySheet_(ss), col, decide);
+  }
+  function matches(wantCat, wantName) {
+    return function (row) {
+      return String(row[AC.CATEGORY] || '').trim().toUpperCase() === wantCat &&
+             String(row[AC.NAME]     || '').trim().toUpperCase() === wantName;
+    };
+  }
+
   if (op === 'rename') {
     // Change NAME across all rows matching category + oldName
     var oldNm = nm;
     var newNm = String(data.newName || '').trim();
     if (!newNm) throw new Error('New name required.');
-    var rows = archive.getDataRange().getValues();
-    var count = 0;
-    for (var i = 1; i < rows.length; i++) {
-      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
-          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === oldNm) {
-        archive.getRange(i + 1, AC.NAME + 1).setValue(sheetSafe_(newNm));
-        count++;
-      }
-    }
+    var hit = matches(cat, oldNm), storedNm = sheetSafe_(newNm);
+    var count = rewriteBoth(AC.NAME, function (row) { return hit(row) ? storedNm : null; });
+    if (count) refreshDerivedSheets_(ss);
     auditLog_(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm, newNm + ' (' + count + ' rows)');
     return { status: 'success', updated: count };
 
   } else if (op === 'changeCategory') {
     var newCat = String(data.newCategory || '').trim().toUpperCase();
     if (!newCat) throw new Error('New category required.');
-    var rows = archive.getDataRange().getValues();
-    var count = 0;
-    for (var i = 1; i < rows.length; i++) {
-      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
-          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === nm) {
-        archive.getRange(i + 1, AC.CATEGORY + 1).setValue(sheetSafe_(newCat));
-        count++;
-      }
-    }
-    auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + count + ' rows)');
-    return { status: 'success', updated: count };
+    var hitC = matches(cat, nm), storedCat = sheetSafe_(newCat);
+    var countC = rewriteBoth(AC.CATEGORY, function (row) { return hitC(row) ? storedCat : null; });
+    if (countC) refreshDerivedSheets_(ss);
+    auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + countC + ' rows)');
+    return { status: 'success', updated: countC };
 
   } else if (op === 'merge') {
     // Rename all rows of sourceName → targetName (same category)
     var srcNm  = nm;
     var tgtNm  = String(data.targetName || '').trim();
     if (!tgtNm) throw new Error('Target name required.');
-    var rows = archive.getDataRange().getValues();
-    var count = 0;
-    for (var i = 1; i < rows.length; i++) {
-      if (String(rows[i][AC.CATEGORY]||'').trim().toUpperCase() === cat &&
-          String(rows[i][AC.NAME]    ||'').trim().toUpperCase() === srcNm) {
-        archive.getRange(i + 1, AC.NAME + 1).setValue(sheetSafe_(tgtNm));
-        count++;
-      }
-    }
-    auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + count + ' rows)');
-    return { status: 'success', merged: count };
+    var hitM = matches(cat, srcNm), storedTgt = sheetSafe_(tgtNm);
+    var countM = rewriteBoth(AC.NAME, function (row) { return hitM(row) ? storedTgt : null; });
+    if (countM) refreshDerivedSheets_(ss);
+    auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + countM + ' rows)');
+    return { status: 'success', merged: countM };
 
   } else if (op === 'deleteRow') {
     var rowIdx = parseInt(data.rowIdx || 0);
     if (rowIdx < 2) throw new Error('Invalid row index.');
-    // Log the row content before deleting
-    var rowData = archive.getRange(rowIdx, 1, 1, 19).getValues()[0];
+    // Log the row content before deleting. AC_WIDTH, not the 19 that used to be
+    // hardcoded here: the row grew to 22 columns when pricing was added, so the
+    // audit record of a deleted movement had been quietly dropping the PM and
+    // both cost columns — the record of a deletion is the one place that must
+    // be complete.
+    var rowData = archive.getRange(rowIdx, 1, 1, AC_WIDTH).getValues()[0];
     auditLog_(ss, 'DELETE_ROW', auth.email, String(rowData[AC.CATEGORY]), String(rowData[AC.NAME]),
               'row ' + rowIdx + ' — ' + JSON.stringify(rowData.slice(0, 8)));
     archive.deleteRow(rowIdx);
@@ -6945,12 +7523,12 @@ function parseIncomingEmail(data, auth) {
   if (text.length > 12000) text = text.substring(0, 12000);
 
   var apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!apiKey) throw new Error(
-    'This needs a Gemini API key, which has not been set up on this system.\n\n' +
-    'An admin adds it once: Apps Script editor → ⚙ Project Settings → Script Properties\n' +
-    'Property: GEMINI_API_KEY   Value: a key from aistudio.google.com\n\n' +
-    'The key is yours and the usage is billed to you by Google, not by us.'
-  );
+  // NO_AI_KEY is a marker, not a sentence. This is not a failure — the feature
+  // is simply switched off — so the browser catches this exact string and
+  // shows an explanation with a button that turns it on, instead of the red
+  // error a broken thing gets. What used to be here was four lines of Apps
+  // Script editor instructions, printed inside a warehouse app.
+  if (!apiKey) throw new Error('NO_AI_KEY');
 
   // The customer's own categories and units, so the answer lands on the lists
   // this installation actually uses instead of inventing new ones.
@@ -7052,6 +7630,16 @@ function parseIncomingEmail(data, auth) {
 //
 // ─── MODIFY MOVEMENT ────────────────────────────────────────────────────────
 // Admin only. Updates a row in MASTER_ARCHIVE_V3, logs to AUDIT_LOG, emails admin.
+// Editing a saved movement changes stock — quantity, category and name all
+// feed the totals — so it is a read-modify-write on the archive and belongs
+// behind the same door as saving one. It went years without it: an admin
+// correcting yesterday's exit while the floor recorded a new one could lose
+// one of the two changes, with both people seeing "saved ✓".
+//
+// Split in two so the lock wraps the work without re-indenting 140 lines of
+// audited logic: the auth checks stay out here (they should refuse a VIEWER
+// without ever queueing for the lock), everything that touches the sheet goes
+// inside.
 function modifyMovement(data, auth) {
   // Was flatly ADMIN-only. Now: ADMIN always, or WAREHOUSE if the admin has
   // switched on "Edit movements" for their role in Settings → Permissions —
@@ -7059,7 +7647,10 @@ function modifyMovement(data, auth) {
   // refuses it before the permission is even checked.
   auth = requireAuth_('WRITE');
   requirePerm_(auth, 'canEditMovements');
+  return withStockLock_(function () { return modifyMovementLocked_(data, auth); });
+}
 
+function modifyMovementLocked_(data, auth) {
   var rowIdx = parseInt(data.rowIdx || 0);
   if (rowIdx < 2) throw new Error('Invalid row index.');
 
