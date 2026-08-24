@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '10.9';
+var APP_VERSION = '11.1';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '10.9';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '98fe9346';
+var APP_BUILD = 'ee7a589a';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -83,17 +83,19 @@ var APP_BUILD = '98fe9346';
 // window — so it is public and it serves image bytes to a browser. That is the
 // half already proven; the extension is the half that was missing.
 //
-// ⚠ STILL UNVERIFIED: this is not the SQUARE logo. Jose sent three links with
-// three images and confirmed the second is not the square one. The wrong shape
-// squeezed into 16 pixels is a smear, so this has to be swapped for the square
-// file's id — but it is left in place deliberately for now, because ANY icon
-// appearing proves the mechanism, and swapping the id afterwards is trivial.
-// The id is the only thing that changes.
+// VERIFIED WORKING. Jose deployed v10.9 and the Acopio mark appears in the
+// browser tab. That settles the open question from three versions back:
+// setFaviconUrl IS honoured on an /exec web app. Everything that looked like
+// "Google may not support this" was the missing extension and nothing else.
+//
+// v11.0 swaps in the transparent-background mark. Transparent is the right
+// choice for a tab icon: it sits cleanly on light and dark browser chrome
+// alike, where a white square would show its edges on one of the two.
 //
 // Long term this moves to acopio.com/favicon.png: a plain file at a plain URL
 // needs none of the above, and Drive is a poor host for something every
 // customer fetches on every load.
-var ACOPIO_FAVICON_URL = 'https://lh3.googleusercontent.com/d/1pvA5GEBHLkJMIx6SYpvoL0WscfRXyBsB#.png';
+var ACOPIO_FAVICON_URL = 'https://lh3.googleusercontent.com/d/1taYWwdJzwbArrSVjtTideDrJyNOyenOq#.png';
 
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',
