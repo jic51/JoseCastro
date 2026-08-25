@@ -550,6 +550,27 @@
     .mat-cost-alert{font-size:.78rem;padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
     .mat-cost-alert.warn{background:#FEF3C7;color:var(--yellow)}
     .mat-cost-alert.info{background:#DBEAFE;color:var(--accent2)}
+    /* ── The pack question ──
+       Same shape as .cfg-new-hint ("New supplier — not on your list yet"),
+       because it is the same idea: react to what was already typed rather than
+       interrogate. Appears only when a pack unit is chosen for a named
+       material, so a warehouse whose every item is one unit never sees it. */
+    .pack-note{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.78rem;
+               padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
+    .pack-note.ask{background:#EFF6FF;color:var(--accent2);border:1px dashed #BFDBFE}
+    .pack-note.known{background:var(--green-bg);color:var(--green);border:1px solid #BBF7D0}
+    .pack-note .pack-qty{width:5.5rem;padding:.25rem .45rem;border:1px solid var(--border);
+                         border-radius:5px;font-family:inherit;font-size:.8rem}
+    .pack-note button{border:none;border-radius:5px;padding:.25rem .7rem;cursor:pointer;
+                      font-family:inherit;font-size:.76rem;font-weight:600;transition:.15s}
+    .pack-note .pack-save{background:var(--accent2);color:#fff}
+    .pack-note .pack-save:hover{background:var(--accent)}
+    .pack-note .pack-change{background:none;color:var(--green);text-decoration:underline;padding:.25rem .2rem}
+    /* Jose's orange box: changing a remembered factor changes money, so it
+       says what it is changing FROM and makes you press again. */
+    .pack-note .pack-warn{flex-basis:100%;background:#FEF3C7;color:var(--yellow);
+                          border-radius:5px;padding:.35rem .55rem;font-weight:600}
+    .pack-math{font-size:.76rem;color:var(--muted);padding:0 .1rem;margin:-.3rem 0 .5rem}
     /* ── The location box ──
        Jose's rule, from comparing the five screens side by side: the material
        box itself stays NEUTRAL, and the movement's colour appears only around
@@ -2788,7 +2809,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.8';
+var APP_VERSION = '11.9';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2800,7 +2821,7 @@ var APP_VERSION = '11.8';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '26bde6a6';
+var APP_BUILD = '2b5535e7';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -2912,6 +2933,12 @@ var oldMovements       = [];  // ARCHIVE_HISTORY rows, loaded on demand via "Loa
 var _oldHistoryLoaded  = false;
 var incoming          = [];   // array of { id, estDate, category, name, qty, unit, supplier, po, notes, status }
 var monitoredMaterials = null; // null = all; array of names = filtered
+// How many stocking units come in a box / case / pallet / bag, PER MATERIAL.
+// Keyed CATEGORY||NAME (uppercased), same shape readPacks_ returns on the
+// server. A material that has never been told is simply absent — which is the
+// normal state, and the whole reason this can exist without bothering anyone:
+// a window is one unit and will never appear in here.
+var materialPacks = {};
 var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
 var _stockSelection = {}; // { matId: stockData[matId] } — checked rows in Stock Dashboard, for "Exit Selected"
 var materialLocks = []; // [{id, matId, category, name, rack, allowedDest:[...], reason, lockedBy, lockedAt}]
@@ -6277,12 +6304,208 @@ function _costLabelFor(unit){
   var w = _UNIT_WORDS[String(unit || 'UNIT').toUpperCase()];
   return w ? ('Cost per ' + w) : 'Unit Cost';
 }
+
+// ── Packs: how many stocking units come in a box, for THIS material ──────────
+//
+// The units that can hold other units. UNIT/SET/ROLL/SHEET/LF are quantities in
+// their own right — nobody is going to say "a linear foot of 12 linear feet" —
+// so they never raise the question.
+var _PACK_UNITS = { BOX:1, CASE:1, PALLET:1, BAG:1 };
+function _isPackUnit(u){ return !!_PACK_UNITS[String(u || '').toUpperCase()]; }
+
+function _packKeyJs(cat, name){
+  return String(cat || '').trim().toUpperCase() + '||' + String(name || '').trim().toUpperCase();
+}
+// The remembered factor for this material in this pack, or null if we have
+// never been told. null is the ordinary answer: most materials are counted one
+// at a time and never appear in here at all.
+function _packFactor(cat, name, unit){
+  if (!_isPackUnit(unit)) return null;
+  var rec = materialPacks[_packKeyJs(cat, name)];
+  if (!rec || !rec.packs) return null;
+  var want = String(unit).toUpperCase();
+  for (var i = 0; i < rec.packs.length; i++){
+    if (String(rec.packs[i].pack).toUpperCase() === want){
+      var f = Number(rec.packs[i].perPack);
+      return (isFinite(f) && f > 0) ? f : null;
+    }
+  }
+  return null;
+}
+
+// The cost label may only name a pack when the app can actually DO the
+// conversion that name implies.
+//
+// v11.5 shipped this wrong and it is worth spelling out, because it is the
+// dangerous kind of wrong: the label read "Cost per Box" the moment the
+// dropdown said Box, but nothing divided. The backend takes this field as the
+// cost of ONE STOCKING UNIT (totalCost = unitCost x qty) and feeds it to the
+// weighted-average engine. So a box of 12 at $120 was recorded as $120 a tube
+// and blended into every future cost for that material — a 12x error, silent,
+// and unrecoverable without editing history. The label promised a conversion
+// that did not exist.
+//
+// Now the promise and the arithmetic are the same condition: name the pack
+// only when the factor is known, and divide by exactly that factor on save.
 function _syncCostLabel(n){
-  var sel = document.getElementById('mat-unit-' + n);
-  var lbl = document.getElementById('mat-cost-lbl-' + n);
+  var sel  = document.getElementById('mat-unit-' + n);
+  var lbl  = document.getElementById('mat-cost-lbl-' + n);
   if (!sel || !lbl) return;
-  lbl.innerHTML = _he(_costLabelFor(sel.value)) +
+  var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
+  var name = (document.getElementById('mat-name-' + n) || {}).value || '';
+  var f    = _packFactor(cat, name, sel.value);
+  lbl.innerHTML = _he(f ? _costLabelFor(sel.value) : 'Unit Cost') +
     ' <span style="text-transform:none;opacity:.7">(optional)</span>';
+  _syncPackNote(n);
+  _syncPackCostMath(n);
+}
+
+// ── The one line that asks, and only when there is something to ask ─────────
+//
+// Jose's shape, and his reasoning: nobody needs a calculator to work out that
+// 30 boxes of 12 is 360. What the app needs is the FACTOR, and the way to get
+// it is the way the app already gets a new supplier — react to what the person
+// has already said instead of interrogating them up front.
+//
+// So the question never exists until the person picks a pack unit. Choose
+// "Unit" and nothing appears, ever. That is the case that matters most here:
+// a window is one unit, it does not come in a box, and asking "how many
+// windows per box?" is a question with no answer. The absence of a pack is the
+// normal state, not an unfinished setup.
+//
+//   pack unit + material named + factor unknown  →  ask, inline
+//   pack unit + factor known                     →  say it quietly, offer change
+//   anything else                                →  nothing at all
+function _syncPackNote(n){
+  var host = document.getElementById('mat-pack-note-' + n);
+  if (!host) return;
+  var sel  = document.getElementById('mat-unit-' + n);
+  var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
+  var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
+  var unit = sel ? sel.value : 'UNIT';
+
+  if (!_isPackUnit(unit) || !name){ host.innerHTML = ''; host.style.display = 'none'; return; }
+  host.style.display = '';
+
+  var word = (_UNIT_WORDS[unit.toUpperCase()] || 'pack').toLowerCase();
+  var f = _packFactor(cat, name, unit);
+
+  if (f){
+    host.className = 'pack-note known';
+    host.innerHTML = '<span>1 ' + _he(word) + ' of ' + _he(name) + ' = <strong>' + f +
+      ' units</strong></span><button type="button" class="pack-change">change</button>';
+    host.querySelector('.pack-change').addEventListener('click', function(){ _packAsk(n, f); });
+  } else {
+    _packAsk(n, null);
+  }
+}
+
+function _packAsk(n, current){
+  var host = document.getElementById('mat-pack-note-' + n);
+  if (!host) return;
+  var sel  = document.getElementById('mat-unit-' + n);
+  var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
+  var unit = sel ? sel.value : 'BOX';
+  var word = (_UNIT_WORDS[String(unit).toUpperCase()] || 'pack').toLowerCase();
+
+  host.style.display = '';
+  host.className = 'pack-note ask';
+  host.innerHTML =
+    '<span>1 ' + _he(word) + ' of ' + _he(name) + ' = how many units?</span>' +
+    '<input type="number" class="pack-qty" min="0" step="any" placeholder="12"' +
+      (current ? ' value="' + _escAttr(String(current)) + '"' : '') + '>' +
+    '<button type="button" class="pack-save">' + (current ? 'Save' : '+ Add it') + '</button>' +
+    '<div class="pack-warn" style="display:none"></div>';
+
+  var inp  = host.querySelector('.pack-qty');
+  var warn = host.querySelector('.pack-warn');
+  var commit = function(){
+    var v = Number(inp.value);
+    if (!isFinite(v) || v <= 0){ inp.focus(); return; }
+    if (v === 1){
+      warn.style.display = '';
+      warn.textContent = 'A ' + word + ' of 1 is the same as a unit — pick "Unit" instead.';
+      return;
+    }
+    // Jose asked for this explicitly: changing a remembered factor is a change
+    // to money, backwards and forwards, so it says what it is changing FROM
+    // and waits. A new factor saves straight away — there is nothing to lose.
+    if (current && v !== current && warn.style.display === 'none'){
+      warn.style.display = '';
+      warn.innerHTML = 'You are changing the units per ' + _he(word) + ' for ' + _he(name) +
+        ' — was <strong>' + current + '</strong>, now <strong>' + v + '</strong>. Press Save again if that is right.';
+      return;
+    }
+    _packSave(n, unit, v);
+  };
+  host.querySelector('.pack-save').addEventListener('click', commit);
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); commit(); } });
+  inp.addEventListener('input', function(){ warn.style.display = 'none'; });
+  if (current) setTimeout(function(){ inp.focus(); inp.select(); }, 20);
+}
+
+function _packSave(n, unit, perPack){
+  var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
+  var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
+  var host = document.getElementById('mat-pack-note-' + n);
+  var btn  = host && host.querySelector('.pack-save');
+  if (btn) _btnBusy(btn);
+
+  // Written into the local map immediately so the label, the note and the
+  // arithmetic all agree at once. The server call confirms it; if it fails the
+  // entry is rolled back rather than left looking saved.
+  var key = _packKeyJs(cat, name);
+  var prev = materialPacks[key] ? JSON.parse(JSON.stringify(materialPacks[key])) : null;
+  if (!materialPacks[key]) materialPacks[key] = { packs: [] };
+  var list = materialPacks[key].packs;
+  var hit = false;
+  for (var i = 0; i < list.length; i++){
+    if (String(list[i].pack).toUpperCase() === String(unit).toUpperCase()){ list[i].perPack = perPack; hit = true; break; }
+  }
+  if (!hit) list.push({ pack: String(unit).toUpperCase(), perPack: perPack });
+  _syncCostLabel(n);
+
+  google.script.run
+    .withSuccessHandler(function(){ if (btn) _btnDone(btn); })
+    .withFailureHandler(function(err){
+      if (prev) materialPacks[key] = prev; else delete materialPacks[key];
+      _syncCostLabel(n);
+      toast('Could not save the units per ' + String(unit).toLowerCase() + ': ' +
+            ((err && err.message) || 'unknown error'), 'error');
+    })
+    .processMovement('saveMaterialPack', _h({ category: cat, name: name, pack: unit, perPack: perPack }));
+}
+
+// Shows the division rather than performing it out of sight. Not a calculator
+// — one line confirming what the app is about to record, so a wrong factor is
+// visible before it reaches the cost engine instead of after.
+function _syncPackCostMath(n){
+  var out = document.getElementById('mat-pack-math-' + n);
+  if (!out) return;
+  var sel  = document.getElementById('mat-unit-' + n);
+  var cost = document.getElementById('mat-cost-' + n);
+  var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
+  var name = (document.getElementById('mat-name-' + n) || {}).value || '';
+  var f = _packFactor(cat, name, sel ? sel.value : '');
+  var c = Number(cost && cost.value);
+  if (!f || !isFinite(c) || c <= 0){ out.style.display = 'none'; out.textContent = ''; return; }
+  var word = (_UNIT_WORDS[String(sel.value).toUpperCase()] || 'pack').toLowerCase();
+  out.style.display = '';
+  out.textContent = '$' + c.toFixed(2) + ' per ' + word + ' ÷ ' + f + ' = $' +
+                    (Math.round((c / f) * 10000) / 10000) + ' per unit — that is what gets recorded.';
+}
+
+// The number the backend must receive: cost of ONE STOCKING UNIT, always.
+function _entryUnitCost(n){
+  var cost = document.getElementById('mat-cost-' + n);
+  if (!cost || String(cost.value || '').trim() === '') return '';
+  var c = Number(cost.value);
+  if (!isFinite(c) || c < 0) return '';
+  var sel  = document.getElementById('mat-unit-' + n);
+  var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
+  var name = (document.getElementById('mat-name-' + n) || {}).value || '';
+  var f = _packFactor(cat, name, sel ? sel.value : '');
+  return f ? String(Math.round((c / f) * 10000) / 10000) : String(c);
 }
 
 function _matLineTpl(n){
@@ -6299,12 +6522,12 @@ function _matLineTpl(n){
     '<div class="mat-line-grid">' +
       '<div class="field">' +
         '<label class="mat-line-lbl-sm">Category</label>' +
-        '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ');_checkPriceChange(' + n + ')">' + catOpts + '</select>' + _catHelperHtml() +
+        '<select id="mat-cat-' + n + '" onchange="updateMatLineNameList(' + n + ');_checkPriceChange(' + n + ');_syncCostLabel(' + n + ')">' + catOpts + '</select>' + _catHelperHtml() +
       '</div>' +
       '<div class="field" style="grid-column:span 1;position:relative">' +
         '<label class="mat-line-lbl-sm">Name / Description</label>' +
         '<input type="text" id="mat-name-' + n + '" placeholder="Type material name..." autocomplete="off"' +
-        ' oninput="_checkIncomingSuggest(' + n + ', this);_checkPriceChange(' + n + ')">' +
+        ' oninput="_checkIncomingSuggest(' + n + ', this);_checkPriceChange(' + n + ');_syncCostLabel(' + n + ')">' +
         '<div class="inc-suggest-box" id="inc-suggest-' + n + '" style="display:none"></div>' +
       '</div>' +
       '<div class="field">' +
@@ -6327,9 +6550,12 @@ function _matLineTpl(n){
         // step when the unit is changed.
         '<label class="mat-line-lbl-sm" id="mat-cost-lbl-' + n + '">' + _costLabelFor('UNIT') +
           ' <span style="text-transform:none;opacity:.7">(optional)</span></label>' +
-        '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00" oninput="_checkPriceChange(' + n + ')">' +
+        '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00" oninput="_checkPriceChange(' + n + ');_syncPackCostMath(' + n + ')">' +
       '</div>' : '') +
     '</div>' +
+    // Empty and hidden until a pack unit is picked with a material named.
+    '<div class="pack-note" id="mat-pack-note-' + n + '" style="display:none"></div>' +
+    (_canSeeCosts() ? '<div class="pack-math" id="mat-pack-math-' + n + '" style="display:none"></div>' : '') +
     (_canSeeCosts() ?
       '<div class="mat-cost-alert" id="mat-cost-alert-' + n + '" style="display:none"></div>' : '') +
     '<div class="mat-loc-box">' +
@@ -7195,7 +7421,14 @@ function submitMultiEntry(){
     // canSeeCosts, so this naturally reads '' and the batch is priced by
     // reading the current average later, same as any other unpriced entry.
     var costEl = document.getElementById('mat-cost-' + n);
-    if (costEl && String(costEl.value || '').trim() !== '') matEntry.unitCost = costEl.value;
+    // NOT costEl.value: when the label says "Cost per Box" the number typed
+    // is the cost of a box, and the backend multiplies whatever it gets by
+    // the quantity in stocking units. _entryUnitCost does the one division
+    // that keeps the label honest.
+    if (costEl && String(costEl.value || '').trim() !== '') {
+      var uc = _entryUnitCost(n);
+      if (uc !== '') matEntry.unitCost = uc;
+    }
     if (!sameInfo) {
       matEntry.supplier    = ((document.getElementById('mat-sup-'  + n) || {}).value || '').trim();
       matEntry.gc          = ((document.getElementById('mat-gc-'   + n) || {}).value || '').trim();
@@ -13346,6 +13579,7 @@ function _applyData(data) {
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
   rackPhotos         = data.rackPhotos         || {};
+  materialPacks      = data.materialPacks      || {};
   materialLocks      = data.materialLocks      || [];
   systemActivity     = data.systemActivity     || [];
   if (data.columnPrefs) { columnPrefs = data.columnPrefs; _applyColumnPrefs(); }
