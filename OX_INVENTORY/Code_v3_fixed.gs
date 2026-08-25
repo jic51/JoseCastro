@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.12';
+var APP_VERSION = '11.13';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.12';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'f8a9f34c';
+var APP_BUILD = '3750b471';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -3133,8 +3133,25 @@ function runBackupNow_() {
     // opening, because the app looks in a folder that is not where they are.
     // Written into the COPY only, never the live file, and into the
     // customer's own Drive — we never hold any of it.
-    try { writeConfigSnapshot_(copyFile.getId()); }
-    catch (eSnap) { Logger.log('config snapshot: ' + eSnap.message); }  // a backup without it still beats no backup
+    // A backup without the snapshot still beats no backup, so this must not
+    // abort the backup. But it used to fail into Logger.log alone, which
+    // nobody reads — meaning the ONE thing that makes a backup restorable
+    // could stop working and every backup afterwards would look perfectly
+    // healthy in Drive and in the app. You would find out during the
+    // emergency, which is the only moment it is too late.
+    var snapProps = -1, snapErr = '';
+    try {
+      snapProps = writeConfigSnapshot_(copyFile.getId());
+    } catch (eSnap) {
+      snapErr = eSnap.message || String(eSnap);
+      Logger.log('config snapshot: ' + snapErr);
+      logError_(ss, 'WARN', 'backend', 'writeConfigSnapshot', 'system',
+        'Backup was created but its configuration snapshot was not: ' + snapErr +
+        ' — restoring from this copy means re-entering the Script Properties by hand.',
+        null, newRequestId_());
+    }
+    PropertiesService.getScriptProperties()
+      .setProperty('LAST_BACKUP_SNAPSHOT', snapErr ? ('FAILED: ' + snapErr) : String(snapProps));
 
     pruneOldBackups_(folder);
 
@@ -3420,6 +3437,11 @@ function getBackupStatus(auth) {
     lastBackupAt:     lastAt || '',
     lastBackupName:   lastName || '',
     lastBackupFileId: lastId || '',
+    // How the configuration snapshot went on the last run: a number of
+    // properties saved, or "FAILED: …". Surfaced because a backup that quietly
+    // stopped carrying the configuration looks exactly like a healthy one
+    // until somebody actually needs it.
+    lastBackupSnapshot: p.getProperty('LAST_BACKUP_SNAPSHOT') || '',
     // The whole list, straight from Drive — see listBackups_ for why it is
     // not read from AUDIT_LOG like the rest of the System tab.
     backups:          (function(){ try { return listBackups_(); } catch (e) { Logger.log('listBackups_: ' + e.message); return []; } })()

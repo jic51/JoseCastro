@@ -592,6 +592,10 @@
                border-radius:6px;padding:.35rem .5rem;flex-wrap:wrap}
     .packs-name{font-weight:600;font-size:.84rem;flex:1;min-width:8rem}
     .packs-fact{font-size:.8rem;color:var(--muted);white-space:nowrap}
+    /* Does the latest backup carry the SETTINGS, or only the data? */
+    .snap-ok{font-size:.73rem;color:var(--green);margin-top:.2rem}
+    .snap-warn{font-size:.75rem;background:#FEF3C7;color:var(--yellow);font-weight:600;
+               border-radius:6px;padding:.4rem .6rem;margin-top:.35rem;line-height:1.45}
     /* ── The location box ──
        Jose's rule, from comparing the five screens side by side: the material
        box itself stays NEUTRAL, and the movement's colour appears only around
@@ -2830,7 +2834,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.12';
+var APP_VERSION = '11.13';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2842,7 +2846,7 @@ var APP_VERSION = '11.12';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'f8a9f34c';
+var APP_BUILD = '3750b471';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8309,6 +8313,24 @@ function _drawBackupBox(st){
       : _he(st.lastBackupName || '');
     lastHtml = '<div style="font-size:.75rem;margin-top:.35rem">Last backup: ' + _he(_fmtWhen(st.lastBackupAt)) +
       (link ? ' — ' + link : '') + '</div>';
+
+    // Whether the copy carries the CONFIGURATION, not just the data.
+    //
+    // A backup is a copy of the spreadsheet, and Script Properties do not live
+    // in the spreadsheet — so without this snapshot a restore brings back
+    // every movement and none of the settings, FOLDER_PREFIX included, and
+    // every attachment ever saved stops opening. Writing it is allowed to
+    // fail so that a snapshot problem never costs you the backup itself; it
+    // is NOT allowed to fail silently, which is what it did until v11.13.
+    var snap = st.lastBackupSnapshot || '';
+    if (/^FAILED/.test(snap)) {
+      lastHtml += '<div class="snap-warn">⚠ This copy has your data but NOT your settings — ' +
+        'the configuration snapshot could not be written (' + _he(snap.replace(/^FAILED:\s*/, '')) + '). ' +
+        'Restoring from it would mean re-entering the Script Properties by hand. See Error Log.</div>';
+    } else if (snap) {
+      lastHtml += '<div class="snap-ok">✓ Includes your settings — ' + _he(snap) +
+        ' saved in the <strong>ACOPIO_CONFIG_SNAPSHOT</strong> tab inside the copy.</div>';
+    }
   }
 
   // EVERY backup, not just the newest — Jose: "what if the customer wants
