@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.10';
+var APP_VERSION = '11.12';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.10';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '33776078';
+var APP_BUILD = 'f8a9f34c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -5822,6 +5822,269 @@ function onEdit(e) {
 // opens. Created by the template tool and removed by the wizard once setup is
 // done, so a working system is not left carrying a welcome mat.
 var START_HERE_SHEET = '👉 START HERE';
+var TERMS_SHEET   = '📄 Terms of Service';
+var PRIVACY_SHEET = '📄 Privacy Policy';
+
+// ─── BEGIN GENERATED LEGAL TEXT — node tools/sync-legal.js ───
+// Source of truth: legal/TERMS-OF-SERVICE.md and legal/PRIVACY-POLICY.md.
+// DO NOT EDIT THIS BLOCK BY HAND — edit the .md and re-run the generator.
+// Each line is [kind, text]; kind is "title", "head", "li" or "p".
+var LEGAL_SHEET_TEXT = {
+  terms: [
+    ["title","Terms of Service — Acopio"],
+    ["p",""],
+    ["p","Last updated: 6 August 2026"],
+    ["p",""],
+    ["p","These terms govern your use of Acopio, warehouse-management software provided by Jose Castro (\"we\", \"us\"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so."],
+    ["p",""],
+    ["head","1. What you are buying"],
+    ["p",""],
+    ["p","A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus updates and support for as long as your licence is active."],
+    ["p",""],
+    ["p","You are not buying a hosted service. Acopio runs in your Google account, on your data, under your control. We do not operate a server your business depends on — which is why there is no uptime commitment below, and why there also is no one who can take your data away from you."],
+    ["p",""],
+    ["head","2. What you need to provide"],
+    ["p",""],
+    ["li","•   A Google account (personal Gmail or Google Workspace)."],
+    ["li","•   Sufficient Google Drive storage for your documents and backups."],
+    ["li","•   Compliance with Google's own terms for that account."],
+    ["p",""],
+    ["p","Google may change its products, quotas or pricing at any time. Those changes are between you and Google, and are outside our control. See §7."],
+    ["p",""],
+    ["head","3. Your data"],
+    ["p",""],
+    ["p","Your data is yours. We do not host it, receive it or claim any rights over it. See the Privacy Policy for detail."],
+    ["p",""],
+    ["p","If you stop paying, your data keeps working. The spreadsheet is yours, the records are yours, the documents in your Drive are yours. What lapses is your right to updates and support, not your access to your own information. We cannot and will not disable your installation remotely."],
+    ["p",""],
+    ["head","4. What you may not do"],
+    ["p",""],
+    ["li","•   Resell, sublicense, or distribute the software to third parties."],
+    ["li","•   Remove or obscure the \"Powered by Acopio\" attribution."],
+    ["li","•   Install one licence across multiple unrelated companies."],
+    ["li","•   Reverse engineer the software to build a competing product."],
+    ["p",""],
+    ["p","Reading, understanding and modifying the code for your own internal use is permitted — it runs in your account and you can see all of it. Modified copies are unsupported, and §6 applies with particular force to them."],
+    ["p",""],
+    ["head","5. Support and updates"],
+    ["p",""],
+    ["p","While your licence is active:"],
+    ["li","•   Bug fixes and security updates, delivered as files for you to install."],
+    ["li","•   Support by email during business hours, on a best-effort basis."],
+    ["p",""],
+    ["p","Installing updates is your responsibility. Because the software lives in your account, we cannot push a fix to you — including a security fix. We will tell you an update matters; applying it is your call and your action."],
+    ["p",""],
+    ["p","We do not commit to any specific new feature, or to any timeline for one, unless we have agreed it with you in writing."],
+    ["p",""],
+    ["head","6. Warranty disclaimer and limitation of liability"],
+    ["p",""],
+    ["p","Read this section. It is the one that matters most if something goes wrong."],
+    ["p",""],
+    ["p","The software is provided \"as is\", without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose and non-infringement."],
+    ["p",""],
+    ["p","We are not responsible for the accuracy of your inventory. Acopio records what your staff enter. It cannot know whether the count was right, whether a delivery was miscounted, or whether someone recorded a movement that never happened. Inventory accuracy is an operational responsibility, not a software guarantee."],
+    ["p",""],
+    ["p","To the maximum extent permitted by law, we are not liable for:"],
+    ["p",""],
+    ["li","•   lost profits, lost revenue, lost business or lost data;"],
+    ["li","•   decisions made on the basis of information shown by the software;"],
+    ["li","•   stock discrepancies, shortages, overstock or mis-shipments;"],
+    ["li","•   any failure, change, quota, outage or discontinuation of Google's services;"],
+    ["li","•   data loss caused by deletion, misconfiguration or account compromise on your"],
+    ["p","  side."],
+    ["p",""],
+    ["p","Our total liability, for any and all claims, is capped at **the amount you paid us in the twelve months preceding the claim**."],
+    ["p",""],
+    ["p","Some jurisdictions do not allow certain exclusions; in those places these limits apply to the fullest extent the law allows."],
+    ["p",""],
+    ["head","7. Dependence on Google"],
+    ["p",""],
+    ["p","Acopio is built on Google Workspace and Google Apps Script. Google's platform carries limits that are theirs, not ours — including a daily cap on outgoing email (100/day on personal accounts, 1,500/day on Workspace), execution time limits, and a maximum spreadsheet size."],
+    ["p",""],
+    ["p","We will tell you about the limits we know of and design around them where we can. We cannot remove them, and we are not liable if Google changes them, enforces them, or discontinues a service we rely on."],
+    ["p",""],
+    ["head","8. Backups"],
+    ["p",""],
+    ["p","Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on."],
+    ["p",""],
+    ["p","It is a convenience, not a guarantee. It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility."],
+    ["p",""],
+    ["head","9. Payment and cancellation"],
+    ["p",""],
+    ["p","Fees, billing period and any add-on pricing are as agreed in writing when you purchase. Cancel any time; cancellation ends future billing and ends support and updates at the end of the paid period. Fees already paid are not refundable except where required by law."],
+    ["p",""],
+    ["head","10. Termination"],
+    ["p",""],
+    ["p","We may terminate your licence if you materially breach these terms and do not fix it within 30 days of written notice. On termination your right to support and updates ends. Your installation and your data are unaffected — we have no mechanism to remove them, and would not use one if we had it."],
+    ["p",""],
+    ["head","11. Changes to these terms"],
+    ["p",""],
+    ["p","We may update these terms. Material changes will be emailed to active customers at least 30 days before they take effect. Continuing to use the software after that means you accept them."],
+    ["p",""],
+    ["head","12. Governing law"],
+    ["p",""],
+    ["p","The laws of the State of Utah, United States, without regard to conflict-of-law rules. Disputes go to the state or federal courts located in Utah."],
+    ["p",""],
+    ["head","13. Contact"],
+    ["p",""],
+    ["p","Jose Castro — joseisrael5101@gmail.com"]
+  ],
+  privacy: [
+    ["title","Privacy Policy — Acopio"],
+    ["p",""],
+    ["p","Last updated: 21 August 2026"],
+    ["p",""],
+    ["p","Acopio is warehouse-management software provided by Jose Castro (\"we\", \"us\"). This policy explains what happens to data when you use it."],
+    ["p",""],
+    ["p","Read the first section before anything else — it is the part that makes the rest of this document short."],
+    ["p",""],
+    ["head","1. Where your data lives — and who holds it"],
+    ["p",""],
+    ["p","Acopio does not host your business data. We never receive a copy of it."],
+    ["p",""],
+    ["p","Acopio runs entirely inside your own Google account. When you install it, a Google Sheet and a Google Apps Script project are created **in your Google Drive**, owned by you. Every inventory record, photo, document and user list the software creates is written to that spreadsheet and that Drive folder — both yours."],
+    ["p",""],
+    ["p","There is no Acopio server. There is no Acopio database. We operate no infrastructure that your business data passes through or is stored on."],
+    ["p",""],
+    ["p","Practically, this means:"],
+    ["p",""],
+    ["li","•   We cannot read your inventory, your suppliers, your prices or your documents."],
+    ["li","•   We cannot lose your data in a breach of our systems, because it is not on our"],
+    ["p","  systems."],
+    ["li","•   If you stop paying us, your data does not go anywhere. It stays in your Drive"],
+    ["p","  and your spreadsheet keeps working."],
+    ["li","•   A subpoena served on us produces nothing about your inventory, because we hold"],
+    ["p","  none of it. The only business information we may hold is your company name and your administrator's email address, and only in the one case described in section 3 — the setup check-in."],
+    ["p",""],
+    ["p","Your data is governed by your agreement with Google (Google Workspace Terms or the Google Terms of Service, as applicable to your account)."],
+    ["p",""],
+    ["head","2. What the software accesses, and why"],
+    ["p",""],
+    ["p","When you first install Acopio, Google asks you to authorise it. Each permission exists for a specific feature:"],
+    ["p",""],
+    ["p","| Permission | Why it is needed | |---|---| | See, edit and delete your Google Drive files | Store the photos and documents you attach to movements, and create nightly backup copies of your spreadsheet. | | View and manage the spreadsheet this app is installed in | The spreadsheet is the application's database. | | Send email as you | Delivery notifications to your project managers, and system alerts to your administrator. It cannot read your email. | | Create and edit Google Docs | Assemble multiple photos into a single PDF document. | | Connect to an external service | Version checks and, if you enable it, the optional AI document-reading add-on. | | Run when you are not present | The nightly automatic backup. | | See your primary email address and basic profile | Identify who is signed in, so the app knows which permissions to apply. |"],
+    ["p",""],
+    ["p","Two notes on scope:"],
+    ["p",""],
+    ["li","•   Full Gmail access is NOT part of the base product. It is required only by"],
+    ["p","  the optional paid Gmail delivery-scanner add-on. If you have not bought that add-on, Acopio never requests it and cannot read your mail."],
+    ["li","•   Every permission above is granted by you, to software running in your own"],
+    ["p","  account. None of it grants us access."],
+    ["p",""],
+    ["head","3. What we collect"],
+    ["p",""],
+    ["p","We never receive your inventory data. Three things can send us something else, and they are listed here in full."],
+    ["p",""],
+    ["p","1. \"Report a problem\" (the 🐞 button). When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see. 2. Support you initiate. If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards. 3. The setup check-in — the one thing that sends without you asking. If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup **when no inventory movement has been recorded at all**. It is there so a customer who got stuck during setup hears from us instead of quietly giving up."],
+    ["p",""],
+    ["p","   That email contains exactly four things: **your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.** Nothing else — no inventory, no materials, no suppliers, no prices, no documents."],
+    ["p",""],
+    ["p","   It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all."],
+    ["p",""],
+    ["p","We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell."],
+    ["p",""],
+    ["head","4. The optional AI add-on"],
+    ["p",""],
+    ["p","If you enable the document-reading feature, the contents of the documents you choose to scan are sent to Google's Gemini API for processing, using an API key that you supply from your own Google account. The request goes from your Google account to Google. It does not pass through us."],
+    ["p",""],
+    ["p","This feature is off unless you turn it on."],
+    ["p",""],
+    ["head","5. Sub-processors"],
+    ["p",""],
+    ["p","We use none for your business data, because we do not process it."],
+    ["p",""],
+    ["p","Google is not our sub-processor — Google is your provider, under your own agreement with them."],
+    ["p",""],
+    ["head","6. Retention and deletion"],
+    ["p",""],
+    ["p","You control retention entirely:"],
+    ["p",""],
+    ["li","•   Inventory records live in your spreadsheet until you delete them."],
+    ["li","•   Attached photos and documents live in your Drive until you delete them."],
+    ["li","•   Nightly backups are deleted automatically after 30 days."],
+    ["p",""],
+    ["p","To delete everything: delete the spreadsheet and the app's Drive folder. That is complete deletion — there is no second copy anywhere for us to purge, and no request to us is required."],
+    ["p",""],
+    ["p","To revoke the software's access at any time, without deleting anything, go to myaccount.google.com/permissions (https://myaccount.google.com/permissions)."],
+    ["p",""],
+    ["head","7. Your rights (GDPR, CCPA and similar)"],
+    ["p",""],
+    ["p","Because your data never leaves your Google account, **you are the data controller** for it and we are not a processor of it. Access, correction, export and deletion are all things you perform directly, in your own spreadsheet, without asking us."],
+    ["p",""],
+    ["p","For the limited personal data we hold as a business — your name, billing email and support correspondence — write to the address below and we will act on your request within 30 days."],
+    ["p",""],
+    ["head","8. Children"],
+    ["p",""],
+    ["p","Acopio is business software and is not directed at anyone under 16."],
+    ["p",""],
+    ["head","9. Security"],
+    ["p",""],
+    ["p","The software is built to keep your data inside your account: uploaded files are private to your Drive by default and are never shared publicly; access is restricted to the user list you configure; and the code is written to resist common web vulnerabilities. Security fixes are shipped as software updates for you to install."],
+    ["p",""],
+    ["p","That said, the security of your Google account — passwords, two-factor authentication, who you grant access to — is yours to manage, and no software we write can compensate for a compromised account."],
+    ["p",""],
+    ["head","10. Changes"],
+    ["p",""],
+    ["p","Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version."],
+    ["p",""],
+    ["head","11. Contact"],
+    ["p",""],
+    ["p","Jose Castro — joseisrael5101@gmail.com"]
+  ]
+};
+// ─── END GENERATED LEGAL TEXT ───
+
+// The two documents the consent checkbox refers to, written into the customer's
+// own file so they can be READ before the box is ticked.
+//
+// Why they live in the spreadsheet and not behind a link: the box is ticked
+// before setup runs, which is before the web app is deployed and before there
+// is any URL to link to. Asking somebody to accept a document that cannot be
+// opened is not consent, and this is the one screen in the product whose only
+// job is recording an agreement.
+//
+// Rebuilt from scratch each time rather than patched: these are generated from
+// legal/*.md, so the file's copy should always be the current one, and a
+// half-updated policy is worse than an old one.
+function createLegalSheets_(ss) {
+  [[TERMS_SHEET, LEGAL_SHEET_TEXT.terms], [PRIVACY_SHEET, LEGAL_SHEET_TEXT.privacy]]
+    .forEach(function(pair){
+      var name = pair[0], lines = pair[1];
+      var old = ss.getSheetByName(name);
+      if (old) ss.deleteSheet(old);
+      var sh = ss.insertSheet(name);
+      sh.setHiddenGridlines(true);
+      sh.setColumnWidth(1, 40);
+      sh.setColumnWidth(2, 860);
+      sh.getRange('A:B').setBackground(SH_PAPER);
+
+      var values = lines.map(function(l){ return [l[1]]; });
+      if (values.length) {
+        sh.getRange(2, 2, values.length, 1).setValues(values)
+          .setWrap(true).setVerticalAlignment('top');
+      }
+      lines.forEach(function(l, idx){
+        var cell = sh.getRange(idx + 2, 2);
+        if (l[0] === 'title')      cell.setFontSize(18).setFontWeight('bold').setFontColor(SH_NAVY);
+        else if (l[0] === 'head')  cell.setFontSize(13).setFontWeight('bold').setFontColor(SH_ACCENT);
+        else                       cell.setFontSize(11).setFontColor('#374151');
+      });
+
+      // A reader should never have to find their way back by hand.
+      sh.getRange('B1').setValue('← Back to 👉 START HERE')
+        .setFontSize(10).setFontColor(SH_MUTED);
+      sh.setFrozenRows(1);
+      sh.protect().setWarningOnly(true);   // it is a document, not a worksheet
+    });
+}
+
+// A link to another TAB of the same spreadsheet. Sheets addresses those by the
+// tab's gid, which only exists once the tab does — so this is called after
+// createLegalSheets_, never before.
+function sheetLink_(ss, name) {
+  var sh = ss.getSheetByName(name);
+  return sh ? ('#gid=' + sh.getSheetId()) : '';
+}
 
 // Fixed addresses, because onEdit has to recognise the checkbox by position —
 // it gets a cell, not a name. Change the layout below and these move with it.
@@ -5907,8 +6170,22 @@ function createStartHereSheet_(ss) {
   chk.insertCheckboxes();
   chk.setValue(false);
   chk.setHorizontalAlignment('center');
-  put(TERMS_LABEL_CELL, 'I accept the Terms of Service and Privacy Policy — tick this box to begin.',
-      { size: 12, bold: true, color: SH_NAVY, bg: '#EFF4FB' });
+  // The same sentence as before, with the two document names turned into
+  // links to the tabs that hold them. Rich text rather than two separate
+  // HYPERLINK cells: breaking the sentence apart to make it clickable would
+  // have made the one line that records consent harder to read, and the words
+  // being underlined is what tells somebody they can be opened.
+  var termsLabel = 'I accept the Terms of Service and Privacy Policy — tick this box to begin.';
+  createLegalSheets_(ss);
+  var tUrl = sheetLink_(ss, TERMS_SHEET), pUrl = sheetLink_(ss, PRIVACY_SHEET);
+  var tAt = termsLabel.indexOf('Terms of Service');
+  var pAt = termsLabel.indexOf('Privacy Policy');
+  var rt = SpreadsheetApp.newRichTextValue().setText(termsLabel)
+    .setTextStyle(SpreadsheetApp.newTextStyle()
+      .setFontSize(12).setBold(true).setForegroundColor(SH_NAVY).build());
+  if (tUrl) rt.setLinkUrl(tAt, tAt + 'Terms of Service'.length, tUrl);
+  if (pUrl) rt.setLinkUrl(pAt, pAt + 'Privacy Policy'.length, pUrl);
+  sh.getRange(TERMS_LABEL_CELL).setRichTextValue(rt.build()).setBackground('#EFF4FB');
   sh.setRowHeight(15, 20);
   put(TERMS_STAMP_CELL, '', { size: 10, color: SH_MUTED, bg: '#EFF4FB' });
   // The instruction lives INSIDE the same panel as the checkbox, one line

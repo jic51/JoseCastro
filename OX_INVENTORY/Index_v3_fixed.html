@@ -2830,7 +2830,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.10';
+var APP_VERSION = '11.12';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2842,7 +2842,7 @@ var APP_VERSION = '11.10';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '33776078';
+var APP_BUILD = 'f8a9f34c';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6466,16 +6466,37 @@ function _packAsk(n, current){
   host.querySelector('.pack-save').addEventListener('click', commit);
   inp.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); commit(); } });
   inp.addEventListener('input', function(){ warn.style.display = 'none'; });
+
+  // Typing 12 into a box that asks "how many units?" IS the answer. Requiring a
+  // press on top of that only creates a way to answer and have it forgotten —
+  // Jose's question: what happens if they never click Add?
+  //
+  // So leaving the field commits a NEW factor. Nothing is silent about it: the
+  // number was typed deliberately into a labelled box, and the line immediately
+  // changes to "12 units per box [edit]" to show it landed.
+  //
+  // A CHANGE to an existing factor is deliberately excluded — that one alters
+  // costs already being computed, so it keeps the two-press warning and is
+  // never committed by walking away.
+  if (!current){
+    inp.addEventListener('blur', function(){
+      // The click on Save blurs the input first; commit() would then run twice.
+      setTimeout(function(){
+        if (!host.contains(document.activeElement) && String(inp.value || '').trim() !== '') commit();
+      }, 120);
+    });
+  }
   if (current) setTimeout(function(){ inp.focus(); inp.select(); }, 20);
 }
 
 function _packSave(n, unit, perPack){
   var cat  = (document.getElementById('mat-cat-'  + n) || {}).value || '';
   var name = ((document.getElementById('mat-name-' + n) || {}).value || '').trim();
-  var host = document.getElementById('mat-pack-note-' + n);
-  var btn  = host && host.querySelector('.pack-save');
-  if (btn) _btnBusy(btn);
-
+  // No _btnBusy here: _syncCostLabel below rebuilds this line into its "known"
+  // state, which destroys the button before any spinner could be seen and
+  // would leave _btnDone poking at a detached node. The line changing to
+  // "12 units per box [edit]" IS the feedback.
+  //
   // Written into the local map immediately so the label, the note and the
   // arithmetic all agree at once. The server call confirms it; if it fails the
   // entry is rolled back rather than left looking saved.
@@ -6491,7 +6512,7 @@ function _packSave(n, unit, perPack){
   _syncCostLabel(n);
 
   google.script.run
-    .withSuccessHandler(function(){ if (btn) _btnDone(btn); })
+    .withSuccessHandler(function(){})
     .withFailureHandler(function(err){
       if (prev) materialPacks[key] = prev; else delete materialPacks[key];
       _syncCostLabel(n);
