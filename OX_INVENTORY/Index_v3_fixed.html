@@ -466,12 +466,78 @@
     .transfer-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .transfer-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     .transfer-loc-chip.used{opacity:.4;cursor:default;pointer-events:none}
+    /* ── The material box for TRANSFER / RETURN / WASTE ──
+       ENTRY and EXIT each wrap the material in a box tinted like their tab.
+       These three had loose fields on the modal background and read as a
+       different app. Same shape, same header, tint per type — each colour is
+       the one already on the active tab in .modal-type-bar, so the box and
+       the tab a person just pressed agree with each other.
+
+       The tint sits on the box, not on the fields inside it: the inputs keep
+       their normal white so they still look like things you type into. */
+    .move-mat-box{margin-top:.75rem;padding:.85rem 1rem;border-radius:8px;border:1px solid var(--border);background:#F8FAFC}
+    .move-mat-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .move-mat-lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+    .move-mat-total{font-size:.9rem;font-weight:700;padding:3px 12px;border-radius:20px;background:#E5E7EB;color:var(--muted);font-variant-numeric:tabular-nums}
+    /* singleLocGrid and multiTransferSection carry a top margin from when they
+       sat loose on the modal background; inside the box that reads as a gap
+       nobody asked for. */
+    .move-mat-box > #singleLocGrid,
+    .move-mat-box > #multiTransferSection{margin-top:.6rem}
+    /* .btn-add-loc is the ENTRY green; inside a blue or purple or amber box it
+       was the one thing on the screen still wearing another screen's colour. */
+    .move-mat-box .btn-add-loc{border-color:currentColor}
+    .move-mat-box.mm-transfer .btn-add-loc{color:var(--accent2)}
+    .move-mat-box.mm-transfer .btn-add-loc:hover{background:#DBEAFE}
+    .move-mat-box.mm-return .btn-add-loc{color:var(--purple)}
+    .move-mat-box.mm-return .btn-add-loc:hover{background:#EDE9FE}
+    .move-mat-box.mm-waste .btn-add-loc{color:var(--yellow)}
+    .move-mat-box.mm-waste .btn-add-loc:hover{background:#FEF3C7}
+        .move-mat-box.mm-transfer .move-mat-lbl{color:var(--accent2)}
+    .move-mat-box.mm-transfer .move-mat-total{background:#DBEAFE;color:var(--accent2)}
+        .move-mat-box.mm-return .move-mat-lbl{color:var(--purple)}
+    .move-mat-box.mm-return .move-mat-total{background:#EDE9FE;color:var(--purple)}
+        .move-mat-box.mm-waste .move-mat-lbl{color:var(--yellow)}
+    .move-mat-box.mm-waste .move-mat-total{background:#FEF3C7;color:var(--yellow)}
     /* ── MULTI-MATERIAL ENTRY ── */
     .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
     .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
     .mat-line-hdr .mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
     .mat-line-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
     .mat-line-remove:hover{background:var(--red);color:#fff}
+    /* ── The last "×" is never shown ──
+       removeMatLine / removeExitMatLine / removeLocRowMat / removeExitLocRowMat
+       all refuse to delete the only remaining row — the form must always have
+       one material and one location. So the button was there, red, and did
+       nothing when pressed. A control that looks live and ignores you is worse
+       than no control: it teaches people not to trust the buttons.
+
+       Done in CSS rather than JavaScript on purpose. :only-child is recomputed
+       by the browser on every add and remove, so it cannot fall out of step
+       with the DOM the way a _syncRemoveButtons() call would the first time
+       somebody adds a row from a path that forgot to call it.
+
+       Two different hides, for two different jobs. The MATERIAL button sits at
+       the right end of its own header, so display:none lets the "1 unit" badge
+       close up the gap. The LOCATION button is a COLUMN — the header above it
+       reserves 24-28px for it — so it is hidden with visibility, which keeps
+       the column width and leaves rack and qty exactly where they were. Using
+       display:none there would widen the inputs of a one-row list and make it
+       stop lining up with its own header. */
+    #multiMatContainer   .mat-line:only-child      .mat-line-remove{display:none}
+    #multiExitContainer  .exit-mat-line:only-child .exit-mat-remove{display:none}
+    .mat-locs-container .loc-row:only-child      .btn-remove-loc{visibility:hidden}
+    .exit-locs-container .exit-loc-row:only-child .el-rm{visibility:hidden}
+    #transferRowsContainer .transfer-row:only-child .btn-remove-loc{visibility:hidden}
+    /* .btn-remove-loc's base rule says "transition:.15s" with no property
+       named, which means ALL of them — visibility included. So adding a second
+       rack row left the first row's × invisible for ~150ms while the discrete
+       visibility transition ran, right at the moment the person is looking to
+       see whether anything happened. Confining the transition to the two
+       properties it was written for keeps the hover fade and makes the button
+       appear the instant it becomes usable. */
+    .mat-locs-container .loc-row .btn-remove-loc,
+    #transferRowsContainer .transfer-row .btn-remove-loc{transition-property:background,color}
     .mat-line-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem}
     .mat-line-lbl-sm{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
     .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
@@ -484,7 +550,27 @@
     .mat-cost-alert{font-size:.78rem;padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
     .mat-cost-alert.warn{background:#FEF3C7;color:var(--yellow)}
     .mat-cost-alert.info{background:#DBEAFE;color:var(--accent2)}
-    .mat-loc-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:.55rem .7rem;margin-top:.35rem}
+    /* ── The location box ──
+       Jose's rule, from comparing the five screens side by side: the material
+       box itself stays NEUTRAL, and the movement's colour appears only around
+       the part that says WHERE and HOW MANY. ENTRY had this and he liked it;
+       EXIT tinted the whole material, and TRANSFER/RETURN/WASTE did too after
+       v11.7. One shared shape now, one colour per movement type.
+
+       Why it reads better: the colour then means "this is the bit that differs
+       between receiving and dispatching", instead of shouting the same thing
+       the tab above already says. */
+    .mat-loc-box,
+    .exit-loc-box,
+    .move-loc-box{border-radius:6px;padding:.55rem .7rem;margin-top:.35rem;border:1px solid}
+    .mat-loc-box{background:#F0FDF4;border-color:#BBF7D0}
+    .exit-loc-box{background:var(--red-bg);border-color:#FECACA}
+    .mm-transfer .move-loc-box{background:#EFF6FF;border-color:#BFDBFE}
+    .mm-return   .move-loc-box{background:var(--purple-bg);border-color:#DDD6FE}
+    .mm-waste    .move-loc-box{background:var(--yellow-bg);border-color:#FDE68A}
+    /* The header strip above the rows, same in all three. */
+    .loc-box-hdr{display:flex;gap:.4rem;margin-bottom:.25rem}
+    .loc-box-hdr span{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase}
     /* Freezes a modal while its save is in flight — blocks EVERY click anywhere in
        the overlay (header, X, click-outside-to-close, a second click on Save) and
        darkens the backdrop so the user knows to wait. The modal itself stays fully
@@ -537,7 +623,7 @@
     .cprompt-chip:hover{border-color:var(--accent);color:var(--accent)}
     .cprompt-err{margin-top:.5rem;font-size:.76rem;color:var(--red);font-weight:600;min-height:1.1em}
     /* ── MULTI-EXIT MATERIAL LINES ── */
-    .exit-mat-line{background:#FFF5F5;border:1px solid #FECACA;border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
+    .exit-mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
     .exit-mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
     .exit-mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
     .exit-mat-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
@@ -546,7 +632,7 @@
     .exit-mat-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
     .exit-mat-grid .field input,.exit-mat-grid .field select{padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .exit-mat-grid .field input:focus,.exit-mat-grid .field select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
-    .exit-loc-hdr{display:flex;gap:.4rem;margin:.4rem 0 .2rem;padding:0 .25rem}
+    .exit-loc-hdr{display:flex;gap:.4rem;margin:0 0 .25rem}
     .exit-loc-hdr span{font-size:.67rem;font-weight:600;color:var(--muted);text-transform:uppercase}
     .exit-loc-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.3rem}
     .exit-loc-row .el-rack{flex:2;padding:.38rem .55rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
@@ -554,8 +640,8 @@
     .exit-loc-row .el-avail{flex:1.4;font-size:.72rem;font-weight:600;min-width:0}
     .el-avail.ok{color:var(--green)}.el-avail.warn{color:var(--red)}.el-avail.neutral{color:var(--muted)}
     .exit-loc-row .el-rm{background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;flex-shrink:0;line-height:1;padding:0 2px}
-    .exit-mat-foot{display:flex;gap:.5rem;margin-top:.4rem}
-    .exit-mat-foot button{font-size:.75rem;padding:.25rem .65rem;border-radius:5px;cursor:pointer;font-family:inherit;border:1px solid;font-weight:600;transition:.15s}
+    .exit-mat-foot{display:flex;gap:.4rem;margin-top:.35rem}
+    .exit-mat-foot button{flex:1;font-size:.8rem;padding:.35rem .85rem;border-radius:6px;cursor:pointer;font-family:inherit;border:1px dashed;font-weight:600;transition:.15s;background:none}
     .exit-mat-foot .btn-add-exit-loc{border-color:var(--red);color:var(--red);background:none}
     .exit-mat-foot .btn-add-exit-loc:hover{background:var(--red-bg)}
     .exit-mat-foot .btn-autofill-exit{border-color:var(--accent);color:var(--accent);background:none}
@@ -2263,8 +2349,32 @@
     <!-- Stock Warning -->
     <div class="stock-warn" id="stockWarning"></div>
 
+    <!-- ── Date — alone, and first ──
+         ENTRY and EXIT hide every other field in the core grid, so the date
+         appeared first there by accident rather than by design; TRANSFER,
+         RETURN and WASTE show them all and buried the date third, between
+         Name and Quantity. Lifting it into its own row makes all five screens
+         start the same way, and costs ENTRY/EXIT nothing because the date is
+         the only thing they ever showed in that grid. -->
+    <div class="form-grid" id="moveDateGrid" style="margin-top:.75rem">
+      <div class="field">
+        <label id="dateLabel">Date Received</label>
+        <input type="date" id="mDateRec">
+      </div>
+    </div>
+
+    <!-- ── The material, in a box the colour of its own tab ──
+         ENTRY has its material box and EXIT has its own; TRANSFER, RETURN and
+         WASTE had loose fields on the modal background, so the three screens
+         read as a different app. Hidden for ENTRY/EXIT, which bring their own
+         boxes. The tint is set by setModalType via .mm-transfer/-return/-waste. -->
+    <div class="move-mat-box" id="moveMatBox" style="display:none">
+      <div class="move-mat-hdr">
+        <span class="move-mat-lbl">Material</span>
+        <span class="move-mat-total" id="moveMatTotal">0</span>
+      </div>
     <!-- ── Core Fields ── -->
-    <div class="form-grid" style="margin-top:.75rem">
+    <div class="form-grid">
       <div class="field" id="mCatField">
         <label>Category</label>
         <select id="mType"></select>
@@ -2285,14 +2395,6 @@
                   style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0 2px">✕</button>
         </div>
       </div>
-      <div class="field">
-        <label id="dateLabel">Date Received</label>
-        <input type="date" id="mDateRec">
-      </div>
-      <div class="field" id="mQtyField">
-        <label>Quantity</label>
-        <input type="number" id="mQty" min="1" value="1">
-      </div>
       <div class="field" id="mUnitField">
         <label>Unit</label>
         <select id="mUnit">
@@ -2311,6 +2413,51 @@
         </select>
       </div>
     </div>
+
+    <!-- ── Where, and how many ──
+         Tinted with the movement's colour while the material above stays
+         neutral, so the colour marks the part that actually differs between
+         a transfer, a return and a write-off. Same shape as ENTRY's green
+         box, which is the one Jose picked out as the one to copy. -->
+    <div class="move-loc-box" id="moveLocBox">
+    <!-- ── Multi-Pair TRANSFER (source → destination, multiple pairs, partial qty) ── -->
+    <div id="multiTransferSection" style="display:none">
+      <div id="transferChipsBox" style="display:none;margin-bottom:.6rem"></div>
+      <div class="multi-loc-header">
+        <label style="color:var(--accent2)">Transfer Pairs (Source → Destination)</label>
+      </div>
+      <div style="display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center">
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Source Rack</span>
+        <span style="flex:1;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>
+        <span style="flex:1.6;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Available</span>
+        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Destination Rack</span>
+        <span style="width:32px"></span>
+      </div>
+      <div id="transferRowsContainer"></div>
+      <button type="button" class="btn-add-loc" onclick="addTransferRow()">+ Add Transfer Row</button>
+    </div>
+
+    <!-- ── Location Fields (RETURN / WASTE only) ── -->
+    <div class="form-grid" id="singleLocGrid">
+      <div class="field" id="mQtyField">
+        <label>Quantity</label>
+        <input type="number" id="mQty" min="1" placeholder="Qty" oninput="_syncMoveMatTotal()">
+      </div>
+      <div class="field" id="mSrcField" style="display:none">
+        <label id="mSrcLabel">Source Rack</label>
+        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
+        <datalist id="rackList"></datalist>
+      </div>
+      <div class="field" id="mDestField" style="display:none">
+        <label id="mDestLabel">Destination</label>
+        <input type="text" id="mDest" list="rackListDest" placeholder="e.g. B2B">
+        <datalist id="rackListDest"></datalist>
+      </div>
+    </div>
+
+    </div>
+    </div><!-- /moveMatBox -->
+
 
     <!-- ── Multi-Location (ENTRY only) ── -->
     <div class="multi-loc-section" id="entryLocsSection" style="display:none">
@@ -2372,37 +2519,6 @@
       </div>
       <div id="exitRowsContainer"></div>
       <button type="button" class="btn-add-loc" style="border-color:var(--red);color:var(--red)" onclick="addExitRow()">+ Add Source Location</button>
-    </div>
-
-    <!-- ── Multi-Pair TRANSFER (source → destination, multiple pairs, partial qty) ── -->
-    <div id="multiTransferSection" style="display:none">
-      <div id="transferChipsBox" style="display:none;margin-bottom:.6rem"></div>
-      <div class="multi-loc-header">
-        <label style="color:var(--accent2)">Transfer Pairs (Source → Destination)</label>
-      </div>
-      <div style="display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center">
-        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Source Rack</span>
-        <span style="flex:1;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Qty</span>
-        <span style="flex:1.6;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Available</span>
-        <span style="flex:2;font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase">Destination Rack</span>
-        <span style="width:32px"></span>
-      </div>
-      <div id="transferRowsContainer"></div>
-      <button type="button" class="btn-add-loc" onclick="addTransferRow()">+ Add Transfer Row</button>
-    </div>
-
-    <!-- ── Location Fields (RETURN / WASTE only) ── -->
-    <div class="form-grid" style="margin-top:.75rem" id="singleLocGrid">
-      <div class="field" id="mSrcField" style="display:none">
-        <label id="mSrcLabel">Source Rack</label>
-        <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
-        <datalist id="rackList"></datalist>
-      </div>
-      <div class="field" id="mDestField" style="display:none">
-        <label id="mDestLabel">Destination</label>
-        <input type="text" id="mDest" list="rackListDest" placeholder="e.g. B2B">
-        <datalist id="rackListDest"></datalist>
-      </div>
     </div>
 
     <!-- EXIT destination (project/site) — shown for EXIT -->
@@ -2672,7 +2788,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.4';
+var APP_VERSION = '11.8';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2684,7 +2800,7 @@ var APP_VERSION = '11.4';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '35870a4d';
+var APP_BUILD = '26bde6a6';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -5237,7 +5353,7 @@ function addLocRow(rack, qty){
   row.className = 'loc-row';
   // Build inner HTML: rack input | qty input | remove button
   var rackVal = rack || '';
-  var qtyVal  = qty  || 1;
+  var qtyVal  = (qty || qty === 0) ? qty : '';
   row.innerHTML =
     '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location">' +
     '<input type="number" class="loc-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
@@ -5265,7 +5381,10 @@ function updateLocTotal(){
     total += Math.max(0, parseInt(inp.value) || 0);
   });
   document.getElementById('locTotalDisplay').textContent = 'Total: ' + total;
-  document.getElementById('mQty').value = total; // keep hidden mQty in sync (used by notify preview)
+  // Mirrored into mQty for the notify preview — but a zero is written as
+  // BLANK, because mQty is a visible box on RETURN/WASTE and a 0 sitting in
+  // it is a number nobody entered.
+  document.getElementById('mQty').value = total ? total : '';
   // Update notification preview since qty changed
   if (typeof updateNotifyPreview === 'function') updateNotifyPreview();
 }
@@ -5275,7 +5394,7 @@ function addExitRow(rack, qty){
   var container = document.getElementById('exitRowsContainer');
   var row = document.createElement('div');
   row.className = 'exit-row';
-  var qtyVal = qty || 1;
+  var qtyVal = (qty || qty === 0) ? qty : '';
   row.innerHTML =
     '<input type="text"   class="exit-rack" list="rackList" placeholder="Rack / Location">' +
     '<input type="number" class="exit-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
@@ -5306,7 +5425,7 @@ function updateExitTotal(){
     total += Math.max(0, parseInt(inp.value) || 0);
   });
   document.getElementById('exitTotalDisplay').textContent = 'Total: ' + total;
-  document.getElementById('mQty').value = total;
+  document.getElementById('mQty').value = total ? total : '';
 }
 
 // Auto-fill EXIT rows with every rack that has stock (desc qty).
@@ -5360,7 +5479,7 @@ function addTransferRowFromChip(chip){
   renderTransferLocPicker(); // refresh chips so this rack shows as "used"
 }
 
-function addTransferRow(rack, qty, dest){
+function addTransferRow(rack, qty, dest, silent){
   var container = document.getElementById('transferRowsContainer');
   var row = document.createElement('div');
   row.className = 'transfer-row';
@@ -5390,10 +5509,18 @@ function addTransferRow(rack, qty, dest){
 
   container.appendChild(row);
   validateTransferRows();
-  (dest ? destInp : (rack ? destInp : rackInp)).focus();
+  if (!silent) (dest ? destInp : (rack ? destInp : rackInp)).focus();
 }
 
 function removeTransferRow(btn){
+  // Keep at least one row, the same rule the ENTRY/EXIT material and location
+  // lists already follow. This was the odd one out: it happily deleted the
+  // last row and left a TRANSFER form with nowhere to transfer from, which
+  // then failed validation at save time instead of simply never happening.
+  // With the rule in place the CSS below hides the button on a lone row, so
+  // there is no longer a control that refuses you.
+  var container = document.getElementById('transferRowsContainer');
+  if (container && container.querySelectorAll('.transfer-row').length <= 1) return;
   btn.closest('.transfer-row').remove();
   validateTransferRows();
   renderTransferLocPicker(); // a chip may become available again
@@ -5439,12 +5566,21 @@ function validateTransferRows(){
       chip.textContent = '✓ ' + avail + ' available';  chip.className = 'exit-avail ok'; chip.dataset.avail = avail;
     }
   });
+  // Every path that changes a transfer quantity — typing, adding a row,
+  // removing one, tapping the green "available" figure — already ends here,
+  // so this is the one place the badge needs updating rather than five.
+  _syncMoveMatTotal();
 }
 
 function _initMultiTransferSection(){
   document.getElementById('transferRowsContainer').innerHTML = '';
   var box = document.getElementById('transferChipsBox');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  // Start with one empty row, the way ENTRY and EXIT seed their first location
+  // row. TRANSFER opened with none, so the location area was a bare header and
+  // a button while the other screens showed a row ready to type into — and the
+  // "hide the × on a lone row" rule had nothing to apply to.
+  addTransferRow('', '', '', true /* silent — do not steal focus from Name */);
 }
 
 function autoFillExitRows(){
@@ -5523,7 +5659,7 @@ function openMoveModal(type){
   ['mName','mQty','mSrc','mDest','mExitDest','mSup','mGC','mPO','mProj','mResp','mPM','mComm',
    'mNotifyEmails','mNotifyName','mNotifyMsg'].forEach(function(id){
     var el = document.getElementById(id);
-    if (el) el.value = (id === 'mQty' ? '1' : '');
+    if (el) el.value = '';
   });
   // Same reasoning for the single-material category select (WASTE/TRANSFER/
   // RETURN) — it has no blank option, so "reset" means back to the first
@@ -5556,6 +5692,10 @@ function openMoveModal(type){
 
   // FIX #1: actually show the overlay
   document.getElementById('moveOverlay').classList.add('show');
+
+  // Same on all five screens, not just ENTRY. Must come after the overlay is
+  // shown: focus() on an element inside a hidden container does nothing.
+  _focusMoveName();
 }
 
 function setModalType(type){
@@ -5606,6 +5746,22 @@ function setModalType(type){
   exitLocsSection.style.display  = 'none';
   if (multiTransferSection) multiTransferSection.style.display = 'none';
   exitDestField.style.display    = 'none';
+  // WASTE renames this and used to never rename it back, so a RETURN
+  // opened after a WASTE asked for a "Reason for Waste (required)".
+  if (commLabel) commLabel.textContent = 'Comments';
+  // TRANSFER uses the pair rows and none of the qty/rack grid; without this it
+  // rendered as an empty grid taking up space inside the location box.
+  var singleLocGrid = document.getElementById('singleLocGrid');
+  if (singleLocGrid) singleLocGrid.style.display = '';
+  // The TRANSFER/RETURN/WASTE material box. Shown and tinted by the three
+  // branches that use it; ENTRY and EXIT leave it hidden because they bring
+  // their own boxes. Every tint class is cleared here rather than in each
+  // branch, so switching tabs cannot leave two colours on at once.
+  var moveMatBox = document.getElementById('moveMatBox');
+  if (moveMatBox){
+    moveMatBox.style.display = 'none';
+    moveMatBox.classList.remove('mm-transfer', 'mm-return', 'mm-waste');
+  }
   mQtyField.style.display = 'flex';  // show normal qty by default
   // Single-material fields visible by default (hidden only for ENTRY multi-mat)
   var mCatField  = document.getElementById('mCatField');
@@ -5674,7 +5830,10 @@ function setModalType(type){
     mQtyField.style.display = 'none';
     dateLabel.textContent = 'Date Transferred';
     respLabel.textContent = 'Moved By';
+    if (moveMatBox){ moveMatBox.style.display = 'block'; moveMatBox.classList.add('mm-transfer'); }
+    if (singleLocGrid) singleLocGrid.style.display = 'none';
     _initMultiTransferSection();
+    _syncMoveMatTotal();
 
   } else if (type === 'RETURN'){
     srcField.style.display  = 'flex';
@@ -5688,6 +5847,8 @@ function setModalType(type){
     dateLabel.textContent = 'Date Returned';
     respLabel.textContent = 'Returned By';
     mStatus.value = 'In Stock';
+    if (moveMatBox){ moveMatBox.style.display = 'block'; moveMatBox.classList.add('mm-return'); }
+    _syncMoveMatTotal();
 
   } else if (type === 'WASTE'){
     srcField.style.display = 'flex';
@@ -5700,10 +5861,39 @@ function setModalType(type){
     dateLabel.textContent = 'Date';
     respLabel.textContent = 'Recorded By';
     mStatus.value = 'Damaged';
+    if (moveMatBox){ moveMatBox.style.display = 'block'; moveMatBox.classList.add('mm-waste'); }
+    _syncMoveMatTotal();
   }
 
   updateMatList();
   checkStock();
+}
+
+// The quantity badge on the TRANSFER/RETURN/WASTE material box — the same
+// figure ENTRY and EXIT show on theirs.
+//
+// It reads the number that will ACTUALLY be recorded, which is not the same
+// field on all three: RETURN and WASTE record the single Quantity box, while
+// TRANSFER records the sum of its source→destination rows and ignores Quantity
+// entirely (mQtyField is hidden for it). A badge that showed mQty on TRANSFER
+// would sit there reading 1 while the rows moved 300 — a number that is wrong
+// in the one place someone glances to check themselves.
+function _syncMoveMatTotal(){
+  var el = document.getElementById('moveMatTotal');
+  if (!el) return;
+  var n = 0;
+  if (currentMoveType === 'TRANSFER'){
+    document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
+      var q = row.querySelector('.tr-qty');
+      n += Math.max(0, parseFloat(q && q.value) || 0);
+    });
+  } else {
+    var qEl = document.getElementById('mQty');
+    n = Math.max(0, parseFloat(qEl && qEl.value) || 0);
+  }
+  // Round the way every quantity is rounded on write, so the badge and the
+  // saved row can never disagree by a floating-point tail.
+  el.textContent = String(Math.round(n * 10000) / 10000);
 }
 
 // ── Stock Check (live warning while typing in EXIT modal) ─────────────────────
@@ -6065,9 +6255,34 @@ async function submitMovement(){
 var _matLineIdx = 0;
 
 function _matLineUnitOpts(){
+  // PALLET, CASE and BAG added in v11.5 (Jose): a shop that receives by the
+  // pallet and a bakery that receives by the sack were both being asked to
+  // pick from a list that had no word for what they actually count.
   return '<option value="UNIT">Unit</option><option value="BOX">Box</option>' +
-         '<option value="SET">Set</option><option value="ROLL">Roll</option>' +
-         '<option value="SHEET">Sheet</option><option value="LF">LF</option>';
+         '<option value="CASE">Case</option><option value="PALLET">Pallet</option>' +
+         '<option value="BAG">Bag</option><option value="SET">Set</option>' +
+         '<option value="ROLL">Roll</option><option value="SHEET">Sheet</option>' +
+         '<option value="LF">LF</option>';
+}
+
+// The cost field's label, in the unit the person is actually looking at.
+// "Unit Cost" next to a dropdown reading "Box" cannot be read correctly: it is
+// either the cost of the box or of one unit inside it, and the two differ by
+// however many fit in a box. Naming the unit removes the question.
+var _UNIT_WORDS = {
+  UNIT:'Unit', BOX:'Box', CASE:'Case', PALLET:'Pallet', BAG:'Bag',
+  SET:'Set', ROLL:'Roll', SHEET:'Sheet', LF:'Linear Foot'
+};
+function _costLabelFor(unit){
+  var w = _UNIT_WORDS[String(unit || 'UNIT').toUpperCase()];
+  return w ? ('Cost per ' + w) : 'Unit Cost';
+}
+function _syncCostLabel(n){
+  var sel = document.getElementById('mat-unit-' + n);
+  var lbl = document.getElementById('mat-cost-lbl-' + n);
+  if (!sel || !lbl) return;
+  lbl.innerHTML = _he(_costLabelFor(sel.value)) +
+    ' <span style="text-transform:none;opacity:.7">(optional)</span>';
 }
 
 function _matLineTpl(n){
@@ -6094,7 +6309,7 @@ function _matLineTpl(n){
       '</div>' +
       '<div class="field">' +
         '<label class="mat-line-lbl-sm">Unit</label>' +
-        '<select id="mat-unit-' + n + '">' + _matLineUnitOpts() + '</select>' +
+        '<select id="mat-unit-' + n + '" onchange="_syncCostLabel(' + n + ')">' + _matLineUnitOpts() + '</select>' +
       '</div>' +
       // Optional, and hidden entirely from anyone without canSeeCosts — not
       // just left blank for them, since a field they cannot use but can see
@@ -6104,7 +6319,14 @@ function _matLineTpl(n){
       // someone to type a number that the save would just ignore.
       (_canSeeCosts() ?
       '<div class="field">' +
-        '<label class="mat-line-lbl-sm">Unit Cost <span style="text-transform:none;opacity:.7">(optional)</span></label>' +
+        // The label follows the unit. "Unit Cost" beside a dropdown that says
+        // "Box" is genuinely ambiguous — is that the cost of a box, or of one
+        // unit inside it? Nobody can tell, and the answer decides whether the
+        // number is right or twelve times wrong. Saying "Cost per Box" removes
+        // the question instead of documenting it. _syncCostLabel keeps it in
+        // step when the unit is changed.
+        '<label class="mat-line-lbl-sm" id="mat-cost-lbl-' + n + '">' + _costLabelFor('UNIT') +
+          ' <span style="text-transform:none;opacity:.7">(optional)</span></label>' +
         '<input type="number" id="mat-cost-' + n + '" min="0" step="0.01" placeholder="$0.00" oninput="_checkPriceChange(' + n + ')">' +
       '</div>' : '') +
     '</div>' +
@@ -6127,8 +6349,13 @@ function _matLineTpl(n){
         '<div class="field"><label class="mat-line-lbl-sm">GC</label><input type="text" id="mat-gc-' + n + '"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">PO#</label><input type="text" id="mat-po-' + n + '"></div>' +
         '<div class="field"><label class="mat-line-lbl-sm">Project / Client</label><input type="text" id="mat-proj-' + n + '" list="projList" data-cfg-new="projects"></div>' +
-        '<div class="field"><label class="mat-line-lbl-sm">PM</label><input type="text" id="mat-pm-' + n + '" list="pmNameList" placeholder="Name of project manager"></div>' +
+        // Received By before PM, and the PM label spelled out in full — the
+        // same order and the same words as the shared block at the bottom of
+        // the form. These two blocks are the SAME six questions; a checkbox
+        // that reorders and renames them makes the person re-read a form they
+        // had already learned.
         '<div class="field"><label class="mat-line-lbl-sm">Received By</label><input type="text" id="mat-resp-' + n + '"></div>' +
+        '<div class="field"><label class="mat-line-lbl-sm">PM (Project Manager)</label><input type="text" id="mat-pm-' + n + '" list="pmNameList" placeholder="Name of project manager"></div>' +
       '</div>' +
       '<div class="field" style="margin-top:.4rem"><label class="mat-line-lbl-sm">Comments</label><textarea id="mat-comm-' + n + '" rows="2" placeholder="Notes, dimensions, instructions..."></textarea></div>' +
     '</div>' +
@@ -6199,7 +6426,7 @@ function addLocRowMat(n, silent){
   row.className = 'loc-row';
   row.innerHTML =
     '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location" autocomplete="off">' +
-    '<input type="number" class="loc-qty" min="1" value="1" placeholder="Qty">' +
+    '<input type="number" class="loc-qty" min="1" placeholder="Qty">' +
     '<button type="button" class="btn-remove-loc" onclick="removeLocRowMat(' + n + ', this)" title="Remove">×</button>';
   lc.appendChild(row);
   _attachMatLocQtyListener(row, n);
@@ -6554,21 +6781,29 @@ function addExitMatLine(){
           '<div class="inc-suggest-box" id="exit-suggest-'+n+'" style="display:none"></div>'+
         '</div>'+
       '</div>'+
-      // Per-material destination — only shown when "same destination for all" is OFF.
-      '<div class="field exit-per-mat-dest" id="exit-destfield-'+n+'" style="display:none;margin-bottom:.5rem">'+
+      // Where and how many, in a box of the movement's colour — the same shape
+      // ENTRY uses. The material above it stays neutral.
+      '<div class="exit-loc-box">'+
+        '<div class="exit-loc-hdr">'+
+          '<span style="flex:2">Rack / Location</span>'+
+          '<span style="flex:1">Qty to Take</span>'+
+          '<span style="flex:1.4">Available</span>'+
+          '<span style="width:24px"></span>'+
+        '</div>'+
+        '<div class="exit-locs-container" id="exit-locs-'+n+'"></div>'+
+        '<div class="exit-mat-foot">'+
+          '<button type="button" class="btn-add-exit-loc" onclick="addExitLocRowMat('+n+')">+ Add Location</button>'+
+          '<button type="button" class="btn-autofill-exit" onclick="autoFillExitMatRows('+n+')" title="Auto-fill racks from stock data">↗ Auto-fill Racks</button>'+
+        '</div>'+
+      '</div>'+
+      // Per-material destination — only shown when "same destination for all"
+      // is OFF, and placed BELOW the racks so that ticking the checkbox moves
+      // this one field out to the shared slot directly underneath without
+      // anything above it shifting. Above the racks it pushed the whole
+      // location block down, so the same form looked like two different forms.
+      '<div class="field exit-per-mat-dest" id="exit-destfield-'+n+'" style="display:none;margin-top:.5rem">'+
         '<label>Destination (Project / Site / Address)</label>'+
         '<input type="text" id="exit-dest-'+n+'" list="projList" placeholder="Project name, site, address…">'+
-      '</div>'+
-      '<div class="exit-loc-hdr">'+
-        '<span style="flex:2">Rack / Location</span>'+
-        '<span style="flex:1">Qty to Take</span>'+
-        '<span style="flex:1.4">Available</span>'+
-        '<span style="width:24px"></span>'+
-      '</div>'+
-      '<div id="exit-locs-'+n+'"></div>'+
-      '<div class="exit-mat-foot">'+
-        '<button type="button" class="btn-add-exit-loc" onclick="addExitLocRowMat('+n+')">+ Add Location</button>'+
-        '<button type="button" class="btn-autofill-exit" onclick="autoFillExitMatRows('+n+')" title="Auto-fill racks from stock data">↗ Auto-fill Racks</button>'+
       '</div>'+
     '</div>';
   container.appendChild(wrap.firstChild);
@@ -11099,11 +11334,123 @@ function _syncMoveTypeBarForRdw(){
 // goes through here instead of calling setModalType directly, so a Rack
 // Drawer material session survives switching between its three allowed
 // types instead of the second type opening blank.
+// ── Carrying the material across the five tabs ───────────────────────────────
+//
+// Jose's rule: switching movement type KEEPS what was typed; opening the modal
+// fresh shows nothing at all.
+//
+// Why this needs a translation layer rather than "it should just work": the
+// five types do not share their fields. ENTRY has multi-material lines
+// (mat-cat-N / mat-name-N, with the quantity spread over location rows), EXIT
+// has a different set of multi-material lines (exit-cat-N / exit-name-N), and
+// TRANSFER/RETURN/WASTE share one plain trio (mType / mName / mQty). That is
+// exactly the behaviour Jose described: RETURN→WASTE carried name AND quantity
+// because they are literally the same three inputs; TRANSFER kept the name but
+// lost the quantity because it has no mQty of its own; and anything involving
+// ENTRY or EXIT carried nothing at all because there was nothing in common.
+//
+// So: read the material out of whichever shape is on screen, then write it into
+// whichever shape replaces it.
+//
+// Only the FIRST material carries. ENTRY and EXIT can hold several lines while
+// TRANSFER, RETURN and WASTE hold exactly one, and there is no honest way to
+// carry three materials into a form with room for one. Silently dropping the
+// extras would be worse than not carrying them, so this fills line 1 and leaves
+// the rest of the form visibly empty.
+function _readMoveMaterial(){
+  var sum = function(sel){
+    var t = 0;
+    document.querySelectorAll(sel).forEach(function(i){ t += Math.max(0, parseFloat(i.value) || 0); });
+    return t;
+  };
+  var val = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+
+  if (currentMoveType === 'ENTRY'){
+    var ln = document.querySelector('#multiMatContainer .mat-line');
+    if (!ln) return null;
+    var n = ln.id.replace('mat-line-', '');
+    return { cat: val('mat-cat-' + n), name: val('mat-name-' + n),
+             qty: sum('#mat-locs-' + n + ' .loc-qty') };
+  }
+  if (currentMoveType === 'EXIT'){
+    var el = document.querySelector('#multiExitContainer .exit-mat-line');
+    if (!el) return null;
+    var m = el.id.replace('exit-mat-', '');
+    return { cat: val('exit-cat-' + m), name: val('exit-name-' + m),
+             qty: sum('#exit-locs-' + m + ' .el-qty') };
+  }
+  if (currentMoveType === 'TRANSFER'){
+    return { cat: val('mType'), name: val('mName'), qty: sum('#transferRowsContainer .tr-qty') };
+  }
+  return { cat: val('mType'), name: val('mName'), qty: Math.max(0, parseFloat(val('mQty')) || 0) };
+}
+
+function _applyMoveMaterial(m){
+  if (!m) return;
+  var name = (m.name || '').trim();
+  // A quantity with no material is not worth carrying — it would put a number
+  // into a form that does not yet say what it is counting.
+  if (!name) return;
+  var q = m.qty > 0 ? String(m.qty) : '';
+  var set = function(id, v){ var e = document.getElementById(id); if (e && v !== '' && v != null) e.value = v; };
+
+  if (currentMoveType === 'ENTRY'){
+    set('mat-cat-1', m.cat); set('mat-name-1', name);
+    var lq = document.querySelector('#mat-locs-1 .loc-qty');
+    if (lq && q) lq.value = q;
+    updateMatLineNameList(1);
+    syncMatLineQty(1); updateMultiMatTotal();
+  } else if (currentMoveType === 'EXIT'){
+    set('exit-cat-1', m.cat); set('exit-name-1', name);
+    var eq = document.querySelector('#exit-locs-1 .el-qty');
+    if (eq && q) eq.value = q;
+    updateExitMatNameList(1); syncExitRackAvail(1); syncExitMatTotal(1); updateMultiExitTotal();
+  } else if (currentMoveType === 'TRANSFER'){
+    set('mType', m.cat); set('mName', name);
+    var tq = document.querySelector('#transferRowsContainer .tr-qty');
+    if (tq && q) tq.value = q;
+    validateTransferRows(); checkStock();
+  } else {
+    set('mType', m.cat); set('mName', name);
+    if (q) set('mQty', q);
+    _syncMoveMatTotal(); checkStock();
+  }
+  _updateMoveSubmitState();
+}
+
+// The cursor lands in Name on every screen, not only on ENTRY. ENTRY got this
+// for free because addMatLine focuses the field it has just built; the other
+// four left the cursor nowhere, so on four screens out of five the first thing
+// a person does is reach for the mouse to click a box they were always going
+// to type into.
+function _moveNameEl(){
+  if (currentMoveType === 'ENTRY') return document.getElementById('mat-name-1');
+  if (currentMoveType === 'EXIT')  return document.getElementById('exit-name-1');
+  return document.getElementById('mName');
+}
+function _focusMoveName(){
+  // After the type's own init has finished building its fields — ENTRY's
+  // addMatLine focuses on a timeout of its own, and focusing before that
+  // lands would simply be undone.
+  setTimeout(function(){
+    var el = _moveNameEl();
+    // NOT offsetParent: the modal lives inside a position:fixed overlay, where
+    // offsetParent is null for perfectly visible elements. That guard silently
+    // skipped the focus on all four non-ENTRY screens — ENTRY only looked
+    // right because addMatLine focuses its own field without asking.
+    if (el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)) el.focus();
+  }, 80);
+}
+
 function _moveTypeBarClick(type){
+  var carried = _readMoveMaterial();
   setModalType(type);
   if (_rdwPrefillActive) {
     _prefillMoveModalMaterial(type, _rdwPrefillActive.category, _rdwPrefillActive.name, _rdwPrefillActive.rack);
+  } else {
+    _applyMoveMaterial(carried);
   }
+  _focusMoveName();
 }
 
 function _prefillMoveModalMaterial(type, cat, name, rack){
@@ -11122,7 +11469,11 @@ function _prefillMoveModalMaterial(type, cat, name, rack){
     var nameInp2 = document.getElementById('mName');
     if (catSel2) catSel2.value = cat;
     if (nameInp2) nameInp2.value = name;
-    addTransferRow(rack, '', '');     // qty and destination left blank
+    // _initMultiTransferSection already seeded one empty row — fill that one
+    // rather than adding a second and leaving a blank row above it.
+    var seeded = document.querySelector('#transferRowsContainer .transfer-row .tr-rack');
+    if (seeded){ seeded.value = rack; validateTransferRows(); }
+    else addTransferRow(rack, '', '');   // qty and destination left blank
     renderTransferLocPicker();
   } else if (type === 'EXIT'){
     // openMoveModal(EXIT) already seeded Material 1 with one empty loc row —

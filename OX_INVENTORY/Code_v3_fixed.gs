@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.4';
+var APP_VERSION = '11.8';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.4';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '35870a4d';
+var APP_BUILD = '26bde6a6';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -109,7 +109,10 @@ var SHEETS = {
   ARCHIVE_HISTORY: 'ARCHIVE_HISTORY',
   // Only ever created inside a BACKUP COPY, never in the live file — see
   // writeConfigSnapshot_.
-  CONFIG_SNAPSHOT: 'ACOPIO_CONFIG_SNAPSHOT'
+  CONFIG_SNAPSHOT: 'ACOPIO_CONFIG_SNAPSHOT',
+  // How many stocking units are in a box, a pallet, a sack. See
+  // docs/UNIDADES-Y-CONVERSIONES.md.
+  PACKS: 'MATERIAL_PACKS'
 };
 
 // Column map matches the ACTUAL sheet structure (19 columns, 0-indexed):
@@ -1538,6 +1541,9 @@ function getInitialData(sessionToken) {
     return {
       serverVersion:      APP_VERSION,
       serverBuild:        APP_BUILD,
+      // Sent with the first load so the ENTRY form can offer a material's packs
+      // the moment its name is filled in, without a round trip per line.
+      materialPacks:      (function(){ try { return readPacks_(ss); } catch (e) { return {}; } })(),
       company:            publicCompany_(),
       systemActivity:     (function(){ try { return getSystemActivity(30, _auth.email); } catch (e) { return []; } })(),
       columnPrefs:        columnPrefs_(),
@@ -2077,6 +2083,9 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'getSpaceUsage')   return getSpaceUsage(auth);
   if (action === 'getAiStatus')     return getAiStatus(auth);
   if (action === 'setAiKey')        return setAiKey(data, auth);
+  if (action === 'getMaterialPacks')   return getMaterialPacks(auth);
+  if (action === 'saveMaterialPack')   return saveMaterialPack(data, auth);
+  if (action === 'deleteMaterialPack') return deleteMaterialPack(data, auth);
   throw new Error('Unknown action: ' + action);
 }
 
@@ -2781,6 +2790,179 @@ function ensureWasteSheet_(ss) {
     sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
   }
   return sheet;
+}
+
+// ─── PACKS: HOW MANY UNITS COME IN A BOX ────────────────────────────────────
+// Phase 1 of docs/UNIDADES-Y-CONVERSIONES.md. The whole feature, in one line:
+// the customer almost never knows the cost of ONE unit. They know the invoice —
+// $120 a box, $600 a pallet — and the division gets done in someone's head,
+// wrong, or not at all.
+//
+// A pack is one sentence a person teaches the system once: "a box of GE SILPRUF
+// holds 12 tubes". Acopio never assumes it (Jose, v11.0: "no podemos dar por
+// sentado algo que no depende de nosotros") and never makes them retype it
+// either — it is remembered until they change it.
+//
+// ⚠ WHAT THIS PHASE DELIBERATELY DOES NOT DO: nothing here changes how stock is
+// stored, added up or taken out. Quantities stay in the stocking unit exactly as
+// they are today. Packs are an entry convenience and a calculator, which is what
+// keeps the risk near zero — issuing in a different unit is Phase 2 and is where
+// a misapplied factor turns 319 tubes into 3,828.
+//
+// Its own sheet rather than more CONFIG columns: CONFIG is a catalog of single
+// values per column, and this is a LIST per material. Two different shapes.
+var PACK_COLS = { CATEGORY:0, NAME:1, PACK:2, PER_PACK:3, LAST_PRICE:4, UPDATED_AT:5, UPDATED_BY:6 };
+
+function ensurePacksSheet_(ss) {
+  var sheet = ss.getSheetByName(SHEETS.PACKS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.PACKS);
+    sheet.appendRow(['Category','Name','Pack','Units_Per_Pack','Last_Pack_Price','Updated_At','Updated_By']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 7).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+// Quantities carry decimals — a bakery's sack is 110.23 lb, not a round number —
+// and the danger there is not the decimals, it is floating point: 0.1 + 0.2 is
+// 0.30000000000000004 on every computer ever built, and summed five hundred
+// times the stock drifts. Rounding on every write is what stops the error
+// accumulating. Four places is grams inside a kilo, which is more precision than
+// any warehouse needs.
+var PACK_DECIMALS = 4;
+function roundQty_(n) {
+  var v = Number(n);
+  if (!isFinite(v)) return 0;
+  return Math.round(v * Math.pow(10, PACK_DECIMALS)) / Math.pow(10, PACK_DECIMALS);
+}
+
+// Keyed the same way stock is — category + name — so a pack follows the material
+// it belongs to and two materials with the same name in different categories
+// keep their own.
+function packKey_(category, name) {
+  return String(category || '').trim().toUpperCase() + '||' + String(name || '').trim().toUpperCase();
+}
+
+function readPacks_(ss) {
+  var sheet = ss.getSheetByName(SHEETS.PACKS);
+  if (!sheet || sheet.getLastRow() < 2) return {};
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  var out = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var cat = String(r[PACK_COLS.CATEGORY] || '').trim();
+    var nm  = String(r[PACK_COLS.NAME] || '').trim();
+    var pk  = String(r[PACK_COLS.PACK] || '').trim();
+    var per = Number(r[PACK_COLS.PER_PACK]);
+    // A pack with no size is not a pack. Skipping rather than defaulting to 1:
+    // a silent 1 would quietly make "12 boxes" mean 12 units.
+    if (!cat || !nm || !pk || !isFinite(per) || per <= 0) continue;
+    var k = packKey_(cat, nm);
+    if (!out[k]) out[k] = { category: cat, name: nm, packs: [] };
+    out[k].packs.push({
+      pack: pk,
+      perPack: roundQty_(per),
+      lastPrice: Number(r[PACK_COLS.LAST_PRICE]) || 0
+    });
+  }
+  // Smallest first, so "Box (12)" is offered before "Pallet (360)" — the order
+  // somebody thinks in when they are looking at what arrived.
+  Object.keys(out).forEach(function (k) {
+    out[k].packs.sort(function (a, b) { return a.perPack - b.perPack; });
+  });
+  return out;
+}
+
+function getMaterialPacks(auth) {
+  auth = requireAuth_('READ');
+  return readPacks_(SpreadsheetApp.getActiveSpreadsheet());
+}
+
+// One pack, saved or replaced. Not batched on purpose: this is typed by a person
+// one line at a time, and a whole-sheet rewrite would put a catalog-sized risk
+// behind a single field.
+function saveMaterialPack(data, auth) {
+  auth = requireAuth_('WRITE');
+  requirePerm_(auth, 'canManageCatalog');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var cat  = String((data && data.category) || '').trim().toUpperCase();
+  var name = String((data && data.name) || '').trim().toUpperCase();
+  var pack = String((data && data.pack) || '').trim();
+  var per  = Number(data && data.perPack);
+
+  if (!cat || !name) throw new Error('Pick the material first.');
+  if (!pack)         throw new Error('Give the pack a name — Box, Pallet, Sack…');
+  if (!isFinite(per) || per <= 0) throw new Error('How many units are in one ' + pack + '? It has to be more than zero.');
+  // A pack that holds one unit is the unit. Allowing it would put a row in the
+  // sheet that changes nothing and an option in the form that means nothing.
+  if (per === 1) throw new Error('A ' + pack + ' of 1 is the same as the unit itself — no pack needed.');
+
+  var sheet = ensurePacksSheet_(ss);
+  var rows  = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues() : [];
+  var stamp = new Date();
+  var row = [cat, name, pack.toUpperCase(), roundQty_(per),
+             Number(data.lastPrice) || 0, stamp, auth.email];
+
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][PACK_COLS.CATEGORY] || '').trim().toUpperCase() === cat &&
+        String(rows[i][PACK_COLS.NAME] || '').trim().toUpperCase() === name &&
+        String(rows[i][PACK_COLS.PACK] || '').trim().toUpperCase() === pack.toUpperCase()) {
+      sheet.getRange(i + 2, 1, 1, 7).setValues([row]);
+      auditLog_(ss, 'PACK_SAVE', auth.email, cat + ' / ' + name, pack, String(per));
+      return { status: 'success', updated: true };
+    }
+  }
+  sheet.appendRow(row);
+  auditLog_(ss, 'PACK_SAVE', auth.email, cat + ' / ' + name, pack, String(per));
+  return { status: 'success', updated: false };
+}
+
+function deleteMaterialPack(data, auth) {
+  auth = requireAuth_('WRITE');
+  requirePerm_(auth, 'canManageCatalog');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.PACKS);
+  if (!sheet || sheet.getLastRow() < 2) return { status: 'success', deleted: 0 };
+
+  var cat  = String((data && data.category) || '').trim().toUpperCase();
+  var name = String((data && data.name) || '').trim().toUpperCase();
+  var pack = String((data && data.pack) || '').trim().toUpperCase();
+  var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+
+  // Backwards: deleting a row shifts everything under it, and going forwards
+  // would make every index after the first deletion point at the wrong row.
+  var gone = 0;
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i][PACK_COLS.CATEGORY] || '').trim().toUpperCase() === cat &&
+        String(rows[i][PACK_COLS.NAME] || '').trim().toUpperCase() === name &&
+        String(rows[i][PACK_COLS.PACK] || '').trim().toUpperCase() === pack) {
+      sheet.deleteRow(i + 2);
+      gone++;
+    }
+  }
+  if (gone) auditLog_(ss, 'PACK_DELETE', auth.email, cat + ' / ' + name, pack, '');
+  return { status: 'success', deleted: gone };
+}
+
+// The arithmetic, in one place so the browser and the server cannot disagree
+// about it. Returns null rather than a guess when it has not been given enough
+// to work with — a cost of 0 would be indistinguishable from "free".
+function packMath_(packCount, perPack, pricePerPack) {
+  var n     = Number(packCount);
+  var per   = Number(perPack);
+  var price = Number(pricePerPack);
+  if (!isFinite(n) || !isFinite(per) || n <= 0 || per <= 0) return null;
+  var qty = roundQty_(n * per);
+  var out = { qty: qty, unitCost: null, totalPrice: null };
+  if (isFinite(price) && price > 0) {
+    out.totalPrice = Math.round(price * n * 100) / 100;
+    // Cost per STOCKING unit, which is the only thing the costing engine
+    // understands — see the note at the top of this section.
+    out.unitCost = Math.round((price / per) * 10000) / 10000;
+  }
+  return out;
 }
 
 // ─── ARCHIVING OLD MOVEMENTS ─────────────────────────────────────────────────
