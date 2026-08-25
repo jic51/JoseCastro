@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.13';
+var APP_VERSION = '11.14';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.13';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '3750b471';
+var APP_BUILD = '1b70b00c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -3109,6 +3109,38 @@ function runBackupNow_() {
     var stamp    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
     var copyName = ss.getName() + ' — Backup ' + stamp;
 
+    // ── The configuration goes in BEFORE the copy is taken ──
+    //
+    // Script Properties belong to the Apps Script project, not to the
+    // spreadsheet, so a copy is born with them empty: a restore brings back
+    // every movement and NONE of the settings. The one that hurts most is
+    // FOLDER_PREFIX — without it every photo and document ever attached
+    // silently stops opening, because the app looks in a folder that is not
+    // where they are.
+    //
+    // Writing it into the live file and letting the copy inherit it is not a
+    // workaround, it is the only thing the app's scopes permit: the manifest
+    // declares `spreadsheets.currentonly`, so the finished copy is a
+    // spreadsheet this script may never open. See writeConfigSnapshot_.
+    //
+    // A backup without the snapshot still beats no backup, so a failure here
+    // must not abort the backup — but it must not be silent either, which is
+    // exactly how this went unnoticed from v9.97 to v11.13.
+    var snapProps = -1, snapErr = '';
+    try {
+      snapProps = writeConfigSnapshot_(ss);
+    } catch (eSnap) {
+      snapErr = eSnap.message || String(eSnap);
+      Logger.log('config snapshot: ' + snapErr);
+      logError_(ss, 'WARN', 'backend', 'writeConfigSnapshot', 'system',
+        'Backup was created but its configuration snapshot was not: ' + snapErr +
+        ' — restoring from this copy means re-entering the Script Properties by hand.',
+        null, newRequestId_());
+    }
+    // Everything written above has to be on disk before Drive is asked for a
+    // copy, or the copy races the write and comes back with an empty tab.
+    SpreadsheetApp.flush();
+
     // The container spreadsheet is the one file the app did NOT create, so
     // under drive.file DriveApp can't touch it. Copy through the Spreadsheet
     // service instead — that goes via the spreadsheets scope, and the copy it
@@ -3118,37 +3150,22 @@ function runBackupNow_() {
     // call, with no intermediate file briefly sitting in My Drive.
     var copyFile;
     try {
-      copyFile = DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
-    } catch (eDrive) {
-      var copied = ss.copy(copyName);            // lands in My Drive root
-      copyFile   = DriveApp.getFileById(copied.getId());
-      copyFile.moveTo(folder);                   // ours now, so this is allowed
-    }
-
-    // The copy carries the configuration with it. Without this a restore
-    // brings back every movement and NONE of the settings — Script
-    // Properties belong to the Apps Script project, not to the spreadsheet,
-    // so a copy is born with them empty. The one that hurts is FOLDER_PREFIX:
-    // without it every photo and document ever attached silently stops
-    // opening, because the app looks in a folder that is not where they are.
-    // Written into the COPY only, never the live file, and into the
-    // customer's own Drive — we never hold any of it.
-    // A backup without the snapshot still beats no backup, so this must not
-    // abort the backup. But it used to fail into Logger.log alone, which
-    // nobody reads — meaning the ONE thing that makes a backup restorable
-    // could stop working and every backup afterwards would look perfectly
-    // healthy in Drive and in the app. You would find out during the
-    // emergency, which is the only moment it is too late.
-    var snapProps = -1, snapErr = '';
-    try {
-      snapProps = writeConfigSnapshot_(copyFile.getId());
-    } catch (eSnap) {
-      snapErr = eSnap.message || String(eSnap);
-      Logger.log('config snapshot: ' + snapErr);
-      logError_(ss, 'WARN', 'backend', 'writeConfigSnapshot', 'system',
-        'Backup was created but its configuration snapshot was not: ' + snapErr +
-        ' — restoring from this copy means re-entering the Script Properties by hand.',
-        null, newRequestId_());
+      try {
+        copyFile = DriveApp.getFileById(ss.getId()).makeCopy(copyName, folder);
+      } catch (eDrive) {
+        var copied = ss.copy(copyName);            // lands in My Drive root
+        copyFile   = DriveApp.getFileById(copied.getId());
+        copyFile.moveTo(folder);                   // ours now, so this is allowed
+      }
+    } finally {
+      // The snapshot belongs in the BACKUP, not in the working file, where it
+      // would be one more tab among eighteen and would show the installation's
+      // settings to anyone with the sheet open. In a finally so that a failed
+      // copy cannot leave it behind either.
+      try {
+        var live = ss.getSheetByName(SHEETS.CONFIG_SNAPSHOT);
+        if (live) ss.deleteSheet(live);
+      } catch (eDel) { Logger.log('snapshot cleanup: ' + eDel.message); }
     }
     PropertiesService.getScriptProperties()
       .setProperty('LAST_BACKUP_SNAPSHOT', snapErr ? ('FAILED: ' + snapErr) : String(snapProps));
@@ -3203,7 +3220,27 @@ var SNAPSHOT_EXCLUDE = {
 
 // Writes every Script Property worth restoring into a sheet inside the
 // backup copy. See RESTAURAR-UN-BACKUP.md for the procedure that reads it.
-function writeConfigSnapshot_(copyFileId) {
+// Writes the configuration into the LIVE spreadsheet, so that the copy taken
+// immediately afterwards carries it.
+//
+// It used to take a file id and call SpreadsheetApp.openById on the finished
+// copy. That could never work, and never did: the manifest declares
+// `spreadsheets.currentonly`, which grants access to the CONTAINER spreadsheet
+// and nothing else. Every backup since the feature shipped in v9.97 contained
+// the data and none of the settings, and said nothing about it — Jose found it
+// on the first real restore drill, with nine backups already in Drive.
+//
+// The obvious fix — adding the full `spreadsheets` scope — is the wrong one.
+// That scope reads "see, edit, create and delete all your spreadsheets", it
+// would face every customer with a much larger consent screen, and it buys one
+// feature that can be had for nothing by simply writing BEFORE the copy
+// instead of after. The narrow scope is a promise; a backup is not worth
+// breaking it.
+//
+// The tab is removed from the live file once the copy exists (see
+// runBackupNow_) — it belongs in the backup, not in the customer's working
+// file, where it would be one more tab among eighteen.
+function writeConfigSnapshot_(ss) {
   var props = PropertiesService.getScriptProperties().getProperties();
   var rows = [];
   Object.keys(props).sort().forEach(function (k) {
@@ -3211,8 +3248,7 @@ function writeConfigSnapshot_(copyFileId) {
     rows.push([k, String(props[k])]);
   });
 
-  var copy  = SpreadsheetApp.openById(copyFileId);
-  var sheet = copy.getSheetByName(SHEETS.CONFIG_SNAPSHOT) || copy.insertSheet(SHEETS.CONFIG_SNAPSHOT);
+  var sheet = ss.getSheetByName(SHEETS.CONFIG_SNAPSHOT) || ss.insertSheet(SHEETS.CONFIG_SNAPSHOT);
   sheet.clear();
 
   var header = [
