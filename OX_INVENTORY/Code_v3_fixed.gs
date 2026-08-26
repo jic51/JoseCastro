@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.14';
+var APP_VERSION = '11.20';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.14';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '1b70b00c';
+var APP_BUILD = 'de396b74';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -53,7 +53,7 @@ var APP_BUILD = '1b70b00c';
 //
 // This is the SQUARE stacked-boxes mark, out of Jose's own Drive — no customer
 // file is published, so nothing of theirs becomes public. It moves to
-// acopio.com/favicon.png once the domain exists; this line is the only change.
+// acopio.net/favicon.png once the domain exists; this line is the only change.
 //
 // ─── THE `#.png` ON THE END IS LOAD-BEARING. DO NOT TIDY IT AWAY. ───────────
 // The docs spell out the rule in one clause that is easy to read past:
@@ -92,7 +92,7 @@ var APP_BUILD = '1b70b00c';
 // choice for a tab icon: it sits cleanly on light and dark browser chrome
 // alike, where a white square would show its edges on one of the two.
 //
-// Long term this moves to acopio.com/favicon.png: a plain file at a plain URL
+// Long term this moves to acopio.net/favicon.png: a plain file at a plain URL
 // needs none of the above, and Drive is a poor host for something every
 // customer fetches on every load.
 var ACOPIO_FAVICON_URL = 'https://lh3.googleusercontent.com/d/1taYWwdJzwbArrSVjtTideDrJyNOyenOq#.png';
@@ -2194,9 +2194,33 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       var name = normalizeString(d.name);
       if (!cat || !name) throw new Error('Category and Name are required.');
 
+      var matId = getMaterialId(cat, name);
+
       var proj = d.isGeneric ? 'GENERIC' : normalizeString(d.project || '');
       if (!proj && mt === 'ENTRY') proj = 'GENERIC';
-      var matId = getMaterialId(cat, name);
+
+      // A TRANSFER moves material from one rack to another INSIDE the same
+      // warehouse. Nothing about that changes which job it belongs to, so a
+      // transfer keeps the project the material already had.
+      //
+      // It used to be stamped 'GENERIC', and Jose found the result in his own
+      // history: BS10 received for "PAT BS 10", then transferred C2A → A5A,
+      // and the two rows stopped looking like the same material's story.
+      //
+      // The form never asked — the project field is HIDDEN for TRANSFER — so
+      // 'GENERIC' was not something anybody typed. It was the app inventing an
+      // assertion about work it had never been told, which is the one thing a
+      // movement log must not do.
+      //
+      // Only TRANSFER changes here. EXIT, RETURN and WASTE keep exactly the
+      // behaviour they had: they are movements OUT of, or back into, stock,
+      // where "which project" is a different question with a different answer,
+      // and quietly changing them was not what was asked for. Noted in
+      // docs/BACKLOG.md instead.
+      if (mt === 'TRANSFER' && (!proj || proj === 'GENERIC')) {
+        var carried = snapshot[matId];
+        proj = (carried && carried.project && carried.project !== 'GENERIC') ? carried.project : '';
+      }
 
       // Locations: uppercase+trim for storage (special chars preserved), but use
       // normalizeString as the in-memory key so lookups match the snapshot.
@@ -2440,7 +2464,18 @@ function buildStockSnapshot_(archiveValues) {
       mt = 'EXIT';
     } else { mt = rawMT; }
 
-    var s = snap[matId] || (snap[matId] = { wh: 0, site: 0, locs: {} });
+    var s = snap[matId] || (snap[matId] = { wh: 0, site: 0, locs: {}, project: '' });
+    // The job this material is currently associated with — last real one wins,
+    // the same rule calculateStock() uses. GENERIC is not a project; it is the
+    // word for "in stock, unassigned", so it never overwrites a real one.
+    //
+    // Added for TRANSFER, which needs to CARRY the project rather than invent
+    // one (see addMovementsBatch_). The snapshot tracked quantities and racks
+    // and nothing else, so the first version of that fix would have quietly
+    // found undefined here and written a blank — better than a lie, but not
+    // the fix, and it would have looked like it worked.
+    var rowProj = normalizeString(row[AC.PROJECT] || '');
+    if (rowProj && rowProj !== 'GENERIC') s.project = rowProj;
     applyMovementToSnapshot_(s, mt, qty, normalizeString(row[AC.SRC_LOC] || ''), normalizeString(row[AC.DEST_LOC] || ''));
   }
   for (var k in snap) {
@@ -3215,13 +3250,39 @@ var SNAPSHOT_EXCLUDE = {
   // Regenerates itself on first use. Copying it only extends its life.
   SESSION_SECRET: 'Recreated automatically. Everyone signs in once more.',
   // Meaningless by tomorrow.
-  WMS_SESSIONS: 'Who was signed in at the time. Not worth restoring.'
+  WMS_SESSIONS: 'Who was signed in at the time. Not worth restoring.',
+  // ── The backup's own bookkeeping ──
+  // Jose spotted these on the first snapshot he read: LAST_BACKUP_SNAPSHOT
+  // said "FAILED", in a tab that had plainly just been written, because the
+  // snapshot is taken BEFORE the current run records its own outcome — so it
+  // always carried the PREVIOUS run's result. Confusing in the calmest
+  // circumstances, and this document exists to be read during an emergency.
+  //
+  // They are excluded rather than made accurate, because putting them back
+  // would be wrong even if they were: they describe the OLD installation's
+  // backup history. A restored copy that claims a backup ran last Tuesday is
+  // asserting something about itself that never happened, and the System tab
+  // would show a green last-backup line for a file that has never been backed
+  // up at all.
+  LAST_BACKUP_AT:       'The old file\'s backup history — not this copy\'s. Press Backup Now once restored.',
+  LAST_BACKUP_NAME:     'Same.',
+  LAST_BACKUP_FILE_ID:  'Same — and the link would point at the old file.',
+  LAST_BACKUP_SNAPSHOT: 'Same.'
 };
 
-// Writes every Script Property worth restoring into a sheet inside the
-// backup copy. See RESTAURAR-UN-BACKUP.md for the procedure that reads it.
-// Writes the configuration into the LIVE spreadsheet, so that the copy taken
-// immediately afterwards carries it.
+// Properties whose old value is actively WRONG in a restored copy, because
+// restoring creates a new Apps Script project with a new deployment.
+//
+// Copying these across is worse than leaving them blank: the app would hold a
+// URL that opens the file you are replacing.
+var SNAPSHOT_REPLACE_AFTER_DEPLOY = {
+  WEB_APP_URL:        'REPLACE after Deploy → New deployment: paste the NEW /exec address, not this one.',
+  OAUTH_REDIRECT_URI: 'REPLACE with the new /exec address, and register it in the OAuth client too.'
+};
+
+// Writes every Script Property worth restoring into the LIVE spreadsheet, so
+// that the copy taken immediately afterwards carries it. See
+// RESTAURAR-UN-BACKUP.md for the procedure that reads it.
 //
 // It used to take a file id and call SpreadsheetApp.openById on the finished
 // copy. That could never work, and never did: the manifest declares
@@ -3242,34 +3303,61 @@ var SNAPSHOT_EXCLUDE = {
 // file, where it would be one more tab among eighteen.
 function writeConfigSnapshot_(ss) {
   var props = PropertiesService.getScriptProperties().getProperties();
+
+  // What each property IS, in a third column. A bare name-and-value list means
+  // reading it correctly depends on already knowing what the names mean, and
+  // this document is read exactly once — during an emergency, possibly by
+  // somebody who has never seen it. Jose's own first read is the evidence: he
+  // saw WAREHOUSE_ROLE_LABEL = SUPERVISOR and reasonably concluded his account
+  // had the wrong role, when it is the display NAME chosen for the warehouse
+  // role and has nothing to do with who he is.
+  var guide = {};
+  try {
+    for (var g = 0; g < PROPERTY_GUIDE.length; g++) guide[PROPERTY_GUIDE[g].key] = PROPERTY_GUIDE[g];
+  } catch (eG) { /* the list is optional context, never a reason to lose the snapshot */ }
+
+  function noteFor(key) {
+    if (SNAPSHOT_REPLACE_AFTER_DEPLOY[key]) return '⚠ ' + SNAPSHOT_REPLACE_AFTER_DEPLOY[key];
+    // FOLDER_* is one entry per company name the installation has had, so the
+    // keys are generated and cannot be listed one by one.
+    if (/^FOLDER_/.test(key) && !guide[key]) {
+      return 'Drive folder id for attachments under that company name. Restore as-is.';
+    }
+    var g = guide[key];
+    return g ? g.what : '';
+  }
+
   var rows = [];
   Object.keys(props).sort().forEach(function (k) {
     if (SNAPSHOT_EXCLUDE[k]) return;
-    rows.push([k, String(props[k])]);
+    rows.push([k, String(props[k]), noteFor(k)]);
   });
 
   var sheet = ss.getSheetByName(SHEETS.CONFIG_SNAPSHOT) || ss.insertSheet(SHEETS.CONFIG_SNAPSHOT);
   sheet.clear();
 
   var header = [
-    ['ACOPIO — CONFIGURATION SNAPSHOT', 'Taken ' + new Date().toISOString()],
-    ['Restoring? Copy these into the new copy\'s Script Properties BEFORE anything else.', ''],
-    ['FOLDER_PREFIX goes first — without it, attachments do not open.', ''],
-    ['', ''],
-    ['NOT included, on purpose — put these back by hand:', ''],
+    ['ACOPIO — CONFIGURATION SNAPSHOT', 'Taken ' + new Date().toISOString(), ''],
+    ['Restoring? Copy these into the new copy\'s Script Properties BEFORE anything else.', '', ''],
+    ['FOLDER_PREFIX goes first — without it, attachments do not open.', '', ''],
+    ['Anything marked ⚠ must NOT be copied as-is — read the note beside it.', '', ''],
+    ['', '', ''],
+    ['NOT included, on purpose — put these back by hand:', '', ''],
   ];
   Object.keys(SNAPSHOT_EXCLUDE).forEach(function (k) {
-    header.push(['  ' + k, SNAPSHOT_EXCLUDE[k]]);
+    header.push(['  ' + k, SNAPSHOT_EXCLUDE[k], '']);
   });
-  header.push(['', '']);
-  header.push(['PROPERTY', 'VALUE']);
+  header.push(['', '', '']);
+  header.push(['PROPERTY', 'VALUE', 'WHAT IT IS']);
 
-  var all = header.concat(rows.length ? rows : [['(nothing stored yet)', '']]);
-  sheet.getRange(1, 1, all.length, 2).setValues(all);
-  sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
-  sheet.getRange(header.length, 1, 1, 2).setFontWeight('bold');
+  var all = header.concat(rows.length ? rows : [['(nothing stored yet)', '', '']]);
+  sheet.getRange(1, 1, all.length, 3).setValues(all);
+  sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
+  sheet.getRange(header.length, 1, 1, 3).setFontWeight('bold');
+  sheet.getRange(1, 3, all.length, 1).setWrap(true).setFontColor('#6B7280');
   sheet.setColumnWidth(1, 260);
-  sheet.setColumnWidth(2, 620);
+  sheet.setColumnWidth(2, 480);
+  sheet.setColumnWidth(3, 520);
   return rows.length;
 }
 
@@ -5886,12 +5974,12 @@ var PRIVACY_SHEET = '📄 Privacy Policy';
 // ─── BEGIN GENERATED LEGAL TEXT — node tools/sync-legal.js ───
 // Source of truth: legal/TERMS-OF-SERVICE.md and legal/PRIVACY-POLICY.md.
 // DO NOT EDIT THIS BLOCK BY HAND — edit the .md and re-run the generator.
-// Each line is [kind, text]; kind is "title", "head", "li" or "p".
+// Each line is [kind, text]; kind is "title", "head", "sub", "li" or "p".
 var LEGAL_SHEET_TEXT = {
   terms: [
     ["title","Terms of Service — Acopio"],
     ["p",""],
-    ["p","Last updated: 6 August 2026"],
+    ["p","Last updated: 26 August 2026"],
     ["p",""],
     ["p","These terms govern your use of Acopio, warehouse-management software provided by Jose Castro (\"we\", \"us\"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so."],
     ["p",""],
@@ -5926,11 +6014,44 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["head","5. Support and updates"],
     ["p",""],
-    ["p","While your licence is active:"],
+    ["sub","What your subscription includes"],
+    ["p",""],
+    ["li","•   Every new version, for as long as your licence is active. There is no"],
+    ["p","  higher tier to buy later: improvements and fixes are the subscription."],
     ["li","•   Bug fixes and security updates, delivered as files for you to install."],
-    ["li","•   Support by email during business hours, on a best-effort basis."],
+    ["li","•   Questions about how to use it, by email."],
+    ["li","•   Help reading your own data when something does not add up — for example"],
+    ["p","  working out why a stock figure looks wrong."],
+    ["p",""],
+    ["sub","How fast we answer"],
+    ["p",""],
+    ["p","We answer support email within one business day, Monday to Friday, excluding United States public holidays, on Mountain Time."],
+    ["p",""],
+    ["p","That is when we will have replied to you, not when the problem will be solved. How long a fix takes depends on what it is, and we will not pretend otherwise: you will get a real answer about what is happening and what happens next."],
+    ["p",""],
+    ["p","In practice most email is answered much sooner. One business day is what we are willing to be held to."],
+    ["p",""],
+    ["p","If you need a faster commitment, priority support is available as a paid add-on: four business hours, with a direct channel."],
+    ["p",""],
+    ["sub","What is NOT included, and is charged separately"],
+    ["p",""],
+    ["p","These are quoted before any work starts. Nothing is ever charged without your written agreement first."],
+    ["p",""],
+    ["li","•   Importing your existing history from spreadsheets or another system."],
+    ["li","•   Training beyond the session included with installation, whether for new"],
+    ["p","  staff or a refresher."],
+    ["li","•   Changes built specifically for you — a report, a field, a screen that"],
+    ["p","  only your company needs."],
+    ["li","•   Recovering data you deleted, where recovery is possible at all."],
+    ["li","•   Repairing an installation whose code was modified. The software is"],
+    ["p","  licensed, not sold, and only we may modify it (see section 4). If a copy has been changed, putting it right is billable work, and we may decline it."],
+    ["li","•   A second or subsequent warehouse."],
+    ["p",""],
+    ["sub","What you have to do"],
     ["p",""],
     ["p","Installing updates is your responsibility. Because the software lives in your account, we cannot push a fix to you — including a security fix. We will tell you an update matters; applying it is your call and your action."],
+    ["p",""],
+    ["p","Support depends on your file being reachable. We cannot help with a problem we cannot see. If diagnosing something requires looking at your spreadsheet, we will ask, and you decide."],
     ["p",""],
     ["p","We do not commit to any specific new feature, or to any timeline for one, unless we have agreed it with you in writing."],
     ["p",""],
@@ -5967,9 +6088,59 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["p","It is a convenience, not a guarantee. It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility."],
     ["p",""],
-    ["head","9. Payment and cancellation"],
+    ["head","9. Payment, cancellation and refunds"],
     ["p",""],
-    ["p","Fees, billing period and any add-on pricing are as agreed in writing when you purchase. Cancel any time; cancellation ends future billing and ends support and updates at the end of the paid period. Fees already paid are not refundable except where required by law."],
+    ["p","Fees, billing period and any add-on pricing are as agreed in writing when you purchase."],
+    ["p",""],
+    ["sub","Cancelling"],
+    ["p",""],
+    ["p","Cancel any time. Cancellation ends future billing, and support and updates end when the period you have already paid for runs out."],
+    ["p",""],
+    ["p","Your installation keeps working. It is in your Google account and we have no way to switch it off, and would not use one if we had it. What stops is support and new versions — not the software, and not your access to your own data. See section 10."],
+    ["p",""],
+    ["sub","The setup fee"],
+    ["p",""],
+    ["p","The one-time setup fee covers work we perform: installing, configuring the system to your categories and racks, loading your team, and training you."],
+    ["p",""],
+    ["li","•   Before that work has been done, it is fully refundable. If you change"],
+    ["p","  your mind before we install, you get all of it back."],
+    ["li","•   Once the work has been performed, it is not refundable, because it has"],
+    ["p","  been delivered. That holds even if you then cancel the subscription."],
+    ["p",""],
+    ["sub","The subscription"],
+    ["p",""],
+    ["li","•   Monthly: if you cancel within 14 days of a charge, that month is"],
+    ["p","  refunded in full. After 14 days the month is not refunded, and you keep support and updates until it ends."],
+    ["li","•   Annual: whole months you have not yet used are refunded. Months already"],
+    ["p","  begun are not."],
+    ["li","•   If the fault is ours: if a defect makes the software unusable for its"],
+    ["p","  purpose and we have not fixed it within 30 days of you reporting it, the current period is refunded in full whatever the dates say. You should not pay for a month in which it did not work."],
+    ["p",""],
+    ["p","Refunds are issued by the method you paid with, within 10 business days of being agreed."],
+    ["p",""],
+    ["sub","Add-ons"],
+    ["p",""],
+    ["p","Add-ons follow the subscription: cancel one and it stops at the end of the current period, under the same rules as above."],
+    ["p",""],
+    ["sub","How you are billed"],
+    ["p",""],
+    ["p","We invoice you by email, to the address you give us, on each renewal date. Invoices are payable within 10 days."],
+    ["p",""],
+    ["p","Prices are in US dollars and do not include any tax that may apply where you are; if tax applies, it is added to the invoice."],
+    ["p",""],
+    ["sub","If a payment does not go through"],
+    ["p",""],
+    ["p","Nothing is switched off, at any point. We could not do it if we wanted to — the software is in your Google account."],
+    ["p",""],
+    ["p","What actually happens:"],
+    ["p",""],
+    ["p","1. Day 10 after the invoice — if it is unpaid, we email you. Payments fail for boring reasons and this is usually the end of it. 2. Day 30 — if it is still unpaid, support and new versions pause until the account is settled. You keep using the software and you keep every bit of your data. 3. We never withhold your data to get paid. It is not ours to withhold, and export stays available whatever the state of your account."],
+    ["p",""],
+    ["p","Settle the invoice and support and updates resume immediately, with no reconnection fee."],
+    ["p",""],
+    ["sub","Coming back after leaving"],
+    ["p",""],
+    ["p","If you cancel and later want to return, you are treated as a new customer: current prices, and any promotional or founding rate you previously had does not come back. That includes the setup fee if the installation has to be done again."],
     ["p",""],
     ["head","10. Termination"],
     ["p",""],
@@ -6125,6 +6296,7 @@ function createLegalSheets_(ss) {
         var cell = sh.getRange(idx + 2, 2);
         if (l[0] === 'title')      cell.setFontSize(18).setFontWeight('bold').setFontColor(SH_NAVY);
         else if (l[0] === 'head')  cell.setFontSize(13).setFontWeight('bold').setFontColor(SH_ACCENT);
+        else if (l[0] === 'sub')   cell.setFontSize(11).setFontWeight('bold').setFontColor(SH_NAVY);
         else                       cell.setFontSize(11).setFontColor('#374151');
       });
 
@@ -8305,6 +8477,15 @@ function modifyMovementLocked_(data, auth) {
       ? String(parseFloat(data[key]) || 0)
       : String(data[key] || '').trim();
     if (NORMALIZE_ON_WRITE[key]) newStr = NORMALIZE_ON_WRITE[key](newStr);
+    // The edit form deliberately shows GENERIC as an EMPTY project box, since
+    // GENERIC is the app's word for "in stock, unassigned" and not the name of
+    // anybody's job. Re-derive it here, or simply opening an ENTRY and saving
+    // an unrelated change would blank the project and log it as an edit the
+    // person never made.
+    if (key === 'project' && !newStr &&
+        String(rowVals[AC.MOVETYPE] || '').toUpperCase() === 'ENTRY') {
+      newStr = 'GENERIC';
+    }
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');

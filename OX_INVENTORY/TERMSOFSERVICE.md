@@ -1,6 +1,10 @@
+<!-- SOURCE OF TRUTH. This text is also mirrored inside Index_v3_fixed.html
+     (LEGAL_DOCS), because every customer runs their own copy with nowhere to
+     link out to. Change it here first, then re-generate the copy in the app. -->
+
 # Terms of Service — Acopio
 
-**Last updated:** 6 August 2026
+**Last updated:** 26 August 2026
 
 These terms govern your use of Acopio, warehouse-management software provided by
 Jose Castro ("we", "us"). By installing or using it, you agree to them. If you
@@ -51,16 +55,59 @@ are unsupported, and §6 applies with particular force to them.
 
 ## 5. Support and updates
 
-While your licence is active:
-- Bug fixes and security updates, delivered as files for you to install.
-- Support by email during business hours, on a best-effort basis.
+### What your subscription includes
+
+- **Every new version**, for as long as your licence is active. There is no
+  higher tier to buy later: improvements and fixes are the subscription.
+- **Bug fixes and security updates**, delivered as files for you to install.
+- **Questions about how to use it**, by email.
+- **Help reading your own data** when something does not add up — for example
+  working out why a stock figure looks wrong.
+
+### How fast we answer
+
+We answer support email **within one business day**, Monday to Friday,
+excluding United States public holidays, on Mountain Time.
+
+That is when we will have **replied to you**, not when the problem will be
+solved. How long a fix takes depends on what it is, and we will not pretend
+otherwise: you will get a real answer about what is happening and what happens
+next.
+
+In practice most email is answered much sooner. One business day is what we
+are willing to be held to.
+
+If you need a faster commitment, **priority support** is available as a paid
+add-on: four business hours, with a direct channel.
+
+### What is NOT included, and is charged separately
+
+These are quoted before any work starts. Nothing is ever charged without your
+written agreement first.
+
+- **Importing your existing history** from spreadsheets or another system.
+- **Training beyond the session included with installation**, whether for new
+  staff or a refresher.
+- **Changes built specifically for you** — a report, a field, a screen that
+  only your company needs.
+- **Recovering data you deleted**, where recovery is possible at all.
+- **Repairing an installation whose code was modified.** The software is
+  licensed, not sold, and only we may modify it (see section 4). If a copy has
+  been changed, putting it right is billable work, and we may decline it.
+- **A second or subsequent warehouse.**
+
+### What you have to do
 
 **Installing updates is your responsibility.** Because the software lives in
 your account, we cannot push a fix to you — including a security fix. We will
 tell you an update matters; applying it is your call and your action.
 
-We do not commit to any specific new feature, or to any timeline for one, unless
-we have agreed it with you in writing.
+**Support depends on your file being reachable.** We cannot help with a
+problem we cannot see. If diagnosing something requires looking at your
+spreadsheet, we will ask, and you decide.
+
+We do not commit to any specific new feature, or to any timeline for one,
+unless we have agreed it with you in writing.
 
 ## 6. Warranty disclaimer and limitation of liability
 
@@ -113,12 +160,83 @@ being deleted, suspended or compromised, because the backups live in that same
 account. If your data is critical, keep an independent copy outside Google.
 Verifying that your backups exist and work is your responsibility.
 
-## 9. Payment and cancellation
+## 9. Payment, cancellation and refunds
 
 Fees, billing period and any add-on pricing are as agreed in writing when you
-purchase. Cancel any time; cancellation ends future billing and ends support and
-updates at the end of the paid period. Fees already paid are not refundable
-except where required by law.
+purchase.
+
+### Cancelling
+
+Cancel any time. Cancellation ends future billing, and support and updates end
+when the period you have already paid for runs out.
+
+**Your installation keeps working.** It is in your Google account and we have
+no way to switch it off, and would not use one if we had it. What stops is
+support and new versions — not the software, and not your access to your own
+data. See section 10.
+
+### The setup fee
+
+The one-time setup fee covers work we perform: installing, configuring the
+system to your categories and racks, loading your team, and training you.
+
+- **Before that work has been done, it is fully refundable.** If you change
+  your mind before we install, you get all of it back.
+- **Once the work has been performed, it is not refundable**, because it has
+  been delivered. That holds even if you then cancel the subscription.
+
+### The subscription
+
+- **Monthly:** if you cancel **within 14 days** of a charge, that month is
+  refunded in full. After 14 days the month is not refunded, and you keep
+  support and updates until it ends.
+- **Annual:** whole months you have not yet used are refunded. Months already
+  begun are not.
+- **If the fault is ours:** if a defect makes the software unusable for its
+  purpose and we have not fixed it within 30 days of you reporting it, the
+  current period is refunded in full whatever the dates say. You should not
+  pay for a month in which it did not work.
+
+Refunds are issued by the method you paid with, within 10 business days of
+being agreed.
+
+### Add-ons
+
+Add-ons follow the subscription: cancel one and it stops at the end of the
+current period, under the same rules as above.
+
+### How you are billed
+
+We invoice you by email, to the address you give us, on each renewal date.
+Invoices are payable **within 10 days**.
+
+Prices are in US dollars and do not include any tax that may apply where you
+are; if tax applies, it is added to the invoice.
+
+### If a payment does not go through
+
+Nothing is switched off, at any point. We could not do it if we wanted to —
+the software is in your Google account.
+
+What actually happens:
+
+1. **Day 10 after the invoice** — if it is unpaid, we email you. Payments
+   fail for boring reasons and this is usually the end of it.
+2. **Day 30** — if it is still unpaid, support and new versions **pause**
+   until the account is settled. You keep using the software and you keep
+   every bit of your data.
+3. **We never withhold your data to get paid.** It is not ours to withhold,
+   and export stays available whatever the state of your account.
+
+Settle the invoice and support and updates resume immediately, with no
+reconnection fee.
+
+### Coming back after leaving
+
+If you cancel and later want to return, you are treated as a new customer:
+current prices, and any promotional or founding rate you previously had does
+not come back. That includes the setup fee if the installation has to be done
+again.
 
 ## 10. Termination
 
@@ -140,4 +258,4 @@ rules. Disputes go to the state or federal courts located in Utah.
 
 ## 13. Contact
 
-Jose Castro — jose@ox-glass.com
+Jose Castro — joseisrael5101@gmail.com

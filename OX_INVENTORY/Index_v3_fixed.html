@@ -593,6 +593,15 @@
     .packs-name{font-weight:600;font-size:.84rem;flex:1;min-width:8rem}
     .packs-fact{font-size:.8rem;color:var(--muted);white-space:nowrap}
     /* Does the latest backup carry the SETTINGS, or only the data? */
+    /* A value the app SUGGESTED, not one the row holds. It has to look
+       different, or the form would be asserting things about this movement
+       that are not recorded anywhere — the same mistake as the GENERIC that
+       started this. Amber, left bar, and it goes plain the moment it is
+       edited by hand. */
+    .em-suggested{background:#FFFBEB !important;border-color:#FDE68A !important;
+                  box-shadow:inset 3px 0 0 #F59E0B}
+    .em-gap-note{font-size:.76rem;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;
+                 border-radius:6px;padding:.5rem .7rem;margin-top:.75rem;line-height:1.5}
     .snap-ok{font-size:.73rem;color:var(--green);margin-top:.2rem}
     .snap-warn{font-size:.75rem;background:#FEF3C7;color:var(--yellow);font-weight:600;
                border-radius:6px;padding:.4rem .6rem;margin-top:.35rem;line-height:1.45}
@@ -2344,6 +2353,10 @@
       </div>
     </div>
 
+    <!-- Says which boxes were empty on the row and were filled from this
+         material's own history. Hidden unless at least one was. -->
+    <div id="emGapNote" class="em-gap-note" style="display:none"></div>
+
     <!-- Reason — required -->
     <div class="edit-reason-box">
       <label>⚠️ Reason for modification (required)</label>
@@ -2834,7 +2847,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.14';
+var APP_VERSION = '11.20';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2846,7 +2859,7 @@ var APP_VERSION = '11.14';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '1b70b00c';
+var APP_BUILD = 'de396b74';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14450,7 +14463,7 @@ var LEGAL_DOCS = {
 <p>Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version.</p>
 <h3>11. Contact</h3>
 <p>Jose Castro — joseisrael5101@gmail.com</p>` },
-  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 6 August 2026</p>
+  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 26 August 2026</p>
 <p>These terms govern your use of Acopio, warehouse-management software provided by Jose Castro ("we", "us"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so.</p>
 <hr>
 <h3>1. What you are buying</h3>
@@ -14475,12 +14488,31 @@ var LEGAL_DOCS = {
 </ul>
 <p>Reading, understanding and modifying the code for your own internal use is permitted — it runs in your account and you can see all of it. Modified copies are unsupported, and §6 applies with particular force to them.</p>
 <h3>5. Support and updates</h3>
-<p>While your licence is active:</p>
+<h4>What your subscription includes</h4>
 <ul>
-<li>Bug fixes and security updates, delivered as files for you to install.</li>
-<li>Support by email during business hours, on a best-effort basis.</li>
+<li><strong>Every new version</strong>, for as long as your licence is active. There is no higher tier to buy later: improvements and fixes are the subscription.</li>
+<li><strong>Bug fixes and security updates</strong>, delivered as files for you to install.</li>
+<li><strong>Questions about how to use it</strong>, by email.</li>
+<li><strong>Help reading your own data</strong> when something does not add up — for example working out why a stock figure looks wrong.</li>
 </ul>
+<h4>How fast we answer</h4>
+<p>We answer support email <strong>within one business day</strong>, Monday to Friday, excluding United States public holidays, on Mountain Time.</p>
+<p>That is when we will have <strong>replied to you</strong>, not when the problem will be solved. How long a fix takes depends on what it is, and we will not pretend otherwise: you will get a real answer about what is happening and what happens next.</p>
+<p>In practice most email is answered much sooner. One business day is what we are willing to be held to.</p>
+<p>If you need a faster commitment, <strong>priority support</strong> is available as a paid add-on: four business hours, with a direct channel.</p>
+<h4>What is NOT included, and is charged separately</h4>
+<p>These are quoted before any work starts. Nothing is ever charged without your written agreement first.</p>
+<ul>
+<li><strong>Importing your existing history</strong> from spreadsheets or another system.</li>
+<li><strong>Training beyond the session included with installation</strong>, whether for new staff or a refresher.</li>
+<li><strong>Changes built specifically for you</strong> — a report, a field, a screen that only your company needs.</li>
+<li><strong>Recovering data you deleted</strong>, where recovery is possible at all.</li>
+<li><strong>Repairing an installation whose code was modified.</strong> The software is licensed, not sold, and only we may modify it (see section 4). If a copy has been changed, putting it right is billable work, and we may decline it.</li>
+<li><strong>A second or subsequent warehouse.</strong></li>
+</ul>
+<h4>What you have to do</h4>
 <p><strong>Installing updates is your responsibility.</strong> Because the software lives in your account, we cannot push a fix to you — including a security fix. We will tell you an update matters; applying it is your call and your action.</p>
+<p><strong>Support depends on your file being reachable.</strong> We cannot help with a problem we cannot see. If diagnosing something requires looking at your spreadsheet, we will ask, and you decide.</p>
 <p>We do not commit to any specific new feature, or to any timeline for one, unless we have agreed it with you in writing.</p>
 <h3>6. Warranty disclaimer and limitation of liability</h3>
 <p><strong>Read this section. It is the one that matters most if something goes wrong.</strong></p>
@@ -14502,8 +14534,40 @@ var LEGAL_DOCS = {
 <h3>8. Backups</h3>
 <p>Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on.</p>
 <p><strong>It is a convenience, not a guarantee.</strong> It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility.</p>
-<h3>9. Payment and cancellation</h3>
-<p>Fees, billing period and any add-on pricing are as agreed in writing when you purchase. Cancel any time; cancellation ends future billing and ends support and updates at the end of the paid period. Fees already paid are not refundable except where required by law.</p>
+<h3>9. Payment, cancellation and refunds</h3>
+<p>Fees, billing period and any add-on pricing are as agreed in writing when you purchase.</p>
+<h4>Cancelling</h4>
+<p>Cancel any time. Cancellation ends future billing, and support and updates end when the period you have already paid for runs out.</p>
+<p><strong>Your installation keeps working.</strong> It is in your Google account and we have no way to switch it off, and would not use one if we had it. What stops is support and new versions — not the software, and not your access to your own data. See section 10.</p>
+<h4>The setup fee</h4>
+<p>The one-time setup fee covers work we perform: installing, configuring the system to your categories and racks, loading your team, and training you.</p>
+<ul>
+<li><strong>Before that work has been done, it is fully refundable.</strong> If you change your mind before we install, you get all of it back.</li>
+<li><strong>Once the work has been performed, it is not refundable</strong>, because it has been delivered. That holds even if you then cancel the subscription.</li>
+</ul>
+<h4>The subscription</h4>
+<ul>
+<li><strong>Monthly:</strong> if you cancel <strong>within 14 days</strong> of a charge, that month is refunded in full. After 14 days the month is not refunded, and you keep support and updates until it ends.</li>
+<li><strong>Annual:</strong> whole months you have not yet used are refunded. Months already begun are not.</li>
+<li><strong>If the fault is ours:</strong> if a defect makes the software unusable for its purpose and we have not fixed it within 30 days of you reporting it, the current period is refunded in full whatever the dates say. You should not pay for a month in which it did not work.</li>
+</ul>
+<p>Refunds are issued by the method you paid with, within 10 business days of being agreed.</p>
+<h4>Add-ons</h4>
+<p>Add-ons follow the subscription: cancel one and it stops at the end of the current period, under the same rules as above.</p>
+<h4>How you are billed</h4>
+<p>We invoice you by email, to the address you give us, on each renewal date. Invoices are payable <strong>within 10 days</strong>.</p>
+<p>Prices are in US dollars and do not include any tax that may apply where you are; if tax applies, it is added to the invoice.</p>
+<h4>If a payment does not go through</h4>
+<p>Nothing is switched off, at any point. We could not do it if we wanted to — the software is in your Google account.</p>
+<p>What actually happens:</p>
+<ol>
+<li><strong>Day 10 after the invoice</strong> — if it is unpaid, we email you. Payments fail for boring reasons and this is usually the end of it.</li>
+<li><strong>Day 30</strong> — if it is still unpaid, support and new versions <strong>pause</strong> until the account is settled. You keep using the software and you keep every bit of your data.</li>
+<li><strong>We never withhold your data to get paid.</strong> It is not ours to withhold, and export stays available whatever the state of your account.</li>
+</ol>
+<p>Settle the invoice and support and updates resume immediately, with no reconnection fee.</p>
+<h4>Coming back after leaving</h4>
+<p>If you cancel and later want to return, you are treated as a new customer: current prices, and any promotional or founding rate you previously had does not come back. That includes the setup fee if the installation has to be done again.</p>
 <h3>10. Termination</h3>
 <p>We may terminate your licence if you materially breach these terms and do not fix it within 30 days of written notice. On termination your right to support and updates ends. <strong>Your installation and your data are unaffected</strong> — we have no mechanism to remove them, and would not use one if we had it.</p>
 <h3>11. Changes to these terms</h3>
@@ -14745,6 +14809,90 @@ var _editMovRowIdx = 0;
 var _editMovOrigCategory = '';
 var _editMovOrigName = '';
 
+// ── Editing should not be lazy ───────────────────────────────────────────────
+//
+// Jose: "al editar un material toda la información de ese material se muestre
+// en la ventana de edición, toda, para que solo pueda modificar lo que quiero
+// y no preocuparme por volver a llenar la demás información."
+//
+// The form already had every editable field. The problem is upstream: a
+// TRANSFER or a WASTE is SAVED with supplier, GC, PO and PM empty, because
+// those boxes are hidden on those screens. Open one to edit and you are
+// looking at five blanks for a material whose supplier the app has known all
+// along — and you either retype them or leave the history uneven, which is
+// exactly what Jose is seeing when he searches.
+//
+// So: fill the blanks from the same material's own history, most recent value
+// wins, and NEVER overwrite anything the row already has.
+//
+// The critical part is that these are marked. A suggestion that looks
+// identical to a stored value would make the form assert things about this row
+// that are not recorded — the same class of mistake as the GENERIC that
+// started all this. They are tinted, and a line says how many there are and
+// that they only become real if you save.
+var _EDIT_GAP_FIELDS = [
+  { id: 'em_supplier',    key: 'supplier'    },
+  { id: 'em_gc',          key: 'gc'          },
+  { id: 'em_po',          key: 'po'          },
+  { id: 'em_project',     key: 'project'     },
+  { id: 'em_pm',          key: 'pm'          },
+  { id: 'em_responsible', key: 'responsible' }
+];
+
+function _clearEditGapMarks() {
+  _EDIT_GAP_FIELDS.forEach(function(f){
+    var el = document.getElementById(f.id);
+    if (el) el.classList.remove('em-suggested');
+  });
+  var note = document.getElementById('emGapNote');
+  if (note) { note.style.display = 'none'; note.textContent = ''; }
+}
+
+function _fillEditGapsFromHistory(mov) {
+  _clearEditGapMarks();
+  var nameUp = String(mov.name || '').trim().toUpperCase();
+  var catNt  = nt(mov.category || '');
+  if (!nameUp) return;
+
+  // Most recent first, and never this row itself.
+  var found = {};
+  for (var i = movements.length - 1; i >= 0; i--) {
+    var m = movements[i];
+    if (m.rowIdx === mov.rowIdx) continue;
+    if (String(m.name || '').trim().toUpperCase() !== nameUp) continue;
+    if (catNt && nt(m.category) !== catNt) continue;
+    _EDIT_GAP_FIELDS.forEach(function(f){
+      if (found[f.key]) return;
+      var v = String(m[f.key] || '').trim();
+      if (!v || v === 'GENERIC') return;   // GENERIC is a placeholder, not a job
+      found[f.key] = v;
+    });
+  }
+
+  var filled = [];
+  _EDIT_GAP_FIELDS.forEach(function(f){
+    var el = document.getElementById(f.id);
+    if (!el) return;
+    if (String(el.value || '').trim() !== '') return;   // the row's own value always wins
+    if (!found[f.key]) return;
+    el.value = found[f.key];
+    el.classList.add('em-suggested');
+    // Touch it and it stops being a suggestion — it is yours now. `once`
+    // rather than a bare listener, so re-opening the dialog does not stack a
+    // new handler on the same box every time.
+    el.addEventListener('input', function(){ el.classList.remove('em-suggested'); }, { once: true });
+    filled.push(f.key);
+  });
+
+  var note = document.getElementById('emGapNote');
+  if (note && filled.length) {
+    note.style.display = '';
+    note.textContent = '✦ ' + filled.length + ' field' + (filled.length > 1 ? 's were' : ' was') +
+      ' empty on this row and filled from this material\'s own history (' + filled.join(', ') +
+      '). Nothing is recorded until you save. Clear any you do not want.';
+  }
+}
+
 function openEditMovModal(rowIdx) {
   var mov = null;
   for (var i = 0; i < movements.length; i++) {
@@ -14786,7 +14934,12 @@ function openEditMovModal(rowIdx) {
     em_responsible: mov.responsible || '',
     em_sourceLoc:   mov.sourceLoc   || '',
     em_destLoc:     mov.destLoc     || '',
-    em_project:     mov.project     || '',
+    // GENERIC is not a project — it is the app's word for "received into
+    // stock, not assigned to a job". Showing it in a box labelled Project
+    // invites somebody to keep it, or to edit around it, as though a customer
+    // called GENERIC existed. Blank is what it actually means, and leaving it
+    // blank on an ENTRY re-derives GENERIC on save anyway.
+    em_project:     (mov.project && mov.project !== 'GENERIC') ? mov.project : '',
     em_gc:          mov.gc          || '',
     em_supplier:    mov.supplier    || '',
     em_po:          mov.po          || '',
@@ -14797,6 +14950,8 @@ function openEditMovModal(rowIdx) {
     var el = document.getElementById(id);
     if (el) el.value = fmap[id] !== undefined ? fmap[id] : '';
   });
+
+  _fillEditGapsFromHistory(mov);
 
   document.getElementById('em_reason').value = '';
   document.getElementById('btnSaveEditMov').disabled  = false;
