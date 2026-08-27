@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.20';
+var APP_VERSION = '11.22';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.20';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'de396b74';
+var APP_BUILD = '2039e2be';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1596,7 +1596,7 @@ function parseArchiveRow(row, rowIdx) {
   } else if (rawMT === 'DISPATCHED' || rawMT === 'DISPATCH' || rawMT === 'DEL') {
     mt = 'EXIT';
   } else {
-    mt = rawMT; // ENTRY, EXIT, TRANSFER, RETURN, WASTE — already correct
+    mt = rawMT; // ENTRY, EXIT, TRANSFER, RETURN, WASTE, ADJUST — already correct
   }
 
   return {
@@ -1719,6 +1719,25 @@ function calculateStock(movements, reservations) {
       }
       s.warehouseQty = Math.max(0, s.warehouseQty - qty);
       s.wastedQty   += qty;
+
+    } else if (mt === 'ADJUST') {
+      // A correction to the count at ONE rack. Direction is which column the
+      // rack sits in — see adjustDirection_. Nothing moves to a site and
+      // nothing is wasted, so siteQty and wastedQty are untouched on purpose:
+      // an adjust that fed either of them would put "we counted wrong" into
+      // the waste figure, which is the exact confusion this type exists to
+      // prevent.
+      if (m.sourceLoc && !m.destLoc) {
+        s.warehouseLocs[m.sourceLoc] = (s.warehouseLocs[m.sourceLoc] || 0) - qty;
+        if (s.warehouseLocs[m.sourceLoc] < 0) {
+          s._errors.push('ADJUST NEG@' + m.sourceLoc);
+          s.warehouseLocs[m.sourceLoc] = 0;
+        }
+        s.warehouseQty = Math.max(0, s.warehouseQty - qty);
+      } else if (m.destLoc && !m.sourceLoc) {
+        s.warehouseLocs[m.destLoc] = (s.warehouseLocs[m.destLoc] || 0) + qty;
+        s.warehouseQty += qty;
+      }
     }
   }
 
@@ -2183,7 +2202,7 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       var d  = movements[i];
       var mt = String(d.moveType || '').toUpperCase().trim();
       if (mt === 'DISPATCH') mt = 'EXIT';
-      if (['ENTRY','EXIT','TRANSFER','RETURN','WASTE'].indexOf(mt) === -1) {
+      if (['ENTRY','EXIT','TRANSFER','RETURN','WASTE','ADJUST'].indexOf(mt) === -1) {
         throw new Error('Invalid move type: ' + mt);
       }
 
@@ -2222,6 +2241,18 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         proj = (carried && carried.project && carried.project !== 'GENERIC') ? carried.project : '';
       }
 
+      // An ADJUST carries NO project, and does not inherit one either.
+      //
+      // It is not a statement about work — it is a statement about the record:
+      // the count in the rack disagreed with the count in the app. Which job
+      // the two missing units would have belonged to is precisely what nobody
+      // knows, which is why the number was wrong in the first place.
+      //
+      // Stamping a job on it would push a correction into that job's Total
+      // Received / Total Dispatched, where it reads as material that moved for
+      // that customer. Blank is not a gap here; it is the honest answer.
+      if (mt === 'ADJUST') proj = '';
+
       // Locations: uppercase+trim for storage (special chars preserved), but use
       // normalizeString as the in-memory key so lookups match the snapshot.
       var src     = String(d.sourceLoc || '').toUpperCase().trim();
@@ -2241,6 +2272,33 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
       // Material lock check — authoritative, cannot be bypassed from the frontend.
       enforceMaterialLock_(locksMap, mt, matId, srcKey, destKey);
+
+      // ── ADJUST: a COUNT, not a move between two places ────────────────────
+      // Exactly one rack column is filled, and which one it is IS the
+      // direction — see adjustDirection_ for why the direction is stored that
+      // way instead of as a negative quantity.
+      var adjDir = 0;
+      if (mt === 'ADJUST') {
+        adjDir = adjustDirection_(srcKey, destKey);
+        if (!adjDir) throw new Error('An adjustment needs exactly one rack — the one you counted.');
+        if (!String(d.comments || '').trim()) {
+          throw new Error('ADJUST movements require a reason — say why the count was off.');
+        }
+        // Only downward adjustments can fail this way, and the failure is
+        // worth its own message: "insufficient stock" would be nonsense for a
+        // correction whose entire premise is that the stock figure is wrong.
+        // What it really means is that the figure MOVED between the count and
+        // the save — somebody exited the material while it was being counted —
+        // so the difference on screen is stale and the count has to be redone.
+        if (adjDir < 0) {
+          var adjHave = snap.locs[srcKey] || 0;
+          if (adjHave < qty) {
+            throw new Error('COUNT CHANGED for ' + name + ' at ' + src + '. The app now shows ' +
+              adjHave + ' there, so it cannot come down by ' + qty + '. Somebody moved this ' +
+              'material while you were counting — open the rack and count it again.');
+          }
+        }
+      }
 
       // Stock validation for outgoing moves against the LIVE (mutated) snapshot,
       // so two EXITs from the same rack in one batch are checked cumulatively.
@@ -2294,6 +2352,17 @@ function addMovementsBatch_(ss, archive, movements, auth) {
           avgCostMap[matId] = { category: cleanDisplay_(d.category), name: cleanDisplay_(d.name), avg: newAvg };
           costTouched[matId] = true;
         }
+      } else if (mt === 'ADJUST') {
+        // Deliberately nothing. An adjustment costs zero — not "zero dollars
+        // of material", but no dollar figure at all, which is why both columns
+        // stay blank rather than being written as 0.
+        //
+        // Two units that were never really there did not cost anything when
+        // they vanished; they cost something when they were bought, and that
+        // is already recorded on the ENTRY. Pricing an adjust would double it,
+        // and pricing a downward one would report a loss the company never
+        // took. It also must not disturb the running average: the average is
+        // about what material COSTS, and this row says nothing about that.
       } else if (avgCostMap[matId]) {
         unitCost  = avgCostMap[matId].avg;
         totalCost = round2_(unitCost * qty);
@@ -2510,6 +2579,16 @@ function applyMovementToSnapshot_(s, mt, qty, srcKey, destKey) {
     var wSrc = srcKey || findFirstWarehouseLoc(s.locs, qty);
     if (wSrc && s.locs[wSrc]) s.locs[wSrc] -= qty;
     s.wh = Math.max(0, s.wh - qty);
+  } else if (mt === 'ADJUST') {
+    // Direction lives in which rack column is filled — see adjustDirection_.
+    // Never touches site stock or wasted: nothing physically went anywhere.
+    if (srcKey && !destKey) {
+      if (s.locs[srcKey]) s.locs[srcKey] -= qty;
+      s.wh = Math.max(0, s.wh - qty);
+    } else if (destKey && !srcKey) {
+      s.locs[destKey] = (s.locs[destKey] || 0) + qty;
+      s.wh += qty;
+    }
   }
 }
 
@@ -2786,6 +2865,16 @@ function getCurrentStockForItem(ss, matId) {
       var wSrc = src || findFirstWarehouseLoc(locs, qty);
       if (wSrc && locs[wSrc]) locs[wSrc] -= qty;
       wh = Math.max(0, wh - qty);
+
+    } else if (mt === 'ADJUST') {
+      // Same rule as the other three stock readers — see adjustDirection_.
+      if (src && !dst) {
+        if (locs[src]) locs[src] -= qty;
+        wh = Math.max(0, wh - qty);
+      } else if (dst && !src) {
+        locs[dst] = (locs[dst] || 0) + qty;
+        wh += qty;
+      }
     }
   }
 
@@ -3881,6 +3970,19 @@ function refreshDerivedSheets_(ss) {
       var s2 = rackKey(m.sourceLoc || 'UNASSIGNED');
       s.locs[s2] = (s.locs[s2] || 0) - qty;
       s.wasted  += qty;
+
+    } else if (m.moveType === 'ADJUST') {
+      // The fourth and last place that turns movements into stock. All four
+      // have to agree or LIVE_STOCK drifts away from what the full scan says,
+      // and the drift only shows up as a rack drawer quietly reading wrong.
+      // `wasted` is deliberately not touched — see calculateStock.
+      if (m.sourceLoc && !m.destLoc) {
+        var aSrc = rackKey(m.sourceLoc);
+        s.locs[aSrc] = (s.locs[aSrc] || 0) - qty;
+      } else if (m.destLoc && !m.sourceLoc) {
+        var aDst = rackKey(m.destLoc);
+        s.locs[aDst] = (s.locs[aDst] || 0) + qty;
+      }
     }
   }
 
@@ -4206,7 +4308,13 @@ function enforceMaterialLock_(locksMap, mt, matId, srcKey, destKey) {
   if (!srcKey) return;
   var lock = locksMap[matId + '|||' + srcKey];
   if (!lock) return;
-  if (mt === 'EXIT' || mt === 'WASTE') {
+  // ADJUST is here for the same reason EXIT and WASTE are: a downward
+  // adjustment takes units off a locked rack, and to whoever is counting on
+  // that lock the effect is identical to an EXIT. An UPWARD adjust never
+  // reaches this branch — it writes DEST_LOC and leaves SRC_LOC empty, and
+  // this function returns early when there is no source — which is right:
+  // finding MORE than the record said takes nothing away from anybody.
+  if (mt === 'EXIT' || mt === 'WASTE' || mt === 'ADJUST') {
     throw new Error('LOCKED: This material is locked at ' + srcKey + ' — ' + lock.reason +
       ' (by ' + lock.lockedBy + '). Cannot ' + mt + '. Ask an admin to unlock it first.');
   }
@@ -7135,9 +7243,35 @@ function menuVerifyMasterTemplate() {
 // TRANSFER, …) is legacy data from before the v2→v3 migration, when Status was
 // hand-entered and MoveType did not exist.
 function statusForMoveType_(mt) {
-  if (mt === 'EXIT')  return 'Dispatched';
-  if (mt === 'WASTE') return 'Damaged';
+  if (mt === 'EXIT')   return 'Dispatched';
+  if (mt === 'WASTE')  return 'Damaged';
+  if (mt === 'ADJUST') return 'Adjusted';
   return 'In Stock';   // ENTRY, RETURN, TRANSFER
+}
+
+// ─── WHICH WAY AN ADJUSTMENT WENT ────────────────────────────────────────────
+// An ADJUST records a COUNT that disagreed with the record. It is not a move
+// between two places, so it has no second rack to travel to — and that free
+// column is where the direction is kept:
+//
+//     counted FEWER than the app said  →  rack in SRC_LOC   →  stock goes down
+//     counted MORE  than the app said  →  rack in DEST_LOC  →  stock goes up
+//
+// Nothing new is stored and no column was added. It is the same grammar every
+// other type already uses: ENTRY writes DEST, EXIT and WASTE write SRC,
+// TRANSFER writes both. "Where did it come from, where did it go" reads the
+// same on an adjust as on everything else in the archive.
+//
+// The alternative was a signed quantity, and it would have leaked a negative
+// number into every sum, badge, chart and CSV export in the app — each of
+// which would then need to know that this one type counts differently.
+//
+// Returns -1 (down), +1 (up), or 0 for a row that is neither, which is not a
+// direction but a malformed row and is refused on write.
+function adjustDirection_(srcKey, destKey) {
+  if (srcKey  && !destKey) return -1;
+  if (destKey && !srcKey)  return 1;
+  return 0;
 }
 
 // One-time cleanup for those legacy rows. Rewrites nothing but the Status cell,
@@ -8150,6 +8284,21 @@ function incomingDateCell_(ymd) {
   return ymd ? new Date(String(ymd) + 'T12:00:00') : '';
 }
 
+// The three states the Status dropdown offers. add and update used to disagree:
+// addIncoming hard-coded 'Pending' and threw the form's value away, so a
+// delivery entered as already Arrived (or cancelled on the spot) came back
+// Pending and had to be edited a second time to stick. One function answers for
+// both now, and anything unrecognised falls back to Pending rather than writing
+// a status that no filter in the app matches.
+var INCOMING_STATUSES = ['Pending', 'Arrived', 'Cancelled'];
+function incomingStatus_(v) {
+  var s = String(v || '').trim().toLowerCase();
+  for (var i = 0; i < INCOMING_STATUSES.length; i++) {
+    if (INCOMING_STATUSES[i].toLowerCase() === s) return INCOMING_STATUSES[i];
+  }
+  return 'Pending';
+}
+
 function addIncoming(data) {
   var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
@@ -8170,7 +8319,7 @@ function addIncoming(data) {
     sheetSafe_(String(data.supplier || '')),
     sheetSafe_(String(data.po       || '')),
     sheetSafe_(String(data.notes    || '')),
-    'Pending',
+    incomingStatus_(data.status),
     auth.email,
     new Date(),
     sheetSafe_(String(data.pm       || '')),
@@ -8219,7 +8368,7 @@ function updateIncoming(data) {
         sheetSafe_(String(data.supplier || '')),
         sheetSafe_(String(data.po       || '')),
         sheetSafe_(String(data.notes    || '')),
-        sheetSafe_(String(data.status   || 'Pending')),
+        incomingStatus_(data.status),
         values[i][10],          // preserve addedBy
         values[i][11],          // preserve addedAt
         sheetSafe_(String(data.pm || '')),  // PM — Project Manager
@@ -8494,6 +8643,21 @@ function modifyMovementLocked_(data, auth) {
   });
 
   if (!changes.length) throw new Error('No changes detected — nothing to save.');
+
+  // An ADJUST keeps its direction in WHICH rack column is filled — see
+  // adjustDirection_. An edit that fills both, or empties both, leaves a row
+  // that no stock reader has a branch for: it would quietly stop counting
+  // toward stock, and no rebuild could recover what was meant, because the
+  // intent was only ever in the shape of the row. Refuse it here, while the
+  // person is still looking at the form and can say which way it went.
+  if (String(rowVals[AC.MOVETYPE] || '').toUpperCase() === 'ADJUST') {
+    var eSrc = normalizeString(String(rowVals[AC.SRC_LOC]  || ''));
+    var eDst = normalizeString(String(rowVals[AC.DEST_LOC] || ''));
+    if (!adjustDirection_(eSrc, eDst)) {
+      throw new Error('An adjustment needs exactly ONE rack: Source Loc if the count came up ' +
+        'short, Dest Loc if it came up long. Leave the other one empty.');
+    }
+  }
 
   // If category or name changed, the stored MatID must be recomputed too —
   // otherwise this row keeps pointing at the OLD material forever, silently

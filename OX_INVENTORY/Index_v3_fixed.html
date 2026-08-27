@@ -203,6 +203,7 @@
     tr.row-transfer td:first-child{border-left:3px solid var(--accent)}
     tr.row-return td:first-child{border-left:3px solid #9CA3AF}
     tr.row-waste td:first-child{border-left:3px solid #111827}
+    tr.row-adjust td:first-child{border-left:3px solid var(--steel)}
     /* ── BADGES ── */
     .badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600;white-space:nowrap}
     .badge-green{background:var(--green-bg);color:var(--green)}
@@ -213,6 +214,7 @@
     .badge-purple{background:var(--purple-bg);color:var(--purple)}
     .badge-gray{background:#F3F4F6;color:#6B7280}
     .badge-dark{background:#1F2937;color:#F9FAFB}
+    .badge-slate{background:#E2E8F0;color:var(--steel)}
     .badge-teal{background:#CCFBF1;color:#0F766E}
     .badge-pink{background:#FCE7F3;color:#BE185D}
     .badge-navy{background:#DBEAFE;color:#1E3A8A}
@@ -408,6 +410,11 @@
     .modal-type-bar button.active-transfer{background:#DBEAFE;color:var(--accent2)}
     .modal-type-bar button.active-return{background:var(--purple-bg);color:var(--purple)}
     .modal-type-bar button.active-waste{background:var(--yellow-bg);color:var(--yellow)}
+    /* ADJUST is slate on purpose, and the only tab that is not a warm or an
+       alarming colour. The other five are events in the warehouse; this one is
+       bookkeeping — a correction to the record, with no material gained or
+       lost — and it should not wear the colour of something going wrong. */
+    .modal-type-bar button.active-adjust{background:#E2E8F0;color:var(--steel)}
     /* ── FORM ── */
     .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
     .form-grid.full{grid-template-columns:1fr}
@@ -499,6 +506,8 @@
     .move-mat-box.mm-return .move-mat-total{background:#EDE9FE;color:var(--purple)}
         .move-mat-box.mm-waste .move-mat-lbl{color:var(--yellow)}
     .move-mat-box.mm-waste .move-mat-total{background:#FEF3C7;color:var(--yellow)}
+        .move-mat-box.mm-adjust .move-mat-lbl{color:var(--steel)}
+    .move-mat-box.mm-adjust .move-mat-total{background:#E2E8F0;color:var(--steel)}
     /* ── MULTI-MATERIAL ENTRY ── */
     .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
     .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
@@ -623,6 +632,24 @@
     .mm-transfer .move-loc-box{background:#EFF6FF;border-color:#BFDBFE}
     .mm-return   .move-loc-box{background:var(--purple-bg);border-color:#DDD6FE}
     .mm-waste    .move-loc-box{background:var(--yellow-bg);border-color:#FDE68A}
+    .mm-adjust   .move-loc-box{background:#F1F5F9;border-color:#CBD5E1}
+    /* ── The count, inside the ADJUST location box ──
+       Three numbers on one line: what the app believes, what was counted, and
+       the difference between them. The difference is the only one that gets
+       saved, so it is the one that is loud. */
+    .adj-count{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end}
+    .adj-count .field{flex:1;min-width:120px}
+    .adj-says{flex:1;min-width:120px}
+    .adj-says-lbl{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;
+                  letter-spacing:.03em;display:block;margin-bottom:.25rem}
+    .adj-says-val{font-size:1.35rem;font-weight:700;color:var(--steel);font-variant-numeric:tabular-nums;
+                  line-height:1.5}
+    .adj-delta{margin-top:.55rem;font-size:.85rem;font-weight:600;border-radius:6px;
+               padding:.45rem .65rem;line-height:1.45}
+    .adj-delta.down{background:var(--red-bg);color:var(--red)}
+    .adj-delta.up{background:var(--green-bg);color:var(--green)}
+    .adj-delta.same{background:#E2E8F0;color:var(--steel)}
+    .adj-delta.idle{background:#F1F5F9;color:var(--muted);font-weight:500}
     /* The header strip above the rows, same in all three. */
     .loc-box-hdr{display:flex;gap:.4rem;margin-bottom:.25rem}
     .loc-box-hdr span{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase}
@@ -1527,6 +1554,7 @@
     [data-theme="dark"] .badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
     [data-theme="dark"] .badge-orange{background:var(--orange-bg);color:var(--orange)}
     [data-theme="dark"] .badge-purple{background:var(--purple-bg);color:var(--purple)}
+    [data-theme="dark"] .badge-slate{background:#334155;color:#CBD5E1}
     [data-theme="dark"] .system-footer{background:#020617;border-color:var(--border)}
     [data-theme="dark"] .col-toggle-bar{background:#0F172A}
     [data-theme="dark"] .expandable-row:hover{background:#243044 !important}
@@ -1970,6 +1998,7 @@
             <option value="TRANSFER">Transfer</option>
             <option value="RETURN">Return</option>
             <option value="WASTE">Waste</option>
+            <option value="ADJUST">Adjust (count fix)</option>
           </select>
           <select id="movCatFilter"><option value="">All Categories</option></select>
           <button id="btnExportCSV" class="btn btn-ghost btn-sm">⬇ CSV</button>
@@ -2403,6 +2432,7 @@
       <button data-type="TRANSFER" onclick="_moveTypeBarClick('TRANSFER')">⇄ Transfer</button>
       <button data-type="RETURN"   onclick="_moveTypeBarClick('RETURN')">↩ Return</button>
       <button data-type="WASTE"    onclick="_moveTypeBarClick('WASTE')">✕ Waste</button>
+      <button data-type="ADJUST"   onclick="_moveTypeBarClick('ADJUST')">⚖ Adjust</button>
     </div>
 
     <!-- Stock Warning -->
@@ -2511,6 +2541,47 @@
         <label id="mDestLabel">Destination</label>
         <input type="text" id="mDest" list="rackListDest" placeholder="e.g. B2B">
         <datalist id="rackListDest"></datalist>
+      </div>
+    </div>
+
+    <!-- ── ADJUST: the count, not a move ──
+         You do not type how many to add or remove — you type what you COUNTED,
+         and the app works out the difference against what it believed. That is
+         the whole difference between this and every other screen: the number a
+         person has in their head standing at the rack is "38", not "minus 2",
+         and asking for the subtraction is asking them to do arithmetic they can
+         get backwards. The direction falls out of the two numbers. -->
+    <div id="adjustSection" style="display:none">
+      <div class="form-grid">
+        <div class="field">
+          <label>Rack you counted</label>
+          <input type="text" id="adjRack" list="rackList" placeholder="e.g. A1A"
+                 oninput="_syncAdjustCount()">
+        </div>
+      </div>
+      <div class="adj-count" style="margin-top:.5rem">
+        <div class="adj-says">
+          <span class="adj-says-lbl">The app says</span>
+          <span class="adj-says-val" id="adjSays">—</span>
+        </div>
+        <div class="field">
+          <label>You counted</label>
+          <input type="number" id="adjCounted" min="0" step="1" placeholder="Actual count"
+                 oninput="_syncAdjustCount()">
+        </div>
+      </div>
+      <div class="adj-delta idle" id="adjDelta">Pick the material and the rack, then type what you counted.</div>
+      <div class="form-grid" style="margin-top:.6rem">
+        <div class="field">
+          <label>Why was it off? (required)</label>
+          <select id="adjReason" onchange="_syncAdjustCount()">
+            <option value="">Choose a reason…</option>
+            <option value="Miscount">Miscount — the number in the app was wrong</option>
+            <option value="Movement never recorded">A movement was never recorded</option>
+            <option value="Found extra">Found more than the record said</option>
+            <option value="Other">Other — explain in Comments</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -2847,7 +2918,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.20';
+var APP_VERSION = '11.22';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2859,7 +2930,7 @@ var APP_VERSION = '11.20';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'de396b74';
+var APP_BUILD = '2039e2be';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3188,6 +3259,26 @@ function _moveFormProblem(){
     return '';
   }
 
+  // ADJUST: the quantity it saves is a DIFFERENCE the app works out, so its own
+  // Qty box is hidden and always reads zero. Falling through to the
+  // single-material check below — which insists on that box — would leave Save
+  // dead however carefully the screen was filled in, exactly the way TRANSFER
+  // did before it got its own branch.
+  //
+  // Order matters: each message names the ONE thing to do next, and a count
+  // that matches is reported as its own outcome rather than as a missing field,
+  // because it is not a mistake. It is the answer you hope for.
+  if (_moveSectionVisible('adjustSection')){
+    var a = _readAdjust();
+    if (!a.name)     return 'Enter the material name';
+    if (!a.rack)     return 'Enter the rack you counted';
+    if (!a.hasCount) return 'Enter what you counted';
+    if (a.delta === 0) return 'The count matches — nothing to correct';
+    if (!a.reason)   return 'Choose why the count was off';
+    if (a.reason === 'Other' && !a.note) return 'Say what happened in Comments';
+    return '';
+  }
+
   // Single-material form
   var nm = ((document.getElementById('mName') || {}).value || '').trim();
   if (!nm) return 'Enter the material name';
@@ -3212,8 +3303,12 @@ function _updateMoveSubmitState(){
 
 // Delegated, because material and location rows are added and removed while the
 // form is open — binding per field would miss every row created later.
-document.addEventListener('input',  function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
-document.addEventListener('change', function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) _updateMoveSubmitState(); });
+// _syncAdjustCount rides along for the same reason: on the Adjust screen the
+// material and the category live in shared boxes with their own handlers, and
+// changing either one changes what "the app says" — a per-field oninput on
+// those two would have to know about a screen they are shared with.
+document.addEventListener('input',  function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) { _syncAdjustCount(); _updateMoveSubmitState(); } });
+document.addEventListener('change', function(e){ if (e.target.closest && e.target.closest('#moveOverlay')) { _syncAdjustCount(); _updateMoveSubmitState(); } });
 // Clicks too, deferred by a tick so the handler has already run: adding or
 // removing a material or location row, and "Auto-fill Racks" writing
 // quantities in code, all change whether the form is complete without anyone
@@ -4424,7 +4519,8 @@ function locSummary(locs){
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
 
-// Move-type badge: ENTRY=green, EXIT=red, TRANSFER=purple, RETURN=gray, WASTE=black
+// Move-type badge: ENTRY=green, EXIT=red, TRANSFER=purple, RETURN=gray,
+// WASTE=black, ADJUST=slate
 function normMT(mt){
   var n = nt(mt);
   if (n === 'DISPATCH' || n === 'DISPATCHED' || n === 'DEL') return 'EXIT';
@@ -4439,9 +4535,19 @@ function moveBadge(mt){
     'EXIT':     '<span class="badge badge-red">↑ EXIT</span>',
     'TRANSFER': '<span class="badge badge-purple">⇄ TRANSFER</span>',
     'RETURN':   '<span class="badge badge-gray">↩ RETURN</span>',
-    'WASTE':    '<span class="badge badge-dark">✕ WASTE</span>'
+    'WASTE':    '<span class="badge badge-dark">✕ WASTE</span>',
+    'ADJUST':   '<span class="badge badge-slate">⚖ ADJUST</span>'
   };
   return map[norm] || '<span class="badge badge-gray">'+mt+'</span>';
+}
+
+// Which way an adjustment went, read back out of the row exactly the way the
+// server wrote it (adjustDirection_ in Code.gs): the rack sits in Source when
+// the count came up SHORT and in Destination when it came up LONG. Every screen
+// that shows a + or a − has to ask, because an ADJUST is the one type that is
+// not always the same sign.
+function adjustIsDown(m){
+  return !!(m && m.sourceLoc && !m.destLoc);
 }
 
 // Category badge: each material type has its own color
@@ -4472,7 +4578,7 @@ function stockBadge(item){
 }
 
 function rowClass(mt){
-  var map = {ENTRY:'row-entry',EXIT:'row-exit',TRANSFER:'row-transfer',RETURN:'row-return',WASTE:'row-waste'};
+  var map = {ENTRY:'row-entry',EXIT:'row-exit',TRANSFER:'row-transfer',RETURN:'row-return',WASTE:'row-waste',ADJUST:'row-adjust'};
   return map[normMT(mt)] || '';
 }
 
@@ -5162,13 +5268,20 @@ function renderMovements(){
   _movRenderedRows = paged.map(function(m){ return m.archived ? null : m.rowIdx; });
   var rows = paged.map(function(m){
     var norm = normMT(m.moveType);
-    var isOut = (norm === 'EXIT' || norm === 'WASTE');
+    // ADJUST is the only type whose sign is not fixed: a count that came up
+    // short takes units away, a count that came up long adds them. Every other
+    // type always points the same direction, which is why they can be listed.
+    var isOut = (norm === 'EXIT' || norm === 'WASTE' ||
+                 (norm === 'ADJUST' && adjustIsDown(m)));
     // Src→Dest display rules:
     //   ENTRY    → just the destination rack (no source — came from outside)
     //   EXIT     → "Rack → Site/Project"
     //   TRANSFER → "Rack A → Rack B"
     //   RETURN   → "Site → Rack"
     //   WASTE    → "Rack → WASTE"
+    //   ADJUST   → "COUNT → Rack" or "Rack → COUNT", pointing the way the
+    //              correction went, so the row says at a glance whether the
+    //              shelf had more or less than the app thought.
     var locDisplay;
     if (norm === 'ENTRY') {
       locDisplay = m.destLoc || '—';
@@ -5182,6 +5295,10 @@ function renderMovements(){
       locDisplay = (m.sourceLoc || '—') + ' → ' + (m.destLoc || '—');
     } else if (norm === 'WASTE') {
       locDisplay = (m.sourceLoc || '—') + ' → WASTE';
+    } else if (norm === 'ADJUST') {
+      locDisplay = adjustIsDown(m)
+        ? (m.sourceLoc || '—') + ' → COUNT'
+        : 'COUNT → ' + (m.destLoc || '—');
     } else {
       locDisplay = m.sourceLoc || m.destLoc || '—';
     }
@@ -5337,7 +5454,14 @@ function renderProjectView(){
     var norm = normMT(m.moveType);
     if (!summary[name]) summary[name] = {name:name, category:nt(m.category), in:0, out:0, history:[]};
     var q = m.qty || 0;
-    var isOut = (norm === 'EXIT' || norm === 'WASTE');
+    // Same rule as the movements table — an ADJUST points either way. In
+    // practice no ADJUST reaches this loop at all, because the server refuses
+    // to stamp a project on one (see addMovementsBatch_), and this view filters
+    // by project. Written correctly anyway: the day somebody edits a project
+    // onto an old row by hand, "Total Received" must not quietly gain two units
+    // that were never received.
+    var isOut = (norm === 'EXIT' || norm === 'WASTE' ||
+                 (norm === 'ADJUST' && adjustIsDown(m)));
     if (isOut){ summary[name].out += q; totalOut += q; }
     else       { summary[name].in  += q; totalIn  += q; }
     // What this project actually consumed, in dollars: sum of what left for it
@@ -5722,7 +5846,8 @@ function openMoveModal(type){
   // information the person never typed into this movement. Nothing here
   // should ever show data the user hasn't entered for this specific save.
   ['mName','mQty','mSrc','mDest','mExitDest','mSup','mGC','mPO','mProj','mResp','mPM','mComm',
-   'mNotifyEmails','mNotifyName','mNotifyMsg'].forEach(function(id){
+   'mNotifyEmails','mNotifyName','mNotifyMsg',
+   'adjRack','adjCounted','adjReason'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -5770,7 +5895,7 @@ function setModalType(type){
   document.querySelectorAll('.modal-type-bar button').forEach(function(b){ b.className = ''; });
 
   // Activate the pressed button
-  var activeClass = { ENTRY:'active-entry', EXIT:'active-exit', TRANSFER:'active-transfer', RETURN:'active-return', WASTE:'active-waste' };
+  var activeClass = { ENTRY:'active-entry', EXIT:'active-exit', TRANSFER:'active-transfer', RETURN:'active-return', WASTE:'active-waste', ADJUST:'active-adjust' };
   document.querySelectorAll('.modal-type-bar button').forEach(function(b){
     if (b.dataset.type === type) b.className = activeClass[type] || '';
   });
@@ -5818,6 +5943,11 @@ function setModalType(type){
   // rendered as an empty grid taking up space inside the location box.
   var singleLocGrid = document.getElementById('singleLocGrid');
   if (singleLocGrid) singleLocGrid.style.display = '';
+  // ADJUST brings its own count panel and hides the shared Qty/Source/Dest grid
+  // entirely — the quantity it saves is a DIFFERENCE the app works out, not a
+  // number anyone types.
+  var adjustSection = document.getElementById('adjustSection');
+  if (adjustSection) adjustSection.style.display = 'none';
   // The TRANSFER/RETURN/WASTE material box. Shown and tinted by the three
   // branches that use it; ENTRY and EXIT leave it hidden because they bring
   // their own boxes. Every tint class is cleared here rather than in each
@@ -5848,7 +5978,8 @@ function setModalType(type){
   document.getElementById('moveTitle').textContent =
     { ENTRY:'Receive Material (ENTRY)', EXIT:'Dispatch Material (EXIT)',
       TRANSFER:'Transfer Between Racks', RETURN:'Return from Site (RETURN)',
-      WASTE:'Record Waste / Loss' }[type] || 'New Movement';
+      WASTE:'Record Waste / Loss',
+      ADJUST:'Correct the Count (ADJUST)' }[type] || 'New Movement';
 
   if (type === 'ENTRY'){
     // ENTRY: hide single-material fields — multi-mat section handles everything
@@ -5928,6 +6059,23 @@ function setModalType(type){
     mStatus.value = 'Damaged';
     if (moveMatBox){ moveMatBox.style.display = 'block'; moveMatBox.classList.add('mm-waste'); }
     _syncMoveMatTotal();
+
+  } else if (type === 'ADJUST'){
+    // No supplier, GC, PO or project: an adjustment is a statement about the
+    // record, not about a job or a purchase, and the server refuses to stamp a
+    // project on one. Boxes that get thrown away are worse than no boxes.
+    supField.style.display  = 'none';
+    gcField.style.display   = 'none';
+    poField.style.display   = 'none';
+    projField.style.display = 'none';
+    if (singleLocGrid) singleLocGrid.style.display = 'none';
+    if (adjustSection) adjustSection.style.display = 'block';
+    commLabel.textContent = 'Comments (what you saw, who was there…)';
+    dateLabel.textContent = 'Date Counted';
+    respLabel.textContent = 'Counted By';
+    mStatus.value = 'In Stock';
+    if (moveMatBox){ moveMatBox.style.display = 'block'; moveMatBox.classList.add('mm-adjust'); }
+    _syncAdjustCount();
   }
 
   updateMatList();
@@ -5952,6 +6100,11 @@ function _syncMoveMatTotal(){
       var q = row.querySelector('.tr-qty');
       n += Math.max(0, parseFloat(q && q.value) || 0);
     });
+  } else if (currentMoveType === 'ADJUST'){
+    // The badge shows the size of the correction, not the count. mQty is
+    // hidden on this screen and always reads 0, which would have parked a
+    // permanent zero at the top of the box while the form filled up.
+    n = Math.abs(_readAdjust().delta);
   } else {
     var qEl = document.getElementById('mQty');
     n = Math.max(0, parseFloat(qEl && qEl.value) || 0);
@@ -5959,6 +6112,81 @@ function _syncMoveMatTotal(){
   // Round the way every quantity is rounded on write, so the badge and the
   // saved row can never disagree by a floating-point tail.
   el.textContent = String(Math.round(n * 10000) / 10000);
+}
+
+// ── ADJUST: what the app believes, what was counted, and the gap ─────────────
+//
+// Every number on the Adjust screen comes out of two figures, so they are read
+// in one place and re-derived on each keystroke rather than kept in variables
+// that can fall out of step with the boxes.
+//
+// `says` is read from the same stockData the Rack Drawer reads. That is the
+// point, not an implementation detail: the figure being corrected has to be
+// the exact figure the person was looking at when they decided it was wrong.
+function _readAdjust(){
+  var cat  = ((document.getElementById('mType')      || {}).value || '').trim();
+  var name = ((document.getElementById('mName')      || {}).value || '').trim();
+  var rack = ((document.getElementById('adjRack')    || {}).value || '').trim();
+  var raw  = ((document.getElementById('adjCounted') || {}).value || '').trim();
+  var counted  = parseInt(raw, 10);
+  var hasCount = raw !== '' && !isNaN(counted) && counted >= 0;
+
+  // Whether the app knows this material at this rack AT ALL is a different
+  // question from whether the number is zero, and the difference is worth
+  // showing: a rack the material has never been in also reads 0, and that is
+  // much more often a typo in the rack box than a genuine discovery.
+  var knownRack = false, says = 0;
+  if (name && rack){
+    var st   = stockData[_normKey(cat) + '|||' + _normKey(name)];
+    var locs = (st && st.warehouseLocs) || {};
+    var key  = rack.toUpperCase();
+    knownRack = Object.prototype.hasOwnProperty.call(locs, key);
+    says      = Math.max(0, Number(locs[key] || 0));
+  }
+  return {
+    cat: cat, name: name, rack: rack, says: says, knownRack: knownRack,
+    counted: hasCount ? counted : 0,
+    hasCount: hasCount,
+    delta: hasCount ? (counted - says) : 0,
+    reason: ((document.getElementById('adjReason') || {}).value || '').trim(),
+    note:   ((document.getElementById('mComm')     || {}).value || '').trim()
+  };
+}
+
+function _syncAdjustCount(){
+  if (currentMoveType !== 'ADJUST') return;
+  var a      = _readAdjust();
+  var saysEl = document.getElementById('adjSays');
+  var dEl    = document.getElementById('adjDelta');
+  if (saysEl) saysEl.textContent = (a.name && a.rack) ? String(a.says) : '—';
+  if (dEl){
+    var cls = 'idle';
+    var txt = 'Pick the material and the rack, then type what you counted.';
+    if (a.name && a.rack && a.hasCount){
+      if (a.delta === 0){
+        cls = 'same';
+        txt = '✓ The count matches. There is nothing to correct — close this window.';
+      } else if (a.delta < 0){
+        cls = 'down';
+        // Saying what this is NOT is the whole reason the type exists. Someone
+        // who reaches for Adjust when they mean Waste has to be able to notice
+        // it here, before the row is written.
+        txt = '− ' + Math.abs(a.delta) + ' will be removed from ' + a.rack.toUpperCase() +
+              '  (' + a.says + ' → ' + a.counted + '). No cost is recorded: this says the ' +
+              'record was wrong, not that material was lost. If it broke, use Waste.';
+      } else {
+        cls = 'up';
+        txt = '+ ' + a.delta + ' will be added to ' + a.rack.toUpperCase() +
+              '  (' + a.says + ' → ' + a.counted + ').' +
+              (a.knownRack ? '' :
+                '  ⚠ The app has no ' + a.name.toUpperCase() + ' at that rack at all — ' +
+                'check the rack before saving.');
+      }
+    }
+    dEl.className   = 'adj-delta ' + cls;
+    dEl.textContent = txt;
+  }
+  _syncMoveMatTotal();
 }
 
 // ── Stock Check (live warning while typing in EXIT modal) ─────────────────────
@@ -6133,12 +6361,36 @@ async function submitMovement(){
     }
   }
 
+  // ── ADJUST: the difference between the count and the record ───────────────
+  // Read once, here, so the number that is validated is the same number that
+  // is sent. Its sign becomes the direction (which rack column gets filled in)
+  // and its size becomes the quantity.
+  var adjust = null;
+  if (currentMoveType === 'ADJUST'){
+    adjust = _readAdjust();
+    if (!adjust.rack){ alert('Enter the rack you counted.'); return; }
+    if (!adjust.hasCount){ alert('Enter what you counted.'); return; }
+    if (adjust.delta === 0){
+      showToast('The count matches what the app already says — nothing to correct.', 'ok', 5000);
+      return;
+    }
+    if (!adjust.reason){ alert('Choose why the count was off.'); return; }
+    if (adjust.reason === 'Other' && !adjust.note){
+      alert('You picked "Other" — say what happened in the Comments box.'); return;
+    }
+  }
+
   var qty = parseInt(document.getElementById('mQty').value) || 0;
   if (currentMoveType === 'TRANSFER'){
     qty = transferLocations.reduce(function(a,tl){ return a + tl.qty; }, 0);
+  } else if (currentMoveType === 'ADJUST'){
+    qty = Math.abs(adjust.delta);
   }
-  // For ENTRY/EXIT/TRANSFER, qty is driven by the multi-row widgets
-  if (currentMoveType !== 'ENTRY' && currentMoveType !== 'EXIT' && currentMoveType !== 'TRANSFER' && qty <= 0){
+  // For ENTRY/EXIT/TRANSFER/ADJUST, qty is driven by something other than the
+  // Quantity box — multi-row widgets for the first three, the counted-minus-
+  // recorded difference for the last.
+  if (currentMoveType !== 'ENTRY' && currentMoveType !== 'EXIT' &&
+      currentMoveType !== 'TRANSFER' && currentMoveType !== 'ADJUST' && qty <= 0){
     alert('Quantity must be greater than 0'); return;
   }
 
@@ -6163,6 +6415,12 @@ async function submitMovement(){
   } else if (currentMoveType === 'WASTE'){
     sourceLoc = srcVal;
     destLoc   = '';
+  } else if (currentMoveType === 'ADJUST'){
+    // The rack goes in ONE column, and which one is the direction — the server
+    // reads it back the same way (adjustDirection_ in Code.gs). Nothing else in
+    // the app has to learn a new field for this.
+    sourceLoc = adjust.delta < 0 ? adjust.rack : '';
+    destLoc   = adjust.delta > 0 ? adjust.rack : '';
   }
 
   // Validation: source required for WASTE (TRANSFER uses transferLocations[], EXIT uses exitLocations[])
@@ -6178,6 +6436,15 @@ async function submitMovement(){
   // WASTE requires comments
   var comments = (document.getElementById('mComm').value || '').trim();
   if (currentMoveType === 'WASTE' && !comments){ alert('Waste movements require a reason in the Comments field'); return; }
+
+  // ADJUST stores its reason in the same Comments column every other type uses,
+  // rather than adding a column to the archive for one movement type. The
+  // dropdown and the free note are joined into one line — the dropdown first,
+  // so a filtered history reads down a column of reasons instead of a column of
+  // paragraphs that each begin differently.
+  if (currentMoveType === 'ADJUST'){
+    comments = adjust.reason + (adjust.note ? ' — ' + adjust.note : '');
+  }
 
   // Advisory total-stock check for WASTE (TRANSFER is already validated per-row above)
   if (currentMoveType === 'WASTE'){
@@ -6247,6 +6514,7 @@ async function submitMovement(){
         var savedType = currentMoveType; // capture before modal closes
         var savedName = name;
         var savedQty  = qty;
+        var savedAdj  = adjust;          // null for every other type
         // The tick sits on the button for a moment before the window goes. A
         // window that vanishes the instant you click Save looks exactly like a
         // window that closed without saving, and the toast arrives afterwards,
@@ -6263,6 +6531,12 @@ async function submitMovement(){
             if (res.fileError)    msgs.push('📎 File not attached: ' + res.fileError);
             if (res.refreshError) msgs.push('⚠ ' + res.refreshError);
             showToast('Saved ✓ — but note: ' + msgs.join(' | '), 'warn', res.refreshError ? 12000 : 6000);
+          } else if (savedType === 'ADJUST' && savedAdj) {
+            // Says what the number IS now, not what was subtracted. The count
+            // was the point; the difference was only how it got there.
+            showToast('⚖ Count corrected: ' + savedAdj.rack.toUpperCase() + ' now shows ' +
+              savedAdj.counted + ' ' + savedName + ' (was ' + savedAdj.says + '). ' +
+              'No cost recorded — this is a record fix, not waste.', 'ok', 7000);
           } else if (savedType === 'WASTE') {
             var remaining = (res && res.availableAfter != null) ? res.availableAfter : '—';
             showToast('✕ WASTE recorded: ' + savedQty + ' unit(s) of ' + savedName +
@@ -11732,6 +12006,7 @@ function openRackDrawer(rackName) {
             '<button type="button" class="btn btn-danger btn-sm" data-action="rdw-move" data-type="EXIT" data-idx="'+idx+'">↑ Exit</button>'+
             '<button type="button" class="btn btn-ghost btn-sm" data-action="rdw-move" data-type="TRANSFER" data-idx="'+idx+'">⇄ Transfer</button>'+
             '<button type="button" class="btn btn-ghost btn-sm" data-action="rdw-move" data-type="WASTE" data-idx="'+idx+'">✕ Waste</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="rdw-move" data-type="ADJUST" data-idx="'+idx+'">⚖ Adjust</button>'+
           '</div>'+
         '</div>';
       }).join('');
@@ -11804,6 +12079,10 @@ function _syncMoveTypeBarForRdw(){
   var restrict = !!_rdwPrefillActive;
   bar.querySelectorAll('button').forEach(function(b){
     var t = b.getAttribute('data-type');
+    // ADJUST stays visible: correcting the count AT a rack is the most natural
+    // thing there is to do from a rack, and the drawer hands it every field it
+    // needs. ENTRY and RETURN are the two with no "from this exact rack"
+    // reading at all.
     b.style.display = (restrict && (t === 'ENTRY' || t === 'RETURN')) ? 'none' : '';
   });
 }
@@ -11860,6 +12139,13 @@ function _readMoveMaterial(){
   if (currentMoveType === 'TRANSFER'){
     return { cat: val('mType'), name: val('mName'), qty: sum('#transferRowsContainer .tr-qty') };
   }
+  // ADJUST carries its material but never its number, in either direction. On
+  // the other five screens the quantity means "how many to move"; here it means
+  // "how many I counted on the shelf". They are different claims about the
+  // world, and copying one into the other would put words in somebody's mouth.
+  if (currentMoveType === 'ADJUST'){
+    return { cat: val('mType'), name: val('mName'), qty: 0 };
+  }
   return { cat: val('mType'), name: val('mName'), qty: Math.max(0, parseFloat(val('mQty')) || 0) };
 }
 
@@ -11888,6 +12174,10 @@ function _applyMoveMaterial(m){
     var tq = document.querySelector('#transferRowsContainer .tr-qty');
     if (tq && q) tq.value = q;
     validateTransferRows(); checkStock();
+  } else if (currentMoveType === 'ADJUST'){
+    // Material only — see _readMoveMaterial for why the quantity stays behind.
+    set('mType', m.cat); set('mName', name);
+    _syncAdjustCount();
   } else {
     set('mType', m.cat); set('mName', name);
     if (q) set('mQty', q);
@@ -11904,6 +12194,18 @@ function _applyMoveMaterial(m){
 function _moveNameEl(){
   if (currentMoveType === 'ENTRY') return document.getElementById('mat-name-1');
   if (currentMoveType === 'EXIT')  return document.getElementById('exit-name-1');
+  // ADJUST lands in the first box that is still EMPTY. Opened from the
+  // Movements screen that is Name, same as everywhere else; opened from the
+  // Rack Drawer the material and the rack arrive already filled in and the only
+  // thing left to type is the count. Dropping the cursor into a name that is
+  // already right invites typing over it.
+  if (currentMoveType === 'ADJUST'){
+    var nm = document.getElementById('mName');
+    if (nm && !(nm.value || '').trim()) return nm;
+    var rk = document.getElementById('adjRack');
+    if (rk && !(rk.value || '').trim()) return rk;
+    return document.getElementById('adjCounted');
+  }
   return document.getElementById('mName');
 }
 function _focusMoveName(){
@@ -11953,6 +12255,22 @@ function _prefillMoveModalMaterial(type, cat, name, rack){
     if (seeded){ seeded.value = rack; validateTransferRows(); }
     else addTransferRow(rack, '', '');   // qty and destination left blank
     renderTransferLocPicker();
+  } else if (type === 'ADJUST'){
+    // The one screen where the Rack Drawer supplies almost everything: the
+    // material, the rack, AND the figure being corrected — which is exactly
+    // the number the drawer was showing when the person decided it was wrong.
+    // What is left to type is the count itself, which is the only thing the
+    // app cannot know.
+    var catSelA  = document.getElementById('mType');
+    var nameInpA = document.getElementById('mName');
+    var rackInpA = document.getElementById('adjRack');
+    var cntInpA  = document.getElementById('adjCounted');
+    if (catSelA)  catSelA.value  = cat;
+    if (nameInpA) nameInpA.value = name;
+    if (rackInpA) rackInpA.value = rack;
+    if (cntInpA)  cntInpA.value  = '';
+    _syncAdjustCount();
+
   } else if (type === 'EXIT'){
     // openMoveModal(EXIT) already seeded Material 1 with one empty loc row —
     // fill that one in rather than adding a second.
@@ -12884,14 +13202,33 @@ function deleteIncomingItem() {
     onConfirm: function(){ _doDeleteIncomingItem(id); }
   });
 }
+// The window stays open while the row is being deleted, so the Delete button is
+// still under the finger that just pressed it — and with no spinner there was
+// nothing on screen to say the first press had done anything. The second press
+// then hit a row the server had already removed and reported "Incoming item not
+// found", which reads as a failure for a delete that worked.
 function _doDeleteIncomingItem(id){
+  var btn = document.getElementById('btnDeleteIncoming');
+  if (btn && btn.disabled) return;   // already in flight
+  _btnBusy(btn, 'Deleting…');
   google.script.run
-    .withSuccessHandler(function(){
-      closeModal('incomingOverlay');
-      loadDataFromGoogle(true); // skipCache
+    .withSuccessHandler(function(){ _incomingDeleted(btn); })
+    .withFailureHandler(function(err){
+      var msg = (err && err.message) ? String(err.message) : String(err || '');
+      // The row is gone — a second press, or somebody else deleted it first.
+      // That is the state that was asked for, so report it as done.
+      if (msg.indexOf('Incoming item not found') !== -1){ _incomingDeleted(btn); return; }
+      _btnReset(btn);
+      showToast('Error: ' + msg, 'err', 5000);
     })
-    .withFailureHandler(function(err){ showToast('Error: ' + err.message, 'err', 5000); })
     .processMovement('deleteIncoming', _h({ id: id }));
+}
+function _incomingDeleted(btn){
+  _btnDone(btn, true, function(){
+    closeModal('incomingOverlay');
+    showToast('Expected delivery deleted.', 'ok');
+  });
+  loadDataFromGoogle(true); // skipCache
 }
 
 // ── Read an email into expected deliveries ──────────────────────────────────
@@ -14909,7 +15246,7 @@ function openEditMovModal(rowIdx) {
   document.getElementById('em_rowIdx').value            = rowIdx;
 
   // Move type tag
-  var typeColors = {ENTRY:'var(--green)',EXIT:'var(--red)',TRANSFER:'var(--accent)',RETURN:'#9CA3AF',WASTE:'#111827'};
+  var typeColors = {ENTRY:'var(--green)',EXIT:'var(--red)',TRANSFER:'var(--accent)',RETURN:'#9CA3AF',WASTE:'#111827',ADJUST:'var(--steel)'};
   var tc = typeColors[mov.moveType] || 'var(--muted)';
   document.getElementById('editMovTypeTag').innerHTML =
     '<span style="font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:10px;background:'+tc+'22;color:'+tc+'">' +
