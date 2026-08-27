@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.22';
+var APP_VERSION = '11.23';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.22';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2039e2be';
+var APP_BUILD = 'e3cac46c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2085,6 +2085,9 @@ function processMovementInner_(ss, action, data, auth) {
   // ── Material management (ADMIN only) ──────────────────────────────────────
   if (action === 'listMaterials')  return listMaterials(auth);
   if (action === 'manageMaterial') return manageMaterial(data, auth);
+  // ── Data quality sweep (ADMIN only) ───────────────────────────────────────
+  if (action === 'runDataQualityScan')  return runDataQualityScan(data);
+  if (action === 'applyDataQualityFix') return applyDataQualityFix(data);
   if (action === 'adminAction') {
     requireAuth_('ADMIN');
     return adminAction_(ss, data);
@@ -6087,7 +6090,7 @@ var LEGAL_SHEET_TEXT = {
   terms: [
     ["title","Terms of Service — Acopio"],
     ["p",""],
-    ["p","Last updated: 26 August 2026"],
+    ["p","Last updated: 27 August 2026"],
     ["p",""],
     ["p","These terms govern your use of Acopio, warehouse-management software provided by Jose Castro (\"we\", \"us\"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so."],
     ["p",""],
@@ -6232,19 +6235,27 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["sub","How you are billed"],
     ["p",""],
-    ["p","We invoice you by email, to the address you give us, on each renewal date. Invoices are payable within 10 days."],
+    ["p","Payment is taken by card through Stripe, our payment processor."],
     ["p",""],
-    ["p","Prices are in US dollars and do not include any tax that may apply where you are; if tax applies, it is added to the invoice."],
+    ["li","•   Your card details go to Stripe, not to us. They are stored by Stripe"],
+    ["p","  under Stripe's own terms and security. We never see, hold or store your card number."],
+    ["li","•   The setup fee is charged once, when the installation is booked."],
+    ["li","•   The subscription is then charged automatically on each renewal date —"],
+    ["p","  monthly or annually, whichever you chose — until you cancel. Stripe emails you a receipt for every charge."],
+    ["li","•   Prices are in US dollars and do not include any tax that may apply where"],
+    ["p","  you are; if tax applies, it is added to the charge."],
+    ["li","•   If your company cannot pay by card, tell us before the installation and"],
+    ["p","  we will agree an alternative in writing."],
     ["p",""],
     ["sub","If a payment does not go through"],
     ["p",""],
     ["p","Nothing is switched off, at any point. We could not do it if we wanted to — the software is in your Google account."],
     ["p",""],
-    ["p","What actually happens:"],
+    ["p","Card payments fail for boring reasons — an expired card, a bank declining a recurring charge. What actually happens:"],
     ["p",""],
-    ["p","1. Day 10 after the invoice — if it is unpaid, we email you. Payments fail for boring reasons and this is usually the end of it. 2. Day 30 — if it is still unpaid, support and new versions pause until the account is settled. You keep using the software and you keep every bit of your data. 3. We never withhold your data to get paid. It is not ours to withhold, and export stays available whatever the state of your account."],
+    ["p","1. Stripe retries the charge automatically over the following days and emails you each time. This is usually the end of it. 2. Day 10 after the first failed charge — if it is still unpaid, we email you personally, so it does not come down to you noticing a receipt that never arrived. 3. Day 30 — if it is still unpaid, support and new versions pause until the account is settled. You keep using the software and you keep every bit of your data. 4. We never withhold your data to get paid. It is not ours to withhold, and export stays available whatever the state of your account."],
     ["p",""],
-    ["p","Settle the invoice and support and updates resume immediately, with no reconnection fee."],
+    ["p","Settle the account and support and updates resume immediately, with no reconnection fee."],
     ["p",""],
     ["sub","Coming back after leaving"],
     ["p",""],
@@ -6269,7 +6280,7 @@ var LEGAL_SHEET_TEXT = {
   privacy: [
     ["title","Privacy Policy — Acopio"],
     ["p",""],
-    ["p","Last updated: 21 August 2026"],
+    ["p","Last updated: 27 August 2026"],
     ["p",""],
     ["p","Acopio is warehouse-management software provided by Jose Castro (\"we\", \"us\"). This policy explains what happens to data when you use it."],
     ["p",""],
@@ -6310,13 +6321,15 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["head","3. What we collect"],
     ["p",""],
-    ["p","We never receive your inventory data. Three things can send us something else, and they are listed here in full."],
+    ["p","We never receive your inventory data. Four things can send us something else, and they are listed here in full."],
     ["p",""],
     ["p","1. \"Report a problem\" (the 🐞 button). When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see. 2. Support you initiate. If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards. 3. The setup check-in — the one thing that sends without you asking. If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup **when no inventory movement has been recorded at all**. It is there so a customer who got stuck during setup hears from us instead of quietly giving up."],
     ["p",""],
     ["p","   That email contains exactly four things: **your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.** Nothing else — no inventory, no materials, no suppliers, no prices, no documents."],
     ["p",""],
     ["p","   It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all."],
+    ["p",""],
+    ["p","4. Paying us. Your billing details — name, email, company, billing address — reach us through Stripe so we know who paid for what. **Your card number does not**: it goes to Stripe and stays there. See section 5."],
     ["p",""],
     ["p","We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell."],
     ["p",""],
@@ -6328,9 +6341,13 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["head","5. Sub-processors"],
     ["p",""],
-    ["p","We use none for your business data, because we do not process it."],
+    ["p","For your business data: none, because we do not process it."],
     ["p",""],
     ["p","Google is not our sub-processor — Google is your provider, under your own agreement with them."],
+    ["p",""],
+    ["p","For billing: Stripe. Paying us means Stripe processes your billing details — the name and email on the account, your company name and billing address, and your card. **Your card number goes to Stripe and is held by Stripe; it never reaches us.** Stripe is a payment processor under its own privacy policy at stripe.com/privacy (https://stripe.com/privacy)."],
+    ["p",""],
+    ["p","This is the one place a third party sees anything of yours because of us, and it sees only what is needed to take a payment. **It has nothing to do with your inventory**, which stays in your Google account and is never sent anywhere."],
     ["p",""],
     ["head","6. Retention and deletion"],
     ["p",""],
@@ -8397,6 +8414,438 @@ function deleteIncoming(id, sessionToken) {
     }
   }
   throw new Error('Incoming item not found: ' + id);
+}
+
+// ═══ DATA QUALITY SWEEP ══════════════════════════════════════════════════════
+//
+// Jose asked why the app had stopped finding things to correct. The honest
+// answer was that it never started: the only checker that existed ran WHILE
+// SOMEBODY TYPED a material name, and nothing had ever looked at the rows
+// already saved.
+//
+// What he asked for: "revisar todos los nombres parecidos, los nombres de
+// proyectos parecidos, las destinations y sugerir que se las corrija, también
+// buscar palabras mal escritas, y arreglar movimientos según el id, porque si
+// tienen el mismo id es porque son el mismo material."
+//
+// Three decisions shape everything below.
+//
+// 1. **It runs when asked, and never on its own.** A sweep that interrupts a
+//    save is the kind of feature people turn off, and one that emails a daily
+//    digest becomes a daily thing to ignore. On demand also removes a whole
+//    subsystem: with no unsolicited nagging there is nothing to dismiss, so
+//    there is no "remind me later" state to store, get wrong, or lose in a
+//    restore.
+//
+// 2. **Nothing is ever applied on its own.** Merging two materials moves
+//    stock. Every finding is a proposal with the evidence attached — how many
+//    rows use each spelling, what the app is going on — and a person presses
+//    the button.
+//
+// 3. **Confidence is not uniform, and pretending otherwise is the trap.**
+//    "Written two ways" is nearly certain. "Looks similar" is a guess that gets
+//    JJF 109 and JJF 110 wrong. They are separate families here, and only the
+//    certain ones get an Apply button at all.
+
+var DQ_MAX_FINDINGS = 150;    // a first scan of an imported year would produce thousands
+var DQ_SIMILAR_CAP  = 300;    // pairwise comparison is O(n²); above this, skip that family
+
+// The key that decides whether two written forms are THE SAME THING.
+//
+// normalizeString() — the one MatID is built from — keeps spaces, so to the app
+// "BS10" and "BS 10" are two different materials. That is exactly what Jose
+// found in his own history: the same window received under one spelling and
+// transferred under the other, reading as two unrelated things.
+//
+// This key throws away everything that is not a letter or a digit. "BS10" and
+// "BS 10" collapse together. "JJF 109" and "JJF 110" do NOT, because their
+// digits differ — which is the trap that makes a naive similarity matcher
+// dangerous on real material names, and the reason this is a separate, safer
+// test than the one further down.
+function squashKey_(v) {
+  return normalizeString(v).replace(/[^A-Z0-9]/g, '');
+}
+
+// Read-only, and deliberately NOT ensureArchiveHistorySheet_: a scan that
+// creates a sheet as a side effect is a scan that changed the thing it was
+// asked to inspect.
+function dqReadRows_(ss) {
+  var out = [];
+  [ss.getSheetByName(SHEETS.ARCHIVE), ss.getSheetByName(SHEETS.ARCHIVE_HISTORY)].forEach(function (sheet) {
+    if (!sheet) return;
+    var last = sheet.getLastRow();
+    if (last < 2) return;
+    var width = Math.max(sheet.getLastColumn(), AC_WIDTH);
+    var vals  = sheet.getRange(2, 1, last - 1, width).getValues();
+    for (var i = 0; i < vals.length; i++) out.push(vals[i]);
+  });
+  return out;
+}
+
+// A stable id for a finding, so the client can send one back to be applied
+// without the server having to remember what it just said.
+function dqId_(parts) {
+  return parts.map(function (p) { return String(p == null ? '' : p); }).join('~');
+}
+
+function runDataQualityScan(data) {
+  var auth = requireAuth_('ADMIN');
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var rows = dqReadRows_(ss);
+
+  var findings = [];
+
+  // ── Family 1: the same thing, written two ways ────────────────────────────
+  // Highest confidence in the whole sweep, and the one that fixes what Jose
+  // actually saw. Four columns get the same treatment, because the mistake is
+  // the same mistake in all four: somebody typed it slightly differently.
+  var SPELL = [
+    { field: 'material', label: 'material' },
+    { field: 'project',  label: 'project',  col: AC.PROJECT },
+    { field: 'supplier', label: 'supplier', col: AC.SUPPLIER },
+    { field: 'rack',     label: 'rack',     cols: [AC.SRC_LOC, AC.DEST_LOC] }
+  ];
+
+  SPELL.forEach(function (spec) {
+    var groups = {};   // squashKey → { cat, spellings: { storedText: count } }
+    rows.forEach(function (row) {
+      function add(rawVal, cat) {
+        var val = String(rawVal || '').trim();
+        if (!val) return;
+        // GENERIC is the app's own word for "unassigned", not a customer's
+        // project. Offering to merge real job names into it would be the
+        // GENERIC bug all over again, in bulk.
+        if (spec.field === 'project' && normalizeString(val) === 'GENERIC') return;
+        var sq = squashKey_(val);
+        if (!sq) return;
+        var gk = (cat ? normalizeString(cat) + '|||' : '') + sq;
+        var g  = groups[gk] || (groups[gk] = { cat: cat || '', spellings: {} });
+        g.spellings[val] = (g.spellings[val] || 0) + 1;
+      }
+      if (spec.field === 'material')      add(row[AC.NAME], row[AC.CATEGORY]);
+      else if (spec.cols)                 spec.cols.forEach(function (c) { add(row[c], ''); });
+      else                                add(row[spec.col], '');
+    });
+
+    Object.keys(groups).forEach(function (gk) {
+      var g     = groups[gk];
+      var texts = Object.keys(g.spellings);
+      if (texts.length < 2) return;
+      // Most-used spelling wins by default. The panel still lets the admin
+      // pick a different survivor — the app knows which is commonest, not
+      // which is right.
+      texts.sort(function (a, b) { return g.spellings[b] - g.spellings[a] || (a < b ? -1 : 1); });
+      findings.push({
+        id:        dqId_(['spelling', spec.field, gk]),
+        kind:      'spelling',
+        field:     spec.field,
+        label:     spec.label,
+        category:  g.cat,
+        keep:      texts[0],
+        spellings: texts.map(function (t) { return { text: t, rows: g.spellings[t] }; }),
+        rows:      texts.reduce(function (a, t) { return a + g.spellings[t]; }, 0)
+      });
+    });
+  });
+
+  // ── Family 2: a movement is missing what its siblings have ────────────────
+  // Grouped by MatID, which is Jose's own rule: "si tienen el mismo id es
+  // porque son el mismo material."
+  //
+  // ONLY supplier, and only when the material's whole history agrees on one.
+  // GC, PO and PM are deliberately excluded even though the same gap exists in
+  // them: a purchase order is a document for one specific delivery, and a
+  // general contractor and a project manager belong to a JOB. Copying any of
+  // them onto a transfer in bulk would have the app assert something nobody
+  // told it — the exact failure that produced GENERIC on Jose's transfers.
+  // They stay where they already are: offered one row at a time in the edit
+  // form (v11.17), where a person is looking at them.
+  var byMat = {};
+  rows.forEach(function (row) {
+    var cat  = String(row[AC.CATEGORY] || '').trim();
+    var name = String(row[AC.NAME]     || '').trim();
+    if (!cat || !name) return;
+    var matId = getMaterialId(normalizeString(cat), normalizeString(name));
+    var m = byMat[matId] || (byMat[matId] = {
+      category: cat, name: name,
+      suppliers: {}, blankSupplier: 0,
+      projects: {}, staleTransfer: 0
+    });
+    var sup = String(row[AC.SUPPLIER] || '').trim();
+    if (sup) m.suppliers[sup] = (m.suppliers[sup] || 0) + 1;
+    else m.blankSupplier++;
+
+    var proj = String(row[AC.PROJECT] || '').trim();
+    var mt   = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
+    if (proj && normalizeString(proj) !== 'GENERIC') m.projects[proj] = (m.projects[proj] || 0) + 1;
+    // Only TRANSFER, matching what v11.16 fixed going forward. An EXIT with no
+    // project is a job nobody recorded, and no amount of history can recover
+    // which one it was.
+    if (mt === 'TRANSFER' && (!proj || normalizeString(proj) === 'GENERIC')) m.staleTransfer++;
+  });
+
+  Object.keys(byMat).forEach(function (matId) {
+    var m = byMat[matId];
+    var sups = Object.keys(m.suppliers);
+    if (sups.length === 1 && m.blankSupplier > 0) {
+      findings.push({
+        id: dqId_(['gap', 'supplier', matId]), kind: 'gap', field: 'supplier',
+        matId: matId, category: m.category, name: m.name,
+        value: sups[0], rows: m.blankSupplier
+      });
+    }
+    var projs = Object.keys(m.projects);
+    if (projs.length === 1 && m.staleTransfer > 0) {
+      findings.push({
+        id: dqId_(['gap', 'project', matId]), kind: 'gap', field: 'project',
+        matId: matId, category: m.category, name: m.name,
+        value: projs[0], rows: m.staleTransfer
+      });
+    }
+  });
+
+  // ── Family 3: one of these two is probably a typo ─────────────────────────
+  // Jose also asked for "palabras mal escritas". This is that, and it is a
+  // GUESS — labelled as one, with no Apply button anywhere on the family.
+  //
+  // What it looks for is a MISSPELLING, not a different name: two values whose
+  // squashed keys are within a character or two of each other. CLIFTONBUILDING
+  // and CLIFTONBULIDING are the same job typed twice. GE SILPRUF SEALANT and
+  // GE SILPRUF SEALER share most of their words and are three characters
+  // apart, and this deliberately does NOT raise them — sharing words is what
+  // product families do, and a checker that flags every one of them is a
+  // checker that gets scrolled past.
+  //
+  // Two guards do the real work:
+  //   * DIGITS MUST MATCH. JJF 109 and JJF 110 are one character apart and are
+  //     two different products. Nothing with differing digits is ever raised.
+  //   * SHORT KEYS ARE SKIPPED. Rack codes and three-letter names are legitimately
+  //     one character apart, all day long.
+  var SIMILAR_IN = [
+    { field: 'material', byCategory: true },
+    { field: 'project',  byCategory: false },
+    { field: 'supplier', byCategory: false }
+  ];
+  // Racks are deliberately absent: A1A and A1B are one character apart and are
+  // two different shelves. Family 1 still catches "A1A" vs "A 1 A", which is
+  // the rack mistake that actually happens.
+  var pools = { material: {}, project: {}, supplier: {} };
+  rows.forEach(function (row) {
+    var cat = normalizeString(row[AC.CATEGORY] || '');
+    var nm  = String(row[AC.NAME] || '').trim();
+    if (cat && nm) (pools.material[cat] || (pools.material[cat] = {}))[nm] = true;
+    var pj = String(row[AC.PROJECT] || '').trim();
+    if (pj && normalizeString(pj) !== 'GENERIC') (pools.project[''] || (pools.project[''] = {}))[pj] = true;
+    var sp = String(row[AC.SUPPLIER] || '').trim();
+    if (sp) (pools.supplier[''] || (pools.supplier[''] = {}))[sp] = true;
+  });
+
+  SIMILAR_IN.forEach(function (spec) {
+    var pool = pools[spec.field];
+    Object.keys(pool).forEach(function (bucket) {
+      var names = Object.keys(pool[bucket]);
+      // Pairwise is O(n²). Above the cap the sweep says nothing about this
+      // family rather than spending a customer's six-minute execution budget
+      // on it.
+      if (names.length > DQ_SIMILAR_CAP) return;
+      for (var i = 0; i < names.length; i++) {
+        for (var j = i + 1; j < names.length; j++) {
+          var a = names[i], b = names[j];
+          var ka = squashKey_(a), kb = squashKey_(b);
+          if (ka === kb) continue;                          // family 1 already has it
+          if (dqDigitsOf_(a) !== dqDigitsOf_(b)) continue;  // different part numbers
+          var shortest = Math.min(ka.length, kb.length);
+          if (shortest < 4) continue;                       // too short to judge
+          var allowed = shortest >= 8 ? 2 : 1;
+          if (Math.abs(ka.length - kb.length) > allowed) continue;
+          if (dqEditDistance_(ka, kb, allowed) > allowed) continue;
+          findings.push({
+            id: dqId_(['similar', spec.field, bucket, ka, kb]),
+            kind: 'similar', field: spec.field,
+            category: spec.byCategory ? bucket : '', a: a, b: b
+          });
+        }
+      }
+    });
+  });
+
+  // Biggest first: a spelling used across 40 rows matters more than one used
+  // twice, and an admin who only has ten minutes should spend them at the top.
+  findings.sort(function (x, y) {
+    var order = { spelling: 0, gap: 1, similar: 2 };
+    return (order[x.kind] - order[y.kind]) || ((y.rows || 0) - (x.rows || 0));
+  });
+
+  var total = findings.length;
+  auditLog_(ss, 'DATA_SCAN', auth.email, total + ' finding(s) over ' + rows.length + ' rows', '', '');
+
+  return {
+    status: 'success',
+    scannedRows: rows.length,
+    total: total,
+    findings: findings.slice(0, DQ_MAX_FINDINGS)
+  };
+}
+
+// The digits in a name, in order, as one string. "JJF 109" → "109".
+// Two names with different digits are different products, whatever else they
+// share.
+function dqDigitsOf_(v) {
+  return (String(v || '').match(/\d+/g) || []).join('.');
+}
+
+// Levenshtein distance, abandoned as soon as it is known to exceed `max`.
+//
+// The bail-out is not an optimisation detail: this runs over every pair of
+// names in a category, and Apps Script gives a script six minutes for the
+// whole request. Most pairs are wildly different and can be dismissed after a
+// couple of rows of the matrix.
+//
+// Two rows of the matrix rather than the whole thing, for the same reason —
+// nothing here needs to know HOW the two words differ, only whether it is by
+// more than a typo's worth.
+function dqEditDistance_(a, b, max) {
+  var la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > max) return max + 1;
+  var prev = new Array(lb + 1), cur = new Array(lb + 1), i, j;
+  for (j = 0; j <= lb; j++) prev[j] = j;
+  for (i = 1; i <= la; i++) {
+    cur[0] = i;
+    var best = cur[0];
+    for (j = 1; j <= lb; j++) {
+      var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      if (cur[j] < best) best = cur[j];
+    }
+    // Every remaining path goes through this row, so nothing below it can end
+    // up smaller than the row's smallest value.
+    if (best > max) return max + 1;
+    for (j = 0; j <= lb; j++) prev[j] = cur[j];
+  }
+  return prev[lb];
+}
+
+// ─── APPLYING ONE FINDING ────────────────────────────────────────────────────
+// Every spelling fix goes through the merge function that already exists for
+// that kind of value — the same code the Settings screens call, already
+// locked, already rewriting BOTH archives, already refreshing the derived
+// sheets. Writing a second path would mean two ways to merge a material, and
+// the one used less often would be the one that was wrong.
+function applyDataQualityFix(data) {
+  var auth = requireAuth_('ADMIN');
+  return withStockLock_(function () { return applyDataQualityFixLocked_(data, auth); });
+}
+
+function applyDataQualityFixLocked_(data, auth) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var kind = String(data.kind || '');
+
+  if (kind === 'spelling') {
+    var keep = String(data.keep || '').trim();
+    if (!keep) throw new Error('Pick which spelling to keep.');
+    var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
+                 .filter(function (v) { return v && v.toUpperCase() !== keep.toUpperCase(); });
+    if (!from.length) throw new Error('Nothing to merge — that is already the only spelling.');
+
+    if (data.field === 'material') {
+      var cat = String(data.category || '').trim();
+      if (!cat) throw new Error('Category is required to merge a material.');
+      var merged = 0;
+      from.forEach(function (spelling) {
+        var r = manageMaterialLocked_({ op: 'merge', category: cat, name: spelling, targetName: keep }, auth);
+        merged += (r && r.merged) || 0;
+      });
+      return { status: 'success', rows: merged };
+    }
+    if (data.field === 'project' || data.field === 'supplier') {
+      var type = data.field === 'project' ? 'projects' : 'suppliers';
+      var r2 = mergeConfigValuesLocked_({}, auth, type, keep, from);
+      return { status: 'success', rows: (r2 && r2.rowsChanged) || 0 };
+    }
+    if (data.field === 'rack') {
+      var r3 = mergeLocationsLocked_({}, auth, keep, from);
+      return { status: 'success', rows: (r3 && r3.rowsChanged) || 0 };
+    }
+    throw new Error('Unknown spelling field: ' + data.field);
+  }
+
+  if (kind === 'gap') {
+    return dqFillGapLocked_(ss, auth, data);
+  }
+
+  // 'similar' has no apply on purpose — see the comment on family 3.
+  throw new Error('This finding is a suggestion to look at, not something the app can apply.');
+}
+
+// Fills ONE blank column, on the rows of ONE material, with ONE value the
+// material's own history already agrees on.
+//
+// The narrowness is the safety. It never overwrites a cell that has something
+// in it, it never touches a material other than the one named, and it refuses
+// outright if the caller's value is not the value the archive actually says —
+// so a stale panel left open while somebody else edits cannot write yesterday's
+// answer into today's rows.
+function dqFillGapLocked_(ss, auth, data) {
+  var field = String(data.field || '');
+  var matId = String(data.matId || '').trim();
+  var value = String(data.value || '').trim();
+  if (!matId || !value) throw new Error('Nothing to fill in.');
+
+  var col, onlyTransfers = false;
+  if (field === 'supplier')     col = AC.SUPPLIER;
+  else if (field === 'project') { col = AC.PROJECT; onlyTransfers = true; }
+  else throw new Error('Unknown gap field: ' + field);
+
+  var parts = matId.split('|||');
+  var wantCat  = normalizeString(parts[0] || '');
+  var wantName = normalizeString(parts[1] || '');
+  if (!wantCat || !wantName) throw new Error('That material id is not readable.');
+
+  // Re-derive the agreed value from the archive rather than trusting the one
+  // the panel is holding. If the answer changed since the scan, this stops
+  // instead of writing something nobody proposed.
+  var seen = {};
+  dqReadRows_(ss).forEach(function (row) {
+    if (normalizeString(row[AC.CATEGORY]) !== wantCat) return;
+    if (normalizeString(row[AC.NAME])     !== wantName) return;
+    var v = String(row[col] || '').trim();
+    if (field === 'project' && normalizeString(v) === 'GENERIC') return;
+    if (v) seen[v] = true;
+  });
+  var distinct = Object.keys(seen);
+  if (distinct.length !== 1 || distinct[0] !== value) {
+    throw new Error('The data changed since this was found — ' +
+      (distinct.length ? 'the history now says ' + distinct.join(' / ') : 'there is no value to copy') +
+      '. Run the check again.');
+  }
+
+  var stored = sheetSafe_(value);
+  var filled = 0;
+  [ss.getSheetByName(SHEETS.ARCHIVE), ss.getSheetByName(SHEETS.ARCHIVE_HISTORY)].forEach(function (sheet) {
+    if (!sheet) return;
+    filled += rewriteArchiveColumn_(sheet, col, function (row) {
+      if (normalizeString(row[AC.CATEGORY]) !== wantCat) return null;
+      if (normalizeString(row[AC.NAME])     !== wantName) return null;
+      var cur = String(row[col] || '').trim();
+      if (onlyTransfers) {
+        if (String(row[AC.MOVETYPE] || '').toUpperCase().trim() !== 'TRANSFER') return null;
+        // Blank OR the placeholder — GENERIC on a transfer is the thing being
+        // corrected, not a value to preserve.
+        if (cur && normalizeString(cur) !== 'GENERIC') return null;
+      } else if (cur) {
+        return null;
+      }
+      return stored;
+    });
+  });
+
+  // Only the project column feeds anything the stock engine reads, but a
+  // refresh after either is cheap next to being wrong.
+  if (filled) refreshDerivedSheets_(ss);
+  auditLog_(ss, 'DATA_FIX', auth.email,
+    field + ' → "' + value + '" on ' + parts[0] + ' / ' + parts[1],
+    String(filled) + ' rows', '');
+  return { status: 'success', rows: filled };
 }
 
 // ─── READ AN EMAIL INTO EXPECTED DELIVERIES ──────────────────────────────────

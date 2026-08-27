@@ -611,6 +611,25 @@
                   box-shadow:inset 3px 0 0 #F59E0B}
     .em-gap-note{font-size:.76rem;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;
                  border-radius:6px;padding:.5rem .7rem;margin-top:.75rem;line-height:1.5}
+    /* ── The data check's findings ──
+       One card per proposal. The kind is a chip at the top, colour-coded by
+       how much the app actually knows: blue for "written two ways" (near
+       certain), green for a value its own history agrees on, amber for a
+       guess it will not act on. The amber is the one carrying information —
+       it is the family with no button. */
+    .dq-list{margin-top:.75rem;display:flex;flex-direction:column;gap:.5rem;
+             max-height:420px;overflow-y:auto;padding-right:.25rem}
+    .dq-card{border:1px solid var(--border);border-radius:8px;padding:.6rem .75rem;background:var(--card)}
+    .dq-card.dq-done{opacity:.6}
+    .dq-kind{display:inline-block;font-size:.68rem;font-weight:700;letter-spacing:.03em;
+             text-transform:uppercase;padding:.15rem .45rem;border-radius:999px;margin-bottom:.35rem}
+    .dq-kind.dq-spelling{background:#DBEAFE;color:var(--accent2)}
+    .dq-kind.dq-gap{background:var(--green-bg);color:var(--green)}
+    .dq-kind.dq-similar{background:var(--yellow-bg);color:var(--yellow)}
+    .dq-head{font-size:.86rem;margin-bottom:.2rem;word-break:break-word}
+    .dq-body{font-size:.78rem;color:var(--muted);line-height:1.45}
+    .dq-act{margin-top:.5rem}
+    [data-theme="dark"] .dq-card{background:#1a2640}
     .snap-ok{font-size:.73rem;color:var(--green);margin-top:.2rem}
     .snap-warn{font-size:.75rem;background:#FEF3C7;color:var(--yellow);font-weight:600;
                border-radius:6px;padding:.4rem .6rem;margin-top:.35rem;line-height:1.45}
@@ -2918,7 +2937,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.22';
+var APP_VERSION = '11.23';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2930,7 +2949,7 @@ var APP_VERSION = '11.22';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2039e2be';
+var APP_BUILD = 'e3cac46c';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8372,6 +8391,17 @@ function _renderSystemTab() {
       '</label>' +
       '<div id="aiBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
     '</div>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Check my data ' +
+        _infoIc('Looks over everything already saved for the same thing written two ways, and for movements missing something the rest of that material\'s history agrees on. It only ever proposes — nothing changes until you press a button.') +
+      '</label>' +
+      '<div id="dqBox">' +
+        '<button id="btnDataCheck" class="btn btn-ghost btn-sm" onclick="_runDataCheck()">🔍 Check my data</button>' +
+        '<div style="font-size:.76rem;color:var(--muted);margin-top:.4rem">' +
+          'Runs only when you press it. Nothing is changed without you.' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
     '<div class="field">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Stock totals ' +
         _infoIc('Recalculates every stock total from the current movement history. Use this if a deleted or edited movement left stale numbers behind.') +
@@ -8384,6 +8414,156 @@ function _renderSystemTab() {
   _loadBackupStatus();
   _loadSpaceUsage();
   _loadAiStatus();
+}
+
+// ── The data check ───────────────────────────────────────────────────────────
+//
+// Jose: "la app debe hacer su trabajo, revisar todos los nombres parecidos, los
+// nombres de proyectos parecidos, las destinations y sugerir que se las
+// corrija… y arreglar movimientos según el id, porque si tienen el mismo id es
+// porque son el mismo material."
+//
+// It runs when pressed and never on its own, and every finding is a proposal.
+// The DATA QUALITY SWEEP section in Code.gs says why both of those are the
+// design rather than timidity.
+var _dqFindings = [];
+
+function _runDataCheck(){
+  var btn = document.getElementById('btnDataCheck');
+  if (btn && btn.disabled) return;
+  _btnBusy(btn, 'Looking…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      _btnReset(btn);
+      _dqFindings = (res && res.findings) || [];
+      _drawDataCheck(res || {});
+    })
+    .withFailureHandler(function(err){
+      _btnReset(btn);
+      showToast('Could not check: ' + ((err && err.message) || err), 'err', 6000);
+    })
+    .processMovement('runDataQualityScan', _h({}));
+}
+
+// One card per finding, with the evidence ON the card — how many rows use each
+// spelling, what the app is going on. "Trust me, merge these" is not something
+// anybody should be asked to press.
+function _dqCard(f, i){
+  var head, body, action = '';
+  if (f.kind === 'spelling'){
+    var opts = f.spellings.map(function(s){
+      return '<option value="' + _escAttr(s.text) + '"' + (s.text === f.keep ? ' selected' : '') + '>' +
+             _he(s.text) + ' — ' + s.rows + ' row' + (s.rows === 1 ? '' : 's') + '</option>';
+    }).join('');
+    head = '<strong>' + _he(f.spellings.map(function(s){ return s.text; }).join('  ·  ')) + '</strong>';
+    body = 'The same ' + _he(f.label) + (f.category ? ' in ' + _he(f.category) : '') +
+           ', written ' + f.spellings.length + ' ways across ' + f.rows + ' rows.';
+    // The app knows which spelling is commonest. It does not know which is
+    // right, so the survivor is a choice, not a verdict.
+    action =
+      '<label style="font-size:.74rem;color:var(--muted);display:block;margin-bottom:.2rem">Keep this spelling</label>' +
+      '<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">' +
+        '<select id="dq-keep-' + i + '" style="padding:.35rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.8rem">' + opts + '</select>' +
+        '<button class="btn btn-primary btn-sm" onclick="_dqApply(' + i + ')">Merge them</button>' +
+      '</div>';
+
+  } else if (f.kind === 'gap'){
+    head = '<strong>' + _he(f.name) + '</strong> <span style="color:var(--muted);font-size:.78rem">' + _he(f.category) + '</span>';
+    body = f.rows + ' movement' + (f.rows === 1 ? '' : 's') + ' of this material ' +
+           (f.field === 'project'
+             ? 'were transferred with no job on them, and every other row for it says '
+             : 'have no supplier, and every row that has one says ') +
+           '<strong>' + _he(f.value) + '</strong>.';
+    action = '<button class="btn btn-primary btn-sm" onclick="_dqApply(' + i + ')">Fill them in</button>';
+
+  } else {
+    // No Apply button, on purpose. The app is not confident enough to offer
+    // one, and saying so is worth more than a button that is wrong one time in
+    // five — the first bad merge is the last time anybody presses it.
+    head = '<strong>' + _he(f.a) + '</strong> &nbsp;vs&nbsp; <strong>' + _he(f.b) + '</strong>';
+    body = 'These two look alike in ' + _he(f.category) + '. They may be the same material written ' +
+           'differently, or two real products. <em>The app cannot tell.</em> If they are the same, ' +
+           'merge them in Settings → Materials.';
+  }
+
+  return '<div class="dq-card" id="dq-card-' + i + '">' +
+      '<div class="dq-kind dq-' + f.kind + '">' +
+        (f.kind === 'spelling' ? 'Written two ways' : f.kind === 'gap' ? 'Missing a value' : 'Have a look') +
+      '</div>' +
+      '<div class="dq-head">' + head + '</div>' +
+      '<div class="dq-body">' + body + '</div>' +
+      (action ? '<div class="dq-act">' + action + '</div>' : '') +
+    '</div>';
+}
+
+function _drawDataCheck(res){
+  var box = document.getElementById('dqBox');
+  if (!box) return;
+  var again = '<button id="btnDataCheck" class="btn btn-ghost btn-sm" onclick="_runDataCheck()">🔍 Check again</button>';
+
+  if (!_dqFindings.length){
+    box.innerHTML = again +
+      '<div style="font-size:.8rem;color:var(--green);margin-top:.5rem">' +
+        '✓ Nothing to correct across ' + (res.scannedRows || 0).toLocaleString() + ' movements.' +
+      '</div>';
+    return;
+  }
+
+  // The cap exists because a first check on an imported year of history can
+  // produce thousands. Saying how many were left out is the difference between
+  // a short list and a lie.
+  var capped = (res.total || 0) > _dqFindings.length
+    ? '<div style="font-size:.76rem;color:var(--muted);margin-top:.35rem">Showing the ' +
+      _dqFindings.length + ' biggest of ' + res.total + '. Fix these and check again for the rest.</div>'
+    : '';
+
+  box.innerHTML = again +
+    '<div style="font-size:.8rem;margin-top:.5rem">Found <strong>' + (res.total || 0) + '</strong> thing' +
+      ((res.total === 1) ? '' : 's') + ' worth a look across ' + (res.scannedRows || 0).toLocaleString() + ' movements.</div>' +
+    capped +
+    '<div class="dq-list">' + _dqFindings.map(_dqCard).join('') + '</div>';
+}
+
+function _dqApply(i){
+  var f = _dqFindings[i];
+  if (!f) return;
+  var card = document.getElementById('dq-card-' + i);
+  var btn  = card && card.querySelector('.dq-act button');
+  if (btn && btn.disabled) return;
+
+  var payload = { kind: f.kind, field: f.field };
+  if (f.kind === 'spelling'){
+    var sel  = document.getElementById('dq-keep-' + i);
+    var keep = sel ? sel.value : f.keep;
+    payload.category = f.category;
+    payload.keep     = keep;
+    payload.from     = f.spellings.map(function(s){ return s.text; })
+                        .filter(function(t){ return t !== keep; });
+  } else {
+    payload.matId = f.matId;
+    payload.value = f.value;
+  }
+
+  _btnBusy(btn, 'Applying…');
+  google.script.run
+    .withSuccessHandler(function(r){
+      var n = (r && r.rows) || 0;
+      _btnDone(btn, true, function(){
+        if (card){
+          card.classList.add('dq-done');
+          var act = card.querySelector('.dq-act');
+          if (act) act.innerHTML = '<span style="color:var(--green);font-weight:600;font-size:.82rem">✓ Done — ' +
+            n + ' row' + (n === 1 ? '' : 's') + ' updated</span>';
+        }
+      });
+      // Stock can move: merging two materials joins two stock lines into one.
+      loadDataFromGoogle(true);
+    })
+    .withFailureHandler(function(err){
+      _btnReset(btn);
+      showToast('Could not apply: ' + ((err && err.message) || err), 'err', 8000);
+    })
+    .processMovement('applyDataQualityFix', _h(payload));
 }
 
 // ── The AI key, set from inside the app ─────────────────────────────────────
@@ -14731,7 +14911,7 @@ setInterval(function(){
 
 // ── Privacy Policy / Terms of Service ────────────────────────────────────────
 var LEGAL_DOCS = {
-  privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 21 August 2026</p>
+  privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 27 August 2026</p>
 <p>Acopio is warehouse-management software provided by Jose Castro ("we", "us"). This policy explains what happens to data when you use it.</p>
 <p>Read the first section before anything else — it is the part that makes the rest of this document short.</p>
 <hr>
@@ -14764,21 +14944,24 @@ var LEGAL_DOCS = {
 <li>Every permission above is granted by you, to software running in your own account. None of it grants us access.</li>
 </ul>
 <h3>3. What we collect</h3>
-<p><strong>We never receive your inventory data.</strong> Three things can send us something else, and they are listed here in full.</p>
+<p><strong>We never receive your inventory data.</strong> Four things can send us something else, and they are listed here in full.</p>
 <ul>
 <li><strong>"Report a problem" (the 🐞 button).</strong> When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see.</li>
 <li><strong>Support you initiate.</strong> If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards.</li>
 <li><strong>The setup check-in — the one thing that sends without you asking.</strong> If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup <strong>when no inventory movement has been recorded at all</strong>. It is there so a customer who got stuck during setup hears from us instead of quietly giving up.
 <br><br>That email contains exactly four things: <strong>your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.</strong> Nothing else — no inventory, no materials, no suppliers, no prices, no documents.
 <br><br>It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all.</li>
+<li><strong>Paying us.</strong> Your billing details — name, email, company, billing address — reach us through Stripe so we know who paid for what. <strong>Your card number does not</strong>: it goes to Stripe and stays there. See section 5.</li>
 </ul>
 <p>We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell.</p>
 <h3>4. The optional AI add-on</h3>
 <p>If you enable the document-reading feature, the contents of the documents you choose to scan are sent to <strong>Google's Gemini API</strong> for processing, using an API key that <strong>you</strong> supply from your own Google account. The request goes from your Google account to Google. It does not pass through us.</p>
 <p>This feature is off unless you turn it on.</p>
 <h3>5. Sub-processors</h3>
-<p>We use none for your business data, because we do not process it.</p>
+<p><strong>For your business data: none, because we do not process it.</strong></p>
 <p>Google is not our sub-processor — Google is <strong>your</strong> provider, under your own agreement with them.</p>
+<p><strong>For billing: Stripe.</strong> Paying us means Stripe processes your billing details — the name and email on the account, your company name and billing address, and your card. <strong>Your card number goes to Stripe and is held by Stripe; it never reaches us.</strong> Stripe is a payment processor under its own privacy policy at <a href="https://stripe.com/privacy" target="_blank" rel="noopener">stripe.com/privacy</a>.</p>
+<p>This is the one place a third party sees anything of yours because of us, and it sees only what is needed to take a payment. <strong>It has nothing to do with your inventory</strong>, which stays in your Google account and is never sent anywhere.</p>
 <h3>6. Retention and deletion</h3>
 <p>You control retention entirely:</p>
 <ul>
@@ -14800,7 +14983,7 @@ var LEGAL_DOCS = {
 <p>Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version.</p>
 <h3>11. Contact</h3>
 <p>Jose Castro — joseisrael5101@gmail.com</p>` },
-  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 26 August 2026</p>
+  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 27 August 2026</p>
 <p>These terms govern your use of Acopio, warehouse-management software provided by Jose Castro ("we", "us"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so.</p>
 <hr>
 <h3>1. What you are buying</h3>
@@ -14892,17 +15075,24 @@ var LEGAL_DOCS = {
 <h4>Add-ons</h4>
 <p>Add-ons follow the subscription: cancel one and it stops at the end of the current period, under the same rules as above.</p>
 <h4>How you are billed</h4>
-<p>We invoice you by email, to the address you give us, on each renewal date. Invoices are payable <strong>within 10 days</strong>.</p>
-<p>Prices are in US dollars and do not include any tax that may apply where you are; if tax applies, it is added to the invoice.</p>
+<p>Payment is taken by card through <strong>Stripe</strong>, our payment processor.</p>
+<ul>
+<li><strong>Your card details go to Stripe, not to us.</strong> They are stored by Stripe under Stripe's own terms and security. We never see, hold or store your card number.</li>
+<li><strong>The setup fee</strong> is charged once, when the installation is booked.</li>
+<li><strong>The subscription</strong> is then charged <strong>automatically on each renewal date</strong> — monthly or annually, whichever you chose — until you cancel. Stripe emails you a receipt for every charge.</li>
+<li><strong>Prices are in US dollars</strong> and do not include any tax that may apply where you are; if tax applies, it is added to the charge.</li>
+<li><strong>If your company cannot pay by card</strong>, tell us before the installation and we will agree an alternative in writing.</li>
+</ul>
 <h4>If a payment does not go through</h4>
 <p>Nothing is switched off, at any point. We could not do it if we wanted to — the software is in your Google account.</p>
-<p>What actually happens:</p>
+<p>Card payments fail for boring reasons — an expired card, a bank declining a recurring charge. What actually happens:</p>
 <ol>
-<li><strong>Day 10 after the invoice</strong> — if it is unpaid, we email you. Payments fail for boring reasons and this is usually the end of it.</li>
+<li><strong>Stripe retries the charge automatically</strong> over the following days and emails you each time. This is usually the end of it.</li>
+<li><strong>Day 10 after the first failed charge</strong> — if it is still unpaid, we email you personally, so it does not come down to you noticing a receipt that never arrived.</li>
 <li><strong>Day 30</strong> — if it is still unpaid, support and new versions <strong>pause</strong> until the account is settled. You keep using the software and you keep every bit of your data.</li>
 <li><strong>We never withhold your data to get paid.</strong> It is not ours to withhold, and export stays available whatever the state of your account.</li>
 </ol>
-<p>Settle the invoice and support and updates resume immediately, with no reconnection fee.</p>
+<p>Settle the account and support and updates resume immediately, with no reconnection fee.</p>
 <h4>Coming back after leaving</h4>
 <p>If you cancel and later want to return, you are treated as a new customer: current prices, and any promotional or founding rate you previously had does not come back. That includes the setup fee if the installation has to be done again.</p>
 <h3>10. Termination</h3>
