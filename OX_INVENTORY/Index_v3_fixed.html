@@ -1006,9 +1006,25 @@
     .day-card.today{border-color:var(--accent);background:#EFF6FF}
     .day-card .day-label{font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
     .day-card.today .day-label{color:var(--accent2)}
-    .day-item{font-size:.78rem;padding:.15rem 0;border-bottom:1px solid var(--border)}
-    .day-item:last-child{border-bottom:none}
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
+    /* ── One expected delivery ──
+       Jose's order, from his sketch: category on its own line, then HOW MANY
+       and WHAT on one line, then whatever was noted, then the state and the one
+       action. Four stacked lines instead of a paragraph that wrapped wherever
+       the card happened to end — which is what made two of them look like one.
+
+       Used by the week cards AND the morning popup, so the same delivery is
+       the same shape wherever it appears. */
+    .inc-item{padding:.5rem 0;border-bottom:1px solid var(--border)}
+    .inc-item:last-child{border-bottom:none}
+    .inc-item-cat{margin-bottom:.2rem}
+    .inc-item-line{font-size:.82rem;line-height:1.35;margin-bottom:.1rem;overflow-wrap:anywhere}
+    .inc-item-qty{font-weight:700}
+    .inc-item-name{color:var(--text)}
+    .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-bottom:.25rem;overflow-wrap:anywhere}
+    /* The status and the button share the last line and wrap together on a
+       narrow card, so the button never ends up alone under an empty row. */
+    .inc-item-foot{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     /* Draft rows from an email — editable before anything is saved. */
@@ -1040,13 +1056,9 @@
     .morning-today{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
     .morning-today-label{font-size:.7rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:.4rem}
     .morning-week-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .35rem}
-    .morning-item{display:flex;justify-content:space-between;align-items:flex-start;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.82rem}
-    .morning-item:last-child{border-bottom:none}
-    .morning-item-name{font-weight:600}
-    .morning-item-meta{color:var(--muted);font-size:.75rem}
-    /* Status and the shortcut stack on the right, so a long material name
-       cannot squeeze the button down to nothing. */
-    .morning-item-right{display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;flex-shrink:0;margin-left:.5rem}
+    /* The popup's own item styles are gone: it now draws each delivery with
+       .inc-item, the same as the week cards, so one delivery looks the same
+       wherever it appears. */
     .morning-arrived{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;
       padding:.2rem .5rem;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
     .morning-arrived:hover{background:var(--accent);color:#fff}
@@ -2094,6 +2106,7 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
+          <button class="btn btn-ghost btn-sm" onclick="openWeekSchedule()" title="The same list the app shows you first thing in the morning">☀️ This week's schedule</button>
           <button id="btnFromEmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openEmailImport()" title="Paste a supplier email and let the app fill these in">📧 From an email</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
@@ -2227,7 +2240,7 @@
       </div>
       <div class="field">
         <label>Quantity</label>
-        <input type="number" id="incQty" min="1" value="1">
+        <input type="number" id="incQty" min="0" placeholder="How many">
       </div>
       <div class="field">
         <label>Unit</label>
@@ -2937,7 +2950,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.23';
+var APP_VERSION = '11.25';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2949,7 +2962,7 @@ var APP_VERSION = '11.23';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'e3cac46c';
+var APP_BUILD = '0d31122d';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7201,7 +7214,7 @@ function _checkIncomingSuggest(n, inputEl){
         var safeId   = _escAttr(item.id);
         var safeName = _escAttr(item.name);
         var safeCat  = _escAttr(item.category || '?');
-        var safeMeta = item.qty + ' ' + item.unit + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
+        var safeMeta = _escAttr(_incQtyText(item)) + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
         return '<div class="inc-suggest-item" data-n="' + n + '" data-inc-id="' + safeId + '"' +
           ' onmousedown="_clickIncomingSuggest(this);return false;">' +
           '<span class="inc-tag">' + safeCat + '</span>' +
@@ -13053,6 +13066,9 @@ function saveMonitorSettings() {
 function renderIncoming() {
   renderIncomingWeekGrid();
   renderIncomingTable();
+  // If the week popup is open behind an edit window, it is looking at the data
+  // that just changed. A no-op when it is closed.
+  _refreshMorningPopup();
 }
 
 function renderIncomingWeekGrid() {
@@ -13081,17 +13097,11 @@ function renderIncomingWeekGrid() {
 
   grid.innerHTML = days.map(function(day) {
     var isToday = day.date === todayStr;
+    // Same renderer as the morning popup — and it now carries "Mark arrived"
+    // on every material, which is what Jose asked for: the popup shows once a
+    // day and these cards are on screen all the time.
     var content = day.items.length
-      ? day.items.map(function(item) {
-          return '<div class="day-item">' +
-            catBadge(item.category) + ' ' +
-            '<span style="font-weight:600">' + item.qty + ' ' + item.unit + '</span> ' +
-            '<span>' + _he(item.name) + '</span>' +
-            (item.docLink ? ' <a href="javascript:void(0)" data-action="preview-media" data-url="'+_he(_incFirstDocUrl(item.docLink))+'" data-label="'+_he(item.name)+'" title="Attached document" onclick="event.stopPropagation()">📎</a>' : '') +
-            (item.notes ? '<div style="color:var(--muted);font-size:.7rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + _he(item.notes) + '</div>' : '') +
-            ' <span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + item.status + '</span>' +
-          '</div>';
-        }).join('')
+      ? day.items.map(function(item){ return _incItemHtml(item, { showDate: false }); }).join('')
       : '<div class="day-empty">Nothing scheduled</div>';
     return '<div class="day-card' + (isToday ? ' today' : '') + '">' +
       '<div class="day-label">' + day.label + ' <small style="font-weight:400;opacity:.7">' + day.date.substring(5) + '</small></div>' +
@@ -13177,7 +13187,7 @@ function _incRowHtml(item){
       '<td>' + statusBadge + '</td>' +
       '<td>' + catBadge(item.category) + '</td>' +
       '<td><strong>' + _he(item.name) + '</strong></td>' +
-      '<td style="font-weight:700">' + item.qty + '</td>' +
+      '<td style="font-weight:700">' + (Number(item.qty) > 0 ? item.qty : '—') + '</td>' +
       '<td style="color:var(--muted);font-size:.78rem">' + _he(item.unit) + '</td>' +
       '<td>' + (function(){
         var du = _incFirstDocUrl(item.docLink);
@@ -13204,9 +13214,12 @@ function openIncomingModal(id) {
     document.getElementById('incDateNote').value = item.dateNote || '';
     _incSyncDateMode();
     document.getElementById('incStatus').value   = item.status  || 'Pending';
-    document.getElementById('incCategory').value = item.category|| '';
+    _incSetCategory(item.category);
     document.getElementById('incName').value     = item.name    || '';
-    document.getElementById('incQty').value      = item.qty     || 1;
+    // No `|| 1`: a delivery booked with no quantity is stored as 0, and
+    // showing it as 1 would put a number in front of somebody that the record
+    // does not contain — which is how they save it back as a real 1.
+    document.getElementById('incQty').value      = (Number(item.qty) > 0) ? item.qty : '';
     document.getElementById('incUnit').value     = item.unit    || 'UNIT';
     document.getElementById('incSupplier').value = item.supplier|| '';
     document.getElementById('incPO').value       = item.po      || '';
@@ -13222,7 +13235,12 @@ function openIncomingModal(id) {
     document.getElementById('incStatus').value   = 'Pending';
     document.getElementById('incCategory').value = '';
     document.getElementById('incName').value     = '';
-    document.getElementById('incQty').value      = 1;
+    // Blank, like every other window in the app since v11.7. Jose's rule: "al
+    // abrir la ventana no debe haber ningún dato escrito, ni siquiera '0' en
+    // qty." This window was the one left out of that pass — and a "1" nobody
+    // typed is worse here than elsewhere, because an expected delivery booked
+    // from an attached load sheet often genuinely has no count yet.
+    document.getElementById('incQty').value      = '';
     document.getElementById('incUnit').value     = 'UNIT';
     document.getElementById('incSupplier').value = '';
     document.getElementById('incPO').value       = '';
@@ -13352,6 +13370,109 @@ function saveIncomingItem() {
   } else {
     _send();
   }
+}
+
+// ── One expected delivery, drawn one way ─────────────────────────────────────
+//
+// The week cards and the morning popup were drawing the same delivery in two
+// different shapes, and neither was the shape Jose wanted. He drew it:
+//
+//     IGU (ISOLATED GLASS UNIT)          ← the category, on its own line
+//     1 UNIT  IGU-SR-BF2-TT              ← how many, then what
+//     1@ 33 1/4 W X 55 3/8 H X 3/4 T     ← whatever was noted about it
+//     [Pending]  [Mark arrived →]        ← the state, and the one thing to do
+//
+// One function for both screens, because two of them is how they drifted apart
+// in the first place.
+//
+// The category keeps its coloured pill rather than becoming the plain text of
+// the sketch: that colour is the same colour the category has on every other
+// screen in the app, and it is doing work — you find MIRROR in a card by its
+// colour before you have read a word.
+function _incItemHtml(item, opts){
+  opts = opts || {};
+  var status = item.status || 'Pending';
+  var done   = String(status).toLowerCase() === 'arrived';
+  // Same gate as the Incoming table's edit pencil: only an ADMIN can change an
+  // expected delivery, so only an ADMIN is offered the shortcut to it.
+  var canMark = (userRole === 'ADMIN') && !done;
+
+  var doc = item.docLink
+    ? ' <a href="javascript:void(0)" data-action="preview-media" data-url="' + _he(_incFirstDocUrl(item.docLink)) +
+      '" data-label="' + _he(item.name) + '" title="Attached document" onclick="event.stopPropagation()">📎</a>'
+    : '';
+
+  // The date only earns a line when the row is not about today — inside a day
+  // card, or in the popup's "arriving today" block, it would be the same date
+  // written on every row.
+  var when = opts.showDate ? _he(_incDateLabel(item)) : '';
+  var meta = [when, item.notes ? _he(item.notes) : ''].filter(Boolean).join(' · ');
+
+  return '<div class="inc-item">' +
+      '<div class="inc-item-cat">' + catBadge(item.category) + '</div>' +
+      '<div class="inc-item-line">' +
+        '<span class="inc-item-qty">' + _he(_incQtyText(item)) + '</span> ' +
+        '<span class="inc-item-name">' + _he(item.name) + '</span>' + doc +
+      '</div>' +
+      (meta ? '<div class="inc-item-meta">' + meta + '</div>' : '') +
+      '<div class="inc-item-foot">' +
+        '<span class="inc-status-' + String(status).toLowerCase() + '">' + _he(status) + '</span>' +
+        (canMark
+          ? '<button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button>'
+          : '') +
+      '</div>' +
+    '</div>';
+}
+
+// ── Showing a category the dropdown does not have ───────────────────────────
+//
+// Jose opened an IGU delivery from the morning popup and the Category box was
+// EMPTY, on a record whose badge said IGU one line above.
+//
+// Setting `select.value` to something no <option> matches selects nothing, in
+// silence. That alone is only cosmetic — but Save sends whatever the box holds,
+// so opening the window to change a date would have written the category away.
+// The record's own category is the last thing that window should be able to
+// lose.
+//
+// Two ways a stored category can miss the list. It was renamed or removed from
+// Settings since the delivery was booked; or the casing differs — every write
+// to the ARCHIVE uppercases, while the CONFIG "add" path stores the value as it
+// is handed over, and the same mismatch has bitten this codebase before (see
+// the note on `op === 'rename'` in Code.gs).
+//
+// So: match without caring about case, and if it genuinely is not on the list,
+// put it on the list rather than dropping it. Labelled, because a category
+// nobody can pick from Settings is worth knowing about.
+function _incSetCategory(cat){
+  var sel = document.getElementById('incCategory');
+  if (!sel) return;
+  var want = String(cat || '').trim();
+  if (!want){ sel.value = ''; return; }
+  var found = '';
+  for (var i = 0; i < sel.options.length; i++){
+    if (sel.options[i].value.toUpperCase() === want.toUpperCase()){ found = sel.options[i].value; break; }
+  }
+  if (!found){
+    var o = document.createElement('option');
+    o.value = want;
+    o.textContent = want + ' (not on your list)';
+    sel.appendChild(o);
+    found = want;
+  }
+  sel.value = found;
+}
+
+// A quantity of zero on an expected delivery means "nobody has said how many
+// yet" — not "none are coming". Since v11.24 the Quantity box opens blank, and
+// a delivery booked from an attached load sheet very often has no count at
+// all until the truck is there.
+//
+// So it is never printed as a number. "0 UNIT" states something nobody
+// claimed, and it is the kind of wrong figure people plan around.
+function _incQtyText(item){
+  var q = Number(item && item.qty) || 0;
+  return q > 0 ? (q + ' ' + (item && item.unit ? item.unit : 'UNIT')) : 'qty not stated';
 }
 
 // ── Incoming attachment helpers ───────────────────────────────────────────────
@@ -13626,55 +13747,61 @@ function checkMorningPopup() {
 
   if (!todayPending.length) return; // nothing pending today → skip
 
-  // Build weekly view for context (pending items up to end of week)
-  var dayOfWeek = today.getDay();
-  var endOfWeek = new Date(today);
-  endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
-  var endStr = _isoDate(endOfWeek);
+  _popupShownThisLoad = true; // mark as shown — won't fire again until next F5 / new tab
+  showMorningPopup(_thisWeeksDeliveries(todayStr), todayStr);
+}
 
+// What is left of this week, deliveries only. Pulled out of checkMorningPopup
+// so the button that reopens the popup and the refresh after a save both ask
+// the same question — three copies of "which week is it" is three chances to
+// disagree about Sunday.
+function _thisWeeksDeliveries(todayStr){
+  var today     = new Date(todayStr + 'T12:00:00');
+  var endOfWeek = new Date(today);
+  endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+  var endStr = _isoDate(endOfWeek);
   // A window counts if any part of it falls in what is left of the week, not
   // only if it starts there.
-  var thisWeek = incoming.filter(function(item) {
+  return incoming.filter(function(item) {
     if ((item.status || '').toLowerCase() === 'received') return false;
     if (!item.estDate) return false;                       // no date — not part of a week's plan
     var from = item.estDate;
     var to   = (item.dateMode === 'window' && item.estDateEnd) ? item.estDateEnd : item.estDate;
     return to >= todayStr && from <= endStr;
   });
+}
 
-  _popupShownThisLoad = true; // mark as shown — won't fire again until next F5 / new tab
-  showMorningPopup(thisWeek, todayStr);
+// The way back in. Until now the popup appeared once per page load and, once
+// closed, could only be brought back by reloading the whole app — which is
+// exactly what Jose ran into after marking the first delivery of the morning.
+function openWeekSchedule(){
+  var todayStr = _isoDate(new Date());
+  var items = _thisWeeksDeliveries(todayStr);
+  if (!items.length){
+    showToast('Nothing expected for the rest of this week.', 'ok');
+    return;
+  }
+  showMorningPopup(items, todayStr);
+}
+
+// Redraw it in place if it is open. Called after an expected delivery is saved,
+// so the row you just marked Arrived says Arrived instead of sitting there
+// still saying Pending with a button that no longer applies.
+function _refreshMorningPopup(){
+  var ov = document.getElementById('morningOverlay');
+  if (!ov || !ov.classList.contains('show')) return;
+  var todayStr = _isoDate(new Date());
+  showMorningPopup(_thisWeeksDeliveries(todayStr), todayStr);
 }
 
 function showMorningPopup(items, todayStr) {
   var todayItems = items.filter(function(i){ return _incOnDay(i, todayStr); });
   var restItems  = items.filter(function(i){ return !_incOnDay(i, todayStr); });
 
-  // Same rule as the Incoming table's own edit pencil (_incRowHtml): only an
-  // ADMIN gets to change an expected delivery, so only an ADMIN is offered the
-  // shortcut to it. Anything already marked Arrived has nothing left to do.
-  var canMarkArrived = (userRole === 'ADMIN');
-
+  // The same renderer the week cards use. The only difference between the two
+  // screens is whether a row needs to say WHICH day it is for.
   function itemRow(item) {
-    var done = String(item.status || '').toLowerCase() === 'arrived';
-    return '<div class="morning-item">' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.15rem">' +
-          catBadge(item.category) +
-          '<span class="morning-item-name">' + item.qty + ' ' + _he(item.unit) + ' — ' + _he(item.name) + '</span>' +
-        '</div>' +
-        '<div class="morning-item-meta">' +
-          (!_incOnDay(item, todayStr) ? _he(_incDateLabel(item)) + (item.notes ? ' · ' : '') : '') +
-          (item.notes ? _he(item.notes) : '') +
-        '</div>' +
-      '</div>' +
-      '<div class="morning-item-right">' +
-        '<span class="inc-status-' + (item.status||'pending').toLowerCase() + '">' + (item.status||'Pending') + '</span>' +
-        (canMarkArrived && !done
-          ? '<button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button>'
-          : '') +
-      '</div>' +
-    '</div>';
+    return _incItemHtml(item, { showDate: !_incOnDay(item, todayStr) });
   }
 
   var body = document.getElementById('morningPopupBody');
@@ -13707,8 +13834,15 @@ function _markArrivedFromPopup(id){
   if (userRole !== 'ADMIN') return;              // same gate as the button itself
   var item = incoming.find(function(i){ return i.id === id; });
   if (!item) { showToast('That expected delivery is no longer on the list.', 'warn'); return; }
-  closeMorningPopup();
-  // The Incoming tab has to be the one on screen behind the modal: closing the
+  // The popup is NOT closed any more. Jose: "luego de seleccionar el primer
+  // material y dar clic en recibido, la ventana se cierra y no hay otra forma
+  // de reabrirla más que actualizar la página completa." It is a list you work
+  // down — three deliveries this morning means three trips through it — and
+  // closing it after the first one meant reloading the app to get back to the
+  // second. The edit window opens on top; the overlays are independent, and
+  // the popup refreshes itself once the save lands (see _refreshMorningPopup).
+  //
+  // The Incoming tab still has to be the one behind the modal: closing the
   // window and landing on the Dashboard would leave no trace of what just
   // happened.
   showTab('incoming', 'btn-incoming');

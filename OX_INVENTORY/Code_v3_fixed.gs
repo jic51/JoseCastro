@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.23';
+var APP_VERSION = '11.25';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.23';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'e3cac46c';
+var APP_BUILD = '0d31122d';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -7907,6 +7907,28 @@ function rewriteArchiveColumn_(sheet, col, decide) {
   return changed;
 }
 
+// The same rename, on the expected-deliveries sheet. Column C (index 2) — see
+// the column map above ensureIncomingSheet_.
+//
+// Its own function rather than a third call to renameCategoryColumn_ because
+// that one is written against the ARCHIVE's column map (AC.CATEGORY), and
+// pointing it at a sheet with a different shape is how the wrong column gets
+// rewritten one day.
+function renameIncomingCategory_(ss, oldVal, newValStored) {
+  var sheet = ss.getSheetByName('INCOMING_V3');
+  if (!sheet) return 0;
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+  var want = String(oldVal || '').trim().toUpperCase();
+  var vals = sheet.getRange(2, 3, last - 1, 1).getValues();
+  var changed = 0;
+  for (var i = 0; i < vals.length; i++) {
+    if (String(vals[i][0] || '').trim().toUpperCase() === want) { vals[i][0] = newValStored; changed++; }
+  }
+  if (changed) sheet.getRange(2, 3, last - 1, 1).setValues(vals);
+  return changed;
+}
+
 function renameCategoryColumn_(sheet, oldVal, newValStored) {
   var want = String(oldVal || '').trim().toUpperCase();
   return rewriteArchiveColumn_(sheet, AC.CATEGORY, function (row) {
@@ -8036,6 +8058,20 @@ function updateConfig(data, auth) {
         // had hit it yet only because no installation has filled up.
         var n  = renameCategoryColumn_(ss.getSheetByName(SHEETS.ARCHIVE), val, nvStored);
         n     += renameCategoryColumn_(ensureArchiveHistorySheet_(ss), val, nvStored);
+
+        // And the expected deliveries, which were being left behind.
+        //
+        // Jose renamed a category to "IGU (ISOLATED GLASS UNIT)". The archive
+        // followed; INCOMING_V3 did not. Weeks later he opened one of those
+        // deliveries and the Category box was EMPTY — the row still said "IGU",
+        // no option on the dropdown said "IGU" any more, and a <select> given a
+        // value it does not have selects nothing, in silence. Saving would then
+        // have written that nothing back.
+        //
+        // Deliveries are not stock, so this changes no number. It is here
+        // because a rename has to reach every place the old word is stored, and
+        // this was the one place it did not.
+        renameIncomingCategory_(ss, val, nvStored);
 
         // LIVE_STOCK / SITE_STOCK / WASTED_STOCK are a cache of the archive,
         // and every screen in the app reads the cache, not the archive. Without
