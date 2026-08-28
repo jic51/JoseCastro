@@ -33,7 +33,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.25';
+var APP_VERSION = '11.26';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +45,7 @@ var APP_VERSION = '11.25';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0d31122d';
+var APP_BUILD = '6bc3308c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -7623,6 +7623,19 @@ function mergeLocationsLocked_(data, auth, into, from) {
   if (cfg) {
     var rows = cfg.getDataRange().getValues();
     var names = [], types = [], sawInto = false;
+    // The survivor's own group, remembered before its row can be dropped.
+    //
+    // Merging two spellings that differ only in case puts the SURVIVOR's
+    // uppercase form in `wanted` too, so its row is removed with the others and
+    // re-added below — and re-adding it as a bare 'RACK' would quietly move a
+    // location out of the group somebody had filed it under. Now it keeps it.
+    var intoType = '';
+    for (var r0 = 1; r0 < rows.length; r0++) {
+      if (String(rows[r0][3] || '').trim().toUpperCase() === into.toUpperCase()) {
+        intoType = String(rows[r0][4] || '').trim().toUpperCase();
+        break;
+      }
+    }
     for (var r = 1; r < rows.length; r++) {
       var nm = String(rows[r][3] || '').trim();
       if (!nm) continue;
@@ -7631,7 +7644,7 @@ function mergeLocationsLocked_(data, auth, into, from) {
       names.push(nm);
       types.push(String(rows[r][4] || 'RACK').trim().toUpperCase() || 'RACK');
     }
-    if (!sawInto) { names.push(into); types.push('RACK'); }
+    if (!sawInto) { names.push(into); types.push(intoType || 'RACK'); }
     writeConfigColumn_(cfg, 3, names);
     writeConfigColumn_(cfg, 4, types);
   }
@@ -8779,8 +8792,21 @@ function applyDataQualityFixLocked_(data, auth) {
   if (kind === 'spelling') {
     var keep = String(data.keep || '').trim();
     if (!keep) throw new Error('Pick which spelling to keep.');
+    // EXACT match, not case-insensitive — and that is the whole point.
+    //
+    // This filter used to uppercase both sides, copied from the Settings merge
+    // where it makes sense (you cannot merge a value into itself). Here it
+    // threw away the commonest finding of all: "SWEETWATER - SPRING CANYON 2"
+    // and "Sweetwater - SPRING CANYON 2" are the SAME letters in different
+    // case, so uppercasing made them equal, the list came out empty, and the
+    // sweep answered "nothing to merge — that is already the only spelling"
+    // about two spellings it had just found itself.
+    //
+    // A difference of case is a real difference in what is stored, and
+    // normalising it is a merge like any other. Only a byte-for-byte repeat of
+    // the survivor is dropped.
     var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
-                 .filter(function (v) { return v && v.toUpperCase() !== keep.toUpperCase(); });
+                 .filter(function (v) { return v && v !== keep; });
     if (!from.length) throw new Error('Nothing to merge — that is already the only spelling.');
 
     if (data.field === 'material') {

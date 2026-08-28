@@ -1008,23 +1008,32 @@
     .day-card.today .day-label{color:var(--accent2)}
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
     /* ── One expected delivery ──
-       Jose's order, from his sketch: category on its own line, then HOW MANY
-       and WHAT on one line, then whatever was noted, then the state and the one
-       action. Four stacked lines instead of a paragraph that wrapped wherever
-       the card happened to end — which is what made two of them look like one.
+       Jose's second sketch, the one with the arrows: the category full width on
+       top, then the NAME on the left with the QUANTITY across from it on the
+       right, and the state under the quantity.
+
+       Two columns rather than four stacked lines, because that is what makes
+       the right-hand edge a column you can read down: every quantity under
+       every other quantity, every status under every other status. You can see
+       what is left to do without reading a single material name.
 
        Used by the week cards AND the morning popup, so the same delivery is
        the same shape wherever it appears. */
     .inc-item{padding:.5rem 0;border-bottom:1px solid var(--border)}
     .inc-item:last-child{border-bottom:none}
-    .inc-item-cat{margin-bottom:.2rem}
-    .inc-item-line{font-size:.82rem;line-height:1.35;margin-bottom:.1rem;overflow-wrap:anywhere}
-    .inc-item-qty{font-weight:700}
-    .inc-item-name{color:var(--text)}
-    .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-bottom:.25rem;overflow-wrap:anywhere}
-    /* The status and the button share the last line and wrap together on a
-       narrow card, so the button never ends up alone under an empty row. */
-    .inc-item-foot{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+    .inc-item-cat{margin-bottom:.25rem}
+    .inc-item-body{display:flex;align-items:flex-start;gap:.6rem}
+    /* min-width:0 so a long material name wraps instead of shoving the
+       quantity column off the card. */
+    .inc-item-main{flex:1;min-width:0}
+    .inc-item-name{font-size:.82rem;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
+    .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:.1rem;overflow-wrap:anywhere}
+    /* The right column never shrinks and never wraps its own contents: a
+       quantity broken across two lines is unreadable, and the whole reason it
+       is over here is to be scannable. */
+    .inc-item-side{flex:none;display:flex;flex-direction:column;align-items:flex-end;
+                   gap:.25rem;text-align:right;white-space:nowrap}
+    .inc-item-qty{font-weight:700;font-size:.82rem;line-height:1.35}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     /* Draft rows from an email — editable before anything is saved. */
@@ -1842,6 +1851,14 @@
           <div id="activeUsersList"><p class="presence-empty">Loading…</p></div>
         </div>
         <div class="acct-actions">
+          <!-- No role gate and no display:none. Jose: "el botón debería estar
+               en un lugar donde todos tengan acceso sin tener que ir a la
+               pantalla de incoming." What is arriving this week is the one
+               thing everybody in the warehouse needs, and it lives here so it
+               is reachable from whatever screen they happen to be on. The
+               "Mark arrived" buttons INSIDE it are still admin-only, so a
+               warehouse user reads the list and cannot change it. -->
+          <button class="acct-item" id="btnWeekSchedule" onclick="closeAccountMenu();openWeekSchedule()">☀️ <span>This week's arrivals</span></button>
           <button class="acct-item" id="btnSettings"  onclick="closeAccountMenu();openSettingsModal()" style="display:none">⚙️ <span>App Settings</span></button>
           <button class="acct-item" id="btnUsersMgmt" onclick="closeAccountMenu();openUsersModal()"    style="display:none">👥 <span>Manage Users</span></button>
           <button class="acct-item" id="btnReportIssue" onclick="closeAccountMenu();openReportIssueModal()">🐞 <span>Report a problem</span></button>
@@ -2106,7 +2123,6 @@
       <div class="card-header">
         <h2>📅 This Week's Expected Arrivals</h2>
         <div class="toolbar">
-          <button class="btn btn-ghost btn-sm" onclick="openWeekSchedule()" title="The same list the app shows you first thing in the morning">☀️ This week's schedule</button>
           <button id="btnFromEmail" class="btn btn-ghost btn-sm" style="display:none;border-color:var(--purple);color:var(--purple)" onclick="openEmailImport()" title="Paste a supplier email and let the app fill these in">📧 From an email</button>
           <button id="btnAddIncoming" class="btn btn-primary btn-sm" style="display:none" onclick="openIncomingModal()">+ Add Expected</button>
         </div>
@@ -2950,7 +2966,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.25';
+var APP_VERSION = '11.26';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2962,7 +2978,7 @@ var APP_VERSION = '11.25';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0d31122d';
+var APP_BUILD = '6bc3308c';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -13375,12 +13391,19 @@ function saveIncomingItem() {
 // ── One expected delivery, drawn one way ─────────────────────────────────────
 //
 // The week cards and the morning popup were drawing the same delivery in two
-// different shapes, and neither was the shape Jose wanted. He drew it:
+// different shapes, and neither was the shape Jose wanted. He drew it twice —
+// this is the second drawing, the one with the arrows:
 //
-//     IGU (ISOLATED GLASS UNIT)          ← the category, on its own line
-//     1 UNIT  IGU-SR-BF2-TT              ← how many, then what
-//     1@ 33 1/4 W X 55 3/8 H X 3/4 T     ← whatever was noted about it
-//     [Pending]  [Mark arrived →]        ← the state, and the one thing to do
+//     IGU (ISOLATED GLASS UNIT)                        ← category, full width
+//     IGU-SR-BF2-TT                          1 UNIT    ← what it is · how many
+//     1@ 33 1/4 W X 55 3/8 H X 3/4 T         Arrived   ← the note · the state
+//                                     [Mark arrived →]
+//
+// Two columns, not four stacked lines: "la cantidad justo del otro lado
+// (derecha) del nombre y el estado abajo de la cantidad." The numbers line up
+// down the right-hand edge, which is the point — a column of quantities can be
+// read at a glance and a column of statuses tells you what is left to do
+// without reading a single material name.
 //
 // One function for both screens, because two of them is how they drifted apart
 // in the first place.
@@ -13410,16 +13433,18 @@ function _incItemHtml(item, opts){
 
   return '<div class="inc-item">' +
       '<div class="inc-item-cat">' + catBadge(item.category) + '</div>' +
-      '<div class="inc-item-line">' +
-        '<span class="inc-item-qty">' + _he(_incQtyText(item)) + '</span> ' +
-        '<span class="inc-item-name">' + _he(item.name) + '</span>' + doc +
-      '</div>' +
-      (meta ? '<div class="inc-item-meta">' + meta + '</div>' : '') +
-      '<div class="inc-item-foot">' +
-        '<span class="inc-status-' + String(status).toLowerCase() + '">' + _he(status) + '</span>' +
-        (canMark
-          ? '<button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button>'
-          : '') +
+      '<div class="inc-item-body">' +
+        '<div class="inc-item-main">' +
+          '<div class="inc-item-name">' + _he(item.name) + doc + '</div>' +
+          (meta ? '<div class="inc-item-meta">' + meta + '</div>' : '') +
+        '</div>' +
+        '<div class="inc-item-side">' +
+          '<div class="inc-item-qty">' + _he(_incQtyText(item)) + '</div>' +
+          '<div><span class="inc-status-' + String(status).toLowerCase() + '">' + _he(status) + '</span></div>' +
+          (canMark
+            ? '<div><button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button></div>'
+            : '') +
+        '</div>' +
       '</div>' +
     '</div>';
 }
