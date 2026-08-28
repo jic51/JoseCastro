@@ -2256,7 +2256,7 @@
       </div>
       <div class="field">
         <label>Quantity</label>
-        <input type="number" id="incQty" min="0" placeholder="How many">
+        <input type="number" id="incQty" min="0" step="any" placeholder="How many">
       </div>
       <div class="field">
         <label>Unit</label>
@@ -2578,7 +2578,7 @@
     <div class="form-grid" id="singleLocGrid">
       <div class="field" id="mQtyField">
         <label>Quantity</label>
-        <input type="number" id="mQty" min="1" placeholder="Qty" oninput="_syncMoveMatTotal()">
+        <input type="number" id="mQty" min="0" step="any" placeholder="Qty" oninput="_syncMoveMatTotal()">
       </div>
       <div class="field" id="mSrcField" style="display:none">
         <label id="mSrcLabel">Source Rack</label>
@@ -2614,7 +2614,7 @@
         </div>
         <div class="field">
           <label>You counted</label>
-          <input type="number" id="adjCounted" min="0" step="1" placeholder="Actual count"
+          <input type="number" id="adjCounted" min="0" step="any" placeholder="Actual count"
                  oninput="_syncAdjustCount()">
         </div>
       </div>
@@ -2966,7 +2966,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.26';
+var APP_VERSION = '11.28';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2978,7 +2978,7 @@ var APP_VERSION = '11.26';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '6bc3308c';
+var APP_BUILD = '97ecb576';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3232,7 +3232,7 @@ function _moveFormProblem(){
       var qty = 0;
       var lc  = document.getElementById('mat-locs-' + n);
       if (lc) lc.querySelectorAll('.loc-row').forEach(function(row){
-        qty += Math.max(0, parseInt((row.querySelector('.loc-qty') || {}).value, 10) || 0);
+        qty += Math.max(0, _qty((row.querySelector('.loc-qty') || {}).value));
       });
       if (qty <= 0) entryProblem = label + ' needs a location and quantity';
     });
@@ -3264,7 +3264,7 @@ function _moveFormProblem(){
       // much was typed in.
       var qty = 0;
       line.querySelectorAll('.exit-loc-row').forEach(function(row){
-        qty += Math.max(0, parseInt((row.querySelector('.el-qty') || {}).value, 10) || 0);
+        qty += Math.max(0, _qty((row.querySelector('.el-qty') || {}).value));
       });
       if (qty <= 0){ exitProblem = label + ' needs how many to take out'; return; }
       if (!sameDest){
@@ -3283,7 +3283,7 @@ function _moveFormProblem(){
     var nmEx = ((document.getElementById('mName') || {}).value || '').trim();
     if (!nmEx) return 'Enter the material name';
     var tot = 0;
-    exitRows.forEach(function(inp){ tot += Math.max(0, parseInt(inp.value, 10) || 0); });
+    exitRows.forEach(function(inp){ tot += Math.max(0, _qty(inp.value)); });
     if (tot <= 0) return 'Enter how many to take out';
     return '';
   }
@@ -3300,7 +3300,7 @@ function _moveFormProblem(){
     document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
       var src = ((row.querySelector('.tr-rack') || {}).value || '').trim();
       var dst = ((row.querySelector('.tr-dest') || {}).value || '').trim();
-      var q   = Math.max(0, parseInt((row.querySelector('.tr-qty') || {}).value, 10) || 0);
+      var q   = Math.max(0, _qty((row.querySelector('.tr-qty') || {}).value));
       if (src && dst && q > 0) pairs++;
     });
     if (!pairs) return 'Add a source rack, a destination rack and a quantity';
@@ -3330,7 +3330,7 @@ function _moveFormProblem(){
   // Single-material form
   var nm = ((document.getElementById('mName') || {}).value || '').trim();
   if (!nm) return 'Enter the material name';
-  var q = parseInt((document.getElementById('mQty') || {}).value, 10) || 0;
+  var q = _qty((document.getElementById('mQty') || {}).value);
   if (q <= 0) return 'Enter a quantity greater than zero';
   return '';
 }
@@ -4612,10 +4612,19 @@ var CAT_BADGE = {
   'SCREWS':       'badge-gray',
   'IGU':          'badge-green'
 };
+// The category name goes into HTML here, and it went in RAW until v11.27 —
+// through seven different screens, because everything that shows a category
+// comes through this one function. A material category is typed by a person,
+// so it can contain anything a person can type: a `<` breaks the layout of
+// whatever screen it lands on, and worse is possible. nt() uppercases and
+// trims; it is not an escape.
+//
+// One fix, seven screens, which is exactly why this was worth finding as a
+// PATTERN rather than as seven separate bugs.
 function catBadge(cat){
   var c = nt(cat);
   var cls = CAT_BADGE[c] || 'badge-gray';
-  return '<span class="badge '+cls+'">'+( c || '—')+'</span>';
+  return '<span class="badge '+cls+'">'+ _he(c || '—') +'</span>';
 }
 
 function stockBadge(item){
@@ -4815,7 +4824,14 @@ function buildDocMap() {
         map[key].push({
           name:     docName,
           url:      url,
-          dateRec:  m.dateRec || (m.timestamp ? m.timestamp.substring(0, 10) : '') || '',
+          // Found while fixing the UTC dates, and it belongs to the same
+          // family: this fallback took the first ten characters of
+          // m.timestamp, which the backend formats as MM/dd/yyyy — so a
+          // document whose movement had no date recorded showed "08/28/2026"
+          // in a column where every other row said "2026-08-28". Same day,
+          // two shapes, sorted as text. _mdyToIso gives it the shape the rest
+          // of the list already uses.
+          dateRec:  m.dateRec || _mdyToIso(m.timestamp) || '',
           location: m.destLoc || m.sourceLoc || ''
         });
       }
@@ -5593,7 +5609,7 @@ function addLocRow(rack, qty){
   var qtyVal  = (qty || qty === 0) ? qty : '';
   row.innerHTML =
     '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location">' +
-    '<input type="number" class="loc-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
+    '<input type="number" class="loc-qty"  min="0" step="any" value="' + qtyVal + '" placeholder="Qty">' +
     '<button type="button" class="btn-remove-loc" onclick="removeLocRow(this)" title="Remove row">×</button>';
   if (rackVal) row.querySelector('.loc-rack').value = rackVal;
   row.querySelector('.loc-qty').addEventListener('input', updateLocTotal);
@@ -5615,9 +5631,9 @@ function removeLocRow(btn){
 function updateLocTotal(){
   var total = 0;
   document.querySelectorAll('#locRowsContainer .loc-qty').forEach(function(inp){
-    total += Math.max(0, parseInt(inp.value) || 0);
+    total += Math.max(0, _qty(inp.value));
   });
-  document.getElementById('locTotalDisplay').textContent = 'Total: ' + total;
+  document.getElementById('locTotalDisplay').textContent = 'Total: ' + _qtyText(total);
   // Mirrored into mQty for the notify preview — but a zero is written as
   // BLANK, because mQty is a visible box on RETURN/WASTE and a 0 sitting in
   // it is a number nobody entered.
@@ -5634,7 +5650,7 @@ function addExitRow(rack, qty){
   var qtyVal = (qty || qty === 0) ? qty : '';
   row.innerHTML =
     '<input type="text"   class="exit-rack" list="rackList" placeholder="Rack / Location">' +
-    '<input type="number" class="exit-qty"  min="1" value="' + qtyVal + '" placeholder="Qty">' +
+    '<input type="number" class="exit-qty"  min="0" step="any" value="' + qtyVal + '" placeholder="Qty">' +
     '<span  class="exit-avail neutral">—</span>' +
     '<button type="button" class="btn-remove-loc" onclick="removeExitRow(this)" title="Remove">×</button>';
   if (rack) row.querySelector('.exit-rack').value = rack;
@@ -5659,9 +5675,9 @@ function removeExitRow(btn){
 function updateExitTotal(){
   var total = 0;
   document.querySelectorAll('#exitRowsContainer .exit-qty').forEach(function(inp){
-    total += Math.max(0, parseInt(inp.value) || 0);
+    total += Math.max(0, _qty(inp.value));
   });
-  document.getElementById('exitTotalDisplay').textContent = 'Total: ' + total;
+  document.getElementById('exitTotalDisplay').textContent = 'Total: ' + _qtyText(total);
   document.getElementById('mQty').value = total ? total : '';
 }
 
@@ -5711,7 +5727,7 @@ function renderTransferLocPicker(){
 
 function addTransferRowFromChip(chip){
   var rack = chip.getAttribute('data-rack');
-  var qty  = parseInt(chip.getAttribute('data-qty'), 10) || 0;
+  var qty  = _qty(chip.getAttribute('data-qty'));
   addTransferRow(rack, qty, '');
   renderTransferLocPicker(); // refresh chips so this rack shows as "used"
 }
@@ -5722,7 +5738,7 @@ function addTransferRow(rack, qty, dest, silent){
   row.className = 'transfer-row';
   row.innerHTML =
     '<input type="text"   class="tr-rack" list="rackList"     placeholder="Source rack">' +
-    '<input type="number" class="tr-qty"  min="1"              placeholder="Qty">' +
+    '<input type="number" class="tr-qty"  min="0" step="any"   placeholder="Qty">' +
     '<span  class="exit-avail neutral">—</span>' +
     '<input type="text"   class="tr-dest" list="rackListDest" placeholder="Destination rack">' +
     '<button type="button" class="btn-remove-loc" onclick="removeTransferRow(this)" title="Remove">×</button>';
@@ -5772,7 +5788,7 @@ function validateTransferRows(){
   document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
     var rack = (row.querySelector('.tr-rack').value || '').trim().toUpperCase();
     var dest = (row.querySelector('.tr-dest').value || '').trim().toUpperCase();
-    var qty  = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
+    var qty  = Math.max(0, _qty(row.querySelector('.tr-qty').value));
     var chip = row.querySelector('.exit-avail');
     // Available should show the moment a rack is picked — that's the whole
     // point of the tap-to-fill-qty shortcut, which needs a number to tap
@@ -5857,7 +5873,7 @@ function validateExitRows(){
 
   document.querySelectorAll('#exitRowsContainer .exit-row').forEach(function(row){
     var rack = (row.querySelector('.exit-rack').value || '').trim().toUpperCase();
-    var qty  = Math.max(0, parseInt(row.querySelector('.exit-qty').value) || 0);
+    var qty  = Math.max(0, _qty(row.querySelector('.exit-qty').value));
     var chip = row.querySelector('.exit-avail');
     if (!rack || qty <= 0){ chip.textContent = '—'; chip.className = 'exit-avail neutral'; return; }
     var avail = locs[rack] !== undefined ? locs[rack] : null;
@@ -5912,7 +5928,12 @@ function openMoveModal(type){
   if (tag) tag.style.display = 'none';
   addLocRow();
   addExitRow();
-  document.getElementById('mDateRec').value = new Date().toISOString().split('T')[0];
+  // THE ONE THAT MATTERED. This is the date every movement gets unless the
+  // person changes it, and it used to be computed in UTC — so from about 6pm
+  // Mountain onward the form opened already filled in with TOMORROW, and the
+  // evening shift filed its receipts a day late every single day. See
+  // _isoDate.
+  document.getElementById('mDateRec').value = _todayIso();
   document.getElementById('mStatus').value  = 'In Stock';
   document.getElementById('mUnit').value    = 'UNIT';
   // Reset document builder (creates one default "Document" group)
@@ -6176,8 +6197,13 @@ function _readAdjust(){
   var name = ((document.getElementById('mName')      || {}).value || '').trim();
   var rack = ((document.getElementById('adjRack')    || {}).value || '').trim();
   var raw  = ((document.getElementById('adjCounted') || {}).value || '').trim();
-  var counted  = parseInt(raw, 10);
-  var hasCount = raw !== '' && !isNaN(counted) && counted >= 0;
+  // parseFloat, not _qty: this one has to tell "0" apart from "not counted
+  // yet", and _qty answers 0 to both. A cycle count of half a sheet is as real
+  // as a cycle count of two, and truncating it here would have produced an
+  // ADJUST for the wrong amount — the one movement type whose entire purpose
+  // is to make the number match what somebody physically counted.
+  var counted  = parseFloat(raw);
+  var hasCount = raw !== '' && isFinite(counted) && counted >= 0;
 
   // Whether the app knows this material at this rack AT ALL is a different
   // question from whether the number is zero, and the difference is worth
@@ -6313,10 +6339,10 @@ function updateNotifyPreview(){
       var racks = [];
       var lc = document.getElementById('mat-locs-' + n);
       if (lc) {
-        lc.querySelectorAll('.loc-qty').forEach(function(i){ total += Math.max(0, parseInt(i.value)||0); });
+        lc.querySelectorAll('.loc-qty').forEach(function(i){ total += Math.max(0, _qty(i.value)); });
         lc.querySelectorAll('.loc-rack').forEach(function(i){ var v=(i.value||'').trim(); if(v) racks.push(v); });
       }
-      matLines += '\n  • ' + total + ' ' + unit + '(s) of ' + (cat ? cat + ' — ' : '') + matName + (racks.length ? ' → ' + racks.join(', ') : '');
+      matLines += '\n  • ' + _qtyText(total) + ' ' + unit + '(s) of ' + (cat ? cat + ' — ' : '') + matName + (racks.length ? ' → ' + racks.join(', ') : '');
     });
     if (!matLines) matLines = '\n  • [materials not yet filled]';
   } else {
@@ -6349,7 +6375,7 @@ async function submitMovement(){
   if (currentMoveType === 'ENTRY'){
     document.querySelectorAll('#locRowsContainer .loc-row').forEach(function(row){
       var loc = (row.querySelector('.loc-rack').value || '').trim();
-      var q   = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
+      var q   = Math.max(0, _qty(row.querySelector('.loc-qty').value));
       if (q > 0) entryLocations.push({ loc: loc, qty: q });
     });
     if (!entryLocations.length){
@@ -6362,7 +6388,7 @@ async function submitMovement(){
   if (currentMoveType === 'EXIT'){
     document.querySelectorAll('#exitRowsContainer .exit-row').forEach(function(row){
       var loc = (row.querySelector('.exit-rack').value || '').trim();
-      var q   = Math.max(0, parseInt(row.querySelector('.exit-qty').value) || 0);
+      var q   = Math.max(0, _qty(row.querySelector('.exit-qty').value));
       if (q > 0) exitLocations.push({ loc: loc, qty: q });
     });
     if (!exitLocations.length){
@@ -6390,7 +6416,7 @@ async function submitMovement(){
     document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
       var src = (row.querySelector('.tr-rack').value || '').trim();
       var dst = (row.querySelector('.tr-dest').value || '').trim();
-      var q   = Math.max(0, parseInt(row.querySelector('.tr-qty').value) || 0);
+      var q   = Math.max(0, _qty(row.querySelector('.tr-qty').value));
       if (src && dst && q > 0) transferLocations.push({ sourceLoc: src, destLoc: dst, qty: q });
     });
     if (!transferLocations.length){
@@ -6428,7 +6454,7 @@ async function submitMovement(){
     }
   }
 
-  var qty = parseInt(document.getElementById('mQty').value) || 0;
+  var qty = _qty(document.getElementById('mQty').value);
   if (currentMoveType === 'TRANSFER'){
     qty = transferLocations.reduce(function(a,tl){ return a + tl.qty; }, 0);
   } else if (currentMoveType === 'ADJUST'){
@@ -7068,7 +7094,7 @@ function addLocRowMat(n, silent){
   row.className = 'loc-row';
   row.innerHTML =
     '<input type="text" class="loc-rack" list="rackList" placeholder="Rack / Location" autocomplete="off">' +
-    '<input type="number" class="loc-qty" min="1" placeholder="Qty">' +
+    '<input type="number" class="loc-qty" min="0" step="any" placeholder="Qty">' +
     '<button type="button" class="btn-remove-loc" onclick="removeLocRowMat(' + n + ', this)" title="Remove">×</button>';
   lc.appendChild(row);
   _attachMatLocQtyListener(row, n);
@@ -7088,10 +7114,10 @@ function syncMatLineQty(n){
   if (!lc) return;
   var total = 0;
   lc.querySelectorAll('.loc-qty').forEach(function(inp){
-    total += Math.max(0, parseInt(inp.value) || 0);
+    total += Math.max(0, _qty(inp.value));
   });
   var el = document.getElementById('mat-total-' + n);
-  if (el) el.textContent = total + ' unit' + (total === 1 ? '' : 's');
+  if (el) el.textContent = _qtyText(total) + ' unit' + (total === 1 ? '' : 's');
   updateMultiMatTotal();
   if (typeof updateNotifyPreview === 'function') updateNotifyPreview();
 }
@@ -7100,11 +7126,11 @@ function updateMultiMatTotal(){
   var total = 0;
   document.querySelectorAll('#multiMatContainer .mat-locs-container').forEach(function(lc){
     lc.querySelectorAll('.loc-qty').forEach(function(inp){
-      total += Math.max(0, parseInt(inp.value) || 0);
+      total += Math.max(0, _qty(inp.value));
     });
   });
   var el = document.getElementById('multiMatTotal');
-  if (el) el.textContent = 'Total: ' + total;
+  if (el) el.textContent = 'Total: ' + _qtyText(total);
 }
 
 function updateMatLineNameList(n){
@@ -7230,7 +7256,9 @@ function _checkIncomingSuggest(n, inputEl){
         var safeId   = _escAttr(item.id);
         var safeName = _escAttr(item.name);
         var safeCat  = _escAttr(item.category || '?');
-        var safeMeta = _escAttr(_incQtyText(item)) + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + item.estDate;
+        // estDate was the one field in this line still going in raw — the two
+        // beside it were escaped, which is how a gap like this hides.
+        var safeMeta = _escAttr(_incQtyText(item)) + (item.supplier ? ' · ' + _escAttr(item.supplier) : '') + ' — ' + _escAttr(item.estDate);
         return '<div class="inc-suggest-item" data-n="' + n + '" data-inc-id="' + safeId + '"' +
           ' onmousedown="_clickIncomingSuggest(this);return false;">' +
           '<span class="inc-tag">' + safeCat + '</span>' +
@@ -7471,7 +7499,7 @@ function addExitLocRowMat(n, rack, qty, silent){
   row.className = 'exit-loc-row';
   row.innerHTML =
     '<input type="text"   class="el-rack" list="rackList" placeholder="Rack / Location" value="'+_escAttr(rack||'')+'">'+
-    '<input type="number" class="el-qty"  min="1" placeholder="Qty" value="'+(qty||'')+'">'+
+    '<input type="number" class="el-qty"  min="0" step="any" placeholder="Qty" value="'+(qty||'')+'">'+
     '<span  class="el-avail neutral">—</span>'+
     '<button type="button" class="el-rm" onclick="removeExitLocRowMat('+n+',this)" title="Remove">×</button>';
   row.querySelector('.el-rack').addEventListener('input', function(){ syncExitRackAvail(n); syncExitMatTotal(n); });
@@ -7500,19 +7528,19 @@ function syncExitMatTotal(n){
   var locsDiv = document.getElementById('exit-locs-' + n);
   if (!locsDiv) return;
   var total = 0;
-  locsDiv.querySelectorAll('.el-qty').forEach(function(inp){ total += Math.max(0, parseInt(inp.value)||0); });
+  locsDiv.querySelectorAll('.el-qty').forEach(function(inp){ total += Math.max(0, _qty(inp.value)); });
   var badge = document.getElementById('exit-mat-total-' + n);
-  if (badge) badge.textContent = total;
+  if (badge) badge.textContent = _qtyText(total);
   updateMultiExitTotal();
 }
 
 function updateMultiExitTotal(){
   var total = 0;
   document.querySelectorAll('[id^="exit-mat-total-"]').forEach(function(badge){
-    total += parseInt(badge.textContent) || 0;
+    total += _qty(badge.textContent);
   });
   var el = document.getElementById('multiExitTotal');
-  if (el) el.textContent = 'Total: ' + total;
+  if (el) el.textContent = 'Total: ' + _qtyText(total);
 }
 
 function syncExitRackAvail(n){
@@ -7524,7 +7552,7 @@ function syncExitRackAvail(n){
   if (!locsDiv) return;
   locsDiv.querySelectorAll('.exit-loc-row').forEach(function(row){
     var rack  = (row.querySelector('.el-rack').value || '').trim().toUpperCase();
-    var qty   = Math.max(0, parseInt(row.querySelector('.el-qty').value) || 0);
+    var qty   = Math.max(0, _qty(row.querySelector('.el-qty').value));
     var avail = locs[rack];
     var chip  = row.querySelector('.el-avail');
     if (!rack || avail === undefined){ chip.className='el-avail neutral'; chip.textContent='—'; return; }
@@ -7703,7 +7731,7 @@ function submitMultiExit(){
     var locRows = [];
     line.querySelectorAll('.exit-loc-row').forEach(function(row){
       var rack = (row.querySelector('.el-rack').value||'').trim().toUpperCase();
-      var qty  = Math.max(0, parseInt(row.querySelector('.el-qty').value)||0);
+      var qty  = Math.max(0, _qty(row.querySelector('.el-qty').value));
       if (qty > 0) locRows.push({ loc: rack, qty: qty });
     });
     if (!locRows.length){ showToast('Material '+(i+1)+' ('+name+'): add at least one location with qty > 0.','warn'); return; }
@@ -7820,7 +7848,7 @@ function submitMultiEntry(){
     if (lc){
       lc.querySelectorAll('.loc-row').forEach(function(row){
         var loc = (row.querySelector('.loc-rack').value || '').trim();
-        var qty = Math.max(0, parseInt(row.querySelector('.loc-qty').value) || 0);
+        var qty = Math.max(0, _qty(row.querySelector('.loc-qty').value));
         if (qty > 0){ locs.push({ loc: loc, qty: qty }); totalQty += qty; }
       });
     }
@@ -11021,7 +11049,8 @@ function _handlePhotoFiles(uid, files) {
         ? '<img src="data:' + mime + ';base64,' + b64 + '" alt="photo">' +
           '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>'
         : '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.4rem;flex-direction:column;gap:2px">📄' +
-          '<span style="font-size:.5rem;color:#555;padding:0 3px;text-align:center;overflow:hidden;max-width:50px;word-break:break-all">' + file.name.substring(0,10) + '</span></div>' +
+          // A file name comes from the person's own disk and lands in innerHTML.
+          '<span style="font-size:.5rem;color:#555;padding:0 3px;text-align:center;overflow:hidden;max-width:50px;word-break:break-all">' + _he(file.name.substring(0,10)) + '</span></div>' +
           '<button class="remove-photo" onclick="this.closest(\'.doc-photo-thumb\').remove();_updateDocPhotoCount()" title="Remove">✕</button>';
       strip.appendChild(thumb);
       _updateDocPhotoCount();
@@ -11965,7 +11994,10 @@ function exportMovementsCSV(){
   var csv = [headers.join(',')].concat(rows).join('\n');
   var a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = 'OX_Movements_'+new Date().toISOString().split('T')[0]+'.csv';
+  // The filename is the only date on an exported file, so an export made at
+  // 7pm used to be stamped tomorrow — a small thing that makes a folder of
+  // exports impossible to trust a year later. See _isoDate.
+  a.download = 'OX_Movements_'+_todayIso()+'.csv';
   a.click();
 }
 
@@ -11982,7 +12014,7 @@ function exportProjectCSV(){
   var csv = [headers.join(',')].concat(rows).join('\n');
   var a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = 'OX_'+proj.replace(/[^a-z0-9]/gi,'_')+'_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.download = 'OX_'+proj.replace(/[^a-z0-9]/gi,'_')+'_'+_todayIso()+'.csv';   // local day, see _isoDate
   a.click();
 }
 
@@ -12207,7 +12239,7 @@ function openRackDrawer(rackName) {
           '<div class="rdw-item">'+
             '<span class="rack-cat-dot" style="background:'+col+';width:10px;height:10px;flex-shrink:0"></span>'+
             '<span class="rdw-name" data-action="toggle-rdw" data-idx="'+idx+'" title="'+_he(item.name)+'">'+_he(item.name)+'</span>'+
-            '<span class="rdw-rack-qty">'+item.qty+' '+item.unit+'</span>'+
+            '<span class="rdw-rack-qty">'+_he(item.qty)+' '+_he(item.unit)+'</span>'+
             '<span class="rdw-total-qty" title="Total in warehouse">('+item.warehouseTotal+' total)</span>'+
             lockBtn +
           '</div>'+
@@ -12896,7 +12928,7 @@ function _monItemHtml(st){
     '<span class="monitor-item-name" title="' + _he(st.name) + '">' + _he(st.name) + '</span>' +
     '<div class="monitor-item-min">' +
       '<label>Min</label>' +
-      '<input type="number" class="mon-min-inp" min="0" placeholder="—" data-name="' + esc + '"' +
+      '<input type="number" class="mon-min-inp" min="0" step="any" placeholder="—" data-name="' + esc + '"' +
         (minv !== '' ? ' value="' + _escAttr(minv) + '"' : '') + (on ? '' : ' disabled') +
         ' onclick="event.stopPropagation()"' +
         ' title="' + (on ? 'Alert when available stock drops below this' : 'Tick the box first') + '">' +
@@ -13049,7 +13081,7 @@ function saveMonitorSettings() {
   var minUpdates = [];
   if (!config.minStock) config.minStock = {};
   Object.keys(_monMin).forEach(function(nm){
-    var qty     = parseInt(_monMin[nm], 10) || 0;
+    var qty     = _qty(_monMin[nm]);
     var current = config.minStock[nm] || 0;
     if (qty !== current) minUpdates.push({ name: nm, qty: qty });
     config.minStock[nm] = qty;
@@ -13643,7 +13675,7 @@ function _renderEmailDrafts(){
       '<div class="ei-grid">' +
         '<div class="field full"><label>What is arriving</label><input id="ei-name-' + i + '" value="' + _escAttr(d.name) + '"></div>' +
         '<div class="field"><label>Category</label><select id="ei-cat-' + i + '">' + catOpts + '</select></div>' +
-        '<div class="field"><label>Qty</label><input type="number" id="ei-qty-' + i + '" value="' + (d.qty || '') + '" min="0"></div>' +
+        '<div class="field"><label>Qty</label><input type="number" id="ei-qty-' + i + '" value="' + (d.qty || '') + '" min="0" step="any"></div>' +
         '<div class="field"><label>Supplier</label><input id="ei-sup-' + i + '" value="' + _escAttr(d.supplier) + '"></div>' +
         '<div class="field"><label>PO #</label><input id="ei-po-' + i + '" value="' + _escAttr(d.po) + '"></div>' +
         '<div class="field"><label>When</label><select id="ei-mode-' + i + '" onchange="_eiSyncMode(' + i + ')">' + modeOpts + '</select></div>' +
@@ -13743,10 +13775,97 @@ function _emailSaveAll(){
   })();
 }
 
-// ── Morning Popup ─────────────────────────────────────────────────────────────
+// ── Dates ─────────────────────────────────────────────────────────────────────
+// THE CALENDAR DAY THE PERSON IS STANDING IN — not the UTC instant.
+//
+// This used to be `dt.toISOString().substring(0, 10)`, and that is wrong in a
+// way that never shows an error and never looks broken. toISOString converts
+// to UTC first. Utah is UTC−6 in summer and UTC−7 in winter, so from about
+// 18:00 local onwards the UTC clock has already rolled over to tomorrow, and
+// every date this produced was the NEXT DAY.
+//
+// What that meant in the warehouse: a delivery received at 6:30pm on the 14th
+// was recorded as the 15th. Not flagged, not rejected — just filed one day
+// late, by the app, on every evening shift. The month-end totals were off by
+// whatever crossed the dock after six, and the only way to catch it was to
+// remember what time you were standing there.
+//
+// getFullYear/getMonth/getDate read the browser's LOCAL clock, which is the
+// clock the person is actually looking at. padStart keeps the yyyy-mm-dd shape
+// the rest of the app matches on, and Google Sheets stores.
+//
+// The backend does not have this bug: it formats dates with
+// Utilities.formatDate(..., Session.getScriptTimeZone(), 'yyyy-MM-dd'), which
+// has been correct all along. This was a browser-side bug only — which is also
+// why it survived: the two halves disagreed and neither one complained.
 function _isoDate(dt) {
-  return dt.toISOString().substring(0, 10);
+  var d = (dt instanceof Date) ? dt : new Date(dt);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' +
+         String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
 }
+
+// Today, as the calendar says it here. Every place that used to write
+// `new Date().toISOString().split('T')[0]` inline now calls this, so there is
+// one definition of "today" in the app instead of four.
+function _todayIso() {
+  return _isoDate(new Date());
+}
+
+// The backend sends `timestamp` as MM/dd/yyyy HH:mm and `dateRec` as
+// yyyy-MM-dd — two shapes, both correct for what they are. Anywhere the first
+// stands in for the second, it has to be converted rather than sliced, or the
+// column ends up holding both shapes and sorting them as text. Returns '' on
+// anything that is not the expected shape, so a caller's `||` fallback still
+// works.
+function _mdyToIso(ts) {
+  var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(ts || ''));
+  return m ? (m[3] + '-' + m[1] + '-' + m[2]) : '';
+}
+
+// ── Quantities ────────────────────────────────────────────────────────────────
+// A QUANTITY IS NOT AN INTEGER, and this app has been offering units that
+// prove it since the day it shipped: SQ FT, LN FT, SHEET, ROLL. Half a sheet
+// is a real thing. 2.5 linear feet is a real thing.
+//
+// Every quantity in the entry forms was read with parseInt, which does not
+// round — it TRUNCATES at the first non-digit. 2.5 became 2. 0.75 became 0.
+// No warning, no red border, nothing in the log: the person typed the number
+// they counted, pressed save, and the app wrote a different number.
+//
+// It survived because the app disagreed with itself about it in three places
+// and never compared notes:
+//
+//   the entry form      parseInt   → 2.5 becomes 2
+//   the edit modal      parseFloat → 2.5 stays 2.5   (em_qty, step="any")
+//   the backend         Number()   → 2.5 stays 2.5   (it always accepted them)
+//
+// So the sheet could already hold 2.5, the editor could already show and save
+// 2.5, and only the form where the number is FIRST typed threw the fraction
+// away. Nothing was inconsistent enough to break; it was just quietly lossy at
+// the one point where the truth enters the building.
+//
+// Two halves to the fix, and both are needed: this reader, and `step="any"` on
+// the inputs themselves — an <input type="number"> with no step attribute
+// defaults to step=1, so the browser marks 2.5 invalid before any script gets
+// to see it.
+function _qty(v) {
+  var n = parseFloat(v);
+  return isFinite(n) ? n : 0;
+}
+
+// Adding floats gives 0.1 + 0.2 === 0.30000000000000004, and a running total
+// on screen is exactly where that surfaces. Three decimals is past anything a
+// warehouse counts in and short of where the noise starts. Integers keep
+// printing as integers — 12, not 12.000 — because that is still what most of
+// these numbers are.
+function _qtyText(n) {
+  var r = Math.round((Number(n) || 0) * 1000) / 1000;
+  return String(r);
+}
+
+// ── Morning Popup ─────────────────────────────────────────────────────────────
 
 function _dayLabel(dt, offset) {
   if (offset === 0) return '🌟 Today';

@@ -27,13 +27,26 @@
 //   doGet, getInitialData, processMovement, getPrivateFileData,
 //   getPrivateFileThumbnail, heartbeat, pollLogin, reportIssue,
 //   extractDocumentInfo, getSetupState, saveSetupWizard, checkDeploymentReady,
-//   saveWebAppUrl
+//   saveWebAppUrl, getIncoming, addIncoming, updateIncoming, deleteIncoming,
+//   getMonitoredMaterials
 // — plus the menu/trigger entry points, gated by getUi() / requireOwnerContext_().
+//
+// v11.27: this paragraph was the whole of the rule, and a paragraph does not
+// fail a build. The five Incoming/monitor names above were reachable and
+// authenticating correctly for two versions before anyone noticed the list had
+// never been updated to admit it — and in the same period `getSystemActivity`
+// went out with no trailing `_` and no check at all, reading the audit sheet
+// for anyone who typed its name into a browser console.
+//
+// tools/test-endpoint-auth.js now enumerates every public global in this file
+// and fails unless each one either carries a recognised guard or is named in
+// its allow-list with a written reason. The rule is still stated here for
+// whoever is reading; what makes it hold is that the test counts the doors.
 
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.26';
+var APP_VERSION = '11.28';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -45,7 +58,7 @@ var APP_VERSION = '11.26';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '6bc3308c';
+var APP_BUILD = '97ecb576';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1209,6 +1222,28 @@ var DEFAULT_ROLE_PERMS = {
   canExportData:    true
 };
 
+// The server's own answer to "may this person see money?", and the ONLY one
+// that decides what leaves this file. _canSeeCosts() in Index_v3_fixed.html is
+// the same rule spelt the same way, but it runs in the browser and therefore
+// decides only what gets drawn — which is a different question, and until
+// v11.27 it was the only question anybody was asking.
+//
+// The two must agree, and a test holds them to it (tools/test-cost-privacy.js).
+// If they ever drift, the failure is silent in the worse direction: the server
+// would send what the page then declines to show, which looks perfect from the
+// outside and is exactly the bug this replaces.
+//
+//   ADMIN      always
+//   WAREHOUSE  only when an admin has turned the See costs toggle on
+//   VIEWER     never — read-only means read what you are shown, and costs are
+//              not part of that. There is no toggle to widen it, by design.
+function canSeeCosts_(auth) {
+  if (!auth || !auth.role) return false;
+  if (auth.role === 'ADMIN') return true;
+  if (auth.role === 'WAREHOUSE') return rolePerms_().canSeeCosts === true;
+  return false;
+}
+
 function rolePerms_() {
   var raw = PropertiesService.getScriptProperties().getProperty('ROLE_PERMS_WAREHOUSE');
   var stored = {};
@@ -1538,6 +1573,51 @@ function getInitialData(sessionToken) {
     var materialLocks = [];
     try { materialLocks = getMaterialLocks(); } catch(e) { Logger.log('getMaterialLocks: ' + e.message); }
 
+    // ── WHAT A ROLE MAY NOT SEE IS NOT SENT ─────────────────────────────────
+    // Finding 2 of the v11.26 audit. Costs were computed for everyone and put
+    // on the wire for everyone: parseArchiveRow always fills unitCost and
+    // totalCost, and config.avgCost carries the running average for every
+    // material. _canSeeCosts() then hid them — IN THE BROWSER. Which is to
+    // say it hid them from the screen, not from the person: the numbers had
+    // already arrived, and one console line printed the lot.
+    //
+    // A permission enforced only by the page drawing it is not a permission.
+    // It is a preference. And this one is sold: the published feature page
+    // promises that a warehouse role does not see what things cost unless an
+    // admin turns it on. So this is not only a leak, it is a leak of the
+    // thing the customer was told they were buying.
+    //
+    // Stripped here, at the one place everything leaves the server, rather
+    // than at each of the five screens that draw a dollar sign — the same
+    // reason the user list two blocks up is built only for ADMIN. Every
+    // consumer in the front end is already behind _canSeeCosts(), so a role
+    // that could not see these numbers sees exactly what it saw before; the
+    // difference is that now it was never handed them.
+    if (!canSeeCosts_(auth)) {
+      for (var ci = 0; ci < movements.length; ci++) {
+        movements[ci].unitCost  = null;
+        movements[ci].totalCost = null;
+      }
+      if (config) config.avgCost = {};
+    }
+
+    // Found while doing the above, in the same shape and worse: loadConfig()
+    // returns the CONFIG sheet whole, and that includes `users` — every
+    // colleague's email address with their role beside it — and `adminEmail`.
+    // Both were sent to every role on every load, VIEWER included. Not hidden
+    // by a check that could be argued about: NOTHING in Index_v3_fixed.html
+    // reads either one. The real user list arrives separately, two blocks up,
+    // and only for ADMIN, which is where the app has actually read it from
+    // since USERS_V3 replaced the CONFIG column.
+    //
+    // So this is a roster of who works here, mailed out to everyone who opens
+    // the page, in service of no feature at all. It is left in place for an
+    // ADMIN, who is the one role that already receives the same list by name.
+    if (config && auth.role !== 'ADMIN') {
+      config.users = [];
+      delete config.adminEmail;
+    }
+
     return {
       serverVersion:      APP_VERSION,
       serverBuild:        APP_BUILD,
@@ -1545,7 +1625,7 @@ function getInitialData(sessionToken) {
       // the moment its name is filled in, without a round trip per line.
       materialPacks:      (function(){ try { return readPacks_(ss); } catch (e) { return {}; } })(),
       company:            publicCompany_(),
-      systemActivity:     (function(){ try { return getSystemActivity(30, _auth.email); } catch (e) { return []; } })(),
+      systemActivity:     (function(){ try { return getSystemActivity_(30, _auth.email); } catch (e) { return []; } })(),
       columnPrefs:        columnPrefs_(),
       movements:          movements,
       stock:              stock,
@@ -3782,7 +3862,25 @@ function ensureCheckinTrigger_() {
 }
 
 function dailyCheckinTrigger() {
-  try { runCheckin_(); } catch (e) { Logger.log('dailyCheckinTrigger: ' + e.message); }
+  // v11.27 — the trigger name is a public global, so it was also a door: any
+  // signed-in account with the app's URL could call it and make the install
+  // send its check-in mail on demand, as many times as they cared to click.
+  // Nothing was corrupted by that, but the owner's inbox is not a free
+  // service to strangers, and "runs as the owner" is exactly the condition
+  // requireOwnerContext_ was written to prove.
+  //
+  // The time-based trigger executes as the owner, so effective and active
+  // user are the same account and this passes. Under the web app's
+  // "Execute as: Me" deployment they never match for anyone else, so every
+  // google.script.run call from another user is refused here.
+  //
+  // The refusal is swallowed with everything else: a trigger that throws
+  // would mail the owner a failure notice every morning, which is a worse
+  // outcome than the call it just blocked.
+  try {
+    requireOwnerContext_();
+    runCheckin_();
+  } catch (e) { Logger.log('dailyCheckinTrigger: ' + e.message); }
 }
 
 function runCheckin_() {
@@ -3859,6 +3957,7 @@ function runCheckin_() {
 // and must never be sent to modifyMovement/updateDocument_.
 function loadOlderHistory(auth) {
   auth = requireAuth_();   // any registered user; unauthenticated callers are refused
+  var seeCosts = canSeeCosts_(auth);
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var history = ensureArchiveHistorySheet_(ss);
   var data    = history.getDataRange().getValues();
@@ -3868,6 +3967,14 @@ function loadOlderHistory(auth) {
     if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
     var m = parseArchiveRow(row, i + 1);
     m.archived = true;
+    // The second door for costs, and it would have been easy to miss: this
+    // returns exactly the same movement objects getInitialData does, from the
+    // other sheet, and requireAuth_() with no minimum role lets a VIEWER
+    // through. Stripping only the first load would have moved the leak to
+    // "Load older history" rather than closing it — which is why finding 2 is
+    // fixed at every place these objects leave the server, not at the first
+    // one found.
+    if (!seeCosts) { m.unitCost = null; m.totalCost = null; }
     out.push(m);
   }
   return out;
@@ -5463,7 +5570,18 @@ function dismissSystemCard(data, auth) {
   return { status: 'success', dismissed: list.length };
 }
 
-function getSystemActivity(limit, forEmail) {
+// Renamed in v11.27 — it used to be `getSystemActivity`, with no trailing
+// underscore, which made it an internet-reachable endpoint: any signed-in
+// Google account holding the app's URL could call it and read the audit sheet
+// — who saved what, and when — with no session token and no role check. It has
+// exactly one caller, getInitialData, which has already authenticated by the
+// time it gets here. So the fix is not to add a check: it is to stop being a
+// door at all. The trailing `_` is the part Apps Script itself enforces, and
+// it is the rule the header comment at the top of this file already states.
+//
+// This one stood open for months because nothing counted the doors.
+// tools/test-endpoint-auth.js counts them now.
+function getSystemActivity_(limit, forEmail) {
   var dismissed = sysDismissedSet_(forEmail);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
