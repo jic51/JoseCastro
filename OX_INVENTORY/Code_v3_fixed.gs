@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.29';
+var APP_VERSION = '11.33';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.29';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a3868fa4';
+var APP_BUILD = 'a81f5ac0';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -470,7 +470,24 @@ function saveSetupWizard(data) {
     existing[email] = true;
   });
 
-  if (data.enableBackup) { try { ensureBackupTrigger_(); } catch (e) {} }
+  // This is the ONLY line that schedules the nightly backup during setup, and it
+  // used to swallow its error whole: `catch (e) {}`. A customer who ticked "back
+  // my data up every night", and whose trigger then failed to install, was told
+  // setup had finished — and would find out months later, on the one day it
+  // matters, that no backup was ever made. Nothing else looked.
+  //
+  // Now it says so three ways, because a Logger.log in an installation nobody
+  // reads is not telling anybody: the log, a stored flag, and Check installation
+  // (which reinstalls it).
+  if (data.enableBackup) {
+    try {
+      ensureBackupTrigger_();
+      p.deleteProperty('BACKUP_TRIGGER_ERROR');
+    } catch (e) {
+      Logger.log('ensureBackupTrigger_ FAILED during setup: ' + e.message);
+      try { p.setProperty('BACKUP_TRIGGER_ERROR', String(e.message || e).slice(0, 400)); } catch (e2) {}
+    }
+  }
 
   // Con el nombre de la empresa ya definido, la carpeta maestra puede nacer con
   // el nombre correcto y la hoja mudarse a ella de una vez.
@@ -1625,7 +1642,45 @@ function getInitialData(sessionToken) {
       // the moment its name is filled in, without a round trip per line.
       materialPacks:      (function(){ try { return readPacks_(ss); } catch (e) { return {}; } })(),
       company:            publicCompany_(),
-      systemActivity:     (function(){ try { return getSystemActivity_(30, _auth.email); } catch (e) { return []; } })(),
+      // ONE UNDERSCORE. THAT IS THE WHOLE BUG, AND IT COST MONTHS.
+      //
+      // This read `_auth.email`. The variable in this scope is `auth`. There
+      // IS a `_auth` in this function — but it is declared at the bottom, in
+      // the error handler (`var _auth = getUserRole(sessionToken)`), and `var`
+      // hoists to the top of the function. So `_auth` existed here and held
+      // `undefined`, `_auth.email` threw a TypeError every single time, and
+      // the inline catch below turned that into an empty array.
+      //
+      // systemActivity was therefore [] on EVERY load, for EVERY user, since
+      // the day this line was written. Both things that read it went dark
+      // together, which is exactly what Jose reported and why he was right
+      // that they were one problem and not two:
+      //
+      //   • the corner deck never showed a card — _sysCards is built from it
+      //   • Settings → System said nothing automatic had ever run — the same
+      //     list feeds _renderSystemTab
+      //
+      // The backups were never broken. They ran nightly, wrote their row to
+      // AUDIT_LOG with actor 'system', and 27 of them are sitting in Drive.
+      // The rows simply never left the server.
+      //
+      // Nothing could have caught this from the outside. It is not a syntax
+      // error, `node --check` is happy, and tools/test-sysactivity-dismiss.js
+      // passes — because it calls getSystemActivity_ directly in a vm with its
+      // own arguments. The function was always correct. The CALL was wrong.
+      // Same lesson as the role label in v11.29: testing a function is not
+      // testing the line that uses it.
+      systemActivity:     (function(){
+        try { return getSystemActivity_(30, auth.email); }
+        catch (e) {
+          // NOT silent any more. The empty array stays — a failure to read the
+          // audit sheet must not take down the whole app load — but a failure
+          // that leaves no trace is how this one lasted. If this line is ever
+          // reached again, the reason is in the execution log.
+          Logger.log('getInitialData: systemActivity failed — ' + e.message);
+          return [];
+        }
+      })(),
       columnPrefs:        columnPrefs_(),
       movements:          movements,
       stock:              stock,
@@ -7194,8 +7249,56 @@ function menuCheckInstallation() {
     if (hasAdmin) { p.setProperty('SETUP_COMPLETE', 'true'); repaired.push('SETUP_COMPLETE — you already have an admin, so setup is done'); }
   }
 
+  // ── The scheduled jobs ────────────────────────────────────────────────────
+  // This whole check did not exist. It looked at Script Properties and folders
+  // and never once asked whether the app's three scheduled jobs were installed
+  // — including the nightly backup, whose only installer swallowed its own
+  // error during setup. A customer could have "back up every night" ticked, no
+  // trigger, and nothing anywhere would say so until the day they needed it.
+  //
+  // Same shape as the property repairs above: report what is there, reinstall
+  // what is missing, say what was reinstalled.
+  var wantTriggers = [
+    { fn: 'dailyBackupTrigger',        install: ensureBackupTrigger_,
+      what: 'Nightly backup of your data (2 AM)' },
+    { fn: 'archiveOldMovementsTrigger', install: ensureArchiveTrigger_,
+      what: 'Moves old movements to the archive (3 AM)' },
+    { fn: 'dailyCheckinTrigger',       install: ensureCheckinTrigger_,
+      what: 'Private check-in to your support address' }
+  ];
+  var triggerNotes = [];
+  try {
+    var installed = {};
+    ScriptApp.getProjectTriggers().forEach(function (t) { installed[t.getHandlerFunction()] = true; });
+    wantTriggers.forEach(function (w) {
+      if (installed[w.fn]) return;
+      try {
+        w.install();
+        repaired.push(w.what + ' — was not scheduled, reinstalled now');
+        if (w.fn === 'dailyBackupTrigger') p.deleteProperty('BACKUP_TRIGGER_ERROR');
+      } catch (e) {
+        triggerNotes.push('  • ' + w.what + '\n      Could not be scheduled: ' + e.message);
+      }
+    });
+  } catch (e) {
+    // Reading the trigger list needs an authorization the menu normally has. If
+    // it is refused, say so rather than reporting all three as fine.
+    triggerNotes.push('  • Could not read the scheduled jobs: ' + e.message);
+  }
+  // A failure recorded during setup outlives the run that caused it, so it is
+  // reported here even when the trigger is present today.
+  var backupErr = String(p.getProperty('BACKUP_TRIGGER_ERROR') || '').trim();
+  if (backupErr) {
+    triggerNotes.push('  • The nightly backup failed to schedule during setup:\n      ' + backupErr);
+  }
+
   var lines = [];
   if (repaired.length) lines.push('REPAIRED AUTOMATICALLY\n  • ' + repaired.join('\n  • ') + '\n');
+  if (triggerNotes.length) {
+    lines.push('SCHEDULED JOBS THAT NEED ATTENTION');
+    triggerNotes.forEach(function (n) { lines.push(n); });
+    lines.push('');
+  }
 
   var stillMissing = missing.filter(function (g) {
     return !(repaired.join(' ').indexOf(g.key) !== -1);

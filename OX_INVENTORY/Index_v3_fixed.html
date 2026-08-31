@@ -1550,9 +1550,14 @@
     .bk-list a:hover{text-decoration:underline}
     .bk-when{color:var(--muted);font-size:.72rem;flex:none}
     /* Lands you on the exact entry you clicked through from. */
-    @keyframes spotlight{0%{background:var(--yellow-bg)}100%{background:transparent}}
+    /* HOLDS, THEN FADES — it used to fade from the very first frame, so by the
+       time you had scrolled to the third of eight marked rows the colour was
+       already gone. Now it stays solid for the first 70% of its life and only
+       fades at the end, and the LENGTH is set from JS (--spot-ms) according to
+       how many rows were marked: reading eight takes longer than reading one. */
+    @keyframes spotlight{0%,70%{background:var(--yellow-bg)}100%{background:transparent}}
     .sysact-spot{animation:spotlight 6s ease-out both;border-radius:8px}
-    tr.row-spotlight td{animation:spotlight 6s ease-out both}
+    tr.row-spotlight td{animation:spotlight var(--spot-ms,6s) ease-out both}
     .cfg-new-hint{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.3rem;font-size:.72rem;color:var(--muted)}
     .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem .5rem;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-new-add:hover{filter:brightness(1.1)}
@@ -2977,7 +2982,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.29';
+var APP_VERSION = '11.33';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2989,7 +2994,7 @@ var APP_VERSION = '11.29';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a3868fa4';
+var APP_BUILD = 'a81f5ac0';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4895,7 +4900,23 @@ function exitSelectedStock(){
   if (!mats.length) return;
 
   openMoveModal('EXIT'); // synchronous — modal + multi-exit section are ready after this returns
+  _fillExitLinesFrom(mats);
+  // The selection USED to be cleared right here, and that is what made Jose's
+  // bug permanent. Switching EXIT → TRANSFER keeps only the first material (see
+  // _readMoveMaterial), which is deliberate — but with the selection already
+  // destroyed, switching BACK to EXIT could not restore the other four either.
+  // They were gone for good, from a form he had not saved.
+  //
+  // It is released in closeModal('moveOverlay') instead, so it lives exactly as
+  // long as the form it belongs to.
+}
 
+// The line-filling half, on its own so the type bar can rebuild the EXIT lines
+// WITHOUT reopening the modal. Calling exitSelectedStock() from there would run
+// openMoveModal() a second time and wipe the date, the comments and everything
+// else already typed — fixing the material list by throwing away the rest of the
+// form is not a fix.
+function _fillExitLinesFrom(mats){
   var container = document.getElementById('multiExitContainer');
   if (container) container.innerHTML = '';
   _exitMatLineIdx = 0;
@@ -4909,7 +4930,23 @@ function exitSelectedStock(){
     autoFillExitMatRows(n);
   });
   updateMultiExitTotal();
-  clearStockSelection();
+}
+
+// The materials the dashboard handed to this form, still selected. Used to
+// rebuild every line when the type goes back to one that holds several.
+function _liveStockSelection(){
+  return Object.values(_stockSelection || {});
+}
+
+// How many material lines the form is holding RIGHT NOW. ENTRY and EXIT keep one
+// line per material; every other screen has room for exactly one.
+function _countMoveMaterialLines(){
+  if (currentMoveType === 'ENTRY')
+    return document.querySelectorAll('#multiMatContainer .mat-line').length;
+  if (currentMoveType === 'EXIT')
+    return document.querySelectorAll('#multiExitContainer .exit-mat-line').length;
+  var el = document.getElementById('mName');
+  return (el && String(el.value || '').trim()) ? 1 : 0;
 }
 
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
@@ -8330,20 +8367,42 @@ function _sysActId(a){ return String(a.at || '') + '|' + String(a.action || '');
 // Opens Settings on the System tab and lights up the entry the card came from,
 // so "what did it actually do?" is one click rather than a hunt through the
 // audit sheet.
+// The entry to light up once the System tab has actually painted. Set here,
+// consumed by _renderSystemTab, cleared on use.
+//
+// v11.31 — THIS USED TO BE A 350ms setTimeout, AND IT LOST THE RACE ALMOST
+// EVERY TIME. openSettingsModal() calls _loadSettings(), which is a
+// google.script.run round trip to Apps Script — half a second on a good day,
+// several on a normal one. The System tab cannot exist until that returns. So
+// the lookup ran against a tab that was not there yet, found nothing, and hit
+// `if (!el) return;` — giving up in silence. Jose's report was exact: it opens
+// Settings and then nothing is marked, with no explanation.
+//
+// Guessing a bigger number would only make the race longer, not winnable. So
+// there is no timer any more: the id is remembered, and the render applies it
+// when the render happens. Correct whether the server takes 50ms or 5s.
+var _sysActSpotWanted = null;
+
 function _openSystemActivity(id){
   if (userRole !== 'ADMIN'){
     showToast('Ask an admin to look this up in Settings → System.', 'info', 5000);
     return;
   }
+  _sysActSpotWanted = id;
   _settingsTab = 'system';
   openSettingsModal();
-  setTimeout(function(){
-    var el = document.getElementById('sysact-' + id);
-    if (!el) return;
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    el.classList.add('sysact-spot');
-    setTimeout(function(){ el.classList.remove('sysact-spot'); }, 6000);
-  }, 350);
+}
+
+// Called by _renderSystemTab the moment the list exists in the DOM.
+function _applySysActSpot(){
+  var id = _sysActSpotWanted;
+  _sysActSpotWanted = null;
+  if (!id) return;
+  var el = document.getElementById('sysact-' + id);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('sysact-spot');
+  setTimeout(function(){ el.classList.remove('sysact-spot'); }, 6000);
 }
 
 // "Corrected automatically" is only reassuring if you can go and look. A backup
@@ -8364,8 +8423,19 @@ function _sysActRefHtml(a){
 }
 
 // Takes you to the movements it is talking about: closes Settings, switches to
-// Movements & History, and marks the rows. An archived row is not in the loaded
-// window, so it says so rather than silently doing nothing.
+// Movements & History, and marks the rows.
+//
+// v11.31 — WHEN THE ROWS ARE ARCHIVED, IT FETCHES THEM. It used to say
+// "Those rows are in the archived history — use Load Older History to see
+// them" and stop there. True, and useless: the app knew exactly which rows
+// were missing and knew how to get them, and instead asked the person to go
+// press a different button and start over. Jose hit it on the first click he
+// made — a re-link from April, and the archive cutoff is six months, so every
+// row it named was on the other sheet.
+//
+// The retry runs once. If the rows are still not there after the archive is
+// loaded, that is a different problem and it says so plainly rather than
+// looping.
 function _showMovementRows(csv){
   var want = {};
   String(csv).split(',').forEach(function(n){ want[String(n).trim()] = 1; });
@@ -8375,19 +8445,78 @@ function _showMovementRows(csv){
   if (search) search.value = '';
   _movPage = 1;
   renderMovements();
-  setTimeout(function(){
-    var found = 0;
-    document.querySelectorAll('#tableContainer tbody tr').forEach(function(tr, i){
-      var idx = _movRowIndexAt(i);
-      if (idx && want[String(idx)]){
-        tr.classList.add('row-spotlight');
-        if (!found) tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        found++;
-        setTimeout(function(){ tr.classList.remove('row-spotlight'); }, 6000);
-      }
+  setTimeout(function(){ _spotMovementRows(want, true); }, 60);
+}
+
+// Marks whatever of `want` is on screen. `mayFetch` is true only on the first
+// pass, so the archive is loaded at most once per click.
+// How long a highlight stays up. Jose: one or two rows read fine in six
+// seconds, but a re-link card can name eight or ninety — and by the time you
+// have scrolled to the third the colour is gone. So the time is a function of
+// how much there is to read, not a constant: six seconds for the first, two
+// and a half for each one after, capped at half a minute so a ninety-row card
+// does not leave the table yellow for an afternoon.
+function _spotMs(n){
+  return Math.min(6000 + Math.max(0, n - 1) * 2500, 30000);
+}
+
+function _spotMovementRows(want, mayFetch){
+  // Collected first, marked second. The duration depends on HOW MANY matched,
+  // which is not known until the sweep is finished — marking as we went is
+  // what forced the old fixed 6s.
+  var hits = [];
+  document.querySelectorAll('#tableContainer tbody tr').forEach(function(tr, i){
+    var idx = _movRowIndexAt(i);
+    if (idx && want[String(idx)]) hits.push(tr);
+  });
+
+  var found = hits.length;
+  if (found){
+    var ms = _spotMs(found);
+    hits.forEach(function(tr){
+      tr.style.setProperty('--spot-ms', ms + 'ms');
+      tr.classList.add('row-spotlight');
+      setTimeout(function(){
+        tr.classList.remove('row-spotlight');
+        tr.style.removeProperty('--spot-ms');
+      }, ms);
     });
-    if (!found) showToast('Those rows are in the archived history — use "Load Older History" to see them.', 'warn', 6000);
-  }, 60);
+    hits[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // With more than a handful there is no way to see them all at once, so say
+    // how many are marked rather than leaving the person to count highlights
+    // while they scroll.
+    if (found > 3){
+      showToast(found + ' movements are highlighted — scroll to see them all. ' +
+                'They stay marked for ' + Math.round(ms / 1000) + ' seconds.', 'info', 6000);
+    }
+    return;
+  }
+
+  if (mayFetch && !_oldHistoryLoaded){
+    showToast('Those rows are older than your archive cutoff — fetching them…', 'info', 4000);
+    var btn = document.getElementById('btnLoadOlderHistory');
+    if (btn) _btnBusy(btn, 'Loading…');
+    google.script.run
+      .withSuccessHandler(function(rows){
+        oldMovements     = rows || [];
+        _oldHistoryLoaded = true;
+        if (btn){ btn.disabled = false; btn.textContent = '📜 Older History (' + oldMovements.length + ')'; }
+        _movPage = 1;
+        renderMovements();
+        setTimeout(function(){ _spotMovementRows(want, false); }, 60);
+      })
+      .withFailureHandler(function(e){
+        if (btn){ btn.disabled = false; btn.textContent = '📜 Load Older History'; }
+        showToast('Could not load the archived history: ' + (e.message || e), 'err', 6000);
+      })
+      .processMovement('loadOlderHistory', _h({}));
+    return;
+  }
+
+  // Archive already loaded and still nothing — the rows were renumbered or
+  // removed. Say that, rather than repeating advice that has been followed.
+  showToast('Those rows are no longer in the history — they may have been ' +
+            'renumbered by a later edit.', 'warn', 7000);
 }
 
 // The row index the table painted at this position, read back from the data it
@@ -8478,6 +8607,11 @@ function _renderSystemTab() {
         '<button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>' +
       '</div>' +
     '</div>';
+
+  // The list exists in the DOM as of the line above, so this is the earliest
+  // moment the spotlight can land — and the only one that does not depend on
+  // how long the server took. See _openSystemActivity.
+  _applySysActSpot();
 
   _loadBackupStatus();
   _loadSpaceUsage();
@@ -10806,6 +10940,12 @@ function closeModal(id){
   _btnReset(document.getElementById('attachSubmit'));
   // Reset attach builder when the attach modal closes
   if (id === 'attachOverlay') resetAttachDocBuilder();
+  // The dashboard selection belongs to the form that was opened from it, and it
+  // is released HERE rather than in each of the five places that close this
+  // modal — a sixth one added later inherits this instead of forgetting it.
+  // That is the same reasoning as _btnReset two lines up, and the same mistake
+  // this file has made before: behaviour spread over every call site drifts.
+  if (id === 'moveOverlay') clearStockSelection();
 }
 
 // Clicking the dark backdrop NO LONGER closes the modal (it was closing forms by
@@ -12476,11 +12616,34 @@ function _focusMoveName(){
 
 function _moveTypeBarClick(type){
   var carried = _readMoveMaterial();
+  var before  = _countMoveMaterialLines();
   setModalType(type);
   if (_rdwPrefillActive) {
     _prefillMoveModalMaterial(type, _rdwPrefillActive.category, _rdwPrefillActive.name, _rdwPrefillActive.rack);
   } else {
-    _applyMoveMaterial(carried);
+    // Coming back to EXIT with the dashboard selection still alive, rebuild
+    // every line instead of the one _readMoveMaterial could carry. Without
+    // this, a look at TRANSFER and back costs the other materials — and the
+    // person who lost them did nothing but click a tab.
+    var sel = _liveStockSelection();
+    if (type === 'EXIT' && sel.length > 1){
+      _fillExitLinesFrom(sel);
+    } else {
+      _applyMoveMaterial(carried);
+    }
+  }
+  var after = _countMoveMaterialLines();
+  // Say what was dropped. The form has ALWAYS dropped these — TRANSFER, RETURN
+  // and WASTE hold one material and carrying three into a form with room for
+  // one is not possible. What it did not do is admit it, so Jose lost four
+  // materials and only found out by reasoning about it afterwards. Until those
+  // screens hold several (the movement-model redesign in docs/BACKLOG.md), the
+  // least this can do is not pretend.
+  if (before > after){
+    var lost = before - after;
+    showToast(lost + ' material' + (lost !== 1 ? 's were' : ' was') +
+      ' not carried over — ' + type + ' holds one at a time. ' +
+      'Switch back to Exit to get them back.', 'warn', 7000);
   }
   _focusMoveName();
 }
