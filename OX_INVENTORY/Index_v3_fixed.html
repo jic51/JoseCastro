@@ -1054,7 +1054,18 @@
     .inc-group-note{font-size:.7rem;color:var(--muted);margin-left:.6rem;font-weight:400}
     .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700;text-decoration:line-through}
     /* ── MORNING POPUP ── */
-    .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+    /* z-index 540 IS THE WHOLE FIX, and the number is not arbitrary.
+       It was 2000 — tied with the setup wizard and 1450 above every modal in
+       the app (.overlay is 550). So pressing "Mark arrived" inside this popup
+       opened Edit Expected Material BEHIND it, and the window shield, which
+       treats the highest open overlay as the front window, then made that
+       modal inert. Nothing could be touched but closing the popup.
+       This popup only ever OPENS modals; no modal opens it. The relationship
+       runs one way, so it belongs underneath: 540 sits above the page and the
+       top bar (500) and below every window it can launch (550, 1100, 1200,
+       2000). The shield needs no change — it was reading the stack correctly;
+       the stack was wrong. */
+    .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:540;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
     .morning-overlay.show{opacity:1;pointer-events:all}
     .morning-popup{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:520px;width:95%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(24px);transition:transform .25s}
     .morning-overlay.show .morning-popup{transform:translateY(0)}
@@ -2966,7 +2977,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.28';
+var APP_VERSION = '11.29';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2978,7 +2989,7 @@ var APP_VERSION = '11.28';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '97ecb576';
+var APP_BUILD = 'a3868fa4';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14652,8 +14663,22 @@ function _refreshOpenRackDrawer(){
 
 // Pushes the admin's custom WAREHOUSE-role label into the one place it's baked
 // into static HTML (the Add/Edit User role dropdown) rather than built by JS.
-// Everywhere else (badges, account tag) reads the `warehouseRoleLabel` global
-// directly at render time via _displayRole(), so nothing else needs patching.
+//
+// This paragraph used to end "Everywhere else (badges, account tag) reads the
+// `warehouseRoleLabel` global directly at render time via _displayRole(), so
+// nothing else needs patching." That was not true, and it stayed untrue for
+// four versions because it READ true: renderActiveUsers printed the raw role,
+// so Jose's own account panel showed SUPERVISOR on the profile card and
+// WAREHOUSE in the Active Users row directly beneath it.
+//
+// A comment asserting completeness is the same shape of mistake as the header
+// list of public entry points that went five names stale (v11.27): a sentence
+// cannot fail a build. tools/test-role-label.js now counts the render paths,
+// which can.
+//
+// The setup wizard's own row builder (_wizDrawUsers) still says "Warehouse"
+// literally, and that is deliberate — it runs before setup finishes, when
+// there is no custom label to use yet and the global still holds its default.
 function _applyWarehouseRoleLabel(){
   var opt = document.querySelector('#uRole option[value="WAREHOUSE"]');
   if (opt) opt.textContent = warehouseRoleLabel + ' — Record movements';
@@ -15523,7 +15548,12 @@ function renderActiveUsers(users){
       '<span class="presence-email ' + (isYou ? 'presence-you' : '') + '" title="' + _he(u.email) + '">' +
         _he(display) + (isYou ? ' (you)' : '') +
       '</span>' +
-      '<span class="presence-role">' + _he(u.role || '—') + '</span>' +
+      // v11.29 — this said WAREHOUSE while the profile card two lines above it
+      // said SUPERVISOR, for the same person, in the same panel. An admin who
+      // renames the role expects the app to use the name everywhere; using it
+      // in one place and not the neighbouring one reads worse than not
+      // offering the rename at all.
+      '<span class="presence-role">' + _he(u.role ? _displayRole(u.role) : '—') + '</span>' +
       '<span class="presence-time">' + ageStr + '</span>' +
       '</div>';
   }).join('');
