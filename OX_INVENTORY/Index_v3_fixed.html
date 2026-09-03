@@ -1061,11 +1061,51 @@
     .alert-banner-actions button:hover{background:rgba(0,0,0,.28)}
     /* ── INCOMING SECTION ── */
     .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem}
-    .incoming-week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem;padding:1rem 1.25rem}
-    .day-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .9rem}
+    /* Jose lo dibujó encima de una captura: CUATRO arriba y TRES abajo, y las
+       tarjetas "estables, como en Google Calendar, son siempre del mismo
+       tamaño, pero al hacer scroll se pueden ver los que están más abajo".
+
+       Antes era repeat(auto-fill,minmax(200px,1fr)): el número de columnas lo
+       decidía el ancho de la ventana, así que la semana se partía donde cayera
+       —en su captura, seis arriba y el miércoles solo en una segunda fila— y
+       cada tarjeta crecía con su contenido. El día con dos entregas era el
+       doble de alto que los vacíos, y la fila de abajo empezaba a una altura
+       distinta según el día. Una semana que cambia de forma según lo que haya
+       dentro no se puede leer de un vistazo, que es lo único para lo que
+       sirve esta vista.
+
+       Cuatro columnas fijas dan 4 + 3, que es exactamente el reparto de una
+       semana de siete días sin dejar huecos raros. Y la altura fija es lo que
+       hace que la segunda fila empiece siempre en el mismo sitio. */
+    .incoming-week-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;padding:1rem 1.25rem}
+    /* La altura de la tarjeta y el scroll de dentro son la misma decisión: sin
+       altura fija no hay nada que desbordar, y sin desbordar no hay scroll. */
+    .day-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+      padding:.65rem .9rem;height:14rem;display:flex;flex-direction:column;overflow:hidden}
     .day-card.today{border-color:var(--accent);background:#EFF6FF}
-    .day-card .day-label{font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+    /* El día NO se va con el scroll: es lo que te dice qué estás mirando. */
+    .day-card .day-label{font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);
+      margin-bottom:.35rem;flex:none}
     .day-card.today .day-label{color:var(--accent2)}
+    /* min-height:0 no es adorno: sin él un hijo flex se niega a encogerse por
+       debajo de su contenido, la tarjeta crece igual y el overflow nunca llega
+       a existir. Es el motivo habitual de que "puse overflow y no hace nada". */
+    .day-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+    /* Que se vea que hay más abajo. Una tarjeta cortada sin señal se lee como
+       una tarjeta vacía a partir de ahí. */
+    .day-body::-webkit-scrollbar{width:6px}
+    .day-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .day-card:hover .day-body::-webkit-scrollbar-thumb{background:var(--muted)}
+    /* Cuatro columnas necesitan sitio. Por debajo se reparte en dos y luego en
+       una, y ahí la altura fija estorba más que ayuda: en el móvil se lee un
+       día tras otro, no la semana de un vistazo. */
+    @media (max-width:1000px){
+      .incoming-week-grid{grid-template-columns:repeat(2,1fr)}
+    }
+    @media (max-width:600px){
+      .incoming-week-grid{grid-template-columns:1fr}
+      .day-card{height:auto;max-height:16rem}
+    }
     .day-empty{color:var(--muted);font-size:.78rem;font-style:italic}
     /* ── One expected delivery ──
        Jose's second sketch, the one with the arrows: the category full width on
@@ -3058,7 +3098,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.40';
+var APP_VERSION = '11.41';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3070,7 +3110,7 @@ var APP_VERSION = '11.40';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'f2b570ad';
+var APP_BUILD = 'fd520442';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -13673,7 +13713,11 @@ function renderIncomingWeekGrid() {
       : '<div class="day-empty">Nothing scheduled</div>';
     return '<div class="day-card' + (isToday ? ' today' : '') + '">' +
       '<div class="day-label">' + day.label + ' <small style="font-weight:400;opacity:.7">' + day.date.substring(5) + '</small></div>' +
-      content +
+      // Las entregas van dentro de su propio contenedor porque es ESE el que
+      // hace scroll. Meterlas sueltas en la tarjeta haría scrollear también la
+      // etiqueta del día, y perder de vista qué día estás mirando es justo lo
+      // que no puede pasar en una vista de semana.
+      '<div class="day-body">' + content + '</div>' +
     '</div>';
   }).join('');
 }
