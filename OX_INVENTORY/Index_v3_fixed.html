@@ -1076,8 +1076,24 @@
        que la primera versión de esto pintó un borde de ningún color y una
        etiqueta que heredaba el color del texto. Un var() que no existe no
        falla, se ignora — que es por lo que un color inventado se despliega
-       tan bien como uno real hasta que alguien lo mira. */
-    .todo-card{border-left:3px solid var(--yellow)}
+       tan bien como uno real hasta que alguien lo mira.
+
+       Y LE FALTABA EL FONDO, que es el otro fallo que Jose fotografió: la
+       tarjeta se veía translúcida SIEMPRE, con la tabla de abajo leyéndose a
+       través del texto. Sólo declaraba el borde izquierdo, así que heredaba
+       del montón el fondo de reposo y nunca lo recuperaba.
+
+       El patrón correcto es el de .sys-card, dos reglas: opaca por defecto, y
+       fantasma ÚNICAMENTE mientras la pila está en reposo y cerrada. Así se
+       desdibuja para no competir con la app, y en cuanto se abre o se pasa el
+       ratón vuelve a ser papel blanco que se puede leer. Del tamaño de las del
+       sistema, como pidió, y algo más alta porque lleva dos botones. */
+    .todo-card{--card-h:136px;--card-w:352px;
+      background:var(--card);color:var(--text);
+      border:1px solid var(--border);border-left:4px solid var(--yellow)}
+    .deck.dim:not(.open) .todo-card{background:var(--card-ghost);
+      border-color:rgba(0,0,0,.06);border-left-color:var(--border);
+      box-shadow:0 2px 10px rgba(0,0,0,.08)}
     .todo-card-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;
       letter-spacing:.04em;color:var(--yellow);margin-bottom:.15rem}
     .todo-card-val{font-weight:700;font-size:.86rem;line-height:1.25;
@@ -3142,7 +3158,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.42';
+var APP_VERSION = '11.43';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3154,7 +3170,7 @@ var APP_VERSION = '11.42';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'b91c13df';
+var APP_BUILD = '2e39e1ef';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7435,7 +7451,7 @@ function _checkIncomingSuggest(n, inputEl){
   var today = _isoDate(new Date());
   // Match incoming items arriving today/recently (within 3 days) that are not yet Received
   var incMatches = (incoming || []).filter(function(item){
-    return (item.status || '').toLowerCase() !== 'received' &&
+    return _incStillPending(item) &&
            item.name && item.name.toLowerCase().indexOf(typed) !== -1 &&
            (!item.estDate || item.estDate >= today);   // today, later, or not yet dated
   }).slice(0, 6);
@@ -14602,10 +14618,9 @@ function checkMorningPopup() {
   // Respect "don't show again today" if user clicked it
   if (localStorage.getItem('oxwms_popup_noshow_' + todayStr)) return;
 
-  // Only show if there are pending deliveries today (status ≠ 'Received')
+  // Sólo se abre si queda algo por atender hoy.
   var todayPending = incoming.filter(function(item) {
-    return _incOnDay(item, todayStr) &&
-           (item.status || '').toLowerCase() !== 'received';
+    return _incOnDay(item, todayStr) && _incStillPending(item);
   });
 
   if (!todayPending.length) return; // nothing pending today → skip
@@ -14618,6 +14633,42 @@ function checkMorningPopup() {
 // so the button that reopens the popup and the refresh after a save both ask
 // the same question — three copies of "which week is it" is three chances to
 // disagree about Sunday.
+/* ¿Esta entrega sigue esperando a alguien?
+ *
+ * TRES SITIOS PREGUNTABAN ESTO Y LOS TRES PREGUNTABAN MAL. Comparaban el estado
+ * contra 'received' — un valor que la app NUNCA produce. El menú ofrece
+ * Pending, Arrived y Cancelled, y el servidor lo dice sin ambigüedad:
+ * INCOMING_STATUSES = ['Pending', 'Arrived', 'Cancelled'].
+ *
+ * O sea que esos tres filtros no descartaron nada nunca. La consecuencia
+ * visible es la que Jose fotografió: marcas la entrega como llegada, registras
+ * su entrada, y el aviso de la mañana sigue enseñándotela como si no hubiera
+ * pasado — porque para él nunca pasó nada.
+ *
+ * Es la misma clase de fallo que el comentario que decía una cosa mientras el
+ * código hacía otra: alguien escribió 'received' pensando en el estado que la
+ * app iba a tener, el estado acabó llamándose 'Arrived', y la comparación se
+ * quedó ahí, verde y muerta.
+ *
+ * Una función, tres llamadas. La cuarta que haga falta la hereda.
+ */
+function _incStillPending(item){
+  var st = String((item && item.status) || 'Pending').toLowerCase().trim();
+  // Cancelled tampoco espera a nadie: recordarle a alguien una entrega que él
+  // mismo canceló es ruido, y del que hace que se deje de mirar el aviso.
+  //
+  // Y 'received' SIGUE RECONOCIÉNDOSE, que es lo contrario de lo que parece
+  // después de todo lo anterior. El servidor normaliza al ESCRIBIR —cualquier
+  // cosa que no sea uno de los tres cae a Pending— pero al LEER devuelve la
+  // celda tal cual: `status: String(row[9] || 'Pending')`. Una fila editada a
+  // mano en la hoja, o anterior al normalizador, puede decir "Received" de
+  // verdad. Tratarla como pendiente la dejaría para siempre en el aviso de la
+  // mañana, que es el fallo que se está arreglando, sólo que por el otro lado.
+  //
+  // Lo que estaba mal no era reconocer 'received'. Era reconocer SÓLO 'received'.
+  return st !== 'arrived' && st !== 'cancelled' && st !== 'received';
+}
+
 function _thisWeeksDeliveries(todayStr){
   var today     = new Date(todayStr + 'T12:00:00');
   var endOfWeek = new Date(today);
@@ -14626,7 +14677,7 @@ function _thisWeeksDeliveries(todayStr){
   // A window counts if any part of it falls in what is left of the week, not
   // only if it starts there.
   return incoming.filter(function(item) {
-    if ((item.status || '').toLowerCase() === 'received') return false;
+    if (!_incStillPending(item)) return false;
     if (!item.estDate) return false;                       // no date — not part of a week's plan
     var from = item.estDate;
     var to   = (item.dateMode === 'window' && item.estDateEnd) ? item.estDateEnd : item.estDate;
@@ -14654,7 +14705,24 @@ function _refreshMorningPopup(){
   var ov = document.getElementById('morningOverlay');
   if (!ov || !ov.classList.contains('show')) return;
   var todayStr = _isoDate(new Date());
-  showMorningPopup(_thisWeeksDeliveries(todayStr), todayStr);
+  var quedan = _thisWeeksDeliveries(todayStr);
+
+  /* Jose: "si hay solo un material y ya fue aceptado, la ventana desaparece; si
+     hay más de uno, la ventana no desaparece, sólo desaparece si ya todos los
+     materiales fueron recibidos."
+
+     Que son la misma regla dicha desde los dos lados: se cierra cuando no queda
+     nada por atender. Uno o cinco da igual — lo que decide es la lista vacía,
+     no cuántos había al empezar. Escribirlo como "si había uno…" habría metido
+     un contador que se puede desincronizar; esto no tiene nada que contar.
+
+     Y sin _incStillPending arreglado esto no habría servido de nada: la lista
+     nunca se vaciaba, porque el filtro descartaba un estado que no existe. */
+  if (!quedan.length){
+    ov.classList.remove('show');
+    return;
+  }
+  showMorningPopup(quedan, todayStr);
 }
 
 function showMorningPopup(items, todayStr) {
