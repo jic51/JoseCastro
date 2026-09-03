@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.39';
+var APP_VERSION = '11.40';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.39';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'ae5491e2';
+var APP_BUILD = 'f2b570ad';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -6689,7 +6689,7 @@ var LEGAL_SHEET_TEXT = {
     ["li","•   If the fault is ours: if a defect makes the software unusable for its"],
     ["p","  purpose and we have not fixed it within 30 days of you reporting it, the current period is refunded in full whatever the dates say. You should not pay for a month in which it did not work."],
     ["p",""],
-    ["p","Refunds are issued by the method you paid with, within 10 business days of being agreed."],
+    ["p","Refunds are issued by the method you paid with, **within 5 to 10 business days** of being agreed."],
     ["p",""],
     ["sub","Add-ons"],
     ["p",""],
@@ -6717,11 +6717,21 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["p","1. Stripe retries the charge automatically over the following days and emails you each time. This is usually the end of it. 2. Day 10 after the first failed charge — if it is still unpaid, we email you personally, so it does not come down to you noticing a receipt that never arrived. 3. Day 30 — if it is still unpaid, support and new versions pause until the account is settled. You keep using the software and you keep every bit of your data. 4. We never withhold your data to get paid. It is not ours to withhold, and export stays available whatever the state of your account."],
     ["p",""],
-    ["p","Settle the account and support and updates resume immediately, with no reconnection fee."],
+    ["p","Settle the account and support and updates resume immediately. What that costs depends only on how long the account was unpaid — see the next section."],
     ["p",""],
-    ["sub","Coming back after leaving"],
+    ["sub","Coming back after a pause, or after leaving"],
     ["p",""],
-    ["p","If you cancel and later want to return, you are treated as a new customer: current prices, and any promotional or founding rate you previously had does not come back. That includes the setup fee if the installation has to be done again."],
+    ["p","Support and updates can be paused for two reasons: an unpaid account, or you cancelling. What it takes to start again is the same either way, and it depends on one thing only — how long you were away:"],
+    ["p",""],
+    ["li","•   Up to 2 months away — you pay the months you owe. Nothing extra."],
+    ["li","•   More than 2 months away — the months you owe, plus $150 to bring the installation up to date."],
+    ["li","•   More than 12 months away — treated as a new installation, at current prices."],
+    ["p",""],
+    ["p","The $150 is not a penalty for leaving. While an account is paused you stop receiving the fixes and new versions everyone else gets, so an installation that has been paused for months has to be brought forward before it is supportable again — and that is real work. Under two months there is normally none of it, which is why there is no charge."],
+    ["p",""],
+    ["p","No promotional or founding rate comes back with you, in any of the three cases."],
+    ["p",""],
+    ["p","Nothing about your data changes while an account is paused. The software keeps running in your own Google account, your records stay yours, and export stays available. See section 5."],
     ["p",""],
     ["head","10. Termination"],
     ["p",""],

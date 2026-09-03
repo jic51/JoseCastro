@@ -3058,7 +3058,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.39';
+var APP_VERSION = '11.40';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3070,7 +3070,7 @@ var APP_VERSION = '11.39';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'ae5491e2';
+var APP_BUILD = 'f2b570ad';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -15779,6 +15779,9 @@ setInterval(function(){
 }, 60000);
 
 // ── Privacy Policy / Terms of Service ────────────────────────────────────────
+/* ─── BEGIN GENERATED LEGAL HTML — node tools/sync-legal.js ─── */
+// Source of truth: legal/TERMS-OF-SERVICE.md and legal/PRIVACY-POLICY.md.
+// DO NOT EDIT THIS BLOCK BY HAND — edit the .md and re-run the generator.
 var LEGAL_DOCS = {
   privacy: { title: 'Privacy Policy',   html: `<p><strong>Last updated:</strong> 27 August 2026</p>
 <p>Acopio is warehouse-management software provided by Jose Castro ("we", "us"). This policy explains what happens to data when you use it.</p>
@@ -15798,15 +15801,7 @@ var LEGAL_DOCS = {
 <p>Your data is governed by <strong>your</strong> agreement with Google (Google Workspace Terms or the Google Terms of Service, as applicable to your account).</p>
 <h3>2. What the software accesses, and why</h3>
 <p>When you first install Acopio, Google asks you to authorise it. Each permission exists for a specific feature:</p>
-<table class="lg-table"><tr><th>Permission</th><th>Why it is needed</th></tr>
-<tr><td>See, edit and delete your Google Drive files</td><td>Store the photos and documents you attach to movements, and create nightly backup copies of your spreadsheet.</td></tr>
-<tr><td>View and manage the spreadsheet this app is installed in</td><td>The spreadsheet is the application's database.</td></tr>
-<tr><td>Send email as you</td><td>Delivery notifications to your project managers, and system alerts to your administrator. <strong>It cannot read your email.</strong></td></tr>
-<tr><td>Create and edit Google Docs</td><td>Assemble multiple photos into a single PDF document.</td></tr>
-<tr><td>Connect to an external service</td><td>Version checks and, if you enable it, the optional AI document-reading add-on.</td></tr>
-<tr><td>Run when you are not present</td><td>The nightly automatic backup.</td></tr>
-<tr><td>See your primary email address and basic profile</td><td>Identify who is signed in, so the app knows which permissions to apply.</td></tr>
-</table>
+<p>| Permission | Why it is needed | |---|---| | See, edit and delete your Google Drive files | Store the photos and documents you attach to movements, and create nightly backup copies of your spreadsheet. | | View and manage the spreadsheet this app is installed in | The spreadsheet is the application's database. | | Send email as you | Delivery notifications to your project managers, and system alerts to your administrator. <strong>It cannot read your email.</strong> | | Create and edit Google Docs | Assemble multiple photos into a single PDF document. | | Connect to an external service | Version checks and, if you enable it, the optional AI document-reading add-on. | | Run when you are not present | The nightly automatic backup. | | See your primary email address and basic profile | Identify who is signed in, so the app knows which permissions to apply. |</p>
 <p>Two notes on scope:</p>
 <ul>
 <li><strong>Full Gmail access is NOT part of the base product.</strong> It is required only by the optional paid Gmail delivery-scanner add-on. If you have not bought that add-on, Acopio never requests it and cannot read your mail.</li>
@@ -15814,14 +15809,10 @@ var LEGAL_DOCS = {
 </ul>
 <h3>3. What we collect</h3>
 <p><strong>We never receive your inventory data.</strong> Four things can send us something else, and they are listed here in full.</p>
-<ul>
-<li><strong>"Report a problem" (the 🐞 button).</strong> When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see.</li>
-<li><strong>Support you initiate.</strong> If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards.</li>
-<li><strong>The setup check-in — the one thing that sends without you asking.</strong> If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup <strong>when no inventory movement has been recorded at all</strong>. It is there so a customer who got stuck during setup hears from us instead of quietly giving up.
-<br><br>That email contains exactly four things: <strong>your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.</strong> Nothing else — no inventory, no materials, no suppliers, no prices, no documents.
-<br><br>It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all.</li>
-<li><strong>Paying us.</strong> Your billing details — name, email, company, billing address — reach us through Stripe so we know who paid for what. <strong>Your card number does not</strong>: it goes to Stripe and stays there. See section 5.</li>
-</ul>
+<p>1. <strong>"Report a problem" (the 🐞 button).</strong> When you submit a report, the message you typed, any screenshots you attach, your email address and your app version are emailed to your own administrator. If you send it on to us for support, we receive whatever you chose to include. Do not attach screenshots containing information you would rather we did not see. 2. <strong>Support you initiate.</strong> If you email us for help and include a file, a screenshot or spreadsheet access, we see what you send us. We use it to resolve your issue and nothing else, and we do not retain copies afterwards. 3. <strong>The setup check-in — the one thing that sends without you asking.</strong> If, and only if, your installation was configured with a support address, the software emails us once at 3 days and once at 7 days after setup <strong>when no inventory movement has been recorded at all</strong>. It is there so a customer who got stuck during setup hears from us instead of quietly giving up.</p>
+<p>That email contains exactly four things: <strong>your company name, your administrator's email address, how many users are registered, and how many days it has been since setup.</strong> Nothing else — no inventory, no materials, no suppliers, no prices, no documents.</p>
+<p>It stops permanently as soon as a single movement is recorded, and it never sends more than those two messages. If your installation has no support address configured, it never sends at all.</p>
+<p>4. <strong>Paying us.</strong> Your billing details — name, email, company, billing address — reach us through Stripe so we know who paid for what. <strong>Your card number does not</strong>: it goes to Stripe and stays there. See section 5.</p>
 <p>We do not use analytics, tracking pixels, advertising identifiers or session recording. We do not sell, rent or share data — we have none to sell.</p>
 <h3>4. The optional AI add-on</h3>
 <p>If you enable the document-reading feature, the contents of the documents you choose to scan are sent to <strong>Google's Gemini API</strong> for processing, using an API key that <strong>you</strong> supply from your own Google account. The request goes from your Google account to Google. It does not pass through us.</p>
@@ -15829,7 +15820,7 @@ var LEGAL_DOCS = {
 <h3>5. Sub-processors</h3>
 <p><strong>For your business data: none, because we do not process it.</strong></p>
 <p>Google is not our sub-processor — Google is <strong>your</strong> provider, under your own agreement with them.</p>
-<p><strong>For billing: Stripe.</strong> Paying us means Stripe processes your billing details — the name and email on the account, your company name and billing address, and your card. <strong>Your card number goes to Stripe and is held by Stripe; it never reaches us.</strong> Stripe is a payment processor under its own privacy policy at <a href="https://stripe.com/privacy" target="_blank" rel="noopener">stripe.com/privacy</a>.</p>
+<p><strong>For billing: Stripe.</strong> Paying us means Stripe processes your billing details — the name and email on the account, your company name and billing address, and your card. <strong>Your card number goes to Stripe and is held by Stripe; it never reaches us.</strong> Stripe is a payment processor under its own privacy policy at <a href="https://stripe.com/privacy">stripe.com/privacy</a>.</p>
 <p>This is the one place a third party sees anything of yours because of us, and it sees only what is needed to take a payment. <strong>It has nothing to do with your inventory</strong>, which stays in your Google account and is never sent anywhere.</p>
 <h3>6. Retention and deletion</h3>
 <p>You control retention entirely:</p>
@@ -15839,7 +15830,7 @@ var LEGAL_DOCS = {
 <li>Nightly backups are deleted automatically after 30 days.</li>
 </ul>
 <p><strong>To delete everything:</strong> delete the spreadsheet and the app's Drive folder. That is complete deletion — there is no second copy anywhere for us to purge, and no request to us is required.</p>
-<p>To revoke the software's access at any time, without deleting anything, go to <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p>
+<p>To revoke the software's access at any time, without deleting anything, go to <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
 <h3>7. Your rights (GDPR, CCPA and similar)</h3>
 <p>Because your data never leaves your Google account, <strong>you are the data controller</strong> for it and we are not a processor of it. Access, correction, export and deletion are all things you perform directly, in your own spreadsheet, without asking us.</p>
 <p>For the limited personal data we hold as a business — your name, billing email and support correspondence — write to the address below and we will act on your request within 30 days.</p>
@@ -15940,7 +15931,7 @@ var LEGAL_DOCS = {
 <li><strong>Annual:</strong> whole months you have not yet used are refunded. Months already begun are not.</li>
 <li><strong>If the fault is ours:</strong> if a defect makes the software unusable for its purpose and we have not fixed it within 30 days of you reporting it, the current period is refunded in full whatever the dates say. You should not pay for a month in which it did not work.</li>
 </ul>
-<p>Refunds are issued by the method you paid with, within 10 business days of being agreed.</p>
+<p>Refunds are issued by the method you paid with, <strong>within 5 to 10 business days</strong> of being agreed.</p>
 <h4>Add-ons</h4>
 <p>Add-ons follow the subscription: cancel one and it stops at the end of the current period, under the same rules as above.</p>
 <h4>How you are billed</h4>
@@ -15955,15 +15946,18 @@ var LEGAL_DOCS = {
 <h4>If a payment does not go through</h4>
 <p>Nothing is switched off, at any point. We could not do it if we wanted to — the software is in your Google account.</p>
 <p>Card payments fail for boring reasons — an expired card, a bank declining a recurring charge. What actually happens:</p>
-<ol>
-<li><strong>Stripe retries the charge automatically</strong> over the following days and emails you each time. This is usually the end of it.</li>
-<li><strong>Day 10 after the first failed charge</strong> — if it is still unpaid, we email you personally, so it does not come down to you noticing a receipt that never arrived.</li>
-<li><strong>Day 30</strong> — if it is still unpaid, support and new versions <strong>pause</strong> until the account is settled. You keep using the software and you keep every bit of your data.</li>
-<li><strong>We never withhold your data to get paid.</strong> It is not ours to withhold, and export stays available whatever the state of your account.</li>
-</ol>
-<p>Settle the account and support and updates resume immediately, with no reconnection fee.</p>
-<h4>Coming back after leaving</h4>
-<p>If you cancel and later want to return, you are treated as a new customer: current prices, and any promotional or founding rate you previously had does not come back. That includes the setup fee if the installation has to be done again.</p>
+<p>1. <strong>Stripe retries the charge automatically</strong> over the following days and emails you each time. This is usually the end of it. 2. <strong>Day 10 after the first failed charge</strong> — if it is still unpaid, we email you personally, so it does not come down to you noticing a receipt that never arrived. 3. <strong>Day 30</strong> — if it is still unpaid, support and new versions <strong>pause</strong> until the account is settled. You keep using the software and you keep every bit of your data. 4. <strong>We never withhold your data to get paid.</strong> It is not ours to withhold, and export stays available whatever the state of your account.</p>
+<p>Settle the account and support and updates resume immediately. What that costs depends only on how long the account was unpaid — see the next section.</p>
+<h4>Coming back after a pause, or after leaving</h4>
+<p>Support and updates can be paused for two reasons: an unpaid account, or you cancelling. What it takes to start again is the same either way, and it depends on one thing only — <strong>how long you were away</strong>:</p>
+<ul>
+<li><strong>Up to 2 months away</strong> — you pay the months you owe. Nothing extra.</li>
+<li><strong>More than 2 months away</strong> — the months you owe, plus <strong>$150</strong> to bring the installation up to date.</li>
+<li><strong>More than 12 months away</strong> — treated as a new installation, at current prices.</li>
+</ul>
+<p>The $150 is not a penalty for leaving. While an account is paused you stop receiving the fixes and new versions everyone else gets, so an installation that has been paused for months has to be brought forward before it is supportable again — and that is real work. Under two months there is normally none of it, which is why there is no charge.</p>
+<p><strong>No promotional or founding rate comes back with you</strong>, in any of the three cases.</p>
+<p><strong>Nothing about your data changes while an account is paused.</strong> The software keeps running in your own Google account, your records stay yours, and export stays available. See section 5.</p>
 <h3>10. Termination</h3>
 <p>We may terminate your licence if you materially breach these terms and do not fix it within 30 days of written notice. On termination your right to support and updates ends. <strong>Your installation and your data are unaffected</strong> — we have no mechanism to remove them, and would not use one if we had it.</p>
 <h3>11. Changes to these terms</h3>
@@ -15973,6 +15967,7 @@ var LEGAL_DOCS = {
 <h3>13. Contact</h3>
 <p>Jose Castro — joseisrael5101@gmail.com</p>` }
 };
+/* ─── END GENERATED LEGAL HTML ─── */
 
 function openLegal(which){
   var doc = LEGAL_DOCS[which];
