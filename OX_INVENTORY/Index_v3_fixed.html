@@ -1059,6 +1059,31 @@
     .alert-banner-actions{display:flex;gap:.5rem;align-items:center;margin-left:auto;flex-shrink:0}
     .alert-banner-actions button{background:rgba(0,0,0,.15);border:none;color:inherit;border-radius:6px;padding:2px 8px;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap}
     .alert-banner-actions button:hover{background:rgba(0,0,0,.28)}
+    /* La oferta de crear el Entry, dentro de la ventana de la entrega. Se
+       muestra sólo cuando el estado es Arrived: ofrecerla sobre algo que
+       todavía no ha llegado sería ofrecer registrar una entrada falsa. */
+    .entry-offer{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;
+      font-size:.8rem;color:var(--text);cursor:pointer;text-transform:none;
+      font-weight:400;letter-spacing:0;
+      background:#EFF6FF;border:1px solid var(--accent);border-radius:6px;
+      padding:.5rem .6rem}
+    .entry-offer input{margin:0;flex:none}
+    /* La tarjeta de entrada pendiente. Del tamaño de las del sistema, como
+       pidió Jose, y con su propio color: ámbar, que dentro de esta app ya
+       significa "mira esto" — es el mismo que marca el stock bajo. Las del
+       sistema son verdes porque informan de algo hecho; ésta no está hecha. */
+    /* --yellow, no --amber: --amber existe en la landing y NO en la app, así
+       que la primera versión de esto pintó un borde de ningún color y una
+       etiqueta que heredaba el color del texto. Un var() que no existe no
+       falla, se ignora — que es por lo que un color inventado se despliega
+       tan bien como uno real hasta que alguien lo mira. */
+    .todo-card{border-left:3px solid var(--yellow)}
+    .todo-card-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.04em;color:var(--yellow);margin-bottom:.15rem}
+    .todo-card-val{font-weight:700;font-size:.86rem;line-height:1.25;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .todo-card-sub{font-size:.74rem;color:var(--text);opacity:.85;margin-top:.1rem}
+    .todo-card-when{font-size:.68rem;color:var(--muted);margin-top:.1rem;margin-bottom:.35rem}
     /* ── INCOMING SECTION ── */
     .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem}
     /* Jose lo dibujó encima de una captura: CUATRO arriba y TRES abajo, y las
@@ -2372,11 +2397,30 @@
       </div>
       <div class="field">
         <label>Status</label>
-        <select id="incStatus">
+        <select id="incStatus" onchange="_syncEntryOffer()">
           <option value="Pending">Pending</option>
           <option value="Arrived">Arrived</option>
           <option value="Cancelled">Cancelled</option>
         </select>
+        <!-- Jose (v11.29): "quiero poder pasar del 'Mark arrived' a Entry"
+             sin volver a escribir lo que la app ya sabe.
+
+             La pregunta va AQUÍ DENTRO, no en un popup después de guardar. Los
+             dos motivos:
+
+             Un popup encima de otro popup es el apilamiento que costó la
+             v11.29 — la ventana de edición saliendo detrás del aviso de la
+             mañana. No hace falta repetirlo para aprenderlo.
+
+             Y preguntar ANTES de guardar es mejor que interrumpir después: se
+             decide mientras se está mirando la entrega, no cuando ya se dio
+             por terminada. Marcada por defecto porque registrar la entrada es
+             lo que se hace el 95% de las veces; quien no quiera, la desmarca y
+             se lleva una tarjeta al mazo para no olvidarlo. -->
+        <label id="entryOfferRow" class="entry-offer" style="display:none">
+          <input type="checkbox" id="incMakeEntry" checked>
+          <span>Record the Entry for this material after saving</span>
+        </label>
       </div>
       <div class="field">
         <label>Category</label>
@@ -3098,7 +3142,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.41';
+var APP_VERSION = '11.42';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3110,7 +3154,7 @@ var APP_VERSION = '11.41';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fd520442';
+var APP_BUILD = 'b91c13df';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -12027,6 +12071,17 @@ function _unqueueCfgAdd(type, value){
 // the whole thing on screen in one write — which it has to be, because setting
 // innerHTML a second time would throw away the handlers wired after the first.
 var _cfgDeckHtml = '', _sysDeckHtml = '', _cfgDeckTotal = 0, _sysDeckTotal = 0;
+// La TERCERA clase de tarjeta, y es distinta de las otras dos en el único
+// sentido que importa para el orden del mazo:
+//
+//   sys  — algo que la app YA hizo. No espera nada de nadie.
+//   cfg  — una sugerencia. Se puede ignorar sin consecuencia.
+//   todo — una entrega que llegó y cuya entrada NO se ha registrado. El
+//          inventario está mal hasta que alguien la haga.
+//
+// Por eso va encima de las otras dos: _paintDeck ya dice que "lo que espera por
+// ti va arriba", y hasta ahora eso eran las sugerencias.
+var _todoDeckHtml = '', _todoDeckTotal = 0;
 
 // Cards already shown at least once, so a background refresh cannot make the
 // whole pile fly in from the right again.
@@ -12049,7 +12104,8 @@ function _paintDeck(){
   // Notifications sit deeper in the pile than suggestions: one reports
   // something already done, the other is waiting on an answer, and the thing
   // waiting on you belongs on top.
-  deck.innerHTML = _sysDeckHtml + _cfgDeckHtml;
+  // Más tarde en el DOM = más arriba en la pila.
+  deck.innerHTML = _sysDeckHtml + _cfgDeckHtml + _todoDeckHtml;
   if (!deck.innerHTML){
     deck.classList.remove('open', 'stack-2', 'stack-3');
     return;
@@ -12097,6 +12153,22 @@ function _paintDeck(){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       _dismissSysCard(btn.getAttribute('data-sys-x'));
+    });
+  });
+  // Las de "entrada pendiente". Se enganchan aquí, donde ya se enganchan las
+  // otras dos clases, en vez de dentro de su propio renderizador: _paintDeck
+  // reescribe el mazo entero cada vez, así que unos oyentes puestos en otro
+  // sitio se perderían en el siguiente repintado de cualquiera de las tres.
+  deck.querySelectorAll('[data-todo-x]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      _todoDrop(btn.getAttribute('data-todo-x'));
+    });
+  });
+  deck.querySelectorAll('[data-todo-do]').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      _todoDo(btn.getAttribute('data-todo-do'));
     });
   });
   // The card itself opens the full record. Admin only — Settings is.
@@ -12248,7 +12320,9 @@ function _syncCfgBell(){
   var btn = document.getElementById('cfgBellBtn');
   var cnt = document.getElementById('cfgBellCount');
   if (!btn || !cnt) return;
-  var total = _pendingCfgAdds.length + _sysCards.length;
+  // Las entradas pendientes cuentan también. Una campana que dice "2" con tres
+  // tarjetas en el mazo es peor que ninguna campana: enseña a no creerle.
+  var total = _pendingCfgAdds.length + _sysCards.length + _todoDeckTotal;
   cnt.textContent = total;
   btn.style.visibility = total ? '' : 'hidden';
   if (!total){
@@ -13872,6 +13946,12 @@ function openIncomingModal(id) {
         '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Current document (uploading another replaces it)</div></a>';
     } else { prev.innerHTML = ''; }
   }
+  // Una sola llamada, aquí, en vez de una detrás de cada sitio que escribe el
+  // estado — hay tres, y el cuarto que se añada la heredaría en vez de tener
+  // que acordarse. Mismo razonamiento que _btnReset en closeModal.
+  _syncEntryOffer();
+  var mk = document.getElementById('incMakeEntry');
+  if (mk) mk.checked = true;   // cada apertura empieza donde la anterior no la dejó
   document.getElementById('incomingOverlay').classList.add('show');
 }
 
@@ -13920,6 +14000,72 @@ function _incIsOverdue(item, today){
          item.estDate && item.estDate < today;
 }
 
+/* ═══ DE "MARK ARRIVED" A ENTRY ══════════════════════════════════════════════
+ *
+ * Jose (v11.29): al marcar una entrega como llegada, la app ya sabe qué es,
+ * cuánto, de qué proveedor y con qué PO. Volver a teclear todo eso en la
+ * pantalla de Entry es escribir dos veces lo mismo, y es donde se cuelan las
+ * diferencias entre lo que se esperaba y lo que se registró.
+ *
+ * La oferta va dentro de la ventana de la entrega y sólo cuando el estado es
+ * Arrived — ofrecerla sobre algo que todavía no ha llegado sería ofrecer
+ * registrar una entrada falsa.
+ */
+function _syncEntryOffer(){
+  var row = document.getElementById('entryOfferRow');
+  var sel = document.getElementById('incStatus');
+  if (!row || !sel) return;
+  row.style.display = (sel.value === 'Arrived') ? 'flex' : 'none';
+}
+
+/** Abre el formulario de movimiento en ENTRY con lo que la app ya sabía. */
+function _entryFromIncoming(item){
+  if (!item) return;
+  showTab('movements', 'btn-movements');
+  openMoveModal('ENTRY');
+
+  var set = function(id, v){
+    var e = document.getElementById(id);
+    if (e && v !== '' && v != null) e.value = v;
+  };
+  // La línea 1 ya viene sembrada por openMoveModal('ENTRY') — se rellena esa,
+  // no se añade una segunda dejando la primera en blanco encima.
+  set('mat-cat-1',  nt(item.category));
+  set('mat-name-1', item.name);
+  set('mat-unit-1', item.unit);
+  // La cantidad va en la fila de ubicación, que es donde ENTRY la lleva.
+  //
+  // El ESTANTE se deja vacío A PROPÓSITO, y es la decisión que importa de toda
+  // esta función: la app sabe cuánto llegó, pero no dónde lo pusieron. Ponerle
+  // un estante de relleno —el último usado, el primero de la lista— produciría
+  // inventario que dice estar en un sitio donde nadie miró. Que lo escriba
+  // quien lo cargó.
+  var lq = document.querySelector('#mat-locs-1 .loc-qty');
+  if (lq && item.qty > 0) lq.value = item.qty;
+
+  set('mSup',  item.supplier);
+  set('mPO',   item.po);
+  set('mPM',   item.pm);
+  set('mResp', (typeof userName === 'string' && userName) ? userName : '');
+
+  try { updateMatLineNameList(1); syncMatLineQty(1); updateMultiMatTotal(); } catch (e) {}
+  try { _updateMoveSubmitState(); } catch (e) {}
+
+  // El foco va al estante, que es lo único que falta por escribir. Llevar a
+  // alguien a un formulario lleno sin decirle dónde continuar es hacerle
+  // buscar el hueco.
+  setTimeout(function(){
+    var rack = document.querySelector('#mat-locs-1 .loc-rack');
+    if (rack){
+      rack.focus();
+      rack.classList.add('field-flagged');
+      setTimeout(function(){ rack.classList.remove('field-flagged'); }, 2600);
+    }
+  }, 120);
+
+  showToast('Everything the delivery already knew is filled in — say which rack it went to.', 'info', 6000);
+}
+
 function saveIncomingItem() {
   var id       = document.getElementById('incId').value;
   var dateMode = document.getElementById('incDateMode').value || 'exact';
@@ -13958,12 +14104,21 @@ function saveIncomingItem() {
   };
 
   var btn = document.getElementById('incomingOverlay').querySelector('.btn-primary');
+  // Se decide ANTES de mandar: después de guardar, la ventana se cierra y sus
+  // campos dejan de existir.
+  var arrived   = payload.status === 'Arrived';
+  var wantEntry = arrived && !!(document.getElementById('incMakeEntry') || {}).checked;
+
   function _send(){
     var action = id ? 'updateIncoming' : 'addIncoming';
     _btnBusy(btn, 'Saving…');
     google.script.run
       .withSuccessHandler(function(){
-        _btnDone(btn, true, function(){ closeModal('incomingOverlay'); });
+        _btnDone(btn, true, function(){
+          closeModal('incomingOverlay');
+          if (wantEntry) _entryFromIncoming(payload);
+          else if (arrived) _todoAdd(payload);
+        });
         loadDataFromGoogle(false);
       })
       .withFailureHandler(function(err){
@@ -14558,6 +14713,7 @@ function _markArrivedFromPopup(id){
   var sel = document.getElementById('incStatus');
   if (sel){
     sel.value = 'Arrived';
+    _syncEntryOffer();          // el estado lo puso el código, no un onchange
     sel.classList.add('field-flagged');
     sel.focus();
     setTimeout(function(){ sel.classList.remove('field-flagged'); }, 2600);
@@ -15355,6 +15511,129 @@ function _announceSystemActivity(){
     return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
   _renderSysDeck();
+  // Las pendientes se repintan aquí también: viven en localStorage y sobreviven
+  // a una recarga, así que si sólo se dibujaran al crearlas, un F5 las
+  // escondería hasta la siguiente — que es exactamente cuando dejarían de
+  // servir para lo que existen.
+  _renderTodoDeck();
+}
+
+/* ═══ LA TARJETA QUE ESPERA POR TI ═══════════════════════════════════════════
+ *
+ * Jose: si no quiere hacer la entrada en ese momento, "se crea una tarjeta del
+ * tamaño de las del sistema que diga 'XXX' MATERIAL ARRIVED 'DATE' — MAKE THE
+ * ENTRY / LATER".
+ *
+ * DÓNDE VIVE, y por qué no es obvio. La lista está en localStorage, no en la
+ * hoja, y eso tiene una consecuencia que hay que decir en voz alta: **es por
+ * navegador**. Quien marque la llegada en el teléfono y por la tarde abra el
+ * escritorio no verá la tarjeta allí.
+ *
+ * Se eligió así a sabiendas, frente a las dos alternativas:
+ *
+ *   Guardarlo en la hoja significa una columna nueva en INCOMING, un endpoint
+ *   nuevo y un viaje al servidor por cada "más tarde" — para un recordatorio
+ *   que la mayoría de las veces se atiende en los dos minutos siguientes.
+ *
+ *   Deducirlo —"toda entrega Arrived sin su Entry"— sería lo mejor, y no se
+ *   puede todavía: emparejar una entrega con un movimiento es adivinar por
+ *   nombre y cantidad, y adivinar mal aquí significa decirle a alguien que le
+ *   falta una entrada que ya hizo. Cuando el rediseño del modelo de
+ *   movimientos ate las dos cosas, esto se vuelve derivable y localStorage
+ *   sobra. Anotado en docs/BACKLOG.md.
+ *
+ * Mientras tanto: por navegador, y dicho.
+ */
+var _TODO_KEY = 'acopio_pending_entries';
+var _todoItems = [];
+
+function _todoLoad(){
+  try {
+    var raw = localStorage.getItem(_TODO_KEY);
+    _todoItems = raw ? (JSON.parse(raw) || []) : [];
+  } catch (e) {
+    // Un localStorage que lanza —modo privado, almacenamiento bloqueado— no
+    // puede impedir que la app arranque. Sin recordatorios es peor que con
+    // ellos; sin app es inservible.
+    _todoItems = [];
+  }
+  if (!Array.isArray(_todoItems)) _todoItems = [];
+}
+
+function _todoSave(){
+  try { localStorage.setItem(_TODO_KEY, JSON.stringify(_todoItems.slice(0, 20))); }
+  catch (e) {}
+}
+
+function _todoAdd(item){
+  if (!item) return;
+  _todoLoad();
+  var entry = {
+    id:       'todo-' + Date.now() + '-' + Math.round(Math.random() * 1e6),
+    name:     item.name || '',
+    category: item.category || '',
+    qty:      item.qty || 0,
+    unit:     item.unit || '',
+    supplier: item.supplier || '',
+    po:       item.po || '',
+    pm:       item.pm || '',
+    at:       new Date().toISOString()
+  };
+  // La entrega más reciente primero — es la que se acaba de marcar y la que la
+  // persona tiene en la cabeza.
+  _todoItems.unshift(entry);
+  _todoSave();
+  _renderTodoDeck();
+  showToast('Noted — the reminder is in the corner until you make the entry.', 'info', 5000);
+}
+
+function _todoDrop(id){
+  _todoLoad();
+  _todoItems = _todoItems.filter(function(t){ return t.id !== id; });
+  _todoSave();
+  _renderTodoDeck();
+}
+
+function _todoDo(id){
+  _todoLoad();
+  var t = _todoItems.find(function(x){ return x.id === id; });
+  if (!t){ _renderTodoDeck(); return; }
+  // Se quita ANTES de abrir el formulario. Al revés, quien lo cierre sin
+  // guardar se queda sin tarjeta y sin entrada — y la tarjeta existe
+  // precisamente para que eso no pase. Se pierde el recordatorio sólo si la
+  // entrada se hace, y si no se hace, se puede volver a marcar la entrega.
+  _todoDrop(id);
+  _entryFromIncoming(t);
+}
+
+function _renderTodoDeck(){
+  var deck = document.getElementById('cornerDeck');
+  if (!deck) return;
+  _todoLoad();
+  _todoDeckTotal = _todoItems.length;
+  try { _syncCfgBell(); } catch (e) {}
+  if (!_todoItems.length){ _todoDeckHtml = ''; _paintDeck(); return; }
+
+  // Como las otras dos: sólo un puñado en el DOM, y pintadas al revés para que
+  // la más nueva quede la última y por tanto encima.
+  _todoDeckHtml = _todoItems.slice(0, 5).slice().reverse().map(function(t){
+    var qty = t.qty > 0 ? (_qtyText(t.qty) + ' ' + (t.unit || 'UNIT')) : 'qty not stated';
+    return '<div class="deck-card todo-card" data-todo-id="' + _he(t.id) + '">' +
+      '<button class="sys-card-x" data-todo-x="' + _he(t.id) + '" title="Dismiss">✕</button>' +
+      '<div class="todo-card-lbl">Arrived · entry not made</div>' +
+      '<div class="todo-card-val" title="' + _he(t.name) + '">' + _he(t.name) + '</div>' +
+      '<div class="todo-card-sub">' + _he(qty) +
+        (t.supplier ? ' · ' + _he(t.supplier) : '') + '</div>' +
+      '<div class="todo-card-when">' + _he(_fmtWhen(t.at)) + '</div>' +
+      '<div class="cfg-card-acts">' +
+        '<button type="button" class="cfg-card-add" data-todo-do="' + _he(t.id) + '">Make the entry</button>' +
+        '<button type="button" class="cfg-card-skip" data-todo-x="' + _he(t.id) + '">Later</button>' +
+      '</div></div>';
+  }).join('');
+  _paintDeck();
+
+  if (deck.matches(':hover') || deck.classList.contains('open')) _cfgWake();
+  else { deck.classList.remove('dim'); _cfgScheduleDim(_CFG_SOLID_MS); }
 }
 
 function _renderSysDeck(){
