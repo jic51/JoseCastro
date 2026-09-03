@@ -583,7 +583,11 @@
                font-weight:600;padding:0 .1rem;margin:-.3rem 0 .5rem}
     /* The cost hint sits low in the form, so its bubble opens UPWARD — below
        it would be clipped by the modal's own scroll edge. */
-    .pack-math .tip::after{top:auto;bottom:calc(100% + 8px)}
+    /* La regla que volteaba ESTE tooltip hacia arriba se quitó: usaba
+       bottom:calc(100% + 8px), que con position:fixed sería relativo a la
+       ventana y no al icono. Ahora _positionTip voltea cualquier tooltip que
+       no tenga sitio debajo, así que este caso lo hereda en vez de ser una
+       excepción escrita a mano — y lo hereda también el siguiente. */
     /* A cost of 0 is accepted, but it is not the way to say "we don't know".
        Blank is. Jose: at OX most things have no known cost, so this is the
        common case, not an edge one. */
@@ -936,7 +940,26 @@
        .settings-tab keeps its base look (used by JS toggling .active) but now
        lays out as a full-width sidebar row instead of an inline pill, so a long
        tab list never wraps into a cramped multi-row header again. */
-    .modal.settings-modal{max-width:min(920px,92vw);width:100%;height:min(82vh,700px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+    /* Jose (v11.38), con dos capturas: la ventana de Ajustes puede ser más
+       grande "dependiendo del tamaño de la pantalla".
+
+       Tenía razón, y el problema eran los TOPES, no los porcentajes. Los dos
+       números estaban escondidos dentro de un min(): 920px y 700px. En un
+       portátil pequeño mandaban 92vw y 82vh —correcto— pero en un monitor
+       grande el navegador tenía 2000px de ancho y la ventana se quedaba en
+       920, con los ajustes apretados en una columna angosta y medio escritorio
+       vacío alrededor. Es lo que se ve en su captura de pantalla completa.
+
+       Los topes suben y siguen siendo topes: nadie quiere una ventana de
+       ajustes de 2000px, donde la etiqueta de un campo y su caja acaban a un
+       palmo de distancia y el ojo tiene que viajar. Y el alto sube al 88%,
+       que es lo que quita el segundo scroll dentro del panel. */
+    .modal.settings-modal{max-width:min(1400px,94vw);width:100%;height:min(88vh,900px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+    /* Por debajo de 1100px no hay nada que ensanchar: manda la pantalla y no
+       el tope, y se le devuelven los márgenes al dedo. */
+    @media (max-width:1100px){
+      .modal.settings-modal{max-width:96vw;height:92vh}
+    }
     .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
     .settings-body{display:flex;flex:1;min-height:0}
     /* A quarter of the dialog, not a fixed 210px. On a narrow window that
@@ -952,6 +975,43 @@
        big empty gap below a short list instead of the list filling the box. */
     .settings-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column}
     #settingsTabContent{display:flex;flex-direction:column;flex:1;min-height:0}
+    /* Jose (v11.32): "poner un cuadro o separar cada area en settings
+       encerrando en un cuadro cada cosa, el cuadro debe ser azul pero solo el
+       borde." Literal: blue, border only, nothing filled in.
+
+       The System tab is where this was needed — seven areas stacked with
+       nothing but whitespace between them, so "Backups" and "Storage" read as
+       one long paragraph of settings.
+
+       DIRECT CHILDREN ONLY. `.field` appears a hundred times in this file — in
+       the movement form, in the wizard, inside these very blocks — and styling
+       it globally would have drawn a blue box around every input in the app.
+       The `>` is what keeps this to the areas of one panel.
+
+       The colour comes from var(--accent), the app's own blue, so it follows
+       the dark theme instead of being a second blue that only matches by day.
+       The label sits ON the border like a fieldset legend: it turns a box into
+       a named area, which is what Jose actually asked for — separation he can
+       point at. */
+    #settingsTabContent > .field{
+      position:relative;
+      border:1px solid var(--accent);
+      border-radius:8px;
+      padding:1.1rem 1rem .95rem;
+      gap:.45rem;
+    }
+    #settingsTabContent > .field > label:first-child{
+      position:absolute;
+      top:0;
+      left:.8rem;
+      transform:translateY(-50%);
+      background:var(--card);
+      padding:0 .4rem;
+      color:var(--accent);
+      /* The label is lifted onto the border line, so the box it sits on has to
+         be the thing behind it — on a panel with any other background this
+         would show a white notch. --card is what the settings panel paints. */
+    }
     .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
     .settings-tab.active{background:var(--accent);color:#fff}
     .settings-tab:hover:not(.active){background:rgba(0,0,0,.06)}
@@ -1432,11 +1492,28 @@
        styled at all — its shape, delay, colours and single-line wrapping are
        decided by the operating system, not by the page. */
     .tip{position:relative}
-    .tip::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%) translateY(-4px);
+    /* FIXED, not absolute — and that is the whole fix, not a preference.
+       Jose photographed the Settings tooltips cut off mid-sentence and drawn
+       through the text under them. An absolutely positioned bubble is clipped
+       by the nearest scrolling ancestor, and the settings panel is exactly
+       that: .settings-content has overflow-y:auto. So every tooltip near the
+       bottom of that panel was sliced at the panel's edge, and no z-index
+       could have helped — clipping is not stacking.
+       position:fixed takes the bubble out of every overflow in the page. It
+       costs coordinates: a fixed box cannot be placed relative to its anchor
+       by CSS alone, so _positionTip measures the anchor and writes --tip-x /
+       --tip-y. That is also what lets it flip above and clamp to the window,
+       which the old .tip-edge-l/-r classes only approximated. */
+    .tip::after{content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,-9999px);
+      transform:translateX(-50%) translateY(-4px);
       background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;letter-spacing:0;text-transform:none;
       padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:pre-line;width:max-content;max-width:240px;
-      opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:60}
+      opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:9999}
     .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
+    /* Sin sitio debajo: la burbuja se pone encima del icono. --tip-y es
+       entonces el BORDE SUPERIOR del ancla, y el -100% la sube entera. */
+    .tip.tip-above::after{transform:translateX(-50%) translateY(calc(-100% + 4px))}
+    .tip.tip-above:hover::after,.tip.tip-above:focus-visible::after{transform:translateX(-50%) translateY(-100%)}
     /* The account button's own tooltip (name + role) waits 4s before showing
        — Jose: unlike the info icons, this one is meant for someone who
        lingers, not a quick glance, so it should not compete with the
@@ -1444,14 +1521,13 @@
        still uses the base .tip::after transition above (no delay), so
        dismissing it stays snappy. */
     #acctBtn.tip:hover::after,#acctBtn.tip:focus-visible::after{transition-delay:4s}
-    /* Centered-on-the-icon is wrong the moment the icon sits near either edge
-       of the screen — the box (up to 240px wide) runs past it and gets cut
-       off by the viewport. _positionTip (JS) measures the anchor against the
-       window and adds one of these instead of the centered default. */
-    .tip.tip-edge-l::after{left:0;transform:translateX(0) translateY(-4px)}
-    .tip.tip-edge-l:hover::after,.tip.tip-edge-l:focus-visible::after{transform:translateX(0) translateY(0)}
-    .tip.tip-edge-r::after{left:auto;right:0;transform:translateX(0) translateY(-4px)}
-    .tip.tip-edge-r:hover::after,.tip.tip-edge-r:focus-visible::after{transform:translateX(0) translateY(0)}
+    /* Las clases .tip-edge-l / .tip-edge-r se retiraron aquí. Anclaban la
+       burbuja al borde IZQUIERDO o DERECHO DEL ICONO, que es una aproximación
+       a "que no se salga de la pantalla" y sólo funcionaba porque el icono
+       estaba cerca del borde de la ventana. Con position:fixed el JS puede
+       hacer lo que aquellas imitaban: mover el centro de la burbuja lo justo
+       para que quepa. _positionTip ya no las pone, y nada más las lee —
+       comprobado antes de quitarlas. */
     /* The small "i" badge that replaces a paragraph of always-visible help text —
        same explanation, available on demand instead of taking up the window. */
     .info-ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
@@ -2982,7 +3058,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.33';
+var APP_VERSION = '11.39';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -2994,7 +3070,7 @@ var APP_VERSION = '11.33';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a81f5ac0';
+var APP_BUILD = 'ae5491e2';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8027,7 +8103,30 @@ function openSettingsModal() {
   document.getElementById('settingsMsgBar').style.display = 'none';
   _filterSettingsSidebar();
   document.getElementById('settingsOverlay').classList.add('show');
-  _loadSettings();
+
+  /* Jose (v11.32): "cada vez que abro 'app settings' se vuelve a cargar la
+     página." He was describing exactly what happened: every open blanked the
+     pane to "Loading…" and waited on a round trip to Apps Script — half a
+     second on a good day, several on a normal one — to draw a list that had not
+     changed since he closed it thirty seconds earlier.
+
+     THE FIX IS NOT A CACHE WITH AN EXPIRY. That is the version that goes wrong:
+     the real work in caching this is invalidating it, and every write in this
+     file would have to remember to. One that forgets shows a stale category
+     list and there is no symptom to trace back.
+
+     So the fetch still happens, every time, exactly as before. What changed is
+     that it no longer blanks the pane first: what is already known is painted
+     at once, and the answer only redraws if it actually differs. Nothing can go
+     stale, because nothing is being trusted for longer than one round trip.
+
+     A first open still shows Loading… — there is genuinely nothing to paint. */
+  if (_settingsData && Object.keys(_settingsData).length) {
+    _renderSettingsTab(_settingsTab);
+    _loadSettings({ quiet: true });
+  } else {
+    _loadSettings();
+  }
 }
 
 // Reaching this modal at all now means ADMIN, or WAREHOUSE with
@@ -8063,9 +8162,44 @@ function _filterSettingsSidebar(){
   if (!isAdmin && !SETTINGS_CATALOG_TABS[_settingsTab]) _settingsTab = 'categories';
 }
 
-function _loadSettings() {
-  document.getElementById('settingsTabContent').innerHTML =
-    '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+/* A refresh that lands while somebody is typing must not take the field away.
+   Opening Settings, starting to type a category name, and having the answer
+   arrive 400ms later would otherwise wipe the box mid-word — a bug that only
+   shows up on a slow connection, which is where it hurts most.
+
+   So a quiet refresh that DOES bring something new waits for the field to be
+   let go. One listener, attached once. */
+var _settingsRedrawPending = false;
+
+function _settingsFocusInPanel(){
+  var el = document.activeElement;
+  if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return null;
+  var pane = document.getElementById('settingsTabContent');
+  return (pane && pane.contains(el)) ? el : null;
+}
+
+function _redrawSettingsWhenFree(){
+  var busy = _settingsFocusInPanel();
+  if (!busy) { _renderSettingsTab(_settingsTab); return; }
+  if (_settingsRedrawPending) return;
+  _settingsRedrawPending = true;
+  busy.addEventListener('blur', function(){
+    _settingsRedrawPending = false;
+    // Checked again on the way out: the person may have tabbed straight into
+    // the next field, and redrawing then is the same bug one box along.
+    _redrawSettingsWhenFree();
+  }, { once: true });
+}
+
+function _loadSettings(opts) {
+  // quiet = the panel already shows something real. Do not blank it, and only
+  // redraw if the server's answer differs from what is on screen.
+  var quiet = !!(opts && opts.quiet);
+  if (!quiet) {
+    document.getElementById('settingsTabContent').innerHTML =
+      '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  }
+  var before = quiet ? JSON.stringify(_settingsData) : null;
   google.script.run
     .withSuccessHandler(function(d) {
       _settingsData = d;
@@ -8083,28 +8217,45 @@ function _loadSettings() {
           });
         }
       });
-      _renderSettingsTab(_settingsTab);
+      // The comparison is made AFTER the sort above, so a list that came back
+      // in a different order but with the same contents counts as unchanged —
+      // otherwise every quiet refresh would redraw for nothing.
+      if (quiet && JSON.stringify(_settingsData) === before) return;
+      if (quiet) _redrawSettingsWhenFree();
+      else _renderSettingsTab(_settingsTab);
     })
-    .withFailureHandler(function(e) { _settingMsg('Error: '+(e.message||e), 'error'); })
+    .withFailureHandler(function(e) {
+      // A quiet refresh that fails says nothing: the panel is showing real data
+      // from a moment ago, and a red bar over a working screen teaches people
+      // to ignore red bars. A first load that fails still has to speak — there
+      // is nothing on screen but the word Loading.
+      if (!quiet) _settingMsg('Error: '+(e.message||e), 'error');
+    })
     .processMovement('getSettings', _h({}));
 
   // Prefetch Materials + Error Log in parallel so switching to those tabs feels
   // as instant as Categories/Projects/Suppliers/Locations (which come bundled
   // in getSettings above) — previously each one only fetched on first visit to
   // that tab, showing a "Loading…" flash the other tabs never had.
-  _matListAll = null;
+  //
+  // On a QUIET refresh these three keep what they have while the new answer is
+  // on its way. Nulling them is what makes Materials, Error Log and Directory
+  // say "Loading…" — so blanking them here would have moved Jose's complaint
+  // out of the four bundled tabs and into the other three, which is not a fix,
+  // it is a smaller version of the same thing.
+  if (!quiet) _matListAll = null;
   google.script.run
     .withSuccessHandler(function(list) { _matListAll = list; if (_settingsTab === 'materials') _filterMatList(); })
     .withFailureHandler(function(){})
     .processMovement('listMaterials', _h({}));
 
-  _errorLogData = null;
+  if (!quiet) _errorLogData = null;
   google.script.run
     .withSuccessHandler(function(rows) { _errorLogData = rows || []; if (_settingsTab === 'errorlog') _drawErrorLog(); })
     .withFailureHandler(function(){})
     .processMovement('getErrorLog', _h({}));
 
-  _pmDirectoryData = null;
+  if (!quiet) _pmDirectoryData = null;
   google.script.run
     .withSuccessHandler(function(list) {
       _pmDirectoryData = list || [];
@@ -8558,7 +8709,11 @@ function _renderSystemTab() {
   content.innerHTML =
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">System-wide maintenance — not specific to any one category.</p>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
-      '<label>What the system did on its own</label>' + actHtml +
+      '<label style="display:flex;align-items:center;gap:.4rem">What the system did on its own ' +
+        _infoIc('Repairs and jobs the app ran by itself, with nobody pressing anything — ' +
+                'a movement re-linked to the right material, an archive run. Backups have ' +
+                'their own section below.') +
+      '</label>' + actHtml +
     '</div>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Archive movements older than ' +
@@ -8573,8 +8728,21 @@ function _renderSystemTab() {
       '</div>' +
     '</div>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
-      '<label>Backups</label>' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Backups ' +
+        _infoIc('A full copy of your system is made every night at 2am and kept for 30 days ' +
+                'in a folder in your own Drive. Old copies are deleted after that.\n\n' +
+                '"Back up now" makes one extra copy immediately — it does not change the ' +
+                'schedule.') +
+      '</label>' +
       '<div id="backupBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
+    '</div>' +
+    '<div class="field" style="margin-bottom:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Daily movement report ' +
+        _infoIc('An email each evening listing what came into the warehouse and what left that day. ' +
+                'It is sent on quiet days too, saying there were no movements — so a quiet day never ' +
+                'looks the same as a report that failed to arrive.') +
+      '</label>' +
+      '<div id="dailyReportBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
     '</div>' +
     '<div class="field" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Storage ' +
@@ -8614,8 +8782,131 @@ function _renderSystemTab() {
   _applySysActSpot();
 
   _loadBackupStatus();
+  _loadDailyReport();
   _loadSpaceUsage();
   _loadAiStatus();
+}
+
+/* ── The daily movement report ──────────────────────────────────────────────
+   Jose asked for an evening email of what came in and what went out, with the
+   hour set by an admin. The server side is in Code.gs; this is where somebody
+   can actually turn it on — a setting with no screen is a setting that does not
+   exist, however well it is written.
+
+   Two things this panel has to make plain, because both are decisions Jose made
+   and neither is guessable from a checkbox:
+
+     WHO GETS IT. The admin who switches it on always does, plus whoever they
+     add. So the panel prints the real list rather than an empty box that looks
+     like nobody is subscribed.
+
+     THE HOUR IS REAL. Changing it here deletes and recreates the scheduled job,
+     because an Apps Script trigger cannot be edited. If that ever failed
+     quietly, this panel would say one hour while the mail arrived at another —
+     so Save re-reads the server's answer instead of trusting what was typed. */
+function _hourLabel(h){
+  var ampm = h < 12 ? 'AM' : 'PM';
+  var h12  = (h % 12) || 12;
+  return h12 + ':00 ' + ampm;
+}
+
+function _loadDailyReport(){
+  _sysLoad('daily', 'dailyReportBox', _drawDailyReport,
+    'Could not read this setting:',
+    function(r){ r.processMovement('getDailyReportSettings', _h({})); });
+}
+
+function _drawDailyReport(cfg){
+  var box = document.getElementById('dailyReportBox');
+  if (!box || !cfg) return;
+  var opts = '';
+  for (var h = 0; h < 24; h++){
+    opts += '<option value="' + h + '"' + (h === cfg.hour ? ' selected' : '') + '>' +
+            _hourLabel(h) + '</option>';
+  }
+  var who = (cfg.recipients || []);
+  box.innerHTML =
+    '<label style="display:flex;align-items:center;gap:.5rem;color:var(--text);font-size:.82rem;cursor:pointer">' +
+      '<input type="checkbox" id="drEnabled"' + (cfg.enabled ? ' checked' : '') + '> ' +
+      'Email me what moved, every evening' +
+    '</label>' +
+    '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.6rem">' +
+      '<span>Send at</span>' +
+      '<select id="drHour" style="padding:.35rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
+        opts +
+      '</select>' +
+    '</div>' +
+    '<div style="margin-top:.6rem">' +
+      '<div style="margin-bottom:.25rem">Also send to <span style="color:var(--muted)">(comma separated)</span></div>' +
+      '<input type="text" id="drExtra" value="' + _he(cfg.extra || '') + '" ' +
+        'placeholder="warehouse@yourcompany.com, manager@yourcompany.com" ' +
+        'style="width:100%;max-width:420px;padding:.4rem .55rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text)">' +
+    '</div>' +
+    // The real list, not a promise of one. An admin who switches this on and
+    // types nobody else still needs to see their own address here, or the box
+    // reads as if the report goes nowhere.
+    '<div style="margin-top:.5rem;color:var(--muted)">' +
+      (who.length
+        ? 'Goes to: ' + _he(who.join(', '))
+        : 'Nobody yet — switching it on adds you.') +
+    '</div>' +
+    '<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem">' +
+      '<button id="btnDrSave" class="btn btn-primary btn-sm" onclick="_saveDailyReport()">Save</button>' +
+      '<button id="btnDrTest" class="btn btn-ghost btn-sm" onclick="_sendDailyReportNow()">Send one now</button>' +
+    '</div>' +
+    '<div style="font-size:.74rem;color:var(--muted);margin-top:.4rem">' +
+      'Sent on quiet days too, saying there were no movements.' +
+    '</div>';
+}
+
+function _saveDailyReport(){
+  var btn = document.getElementById('btnDrSave');
+  if (!btn || btn.disabled) return;
+  _btnBusy(btn, 'Saving…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      _btnDone(btn, true, function(){
+        // Redrawn from what the SERVER says, not from the form. If rescheduling
+        // the job ever failed, this panel would otherwise keep showing the hour
+        // that was typed while the mail kept arriving at the old one — and the
+        // panel is the only place anyone would look.
+        // El recuerdo se actualiza aquí también. Dibujar sin recordar dejaría
+        // la caja correcta AHORA y al siguiente cambio de pestaña pintaría lo
+        // viejo un instante antes de corregirse — un parpadeo que sólo aparece
+        // después de guardar, que es justo cuando la gente está mirando.
+        if (res && res.settings) { _sysRemember('daily', res.settings); _drawDailyReport(res.settings); }
+        else { delete _sysBox.daily; _loadDailyReport(); }
+        showToast(res && res.state === 'off'
+          ? 'Daily report turned off.'
+          : 'Daily report saved.', 'ok');
+      });
+    })
+    .withFailureHandler(function(e){
+      _btnDone(btn, false);
+      showToast('Could not save it — ' + ((e && e.message) || e), 'err', 6000);
+    })
+    .processMovement('saveDailyReportSettings', _h({
+      enabled: !!document.getElementById('drEnabled').checked,
+      hour:    parseInt(document.getElementById('drHour').value, 10),
+      extra:   document.getElementById('drExtra').value
+    }));
+}
+
+function _sendDailyReportNow(){
+  var btn = document.getElementById('btnDrTest');
+  if (!btn || btn.disabled) return;
+  _btnBusy(btn, 'Sending…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      _btnDone(btn, !!(res && res.ok), function(){
+        showToast((res && res.message) || 'Sent.', res && res.ok ? 'ok' : 'warn', 6000);
+      });
+    })
+    .withFailureHandler(function(e){
+      _btnDone(btn, false);
+      showToast('Could not send it — ' + ((e && e.message) || e), 'err', 6000);
+    })
+    .processMovement('sendDailyReportNow', _h({}));
 }
 
 // ── The data check ───────────────────────────────────────────────────────────
@@ -8778,15 +9069,9 @@ function _dqApply(i){
 // and its last four characters, which is enough to recognise which key you
 // pasted and useless to anybody else.
 function _loadAiStatus(){
-  var box = document.getElementById('aiBox');
-  if (!box) return;
-  google.script.run
-    .withSuccessHandler(function(st){ _drawAiBox(st || {}); })
-    .withFailureHandler(function(e){
-      var b = document.getElementById('aiBox');
-      if (b) b.innerHTML = '<span style="color:var(--red)">Could not read the AI setting: ' + _he(e.message||e) + '</span>';
-    })
-    .processMovement('getAiStatus', _h({}));
+  _sysLoad('ai', 'aiBox', _drawAiBox,
+    'Could not read the AI setting:',
+    function(r){ r.processMovement('getAiStatus', _h({})); });
 }
 
 function _drawAiBox(st){
@@ -8880,15 +9165,9 @@ function _aiRemoveKey(){
 // and shouting the loudest. A number on its own ("1,847,322 cells") means
 // nothing to anyone — a bar at 18% is understood without explanation.
 function _loadSpaceUsage(){
-  var box = document.getElementById('spaceBox');
-  if (!box) return;
-  google.script.run
-    .withSuccessHandler(function(st){ _drawSpaceBox(st || {}); })
-    .withFailureHandler(function(e){
-      var b = document.getElementById('spaceBox');
-      if (b) b.innerHTML = '<span style="color:var(--red)">Could not measure the file: ' + _he(e.message||e) + '</span>';
-    })
-    .processMovement('getSpaceUsage', _h({}));
+  _sysLoad('space', 'spaceBox', _drawSpaceBox,
+    'Could not measure the file:',
+    function(r){ r.processMovement('getSpaceUsage', _h({})); });
 }
 
 function _fmtInt(n){ return Math.round(Number(n)||0).toLocaleString('en-US'); }
@@ -8952,16 +9231,59 @@ function _drawSpaceBox(st){
 // this very tab told people so — without offering any way to do it. An admin
 // who lives in the app could not see whether their data was being backed up at
 // all, which is a strange thing for a system to keep to itself.
-function _loadBackupStatus(){
-  var box = document.getElementById('backupBox');
+/* ── The four boxes on the System tab ───────────────────────────────────────
+   Jose, after v11.37: "la ventana de app settings ya no se recarga, pero la
+   parte de system sí lo hace cada vez que cambio de pestaña."
+
+   Right, and it is the same fault one level down. _renderSystemTab rewrites the
+   pane, which puts "⏳ Checking…" back into all four boxes, and then four round
+   trips fill them in again with what they already said.
+
+   So the same answer as Settings, and for the same reason — this is NOT a cache
+   with an expiry. The four requests still go out every single time. What
+   changed is that the last answer is painted at once instead of a spinner, and
+   the box is only rewritten if the new answer differs from it.
+
+   One helper rather than four copies of it. Four copies is how three of them
+   end up fixed and the fourth ships as it was. */
+var _sysBox = {};   // clave → { payload, json }
+
+function _sysRemember(key, payload){
+  _sysBox[key] = { payload: payload, json: JSON.stringify(payload) };
+}
+
+/* call(runner) fires the right server method on the chainable runner it is
+   handed — the four do not share one endpoint, and pretending they did would
+   mean an extra layer to translate between them. */
+function _sysLoad(key, boxId, draw, errText, call){
+  var box = document.getElementById(boxId);
   if (!box) return;
-  google.script.run
-    .withSuccessHandler(function(st){ _drawBackupBox(st || {}); })
-    .withFailureHandler(function(e){
-      var b = document.getElementById('backupBox');
-      if (b) b.innerHTML = '<span style="color:var(--red)">Could not read the backup schedule: ' + _he(e.message||e) + '</span>';
+  var known = _sysBox[key];
+  if (known) draw(known.payload);   // instantáneo: sin ⏳, sin esperar
+
+  call(google.script.run
+    .withSuccessHandler(function(st){
+      st = st || {};
+      // Ya está en pantalla y es idéntico. No se toca el DOM: redibujar lo
+      // mismo hace parpadear la caja, que es la queja original con otra ropa.
+      if (_sysBox[key] && _sysBox[key].json === JSON.stringify(st)) return;
+      _sysRemember(key, st);
+      draw(st);
     })
-    .processMovement('getBackupStatus', _h({}));
+    .withFailureHandler(function(e){
+      // Un fallo sobre una caja que ya muestra algo real se calla. Misma razón
+      // que en Ajustes: un rojo encima de algo que funciona enseña a ignorar
+      // los rojos. La primera vez sí habla, porque ahí sólo hay un ⏳.
+      if (known) return;
+      var b = document.getElementById(boxId);
+      if (b) b.innerHTML = '<span style="color:var(--red)">' + errText + ' ' + _he(e.message||e) + '</span>';
+    }));
+}
+
+function _loadBackupStatus(){
+  _sysLoad('backup', 'backupBox', _drawBackupBox,
+    'Could not read the backup schedule:',
+    function(r){ r.processMovement('getBackupStatus', _h({})); });
 }
 
 function _drawBackupBox(st){
@@ -9030,20 +9352,23 @@ function _drawBackupBox(st){
     '</label>' +
     '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.35rem">' +
       '<button id="btnBackupNow" class="btn btn-ghost btn-sm" onclick="_backupNow()">🗄 Back up now</button>' +
-      '<span style="color:var(--muted);font-size:.75rem">' +
-        (on
-          ? 'Copies are kept for ' + (st.retentionDays || 30) + ' days in a Drive folder called "' + _he(st.folder || '') + '", then deleted.'
-          : 'Nothing is being backed up on a schedule. Turn this on — it costs nothing and it is the only thing that gets your data back after a bad import or a deleted row.') +
-      '</span>' +
+      // Con el interruptor ENCENDIDO esta línea repetía lo que ahora dice el
+      // icono i del título, y era parte de lo que apretaba el panel. Apagado
+      // no es repetición: es una advertencia, y esa se queda a la vista.
+      (on ? '' :
+        '<span style="color:var(--muted);font-size:.75rem">' +
+          'Nothing is being backed up on a schedule. Turn this on — it costs nothing and ' +
+          'it is the only thing that gets your data back after a bad import or a deleted row.' +
+        '</span>') +
     '</div>' +
     lastHtml +
     allHtml +
     // Deliberately separate from the switch: "back this up before I do
     // something risky" and "back it up every night" are different decisions,
     // and the menu version ran them together.
-    '<div style="color:var(--muted);font-size:.72rem;margin-top:.4rem">' +
-      '"Back up now" makes one extra copy immediately. It does not change the schedule.' +
-    '</div>';
+    // Esta nota también se mudó al icono i del título, junto con la de arriba:
+    // Jose pidió "los dos comentarios en backup dentro del i".
+    '';
 }
 
 function _toggleBackup(el){
@@ -9051,6 +9376,10 @@ function _toggleBackup(el){
   el.disabled = true;
   google.script.run
     .withSuccessHandler(function(res){
+      // El recuerdo se BORRA antes de dibujar el optimista. Si no, la relectura
+      // de la línea siguiente pintaría primero lo recordado —el estado de antes
+      // del interruptor— y quien lo tocó vería encendido, apagado, encendido.
+      delete _sysBox.backup;
       _drawBackupBox({ enabled: res && res.enabled, retentionDays: 30, folder: '' });
       _loadBackupStatus();                       // re-read, so the text is the server's truth
       showToast(want ? 'Nightly backup is on ✓' : 'Nightly backup turned off', want ? 'ok' : 'warn');
@@ -10668,13 +10997,30 @@ function _statLabel(text, tip){
 // (capture, since it doesn't bubble) and focusin so it works for every .tip
 // added anywhere, including ones rendered long after this file loaded.
 var TIP_MAX_WIDTH = 240, TIP_EDGE_MARGIN = 8;
+// Alto que se le reserva a la burbuja debajo del icono antes de decidir que
+// no cabe. 140 es holgado a propósito: los textos de estos iconos llegan a
+// cuatro renglones, y voltear de más sólo mueve la burbuja, mientras que
+// voltear de menos la vuelve a cortar — que es el fallo que se está arreglando.
+var TIP_FLIP_ROOM = 140;
 function _positionTip(el){
-  el.classList.remove('tip-edge-l', 'tip-edge-r');
   var r = el.getBoundingClientRect();
-  var cx = r.left + r.width / 2;
   var half = TIP_MAX_WIDTH / 2;
-  if (cx - half < TIP_EDGE_MARGIN) el.classList.add('tip-edge-l');
-  else if (cx + half > window.innerWidth - TIP_EDGE_MARGIN) el.classList.add('tip-edge-r');
+
+  // El centro de la burbuja, corrido lo justo para que no se salga por los
+  // lados. Con la ventana más estrecha que la burbuja los dos límites se
+  // cruzan y Math.min/Math.max devolverían el equivocado, así que ahí se
+  // centra en la pantalla y se acabó.
+  var lo = TIP_EDGE_MARGIN + half, hi = window.innerWidth - TIP_EDGE_MARGIN - half;
+  var cx = (lo > hi) ? window.innerWidth / 2
+                     : Math.min(Math.max(r.left + r.width / 2, lo), hi);
+
+  // Debajo por defecto. Si no cabe, encima — que es lo que la regla suelta de
+  // .pack-math hacía para un solo caso y ahora vale para todos.
+  var above = (window.innerHeight - r.bottom) < TIP_FLIP_ROOM;
+  el.classList.toggle('tip-above', above);
+
+  el.style.setProperty('--tip-x', Math.round(cx) + 'px');
+  el.style.setProperty('--tip-y', Math.round(above ? (r.top - 8) : (r.bottom + 8)) + 'px');
 }
 document.addEventListener('mouseenter', function(e){
   var el = e.target && e.target.closest && e.target.closest('.tip');
@@ -15006,8 +15352,64 @@ function _renderSysDeck(){
 // The original label is kept ON the element rather than in a lookup, so it
 // survives anything else that redraws around it, and _btnReset is safe to call
 // on a button that was never made busy.
+// THE OTHER BUTTONS.
+//
+// Jose (v11.32): "cuando hay 2 botones juntos y se da clic en uno, solo el que
+// se dio clic se desactiva, dejando los otros habilitados para dar clic
+// mientras se realiza la acción del otro botón." He first hit it on the merge
+// pair, but the merge was only WHERE he saw it — the rule is general and
+// applies to accept, add, mark, and everything that travels to the server.
+//
+// While an operation is running the card has exactly one valid state, and
+// offering another way out is offering a mistake. Jose chose (2026-08-31):
+// they DISAPPEAR, over my suggestion of dimming them.
+//
+// Two details that make obeying that decision bearable:
+//
+//   visibility:hidden, not display:none and not removing the node. The button
+//   goes from the eye and from the finger, and the space it held stays put —
+//   otherwise the card shrinks while the work runs, grows back when it
+//   finishes, and the list underneath jumps twice.
+//
+//   A button that was ALREADY disabled for its own reason stays disabled when
+//   the others come back. That is Jose's original merge report exactly: "Merge
+//   into selected" disables itself on purpose, and a naive restore would hand
+//   it back enabled.
+//
+// Direct children only, so this reaches the button row and not the whole
+// window. The modal's own ✕ lives in the header, outside that row, so hiding
+// Cancel never traps anyone — mark anything else that must survive with
+// data-stay-visible.
+function _btnHideSiblings(btn){
+  var box = btn && btn.parentElement;
+  if (!box) return;
+  Array.prototype.forEach.call(box.children, function(el){
+    if (el === btn) return;
+    var isBtn = el.tagName === 'BUTTON' ||
+                (el.tagName === 'A' && el.classList && el.classList.contains('btn'));
+    if (!isBtn || el.hasAttribute('data-stay-visible')) return;
+    el._acWasDisabled = !!el.disabled;
+    el.disabled = true;
+    el.style.visibility = 'hidden';
+    el.setAttribute('data-ac-hidden', '1');
+  });
+}
+
+function _btnShowSiblings(btn){
+  var box = btn && btn.parentElement;
+  if (!box) return;
+  Array.prototype.forEach.call(box.children, function(el){
+    if (!el.hasAttribute || !el.hasAttribute('data-ac-hidden')) return;
+    el.removeAttribute('data-ac-hidden');
+    el.style.visibility = '';
+    if (!el._acWasDisabled) el.disabled = false;   // see the merge note above
+    el._acWasDisabled = null;
+  });
+}
+
 function _btnBusy(btn, label){
   if (!btn) return;
+  _btnHideSiblings(btn);
   // Remember the label only when the button is not ALREADY showing a spinner.
   // Not a nicety: several call sites still restore their own button by hand, so
   // this can be entered a second time, and a naive capture would "remember" the
@@ -15022,6 +15424,7 @@ function _btnBusy(btn, label){
 
 function _btnReset(btn){
   if (!btn) return;
+  _btnShowSiblings(btn);
   if (btn._acHtml != null) btn.innerHTML = btn._acHtml;
   btn._acHtml = null;
   btn.disabled = false;

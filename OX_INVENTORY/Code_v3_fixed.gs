@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.33';
+var APP_VERSION = '11.39';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.33';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a81f5ac0';
+var APP_BUILD = 'ae5491e2';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2240,6 +2240,14 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'getSpaceUsage')   return getSpaceUsage(auth);
   if (action === 'getAiStatus')     return getAiStatus(auth);
   if (action === 'setAiKey')        return setAiKey(data, auth);
+  // El reporte diario. Estas tres llegaban por google.script.run directo, sin
+  // pasar por aquí — y processMovement es donde el token de sesión se convierte
+  // en _verifiedAuth. Sin eso, requireAuth_ contestaba "Not authenticated.
+  // Please sign in and use the app from its own page." en rojo, dentro de un
+  // panel al que sólo se llega estando autenticado. Jose lo fotografió.
+  if (action === 'getDailyReportSettings')  return getDailyReportSettings(auth);
+  if (action === 'saveDailyReportSettings') return saveDailyReportSettings(data, auth);
+  if (action === 'sendDailyReportNow')      return sendDailyReportNow(auth);
   if (action === 'getMaterialPacks')   return getMaterialPacks(auth);
   if (action === 'saveMaterialPack')   return saveMaterialPack(data, auth);
   if (action === 'deleteMaterialPack') return deleteMaterialPack(data, auth);
@@ -4004,6 +4012,287 @@ function runCheckin_() {
         'sees it. To turn it off for this installation: Apps Script → Project Settings → Script Properties → ' +
         'CHECKIN_ALERTS_ENABLED = false</p></div>'
   });
+}
+
+/* ═══ EL REPORTE DIARIO ══════════════════════════════════════════════════════
+ *
+ * Pedido de Jose (2026-08-31): "reporte diario de qué se recibió y qué salió de
+ * la bodega, en la noche, hora modificable por un admin."
+ *
+ * No confundir con dailyCheckinTrigger, que es otra cosa entera: aquel es una
+ * alarma de ventas para Jose, se dispara solo los días 3 y 7 y solo si el
+ * cliente no ha registrado NADA, y el cliente nunca lo ve. Este es para el
+ * cliente, todas las noches, y trata de su bodega.
+ *
+ * Tres decisiones de Jose, y las tres cambian el código:
+ *
+ *   LA HORA LA PONE UN ADMIN. Los otros tres disparadores tienen la hora
+ *   escrita a mano (.atHour(9)). Un disparador de Apps Script no se puede
+ *   editar: para cambiarle la hora hay que BORRARLO y crear otro. Por eso
+ *   ensureDailyReportTrigger_ compara la hora guardada con la instalada y
+ *   rehace el disparador cuando no coinciden, en vez de salir temprano al ver
+ *   que "ya existe uno" — que es lo que hacen los otros tres y sería el error
+ *   exacto aquí: la hora cambiaría en los ajustes y no en la realidad.
+ *
+ *   LLEGA AL ADMIN QUE LO CONFIGURÓ, MÁS SU LISTA. El que lo enciende queda
+ *   guardado y siempre recibe; los demás se agregan. Así nadie lo enciende y
+ *   se olvida de ponerse a sí mismo.
+ *
+ *   UN DÍA SIN MOVIMIENTOS SÍ SE MANDA. Jose: "mandar 'hoy no hubo
+ *   movimientos' es información; esto es más profesional." Y tiene razón por
+ *   una segunda razón que no dijo: el silencio de un día tranquilo y el
+ *   silencio de un disparador caído se ven exactamente igual.
+ */
+
+var DAILY_REPORT_DEFAULT_HOUR = 20;   // 8pm — "en la noche", y antes de que la gente se acueste
+
+function dailyReportSettings_() {
+  var p = PropertiesService.getScriptProperties();
+  var h = parseInt(p.getProperty('DAILY_REPORT_HOUR'), 10);
+  return {
+    enabled: p.getProperty('DAILY_REPORT_ENABLED') === 'true',
+    // Una hora fuera de 0–23 no es una hora. Se cae al valor por omisión en vez
+    // de pasársela a .atHour(), que la rechazaría y dejaría la instalación sin
+    // disparador y sin nadie enterado.
+    hour:    (isFinite(h) && h >= 0 && h <= 23) ? h : DAILY_REPORT_DEFAULT_HOUR,
+    owner:   String(p.getProperty('DAILY_REPORT_OWNER') || '').trim(),
+    extra:   String(p.getProperty('DAILY_REPORT_TO')    || '').trim()
+  };
+}
+
+/** Todos los destinatarios, sin repetir y sin vacíos. El dueño primero. */
+function dailyReportRecipients_() {
+  var s = dailyReportSettings_();
+  var seen = {}, out = [];
+  [s.owner].concat(s.extra.split(/[,;\s]+/)).forEach(function (e) {
+    e = String(e || '').trim().toLowerCase();
+    if (!e || e.indexOf('@') === -1 || seen[e]) return;
+    seen[e] = true;
+    out.push(e);
+  });
+  return out;
+}
+
+/**
+ * Instala, reinstala o quita el disparador según los ajustes.
+ *
+ * A diferencia de ensureBackupTrigger_ y compañía, este NO sale temprano al
+ * encontrar uno instalado: comprueba también la HORA. Un disparador con la
+ * hora vieja es peor que ninguno, porque los ajustes dicen una cosa y la
+ * bandeja de entrada hace otra, y nadie sospecha de los ajustes.
+ */
+function ensureDailyReportTrigger_() {
+  var cfg = dailyReportSettings_();
+  var triggers = ScriptApp.getProjectTriggers();
+  var found = null;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'dailyReportTrigger') { found = triggers[i]; break; }
+  }
+
+  if (!cfg.enabled) {
+    if (found) ScriptApp.deleteTrigger(found);
+    PropertiesService.getScriptProperties().deleteProperty('DAILY_REPORT_TRIGGER_HOUR');
+    return 'off';
+  }
+
+  // La hora a la que el disparador vivo fue creado. El objeto Trigger no la
+  // sabe decir, así que se guarda al crearlo — sin eso no hay forma de
+  // distinguir "instalado a las 20" de "instalado a las 9".
+  var p = PropertiesService.getScriptProperties();
+  var installedHour = parseInt(p.getProperty('DAILY_REPORT_TRIGGER_HOUR'), 10);
+
+  if (found && installedHour === cfg.hour) return 'unchanged';
+
+  if (found) ScriptApp.deleteTrigger(found);
+  ScriptApp.newTrigger('dailyReportTrigger').timeBased().everyDays(1).atHour(cfg.hour).create();
+  p.setProperty('DAILY_REPORT_TRIGGER_HOUR', String(cfg.hour));
+  return found ? 'rescheduled' : 'installed';
+}
+
+/**
+ * El manejador. Público porque un disparador tiene que poder llamarlo, y por
+ * eso mismo es una puerta: cualquier cuenta con la URL de la app podría
+ * invocarlo y hacer que la instalación mande su reporte cuando quiera.
+ * requireOwnerContext_ es lo que lo impide — un disparador programado corre
+ * como el dueño, así que pasa; una llamada de otra persona, no.
+ */
+function dailyReportTrigger() {
+  try {
+    requireOwnerContext_();
+    setVerifiedAuth_({ role: 'ADMIN', email: 'system@scheduled-trigger', name: 'Scheduled trigger' });
+    runDailyReport_();
+  } catch (e) {
+    // Un disparador que lanza le manda al dueño un aviso de fallo cada noche,
+    // que es peor resultado que la llamada que acaba de bloquear.
+    Logger.log('dailyReportTrigger: ' + e.message);
+  }
+}
+
+/** Los movimientos de HOY, en la zona horaria de la instalación. */
+function dailyReportMovements_(ss) {
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (!archive || archive.getLastRow() < 2) return [];
+  var tz    = Session.getScriptTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var rows  = archive.getDataRange().getValues();
+  var out   = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][AC.CATEGORY] && !rows[i][AC.NAME]) continue;
+    var ts = rows[i][AC.TIMESTAMP];
+    if (!(ts instanceof Date)) ts = new Date(ts);
+    if (isNaN(ts.getTime())) continue;
+    // Se compara la fecha LOCAL formateada, no la UTC. Comparar en UTC parte el
+    // día por la mitad en Utah: todo lo registrado después de las 5 o 6 de la
+    // tarde cae ya en el día siguiente, y el reporte de la noche se manda
+    // justo a esa hora. Habría llegado sistemáticamente incompleto.
+    if (Utilities.formatDate(ts, tz, 'yyyy-MM-dd') !== today) continue;
+    var m = parseArchiveRow(rows[i], i + 1);
+    // Los costos se quitan aquí, aunque el correo de hoy no los imprima.
+    //
+    // test-cost-privacy lo señaló y tenía razón: no es que hubiera una fuga, es
+    // que no había nada que la impidiera. Este reporte le llega al admin Y a la
+    // lista que él escriba, que puede incluir gente de bodega que por
+    // configuración no ve precios. El día que alguien agregue una columna de
+    // valor al correo —una petición perfectamente razonable— la fuga sería
+    // silenciosa y viajaría por correo, que es de donde no se puede recoger.
+    //
+    // Quitarlos donde se leen cuesta dos líneas y vuelve el error imposible.
+    // Apuntar esta función en la lista de excepciones del guardián habría
+    // costado una, y lo habría dejado esperando.
+    m.unitCost  = null;
+    m.totalCost = null;
+    out.push(m);
+  }
+  return out;
+}
+
+function runDailyReport_() {
+  var cfg = dailyReportSettings_();
+  if (!cfg.enabled) return 'disabled';
+
+  var to = dailyReportRecipients_();
+  if (!to.length) return 'no-recipients';   // encendido sin nadie a quien mandarlo
+
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var movs = dailyReportMovements_(ss);
+  var cs   = companySettings_();
+  var tz   = Session.getScriptTimeZone();
+  var hoy  = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy');
+
+  var IN  = { ENTRY: 1, RETURN: 1 };
+  var OUT = { EXIT: 1, WASTE: 1 };
+  var llegaron = movs.filter(function (m) { return IN[m.moveType]; });
+  var salieron = movs.filter(function (m) { return OUT[m.moveType]; });
+  var internos = movs.filter(function (m) { return !IN[m.moveType] && !OUT[m.moveType]; });
+
+  var subject = cs.name
+    ? (cs.name + ' — movimientos del ' + hoy)
+    : ('Movimientos del ' + hoy);
+  if (!movs.length) subject += ' (sin movimientos)';
+
+  MailApp.sendEmail({
+    to: to.join(','),
+    subject: subject,
+    htmlBody: dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg)
+  });
+  return 'sent';
+}
+
+function dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg) {
+  function tabla(titulo, lista, color) {
+    if (!lista.length) return '';
+    var total = 0;
+    var filas = lista.map(function (m) {
+      total += Number(m.qty) || 0;
+      var donde = m.moveType === 'ENTRY' || m.moveType === 'RETURN'
+        ? (m.destLoc || '—') : (m.sourceLoc || '—');
+      return '<tr>' +
+        '<td>' + escHtml_(m.name || '—') + '</td>' +
+        '<td style="color:#666">' + escHtml_(m.category || '') + '</td>' +
+        '<td align="right"><b>' + (Number(m.qty) || 0) + '</b> ' +
+          escHtml_(m.unit || '') + '</td>' +
+        '<td>' + escHtml_(donde) + '</td>' +
+        '<td style="color:#666">' + escHtml_(m.responsible || m.userEmail || '') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<h3 style="margin:1.4rem 0 .4rem;color:' + color + '">' + titulo +
+             ' <span style="color:#666;font-weight:400">(' + lista.length + ')</span></h3>' +
+           '<table cellpadding="6" style="border-collapse:collapse;font-size:13px;width:100%">' +
+             '<tr style="background:#f5f5f5;text-align:left">' +
+               '<th>Material</th><th>Categoría</th><th align="right">Cantidad</th>' +
+               '<th>Ubicación</th><th>Quién</th></tr>' + filas +
+           '</table>';
+  }
+
+  var cuerpo;
+  if (!llegaron.length && !salieron.length && !internos.length) {
+    // El día tranquilo. Se manda igual, y se dice POR QUÉ se manda — si no, el
+    // primer correo vacío parece un error del sistema y el segundo se archiva
+    // sin leer.
+    cuerpo =
+      '<p style="font-size:15px">Hoy no se registró ningún movimiento en la bodega.</p>' +
+      '<p style="color:#666;font-size:13px">Este aviso se manda también los días ' +
+        'sin movimiento, a propósito: así un día tranquilo no se confunde con un ' +
+        'reporte que no llegó.</p>';
+  } else {
+    cuerpo = tabla('Llegó a la bodega', llegaron, '#046C4E') +
+             tabla('Salió de la bodega', salieron, '#B42318') +
+             tabla('Se movió dentro de la bodega', internos, '#1E52A0');
+  }
+
+  return '<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:720px">' +
+    '<h2 style="margin:0 0 .2rem">' + escHtml_(cs.name || 'Bodega') + '</h2>' +
+    '<p style="margin:0 0 1rem;color:#666">Movimientos del ' + escHtml_(hoy) + '</p>' +
+    cuerpo +
+    '<p style="margin-top:1.6rem;font-size:12px;color:#666;border-top:1px solid #e5e7eb;' +
+      'padding-top:.8rem">Reporte automático de ' + escHtml_(PRODUCT_NAME) + '. ' +
+      'Un administrador puede cambiar la hora o apagarlo desde Ajustes.</p></div>';
+}
+
+/** Lo que la pantalla de Ajustes lee. */
+function getDailyReportSettings(auth) {
+  auth = requireAuth_('ADMIN');
+  var cfg = dailyReportSettings_();
+  return { enabled: cfg.enabled, hour: cfg.hour, owner: cfg.owner, extra: cfg.extra,
+           recipients: dailyReportRecipients_() };
+}
+
+/** Lo que la pantalla de Ajustes guarda. Reinstala el disparador de una vez. */
+function saveDailyReportSettings(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var p  = PropertiesService.getScriptProperties();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var enabled = !!(data && data.enabled);
+  var hour    = parseInt(data && data.hour, 10);
+  if (!isFinite(hour) || hour < 0 || hour > 23) hour = DAILY_REPORT_DEFAULT_HOUR;
+
+  p.setProperty('DAILY_REPORT_ENABLED', enabled ? 'true' : 'false');
+  p.setProperty('DAILY_REPORT_HOUR', String(hour));
+  p.setProperty('DAILY_REPORT_TO', String((data && data.extra) || '').trim());
+  // Quien lo enciende queda registrado y siempre recibe. Sin esto, un admin lo
+  // activa, escribe la lista de otra gente, y es el único que no se entera.
+  if (enabled && !String(p.getProperty('DAILY_REPORT_OWNER') || '').trim()) {
+    p.setProperty('DAILY_REPORT_OWNER', auth.email);
+  }
+
+  var estado = ensureDailyReportTrigger_();
+  auditLog_(ss, 'DAILY_REPORT', auth.email, 'settings',
+    enabled ? ('on @' + hour + ':00') : 'off', estado);
+
+  return { ok: true, state: estado, settings: getDailyReportSettings() };
+}
+
+/** Mandarlo ahora, para que un admin no tenga que esperar a la noche para ver
+ *  si quedó bien configurado. */
+function sendDailyReportNow(auth) {
+  auth = requireAuth_('ADMIN');
+  var cfg = dailyReportSettings_();
+  if (!cfg.enabled) return { ok: false, message: 'The daily report is off. Turn it on first.' };
+  var to = dailyReportRecipients_();
+  if (!to.length) return { ok: false, message: 'Nobody would receive it — add at least one address.' };
+  runDailyReport_();
+  return { ok: true, message: 'Sent to ' + to.join(', ') };
 }
 
 // ADMIN only. Returns movements older than the cutoff, for on-demand viewing/
@@ -7266,6 +7555,12 @@ function menuCheckInstallation() {
     { fn: 'dailyCheckinTrigger',       install: ensureCheckinTrigger_,
       what: 'Private check-in to your support address' }
   ];
+  // El reporte diario va aparte de la lista: los otros tres o están o no están,
+  // y este además puede estar APAGADO a propósito, que no es una falla. Y su
+  // hora la elige un admin, así que "existe" no basta — un disparador con la
+  // hora vieja hace que los ajustes digan una cosa y la bandeja de entrada
+  // otra. ensureDailyReportTrigger_ compara las dos y rehace el disparador si
+  // no coinciden; aquí sólo se cuenta lo que hizo.
   var triggerNotes = [];
   try {
     var installed = {};
@@ -7284,6 +7579,23 @@ function menuCheckInstallation() {
     // Reading the trigger list needs an authorization the menu normally has. If
     // it is refused, say so rather than reporting all three as fine.
     triggerNotes.push('  • Could not read the scheduled jobs: ' + e.message);
+  }
+
+  try {
+    var drCfg   = dailyReportSettings_();
+    var drState = ensureDailyReportTrigger_();
+    if (drState === 'installed' || drState === 'rescheduled') {
+      repaired.push('Daily movement report — ' +
+        (drState === 'rescheduled'
+          ? 'was scheduled for the wrong time, moved to '
+          : 'was not scheduled, set for ') + drCfg.hour + ':00');
+    }
+    if (drCfg.enabled && !dailyReportRecipients_().length) {
+      triggerNotes.push('  • The daily movement report is ON but has nobody to send to.\n' +
+                        '      Settings → Daily report → add at least one address.');
+    }
+  } catch (e) {
+    triggerNotes.push('  • Could not check the daily movement report: ' + e.message);
   }
   // A failure recorded during setup outlives the run that caused it, so it is
   // reported here even when the trigger is present today.
