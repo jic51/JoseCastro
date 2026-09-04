@@ -110,6 +110,18 @@
        every pixel it loses is a pixel of clearance from the blue edge it was
        crossing. It is a signature, not a heading — smaller suits it anyway. */
     .author-badge{background:rgba(0,0,0,.2);padding:3px 9px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.66rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
+    /* El nombre del producto, enlazado a la landing. En reposo se ve
+       exactamente igual que antes de ser enlace —misma letra, mismo color, sin
+       subrayado— y sólo se subraya al pasar por encima. Es una firma en una
+       esquina, no una llamada a hacer clic. #a1b0cb es el color que ya tenía
+       en el header; en el menú de la cuenta hay que repetirlo porque ahí el
+       fondo es blanco y no hay de quién heredarlo. */
+    .product-link{color:inherit;text-decoration:none}
+    .product-link:hover,.product-link:focus-visible{text-decoration:underline}
+    .acct-brand{color:#a1b0cb}
+    /* Renombrado por el cliente: deja de ser enlace y vuelve a ser texto. El
+       cursor lo dice antes de que nadie lo intente. */
+    .product-link.no-link{cursor:default;text-decoration:none}
     /* Left-aligned identity stack — logo, company name, the Acopio badge
        right under it, tight. Jose: this reads as a lockup, not three
        separate things scattered in a row, and (v9.89, emphatic) Acopio has
@@ -151,7 +163,22 @@
          --brand-h is measured by _syncBrandWidth from the real block, so the
          bar fits whatever this customer's logo turned out to be, plus room to
          breathe above and below. */
-      .topbar.merged{position:relative;min-height:max(78px, calc(var(--brand-h, 60px) + 26px));gap:.4rem 1.25rem}
+      /* `sticky`, NO `relative`. Éste es el arreglo del header que se iba con
+         el scroll y que Jose fotografió (v11.44).
+
+         .topbar ya declara position:sticky;top:0;z-index:100 — pero
+         `.topbar.merged` es más específico, así que el `position:relative` que
+         estaba aquí lo pisaba, y sólo por encima de 769px: en el teléfono el
+         header se quedaba arriba y en la computadora no. Nadie lo vio en el
+         código porque las dos reglas, leídas por separado, están bien; lo que
+         falla es cuál gana, y eso no se lee, se mide.
+
+         El `relative` no estaba puesto por sí mismo: sólo servía de ancla para
+         el `position:absolute` de .topbar-row1 de la línea siguiente. `sticky`
+         también establece bloque contenedor para descendientes absolutos, así
+         que la fusión del header sigue intacta. El top:0 y el z-index se
+         heredan de .topbar. Lo mide test-topbar-sticky.js haciendo scroll. */
+      .topbar.merged{position:sticky;min-height:max(78px, calc(var(--brand-h, 60px) + 26px));gap:.4rem 1.25rem}
       .topbar.merged .topbar-row1{position:absolute;left:1.5rem;top:50%;transform:translateY(-50%);z-index:1}
       /* row2 itself stays full-width (unpadded) so its centring math is
          still exactly "middle of the page" — the fix isn't in row2's box,
@@ -832,7 +859,11 @@
     .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.26);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
     .acct-menu.open{display:block}
     @keyframes acct-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-    .acct-head{padding:1.15rem 1rem .9rem;text-align:center;border-bottom:1px solid var(--border)}
+    .acct-head{padding:1.15rem 1rem .9rem;text-align:center;border-bottom:1px solid var(--border);position:relative}
+    /* La marca dentro del menú de la cuenta, en la esquina que Jose marcó.
+       Absoluta a propósito: el bloque de abajo (avatar, nombre, correo, roles)
+       está centrado, y meter una palabra en el flujo lo descentraría. */
+    .acct-brand{position:absolute;left:.85rem;top:.7rem;font-size:.66rem;font-weight:600;letter-spacing:.01em}
     .acct-avatar{width:62px;height:62px;border-radius:50%;margin:0 auto .6rem;display:flex;align-items:center;justify-content:center;font-size:1.35rem;font-weight:800;color:#fff;background:var(--accent)}
     .acct-name{font-size:.96rem;font-weight:700;color:var(--text);line-height:1.3}
     .acct-email{font-size:.76rem;color:var(--muted);margin-top:.15rem;word-break:break-all}
@@ -1088,14 +1119,20 @@
        desdibuja para no competir con la app, y en cuanto se abre o se pasa el
        ratón vuelve a ser papel blanco que se puede leer. Del tamaño de las del
        sistema, como pidió, y algo más alta porque lleva dos botones. */
-    .todo-card{--card-h:136px;--card-w:352px;
+    /* 160px, no 136: a 136 el nombre largo y la línea de "hace un momento"
+       llegaban al borde de abajo y el par de botones quedaba apretado contra
+       ellos. Naranja y no amarillo porque es lo único del montón que pide algo
+       de quien lo lee — las del sistema informan, ésta espera un movimiento.
+       --orange (#EA580C) existe en :root; el fondo se queda blanco a propósito,
+       --orange-bg entero sería más grito del que Jose pidió. */
+    .todo-card{--card-h:160px;--card-w:352px;
       background:var(--card);color:var(--text);
-      border:1px solid var(--border);border-left:4px solid var(--yellow)}
+      border:1px solid var(--border);border-left:4px solid var(--orange)}
     .deck.dim:not(.open) .todo-card{background:var(--card-ghost);
       border-color:rgba(0,0,0,.06);border-left-color:var(--border);
       box-shadow:0 2px 10px rgba(0,0,0,.08)}
     .todo-card-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;
-      letter-spacing:.04em;color:var(--yellow);margin-bottom:.15rem}
+      letter-spacing:.04em;color:var(--orange);margin-bottom:.15rem}
     .todo-card-val{font-weight:700;font-size:.86rem;line-height:1.25;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .todo-card-sub{font-size:.74rem;color:var(--text);opacity:.85;margin-top:.1rem}
@@ -1983,7 +2020,11 @@
     <div class="brand-mark">
       <div class="author-badge">
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-        <span id="poweredByBadge">Acopio</span>
+        <!-- El enlace envuelve al span, no lo reemplaza: el nombre lo sigue
+             escribiendo _applyCompanyBranding en #poweredByBadge, y quien lo
+             escribe no tiene que saber que ahora está dentro de un enlace.
+             _syncProductLinks decide si el enlace vive o no. -->
+        <a class="product-link" href="https://www.acopio.net" target="_blank" rel="noopener noreferrer"><span id="poweredByBadge">Acopio</span></a>
       </div>
       <!-- Starts loud on purpose: if the script never runs, this is the only
            thing on the page that says so. The moment it does run it is
@@ -2014,6 +2055,13 @@
       </button>
       <div class="acct-menu" id="acctMenu">
         <div class="acct-head">
+          <!-- Jose lo marcó en rojo sobre la captura: la marca arriba a la
+               izquierda del recuadro blanco. Va posicionada en la esquina, no
+               en el flujo, para no empujar el avatar ni el nombre fuera de su
+               centro — que es lo que da forma a este bloque. El texto lo
+               escribe _syncProductLinks junto con el del header, de una sola
+               vez, para que los dos no puedan decir cosas distintas. -->
+          <a class="product-link acct-brand" href="https://www.acopio.net" target="_blank" rel="noopener noreferrer">Acopio</a>
           <div class="acct-avatar" id="acctAvatar">·</div>
           <div class="acct-name"  id="acctName">Loading…</div>
           <div class="acct-email" id="acctEmail"></div>
@@ -3158,7 +3206,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.43';
+var APP_VERSION = '11.44';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3170,7 +3218,7 @@ var APP_VERSION = '11.43';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2e39e1ef';
+var APP_BUILD = '17ffbff4';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4582,6 +4630,7 @@ function applyCompanyBranding(c){
   }
   var badge = document.getElementById('poweredByBadge');
   if (badge) badge.textContent = c.productName || PRODUCT;
+  _syncProductLinks(c.productName);
 
   // Remembered for the NEXT load's splash screen, which paints long before the
   // server has answered and so has nothing else to go on. See the splash markup.
@@ -4628,6 +4677,50 @@ function applyCompanyBranding(c){
 function _setFavicon(href){
   var link = document.getElementById('appFavicon');
   if (link && href) link.href = href;
+}
+
+/* ── El nombre del producto, enlazado a la landing ────────────────────────────
+ *
+ * Jose (v11.44): que el "Acopio" de debajo del nombre de la empresa lleve al
+ * sitio, y que aparezca también arriba a la izquierda del menú de la cuenta.
+ *
+ * EL ENLACE NO ES INCONDICIONAL, y ésa es la única decisión de peso aquí. Ese
+ * texto no siempre dice Acopio: `_applyCompanyBranding` lo reescribe con
+ * `c.productName`, que es la marca blanca. Si un cliente renombra el producto,
+ * un enlace fijo a acopio.net mandaría a su gente a un sitio que no se llama
+ * como lo que están usando — y desde una palabra que ya no es nuestra.
+ *
+ * Así que el enlace vive sólo mientras el nombre siga siendo el de fábrica. En
+ * cuanto hay `productName` propio, el <a> pierde el href y se queda como el
+ * texto que siempre fue. Se hace por los dos sitios a la vez, con una sola
+ * consulta a `.product-link`, para que el header y el menú no puedan acabar
+ * diciendo cosas distintas — que es lo que pasa cuando cada copia se sincroniza
+ * por su cuenta.
+ */
+var PRODUCT_SITE = 'https://www.acopio.net';
+
+function _syncProductLinks(productName){
+  var custom = String(productName || '').trim();
+  var renamed = !!custom && custom !== PRODUCT;
+  var label = renamed ? custom : PRODUCT;
+  var links = document.querySelectorAll('.product-link');
+  Array.prototype.forEach.call(links, function(a){
+    // El del header envuelve a #poweredByBadge, que ya escribió el nombre; el
+    // del menú es el propio texto. Se distinguen por tener hijo o no, no por
+    // un id — así un tercer sitio hereda esto sin tocar nada.
+    if (!a.querySelector('span')) a.textContent = label;
+    if (renamed){
+      a.removeAttribute('href');
+      a.removeAttribute('target');
+      a.removeAttribute('rel');
+      a.classList.add('no-link');
+    } else {
+      a.setAttribute('href', PRODUCT_SITE);
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+      a.classList.remove('no-link');
+    }
+  });
 }
 
 // The header-merge layout (≥769px) takes the brand block out of flow with
@@ -6126,6 +6219,13 @@ function openMoveModal(type){
   // Drawer flow (_rdwMoveFromDrawer) re-arms this right after this call
   // returns, once it has its own material to prefill.
   _rdwPrefillActive = null;
+
+  // Y sin tarjeta pendiente colgando de la apertura anterior. Mismo motivo que
+  // la línea de arriba, y aquí importa más: si alguien abre la entrada desde
+  // una tarjeta, la cierra sin guardar y más tarde registra OTRA entrada
+  // cualquiera, el id viejo borraría una tarjeta que sigue haciendo falta.
+  // _entryFromIncoming lo vuelve a poner después de llamar aquí.
+  _entryTodoId = null;
   _syncMoveTypeBarForRdw();
 
   // Reset form
@@ -6813,6 +6913,10 @@ async function submitMovement(){
         var savedName = name;
         var savedQty  = qty;
         var savedAdj  = adjust;          // null for every other type
+        // La entrada existe. Si este formulario venía de una tarjeta de "llegó
+        // y falta su entrada", ya no hace falta. Éste es el ÚNICO sitio donde
+        // esa tarjeta se borra sin que nadie la descarte a mano.
+        _entryTodoResolve(savedType);
         // The tick sits on the button for a moment before the window goes. A
         // window that vanishes the instant you click Save looks exactly like a
         // window that closed without saving, and the toast arrives afterwards,
@@ -14035,10 +14139,14 @@ function _syncEntryOffer(){
 }
 
 /** Abre el formulario de movimiento en ENTRY con lo que la app ya sabía. */
-function _entryFromIncoming(item){
+function _entryFromIncoming(item, todoId){
   if (!item) return;
   showTab('movements', 'btn-movements');
   openMoveModal('ENTRY');
+  // DESPUÉS de openMoveModal, que lo pone a null. La tarjeta que hay detrás de
+  // este formulario, para poder borrarla si la entrada llega a guardarse — y
+  // sólo entonces.
+  _entryTodoId = todoId || null;
 
   var set = function(id, v){
     var e = document.getElementById(id);
@@ -14132,8 +14240,25 @@ function saveIncomingItem() {
       .withSuccessHandler(function(){
         _btnDone(btn, true, function(){
           closeModal('incomingOverlay');
-          if (wantEntry) _entryFromIncoming(payload);
-          else if (arrived) _todoAdd(payload);
+          // LA TARJETA SE CREA SIEMPRE QUE LA ENTREGA PASA A ARRIVED, marque o
+          // no la casilla. La v11.42 la creaba sólo al NO marcarla, y ese era
+          // el hueco que Jose encontró: con la casilla marcada —que viene
+          // marcada por defecto— se abría el formulario de entrada y no
+          // quedaba nada; quien lo cerrara sin guardar se quedaba con la
+          // entrega marcada como llegada, sin entrada, y sin nada que se lo
+          // recordara. Justo lo que la tarjeta existe para evitar.
+          //
+          // Ahora la tarjeta es el registro de "llegó y falta su entrada", y se
+          // borra en un solo sitio: cuando la entrada se guarda de verdad (ver
+          // _entryTodoResolve en submitMovement). Abrir el formulario no la
+          // borra; guardarlo sí.
+          if (arrived){
+            // Sin aviso cuando el formulario se abre acto seguido: el aviso
+            // dice "está en la esquina hasta que hagas la entrada" y la entrada
+            // está justo delante. Sólo estorba.
+            var todoId = _todoAdd(payload, wantEntry);
+            if (wantEntry) _entryFromIncoming(payload, todoId);
+          }
         });
         loadDataFromGoogle(false);
       })
@@ -15615,6 +15740,15 @@ function _announceSystemActivity(){
 var _TODO_KEY = 'acopio_pending_entries';
 var _todoItems = [];
 
+// La tarjeta que hay detrás del formulario de entrada abierto ahora mismo, si
+// es que salió de una. La pone _entryFromIncoming, la limpia openMoveModal en
+// cada apertura, y la cobra _entryTodoResolve cuando la entrada se guarda.
+//
+// ES LA PIEZA QUE HACE QUE ABRIR NO SEA LO MISMO QUE HACER. Hasta la v11.43 la
+// tarjeta desaparecía al abrir el formulario —o no llegaba a existir— y cerrar
+// sin guardar dejaba el trabajo sin hacer y sin rastro.
+var _entryTodoId = null;
+
 function _todoLoad(){
   try {
     var raw = localStorage.getItem(_TODO_KEY);
@@ -15633,8 +15767,10 @@ function _todoSave(){
   catch (e) {}
 }
 
-function _todoAdd(item){
-  if (!item) return;
+/** Deja la tarjeta y devuelve su id. `quiet` calla el aviso cuando quien llama
+ *  va a abrir el formulario de entrada acto seguido. */
+function _todoAdd(item, quiet){
+  if (!item) return null;
   _todoLoad();
   var entry = {
     id:       'todo-' + Date.now() + '-' + Math.round(Math.random() * 1e6),
@@ -15652,7 +15788,22 @@ function _todoAdd(item){
   _todoItems.unshift(entry);
   _todoSave();
   _renderTodoDeck();
-  showToast('Noted — the reminder is in the corner until you make the entry.', 'info', 5000);
+  if (!quiet) showToast('Noted — the reminder is in the corner until you make the entry.', 'info', 5000);
+  return entry.id;
+}
+
+/** Cobra la tarjeta que estaba detrás de la entrada recién guardada.
+ *
+ *  Se llama desde el handler de éxito de submitMovement, y sólo borra si el
+ *  movimiento guardado fue un ENTRY: la persona pudo haber cambiado el tipo de
+ *  formulario después de abrirlo, y una salida no salda una entrada pendiente.
+ */
+function _entryTodoResolve(savedType){
+  if (!_entryTodoId) return;
+  var id = _entryTodoId;
+  _entryTodoId = null;
+  if (String(savedType || '').toUpperCase() !== 'ENTRY') return;
+  _todoDrop(id);
 }
 
 function _todoDrop(id){
@@ -15666,12 +15817,16 @@ function _todoDo(id){
   _todoLoad();
   var t = _todoItems.find(function(x){ return x.id === id; });
   if (!t){ _renderTodoDeck(); return; }
-  // Se quita ANTES de abrir el formulario. Al revés, quien lo cierre sin
-  // guardar se queda sin tarjeta y sin entrada — y la tarjeta existe
-  // precisamente para que eso no pase. Se pierde el recordatorio sólo si la
-  // entrada se hace, y si no se hace, se puede volver a marcar la entrega.
-  _todoDrop(id);
-  _entryFromIncoming(t);
+  // La tarjeta SE QUEDA mientras el formulario está abierto, y se va sola
+  // cuando la entrada se guarda (_entryTodoResolve).
+  //
+  // Hasta la v11.43 se quitaba aquí, antes de abrir, y el comentario que había
+  // en su lugar defendía esa decisión: "si no se hace la entrada, se puede
+  // volver a marcar la entrega". Era verdad y era caro — obligaba a volver al
+  // Incoming, editar la entrega y marcarla otra vez para recuperar un
+  // recordatorio que nunca debió perderse. Ahora abrir no cuesta nada: si se
+  // cierra sin guardar, la tarjeta sigue donde estaba.
+  _entryFromIncoming(t, id);
 }
 
 function _renderTodoDeck(){
