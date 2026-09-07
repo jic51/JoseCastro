@@ -450,7 +450,14 @@
     #lockMatOverlay .field label{color:var(--text)}
     .field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
     .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
-    .modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
+    /* `flex-wrap:wrap` no es adorno: es lo que impide que los botones se
+       solapen (Jose, imagen 1 del 2026-09-06). _btnBusy fija el `min-width` del
+       botón al ancho que tenía ANTES de cambiarle la etiqueta —puesto ahí para
+       que no diera un salto— así que con una etiqueta más larga no puede
+       encogerse, y sin `wrap` el texto se desborda por encima del botón de al
+       lado. Con `wrap` se baja a la línea siguiente, que es feo pero legible;
+       sin él, se pisan. */
+    .modal-actions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
     /* ── NOTIFY SECTION ── */
     .notify-section{margin-top:1rem;padding:1rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
     .notify-section label.check-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--navy)}
@@ -909,6 +916,17 @@
     .presence-empty{padding:.75rem 1rem;font-size:.8rem;color:var(--muted);text-align:center}
     /* ── STOCK WARNING ── */
     .stock-warn{padding:.5rem .75rem;border-radius:6px;font-size:.82rem;min-height:2rem;display:flex;align-items:center}
+    /* El aviso de "otro se llevó material mientras tenías esto abierto". Va
+       dentro del formulario de salida, no en un toast: el toast aparece en otra
+       esquina, dura unos segundos y se va, y para cuando se lee ya no está el
+       número al lado. Ámbar y no rojo — nadie ha hecho nada mal. */
+    .exit-live-warn{background:var(--yellow-bg);color:#92400E;border:1px solid var(--yellow);
+      border-radius:8px;padding:.55rem .75rem;font-size:.8rem;line-height:1.35;
+      margin-bottom:.6rem;display:flex;gap:.45rem;align-items:flex-start}
+    /* Un parpadeo corto en la fila que cambió, para que el ojo vaya ahí sin que
+       haya que buscar cuál de las cinco filas se movió. */
+    @keyframes exit-row-flash{0%{background:var(--yellow-bg)}100%{background:transparent}}
+    .exit-loc-row.just-changed{animation:exit-row-flash 1.8s ease-out}
     /* ── EXPANDABLE ROWS ── */
     .expandable-row{cursor:pointer;transition:background .2s}
     .expandable-row:hover{background:#f1f5f9 !important}
@@ -1099,44 +1117,9 @@
       background:#EFF6FF;border:1px solid var(--accent);border-radius:6px;
       padding:.5rem .6rem}
     .entry-offer input{margin:0;flex:none}
-    /* La tarjeta de entrada pendiente. Del tamaño de las del sistema, como
-       pidió Jose, y con su propio color: ámbar, que dentro de esta app ya
-       significa "mira esto" — es el mismo que marca el stock bajo. Las del
-       sistema son verdes porque informan de algo hecho; ésta no está hecha. */
-    /* --yellow, no --amber: --amber existe en la landing y NO en la app, así
-       que la primera versión de esto pintó un borde de ningún color y una
-       etiqueta que heredaba el color del texto. Un var() que no existe no
-       falla, se ignora — que es por lo que un color inventado se despliega
-       tan bien como uno real hasta que alguien lo mira.
-
-       Y LE FALTABA EL FONDO, que es el otro fallo que Jose fotografió: la
-       tarjeta se veía translúcida SIEMPRE, con la tabla de abajo leyéndose a
-       través del texto. Sólo declaraba el borde izquierdo, así que heredaba
-       del montón el fondo de reposo y nunca lo recuperaba.
-
-       El patrón correcto es el de .sys-card, dos reglas: opaca por defecto, y
-       fantasma ÚNICAMENTE mientras la pila está en reposo y cerrada. Así se
-       desdibuja para no competir con la app, y en cuanto se abre o se pasa el
-       ratón vuelve a ser papel blanco que se puede leer. Del tamaño de las del
-       sistema, como pidió, y algo más alta porque lleva dos botones. */
-    /* 160px, no 136: a 136 el nombre largo y la línea de "hace un momento"
-       llegaban al borde de abajo y el par de botones quedaba apretado contra
-       ellos. Naranja y no amarillo porque es lo único del montón que pide algo
-       de quien lo lee — las del sistema informan, ésta espera un movimiento.
-       --orange (#EA580C) existe en :root; el fondo se queda blanco a propósito,
-       --orange-bg entero sería más grito del que Jose pidió. */
-    .todo-card{--card-h:160px;--card-w:352px;
-      background:var(--card);color:var(--text);
-      border:1px solid var(--border);border-left:4px solid var(--orange)}
-    .deck.dim:not(.open) .todo-card{background:var(--card-ghost);
-      border-color:rgba(0,0,0,.06);border-left-color:var(--border);
-      box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    .todo-card-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;
-      letter-spacing:.04em;color:var(--orange);margin-bottom:.15rem}
-    .todo-card-val{font-weight:700;font-size:.86rem;line-height:1.25;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .todo-card-sub{font-size:.74rem;color:var(--text);opacity:.85;margin-top:.1rem}
-    .todo-card-when{font-size:.68rem;color:var(--muted);margin-top:.1rem;margin-bottom:.35rem}
+    /* La tarjeta de entrada pendiente NO se define aquí: sus reglas viven
+       junto a .sys-card, después de .deck-card. Estuvieron aquí desde la v11.42
+       y ese sitio era el fallo — ver el comentario largo allí. */
     /* ── INCOMING SECTION ── */
     .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem}
     /* Jose lo dibujó encima de una captura: CUATRO arriba y TRES abajo, y las
@@ -1420,6 +1403,79 @@
        list above it does it over time rather than in one frame. */
     .deck-card.leaving{opacity:0;transform:translateX(150%) scale(.9);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none;transition-delay:0s!important}
     .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
+
+    /* ── LA TARJETA DE ENTRADA PENDIENTE ──────────────────────────────────────
+     *
+     * TIENE QUE ESTAR AQUÍ, DESPUÉS DE .deck-card. Estuvo 250 líneas más
+     * arriba desde la v11.42, y ése era el fallo que Jose fotografió con los
+     * botones saliéndose por debajo del borde.
+     *
+     * .deck-card declara `--card-h:96px` y .todo-card declaraba `--card-h:160px`.
+     * Las dos tienen la misma especificidad —una clase— así que gana la que
+     * viene después en el archivo, y la que venía después era .deck-card. La
+     * tarjeta midió 96px todo el tiempo, mientras el archivo decía 160 y yo
+     * decía que la había subido. El contenido pide 106px, así que los botones
+     * caían fuera. .sys-card no tiene ese problema por una sola razón: está
+     * escrita justo debajo de .deck-card, que es donde ahora está ésta.
+     *
+     * Es el mismo fallo que el header de la v11.44: dos reglas que se leen bien
+     * por separado, y el error está en cuál gana.
+     *
+     * EL ALTO NO SE ADIVINA. 190px sale de medir el contenido real —etiqueta,
+     * nombre, cantidad, hora y la fila de botones, más el relleno— y dejar aire
+     * en vez de justo lo necesario, porque un nombre de material más largo
+     * envuelve a dos líneas. test-arrived-to-entry.js mide que nada se salga.
+     *
+     * NARANJA ENTERA, no una banda. Jose: "la tarjeta hay que hacerla naranja
+     * toda, así las letras dentro serán blancas y grises, y se verán sin
+     * problemas al hacerse transparentes". Y tiene razón en el motivo: el
+     * estado de reposo desvanece la tarjeta, y un texto gris oscuro sobre un
+     * blanco desvanecido se lee peor que uno blanco sobre naranja desvanecido.
+     * Por eso el reposo aquí NO usa --card-ghost (que es blanco translúcido):
+     * usa el mismo naranja con menos opacidad, para que el texto blanco siga
+     * teniendo detrás algo oscuro.
+     */
+    .todo-card{--card-h:150px;--card-w:352px;
+      background:var(--orange);color:#fff;
+      border:1px solid rgba(0,0,0,.12);
+      box-shadow:0 6px 20px rgba(154,52,18,.32);
+      /* Columna con los botones empujados abajo. Sin esto el contenido se
+         amontona arriba y el aire de más queda todo en un hueco al pie, que es
+         lo que hace que una tarjeta con sitio de sobra parezca mal cortada. Y
+         de paso el alto deja de ser un número que hay que clavar: sobre o
+         falte un poco, los botones siguen apoyados en el borde de abajo. */
+      display:flex;flex-direction:column;padding:.7rem .85rem}
+    .todo-card .cfg-card-acts{margin-top:auto}
+    .deck.dim:not(.open) .todo-card{background:rgba(234,88,12,.66);
+      border-color:rgba(0,0,0,.05);
+      box-shadow:0 2px 10px rgba(154,52,18,.16)}
+    .todo-card-lbl{font-size:.62rem;font-weight:800;text-transform:uppercase;
+      letter-spacing:.05em;color:rgba(255,255,255,.92);margin-bottom:.2rem}
+    .todo-card-val{font-weight:800;font-size:.9rem;line-height:1.25;color:#fff;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* Una línea, igual que el nombre. Sin este corte el alto de la tarjeta
+       depende de lo largo que sea el nombre del proveedor, y entonces ningún
+       --card-h es correcto para todos los proveedores: es lo que convierte
+       "cabe" en "cabe hoy". Con el corte, el contenido mide lo mismo pase lo
+       que pase, y el alto se puede fijar de verdad. */
+    .todo-card-sub{font-size:.76rem;color:rgba(255,255,255,.92);margin-top:.15rem;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* El gris que pidió Jose: el mismo blanco bajado de intensidad, no un gris
+       de la paleta. Un #9CA3AF sobre naranja se ensucia; el blanco al 72% se
+       lee como gris y conserva el contraste. */
+    .todo-card-when{font-size:.7rem;color:rgba(255,255,255,.72);
+      margin-top:.15rem;margin-bottom:.55rem}
+    /* Los botones, releídos para fondo naranja: el azul de .cfg-card-add
+       desaparecía encima. Blanco sólido para el que hace algo, contorno para
+       el que aplaza. */
+    .todo-card .cfg-card-add{background:#fff;color:#9A3412}
+    .todo-card .cfg-card-add:hover{background:#FFF7ED}
+    .todo-card .cfg-card-skip{background:rgba(255,255,255,.16);color:#fff;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+    .todo-card .cfg-card-skip:hover{background:rgba(255,255,255,.26)}
+    /* La ✕ del pico también: navy sobre naranja se lee como una mancha. */
+    .todo-card .sys-card-x{background:#9A3412;border-color:#fff}
+    .todo-card .sys-card-x:hover{background:var(--red)}
     .deck-card + .deck-card{margin-top:.45rem}
     /* --deck-in already governs margin/transform unconditionally, from the
        base rule above, so it needs no separate re-statement here for opening —
@@ -1557,8 +1613,27 @@
     .btn:disabled{opacity:.5;cursor:not-allowed}
     /* Settings → Company */
     .co-form{max-width:460px}
+    /* La pestaña Company pasó de una .co-form suelta a dos áreas con recuadro
+       (v11.46). Conservan el ancho legible de la forma original — un campo de
+       texto de 900px de ancho no se lee mejor, sólo se ve descuidado — y el
+       primer .co-label de cada área no lleva el margen de arriba, que ahora es
+       trabajo del recuadro. */
+    #settingsTabContent > .field.co-area{max-width:520px}
+    /* Los interruptores de permisos, ya dentro de un área con nombre y no cada
+       uno en su propia caja azul. La línea de separación se queda: son cosas
+       distintas dentro de la misma lista. */
+    .perm-row{padding:.55rem 0;border-bottom:1px solid var(--border)}
+    .perm-row:last-child{border-bottom:none;padding-bottom:0}
     .co-label{display:block;font-size:.78rem;font-weight:700;color:var(--text);margin:1rem 0 .3rem}
     .co-form .co-label:first-child{margin-top:0}
+    .co-area .co-label:first-of-type{margin-top:.2rem}
+    /* Y hay que devolverles su forma: `.field label` (0,1,1) le gana a
+       `.co-label` (0,1,0), así que al meter estos campos dentro de un .field
+       los nombres se volvían MAYÚSCULAS grises de rótulo. El único label que
+       debe verse así es el del recuadro. */
+    #settingsTabContent > .field.co-area .co-label{
+      text-transform:none;letter-spacing:0;
+      color:var(--text);font-size:.78rem;font-weight:700}
     .co-opt{font-weight:400;color:var(--muted)}
     .co-input{width:100%;padding:.5rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit}
     .co-input:focus{outline:none;border-color:var(--accent)}
@@ -1948,8 +2023,24 @@
       th,td{padding:.45rem .5rem}
       .charts-grid{grid-template-columns:1fr}
       .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem;min-height:40px}
-      #toastContainer{bottom:.75rem;right:.75rem;left:.75rem}
-      .toast{max-width:100%}
+      /* EL AVISO EN EL TELÉFONO. Jose lo fotografió dos veces, y la segunda
+         vez porque la primera lo arreglé a medias.
+         Esta regla pone bottom/left/right pero NO anulaba las dos cosas que
+         sustituye, y las dos seguían mandando desde la regla base:
+           · `top:1.25rem` — con top Y bottom puestos, top gana la posición, así
+             que el aviso se quedaba ARRIBA en vez de bajar.
+           · `transform:translateX(-50%)` — pensado para centrar un bloque
+             estrecho, seguía corriendo el bloque media pantalla a la izquierda
+             ahora que ocupa todo el ancho.
+         Por eso salía cortado por arriba y por la izquierda. Es el mismo fallo
+         que el header de la v11.44: una regla que gana sin quitar lo que
+         reemplaza.
+         La vez anterior se arregló `max-width`, que era el ancho, no la
+         posición — el síntoma cambió de forma y siguió ahí. */
+      #toastContainer{top:auto;transform:none;bottom:.75rem;right:.75rem;left:.75rem;align-items:stretch}
+      /* Y el ancho mínimo de 300px no cabe en un teléfono de 320 con márgenes
+         a los dos lados: se desbordaba aunque la posición fuera correcta. */
+      .toast{max-width:100%;min-width:0}
     }
   </style>
 </head>
@@ -2908,6 +2999,13 @@
 
     <!-- ── MULTI-MATERIAL EXIT ── -->
     <div id="multiExitSection" style="display:none;margin-top:.75rem">
+      <!-- Aviso DENTRO de la ventana, no un toast. Jose: "se le avise al
+           usuario el porqué (no con el toast actual) y se actualice la cantidad
+           en la ventana del exit". Un toast sale en otra esquina de la
+           pantalla, dura unos segundos y se va; esto se queda pegado al número
+           que cambió, que es donde está mirando quien lo va a corregir.
+           Vacío hasta que hace falta: _exitLiveNotice lo llena y lo esconde. -->
+      <div id="exitLiveWarn" class="exit-live-warn" style="display:none"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
         <label style="font-size:.72rem;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.04em">Materials to Dispatch</label>
         <span id="multiExitTotal" style="font-size:.9rem;font-weight:700;color:var(--red);background:var(--red-bg);padding:3px 12px;border-radius:20px">Total: 0</span>
@@ -3206,7 +3304,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.44';
+var APP_VERSION = '11.51';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3218,7 +3316,7 @@ var APP_VERSION = '11.44';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '17ffbff4';
+var APP_BUILD = '16ba3d3c';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4478,6 +4576,11 @@ function wizFinish(){
       document.body.style.overflow = '';
       btn.disabled = false; btn.textContent = '✓ Start using ' + PRODUCT;
       _wizJustFinished = true;
+      // RUIDOSO A PROPÓSITO, y es uno de los dos sitios donde lo es. El
+      // asistente acaba de terminar: no hay caché, no hay nada en pantalla, y
+      // esta primera carga es la que de verdad puede tardar los 10-20 segundos
+      // que anuncia. Aquí los esqueletos no son un parpadeo, son la única señal
+      // de que algo está pasando.
       loadDataFromGoogle(true);
       showToast('Setup complete — welcome to ' + PRODUCT + '.', 'ok');
     })
@@ -5802,7 +5905,9 @@ function _doDeleteMovementRow(rowIdx){
   google.script.run
     .withSuccessHandler(function(){
       showToast('Movement deleted.', 'ok');
-      loadDataFromGoogle(true); // skipCache — show fresh data
+      // Silencioso: la fila desaparece de la tabla y el aviso lo dice. Desarmar
+      // el tablero para volver a montarlo no añade nada.
+      loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
       showToast('Delete failed: ' + (err.message || err), 'err', 6000);
@@ -6270,6 +6375,10 @@ function openMoveModal(type){
   document.getElementById('notifyFields').style.display = 'none';
   document.getElementById('stockWarning').innerHTML = '';
   document.getElementById('stockWarning').style.background = '';
+  // Y el aviso de "otro movió esto": pertenece a la sesión de la ventana
+  // anterior, no a ésta.
+  var lw = document.getElementById('exitLiveWarn');
+  if (lw){ lw.style.display = 'none'; lw.innerHTML = ''; }
 
   setModalType(currentMoveType);
 
@@ -6684,6 +6793,207 @@ function updateNotifyPreview(){
   document.getElementById('mNotifyMsg').value = msg;
 }
 
+/* ── "OCUPADO" NO ES UN ERROR DE QUIEN GUARDA ────────────────────────────────
+ *
+ * Jose, prueba con tres cuentas (2026-09-04): tres salidas del mismo estante
+ * que sumaban exactamente lo que había (142 = 42 + 50 + 50). Una pasó, dos
+ * vieron un error rojo. Sus palabras, y son la especificación de esto:
+ *
+ *   "no debemos dejar que la app muestre un error cuando los movimientos sí
+ *    están hechos correctamente, pero es el sistema el que no lo está haciendo
+ *    bien. debemos poner en cola los movimientos o reintentar hacerlos otra
+ *    vez, si todo está correcto."
+ *
+ * El servidor ya hacía lo correcto: serializa las escrituras con un candado
+ * para que dos personas no se pisen. Lo que estaba mal es lo que pasa cuando
+ * te toca esperar — el candado se rinde a los 8 segundos y devuelve un error,
+ * y el navegador enseñaba ese error igual que enseñaría "no hay suficiente
+ * material". Dos cosas opuestas con la misma cara: una dice QUE NO, la otra
+ * dice TODAVÍA NO.
+ *
+ * Ahora el servidor marca la segunda con SYSTEM_BUSY| y aquí se reintenta sola.
+ *
+ * POR QUÉ CON ESPERA CRECIENTE Y AL AZAR, que es la parte que parece un adorno
+ * y no lo es: si los tres navegadores reintentaran a los mismos milisegundos,
+ * volverían a chocar los tres en cada ronda, y la tercera persona podría no
+ * pasar nunca. La parte al azar es lo que los desordena. Es la misma razón por
+ * la que dos coches en un cruce estrecho se desatascan cuando uno duda un
+ * momento más que el otro.
+ *
+ * REINTENTAR AQUÍ ES SEGURO porque el error de ocupado significa que el candado
+ * NO se llegó a tomar, o sea que no se escribió absolutamente nada. No es un
+ * "no sé si se guardó": es un "no se guardó". Un reintento no puede duplicar.
+ * Si algún día el servidor marcara con SYSTEM_BUSY| un fallo posterior a la
+ * escritura, esto duplicaría movimientos — por eso la marca sólo se pone donde
+ * se pide el candado, y en ningún otro sitio.
+ */
+// Corta A PROPÓSITO. "Waiting its turn…" desbordaba el botón por encima del de
+// al lado — ver .modal-actions. El `wrap` de allí evita que se pisen; esto evita
+// que llegue a hacer falta.
+var BUSY_LABEL = 'Waiting…';
+var BUSY_MAX_RETRIES = 4;
+var BUSY_BASE_MS     = 900;
+var BUSY_JITTER_MS   = 700;
+
+function _isBusyError(err){
+  var msg = (err && err.message) ? err.message : String(err || '');
+  return msg.indexOf('SYSTEM_BUSY|') !== -1;
+}
+
+/** El texto legible, sin la marca — para cuando hay que enseñarlo de verdad. */
+function _busyText(err){
+  var msg = (err && err.message) ? err.message : String(err || '');
+  var i = msg.indexOf('SYSTEM_BUSY|');
+  return i === -1 ? msg : msg.slice(i + 'SYSTEM_BUSY|'.length);
+}
+
+/* ── CUANDO OTRO SE LLEVÓ EL MATERIAL MIENTRAS ESTA VENTANA ESTABA ABIERTA ───
+ *
+ * Jose: "aun le aparece un error a la segunda persona, no se actualiza la
+ * cantidad ni la ventana de exit se cierra, ni explica que paso y porque no se
+ * puede."
+ *
+ * El servidor siempre supo el número bueno y siempre lo mandó dentro del texto
+ * del error. Lo que faltaba era hacerle caso.
+ *
+ * SE CORRIGE stockData, NO EL RÓTULO. Es la decisión que importa aquí: se podría
+ * reescribir el "✓ 92 avail" de la fila y quedaría bien en la foto, pero el
+ * total de abajo, el aviso al escribir otra cantidad y el resto del formulario
+ * seguirían leyendo el 92 viejo de stockData. Arreglando el origen y volviendo
+ * a pintar, todo lo que se deriva de él queda a la vez — que es la diferencia
+ * entre parecer correcto y serlo.
+ *
+ * NO SE CIERRA LA VENTANA. Jose dijo "ni la ventana de exit se cierra", y
+ * pensándolo despacio creo que cerrarla sería peor: lo que la persona escribió
+ * —el destino, quién se lo lleva, los comentarios— se perdería, y tendría que
+ * teclearlo otra vez para sacar las 42 que sí quedan. Se queda abierta, con el
+ * número verdadero y la cantidad ajustada, lista para guardar. Si ya no queda
+ * NADA, entonces sí no hay nada que guardar y se dice claramente.
+ */
+var SHORT_PREFIX = 'SHORT_STOCK|';
+
+function _shortStockInfo(err){
+  var msg = (err && err.message) ? err.message : String(err || '');
+  var i = msg.indexOf(SHORT_PREFIX);
+  if (i === -1) return null;
+  try { return JSON.parse(msg.slice(i + SHORT_PREFIX.length)); }
+  catch (e) { return null; }   // la frase humana de delante sigue enseñándose
+}
+
+/** El texto sin la etiqueta, que es lo que se le enseña a una persona. */
+function _stripTags(err){
+  var msg = (err && err.message) ? err.message : String(err || '');
+  var i = msg.indexOf(SHORT_PREFIX);
+  if (i !== -1) msg = msg.slice(0, i);
+  return msg.replace('SYSTEM_BUSY|', '').replace(/^Error:\s*/i, '').trim();
+}
+
+/**
+ * Devuelve true si se ocupó del error. Corrige el stock conocido con lo que el
+ * servidor acaba de decir, repinta el formulario y explica qué pasó.
+ */
+function _shortStockFix(err){
+  var info = _shortStockInfo(err);
+  if (!info) return false;
+
+  var key  = _normKey(info.cat) + '|||' + _normKey(info.name);
+  var rack = String(info.rack || '').toUpperCase();
+
+  // 1. La verdad, en el sitio del que todo lo demás lee.
+  if (stockData[key]) {
+    if (rack) {
+      stockData[key].warehouseLocs = stockData[key].warehouseLocs || {};
+      stockData[key].warehouseLocs[rack] = info.there;
+    }
+    if (typeof info.total === 'number') stockData[key].availableQty = info.total;
+  }
+
+  // 2. Bajar la cantidad pedida a lo que de verdad hay, en la fila que falló.
+  //    Se busca por estante para no tocar las otras líneas del mismo formulario.
+  var ajustada = false;
+  document.querySelectorAll('.exit-loc-row').forEach(function(row){
+    var r = (row.querySelector('.el-rack') || {}).value || '';
+    if (rack && r.trim().toUpperCase() !== rack) return;
+    var q = row.querySelector('.el-qty');
+    if (!q) return;
+    if (_qty(q.value) > info.there) {
+      q.value = info.there > 0 ? info.there : '';
+      ajustada = true;
+    }
+  });
+
+  // 3. Repintar desde stockData corregido: los rótulos, los totales y los
+  //    avisos vuelven a estar de acuerdo entre sí.
+  try {
+    document.querySelectorAll('[id^="exit-locs-"]').forEach(function(box){
+      var n = box.id.replace('exit-locs-', '');
+      syncExitRackAvail(n);
+      syncExitMatTotal(n);
+    });
+  } catch (e) {}
+  try { renderAll(); } catch (e) {}
+
+  // 4. Y decirlo con palabras, que es lo que faltaba del todo.
+  var donde = rack ? (' at ' + rack) : '';
+  if (info.there <= 0) {
+    showToast('Nothing left' + donde + '. Someone else took the last of ' +
+      info.name + ' while this window was open — nothing was saved. The ' +
+      'numbers on screen are updated.', 'warn', 10000);
+  } else {
+    showToast('Someone else took some while this window was open. Only ' +
+      info.there + ' left' + donde + ' of ' + info.name +
+      (ajustada ? ' — the quantity has been lowered to match. ' : ' — nothing was saved. ') +
+      'Check it and save again.', 'warn', 10000);
+  }
+  return true;
+}
+
+/** Cuánto esperar antes del intento número `attempt` (1 = el primer reintento). */
+function _busyDelay(attempt){
+  return BUSY_BASE_MS * Math.pow(2, attempt - 1) +
+         Math.floor(Math.random() * BUSY_JITTER_MS);
+}
+
+/* Reintento compartido por los TRES caminos de guardado.
+ *
+ * Escrito una vez a propósito. Hay tres funciones que mandan movimientos
+ * —submitMovement para los sueltos, addMultiExit para las salidas y
+ * submitMultiEntry para las entradas— y este archivo ya tiene dos comentarios
+ * que dicen "addMultiExit never got it wired up" y "addMultiEntry never got it
+ * wired up" sobre el aviso de duplicado, que se escribió tres veces y sólo
+ * llegó a una. Copiar el reintento tres veces sería repetir esa historia.
+ *
+ * Devuelve true cuando se ha ocupado del error — sea porque ha programado un
+ * reintento, sea porque se agotaron y ya ha avisado. En los dos casos quien
+ * llama debe salir sin enseñar nada más. Devuelve false si no era un "ocupado",
+ * y entonces el error sigue su camino normal.
+ *
+ * `state` es un objeto con `tries`, propio de cada guardado: el contador tiene
+ * que morir con la ventana, no vivir en una variable global que arrastre los
+ * intentos de un guardado al siguiente.
+ */
+function _busyRetry(err, opts){
+  if (!_isBusyError(err)) return false;
+  var btn = opts.btn, state = opts.state;
+  if (state.tries < BUSY_MAX_RETRIES){
+    state.tries++;
+    // La ventana se queda ocupada a propósito: devolverle el botón a la persona
+    // la invitaría a pulsar otra vez, y el guardado no ha fallado — está en
+    // cola. El texto del botón es el aviso, que es donde Jose está mirando.
+    _btnBusy(btn, BUSY_LABEL);
+    setTimeout(opts.retry, _busyDelay(state.tries));
+    return true;
+  }
+  // Agotados. Aquí sí hay que hablar, pero diciendo de quién es el problema:
+  // no se guardó nada y lo que se escribió está bien.
+  _btnReset(btn);
+  if (opts.overlay) _setModalBusy(opts.overlay, false);
+  showToast('The system stayed busy through ' + (BUSY_MAX_RETRIES + 1) +
+    ' tries. Nothing was saved and nothing is wrong with what you entered — ' +
+    'press Save again in a few seconds.', 'warn', 9000);
+  return true;
+}
+
 // ── Modal: Submit ─────────────────────────────────────────────────────────────
 async function submitMovement(){
  try {
@@ -6902,9 +7212,14 @@ async function submitMovement(){
     forceSubmit:      false
   };
 
+  // Cuántas veces se ha tenido que esperar turno para ESTE guardado. Vive
+  // fuera de _doSubmit porque el reintento vuelve a entrar en ella, y muere con
+  // ella para que los intentos de un guardado no cuenten en el siguiente.
+  var _busyState = { tries: 0 };
+
   function _doSubmit(force) {
     payload.forceSubmit = !!force;
-    _btnBusy(btn, 'Saving…');
+    _btnBusy(btn, _busyState.tries ? BUSY_LABEL : 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -6951,6 +7266,11 @@ async function submitMovement(){
       })
       .withFailureHandler(function(err){
         var msg = err.message || String(err);
+        // ── Otro guardado tenía el turno ───────────────────────────────────
+        // Lo primero, antes de soltar el botón: si toca esperar, el botón no
+        // debe volver a ser pulsable.
+        if (_busyRetry(err, { btn: btn, overlay: 'moveOverlay', state: _busyState,
+                              retry: function(){ _doSubmit(force); } })) return;
         // ── Duplicate detected by backend ──────────────────────────────────
         // GAS wraps errors with "Error: " prefix, so we search anywhere in msg
         var dupIdx = msg.indexOf('DUPLICATE_MOVEMENT|');
@@ -6970,10 +7290,12 @@ async function submitMovement(){
           });
           return;
         }
-        // ── Any other error ────────────────────────────────────────────────
-        showToast('Error: ' + msg, 'err', 6000);
+        // ── Otro se llevó el material mientras esta ventana estaba abierta ─
         _btnReset(btn);
         _setModalBusy('moveOverlay', false);
+        if (_shortStockFix(err)) return;
+        // ── Any other error ────────────────────────────────────────────────
+        showToast('Error: ' + _stripTags(err), 'err', 6000);
       })
       .processMovement('addMovement', _h(payload));
   }
@@ -7871,6 +8193,86 @@ function updateMultiExitTotal(){
   if (el) el.textContent = 'Total: ' + _qtyText(total);
 }
 
+/* ── LA VENTANA DE SALIDA SE ENTERA SOLA ──────────────────────────────────────
+ *
+ * Jose, tras la v11.50: "el refresh de la cantidad al hacer un exit... no es lo
+ * suficientemente rápido... necesitamos que apenas la app detecta que no se
+ * puede hacer exit de esa cantidad, se le avise al usuario el porqué (no con el
+ * toast actual) y se actualice la cantidad en la ventana del exit".
+ *
+ * La v11.50 corregía el número AL RECHAZAR el guardado, o sea después de pulsar
+ * Save. Esto lo adelanta: con el latido ya trayendo los cambios de los demás,
+ * la ventana abierta se entera en cuanto llegan, sin que nadie pulse nada.
+ *
+ * TRES DECISIONES QUE NO SON OBVIAS:
+ *
+ * 1. NO SE TOCA LA CANTIDAD QUE LA PERSONA ESCRIBIÓ. Sólo se avisa. Bajarle el
+ *    número mientras teclea sería quitarle el control de las manos, y peor:
+ *    puede que esté a punto de cambiar de estante. Cuando el servidor RECHAZA
+ *    de verdad (v11.50) sí se ajusta, porque entonces ya no hay ninguna duda.
+ * 2. EL AVISO VA DENTRO DE LA VENTANA, no en un toast. Es literal lo que pidió,
+ *    y el motivo es bueno: un toast sale en otra esquina, dura unos segundos y
+ *    se va; para cuando se lee, el número ya no está al lado.
+ * 3. SÓLO SE AVISA CUANDO ALGO EMPEORÓ. Que llegue más material a un estante
+ *    también cambia el número, y no hace falta interrumpir a nadie por eso.
+ */
+function _exitLiveNotice(){
+  var sec = document.getElementById('multiExitSection');
+  var box = document.getElementById('exitLiveWarn');
+  if (!sec || !box) return;
+  var abierto = document.getElementById('moveOverlay');
+  if (!abierto || !abierto.classList.contains('show') || sec.style.display === 'none') {
+    box.style.display = 'none';
+    return;
+  }
+
+  var cortas = [];
+  document.querySelectorAll('[id^="exit-locs-"]').forEach(function(cont){
+    var n    = cont.id.replace('exit-locs-', '');
+    var cat  = nt((document.getElementById('exit-cat-'  + n) || {}).value || '');
+    var name = ((document.getElementById('exit-name-' + n) || {}).value || '').trim().toUpperCase();
+    if (!name) return;
+    var locs = (stockData[_normKey(cat) + '|||' + _normKey(name)] || {}).warehouseLocs || {};
+    cont.querySelectorAll('.exit-loc-row').forEach(function(row){
+      var rack = ((row.querySelector('.el-rack') || {}).value || '').trim().toUpperCase();
+      var pide = _qty((row.querySelector('.el-qty') || {}).value);
+      if (!rack || !pide) return;
+      var hay = locs[rack];
+      if (hay === undefined || pide <= hay) { row.classList.remove('just-changed'); return; }
+      cortas.push({ name: name, rack: rack, pide: pide, hay: hay });
+      // Reiniciar la animación: quitar la clase, forzar un reflow y volver a
+      // ponerla. Sin el reflow el navegador no vuelve a lanzarla si ya estaba.
+      row.classList.remove('just-changed');
+      void row.offsetWidth;
+      row.classList.add('just-changed');
+    });
+  });
+
+  if (!cortas.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  var lineas = cortas.map(function(c){
+    return '<div>' + _he(c.name) + ' at ' + _he(c.rack) + ': you asked for ' +
+      _qtyText(c.pide) + ', only <b>' + _qtyText(c.hay) + '</b> left.</div>';
+  }).join('');
+  box.innerHTML = '<span>⚠️</span><div><b>Someone else moved this material ' +
+    'while you had this open.</b>' + lineas +
+    '<div style="margin-top:.25rem">Lower the amount, pick another rack, or ' +
+    'remove the line.</div></div>';
+  box.style.display = 'flex';
+}
+
+/** Repinta el formulario de salida abierto desde el stock que acaba de llegar. */
+function _refreshOpenExitForm(){
+  try {
+    document.querySelectorAll('[id^="exit-locs-"]').forEach(function(cont){
+      var n = cont.id.replace('exit-locs-', '');
+      syncExitRackAvail(n);
+      syncExitMatTotal(n);
+    });
+    _exitLiveNotice();
+  } catch (e) { console.error('_refreshOpenExitForm:', e && e.message); }
+}
+
 function syncExitRackAvail(n){
   var cat  = nt((document.getElementById('exit-cat-'+n)  || {}).value || '');
   var name = ((document.getElementById('exit-name-'+n) || {}).value || '').trim().toUpperCase();
@@ -8080,6 +8482,8 @@ function submitMultiExit(){
     });
   });
 
+  var _busyState = { tries: 0 };
+
   var doSubmit = function(force){
     // BUGFIX: this used to look up 'moveSaveBtn', an id that doesn't exist anywhere
     // in the HTML (the button is 'moveSubmit') — so `btn` was always null and NO
@@ -8100,6 +8504,11 @@ function submitMultiExit(){
         loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
       })
       .withFailureHandler(function(err){
+        // ANTES de soltar el botón: mientras se espera turno no debe poder
+        // volver a pulsarse. Éste es el camino que Jose reventó en la prueba
+        // —tres salidas del mismo estante— así que es el que más importa.
+        if (_busyRetry(err, { btn: btn, overlay: 'moveOverlay', state: _busyState,
+                              retry: function(){ doSubmit(force); } })) return;
         if (btn){ btn.disabled=false; btn.textContent='Save to System'; }
         _setModalBusy('moveOverlay', false);
         var msg = err.message || String(err);
@@ -8119,7 +8528,11 @@ function submitMultiExit(){
           });
           return;
         }
-        showToast('Error: '+msg.replace(/^Error:\s*/i,''),'err',6000);
+        // Otro se llevó el material mientras esta ventana estaba abierta. Va
+        // DESPUÉS del aviso de duplicado y antes del error genérico: los dos
+        // son rechazos legítimos, pero éste trae el número bueno consigo.
+        if (_shortStockFix(err)) return;
+        showToast('Error: '+_stripTags(err),'err',6000);
       })
       .processMovement('addMultiExit', _h({
         materials: materials,
@@ -8242,10 +8655,11 @@ function submitMultiEntry(){
   };
 
   var btn = document.getElementById('moveSubmit');
+  var _busyState = { tries: 0 };
 
   function _doMultiSubmit(force){
     payload.forceSubmit = !!force;
-    _btnBusy(btn, 'Saving…');
+    _btnBusy(btn, _busyState.tries ? BUSY_LABEL : 'Saving…');
     _setModalBusy('moveOverlay', true);
     google.script.run
       .withSuccessHandler(function(res){
@@ -8268,6 +8682,9 @@ function submitMultiEntry(){
         }, 400);
       })
       .withFailureHandler(function(err){
+        // Antes de soltar el botón, por el mismo motivo que en los otros dos.
+        if (_busyRetry(err, { btn: btn, overlay: 'moveOverlay', state: _busyState,
+                              retry: function(){ _doMultiSubmit(force); } })) return;
         var msg = err.message || String(err);
         btn.textContent = 'Save to System'; btn.disabled = false;
         _setModalBusy('moveOverlay', false);
@@ -8495,7 +8912,9 @@ function _rebuildStockNow() {
     .withSuccessHandler(function(res){
       btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
       showToast('✓ ' + (res && res.message ? res.message : 'Stock totals rebuilt.'), 'ok');
-      loadDataFromGoogle(true);
+      // Silencioso: esto se pulsa desde Ajustes, con su propio botón ocupado y
+      // su propio aviso. La pantalla de carga taparía las dos cosas.
+      loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(e){
       btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
@@ -8554,7 +8973,13 @@ function _renderPermissionsTab(){
   var perms = rolePerms || {};
   var rows = PERM_DEFS.map(function(d){
     var on = !!perms[d.key];
-    return '<div class="field" style="margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--border)">' +
+    // `perm-row`, NO `.field`. Cada interruptor era su propio `.field`, y desde
+    // que los .field de esta pantalla llevan recuadro (v11.38) eso dibujaba
+    // cuatro cajas azules SIN NOMBRE, una por interruptor. El recuadro está
+    // para separar áreas; cuatro recuadros alrededor de cuatro renglones de la
+    // misma lista separan una lista de sí misma. Van todos dentro de un área
+    // con nombre, más abajo.
+    return '<div class="perm-row">' +
       '<div style="display:flex;align-items:center;gap:.4rem">' +
         '<label class="sw">' +
           '<input type="checkbox" class="perm-sw" data-perm="' + d.key + '"' + (on ? ' checked' : '') + '>' +
@@ -8567,23 +8992,24 @@ function _renderPermissionsTab(){
   }).join('');
 
   document.getElementById('settingsTabContent').innerHTML =
-    '<div class="field" style="margin-bottom:1.4rem;padding-bottom:1.4rem;border-bottom:1px solid var(--border)">' +
-      '<label class="co-label" for="warehouseRoleLabelInput" style="display:flex;align-items:center;gap:.4rem">' +
-        'What you call this role ' + _infoIc('Shown as this name everywhere in the app: the user list, the account ' +
-          'menu, the Add User form. Use whatever your team already calls this person, e.g. "Supervisor" or "Manager". ' +
-          'It never changes what they can actually do.') +
-      '</label>' +
+    '<div class="field">' +
+      '<label>What you call this role ' + _infoIc('Shown as this name everywhere in the app: the user list, the account ' +
+        'menu, the Add User form. Use whatever your team already calls this person, e.g. "Supervisor" or "Manager". ' +
+        'It never changes what they can actually do.') + '</label>' +
       '<div style="display:flex;gap:.5rem;align-items:center;max-width:320px">' +
         '<input type="text" id="warehouseRoleLabelInput" class="co-input" maxlength="30" ' +
           'value="' + _escAttr(warehouseRoleLabel) + '" placeholder="Warehouse">' +
         '<button type="button" class="btn btn-ghost btn-sm" id="btnSaveRoleLabel" onclick="_saveWarehouseRoleLabel()">Save</button>' +
       '</div>' +
     '</div>' +
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">' +
-      'What the ' + _he(warehouseRoleLabel) + ' role can do, beyond recording movements and viewing stock. ' +
-      'Admins can already do all of this — these switches only ever widen ' + _he(warehouseRoleLabel) + ', never narrow an admin. ' +
-      'Viewers stay read-only no matter what is on here.</p>' +
-    rows;
+    '<div class="field">' +
+      '<label>What this role can do</label>' +
+      '<p style="font-size:.8rem;color:var(--muted);margin:0 0 .9rem">' +
+        'What the ' + _he(warehouseRoleLabel) + ' role can do, beyond recording movements and viewing stock. ' +
+        'Admins can already do all of this — these switches only ever widen ' + _he(warehouseRoleLabel) + ', never narrow an admin. ' +
+        'Viewers stay read-only no matter what is on here.</p>' +
+      rows +
+    '</div>';
 
   document.querySelectorAll('.perm-sw').forEach(function(sw){
     sw.addEventListener('change', function(){ _savePermSwitch(sw); });
@@ -8630,8 +9056,15 @@ function _savePermSwitch(sw){
 
 function _renderCompanyTab(){
   var c = (_settingsData && _settingsData.company) || {};
+  // Dos áreas nombradas en vez de una columna de campos: quién es la empresa, y
+  // con qué imagen aparece. Los recuadros son los mismos que System y
+  // Permissions ya usan — `.field` como HIJO DIRECTO de #settingsTabContent,
+  // que es lo único que hace que la regla los alcance. Envolverlo todo en
+  // .co-form como estaba dejaba los `.field` un nivel por debajo y el recuadro
+  // no aparecía.
   document.getElementById('settingsTabContent').innerHTML =
-    '<div class="co-form">' +
+    '<div class="field co-area">' +
+      '<label>Who this company is</label>' +
       '<label class="co-label" for="coName" style="display:flex;align-items:center;gap:.4rem">Company name ' +
         _infoIc('Shown in the header, on the browser tab, on the loading screen, and as the sender name on every email this system sends.') +
       '</label>' +
@@ -8642,8 +9075,11 @@ function _renderCompanyTab(){
         _infoIc('People with an email at this domain are recognised as staff. Everyone still has to be on the user list to get in — this only saves them the extra sign-in step. Leave it blank if your team uses personal Gmail accounts.') +
       '</label>' +
       '<input type="text" id="coDomain" class="co-input" maxlength="60" placeholder="yourcompany.com" value="' + _escAttr(c.domain || '') + '">' +
+    '</div>' +
 
-      '<label class="co-label" style="display:flex;align-items:center;gap:.4rem">Logo ' +
+    '<div class="field co-area">' +
+      '<label>Logo</label>' +
+      '<label class="co-label" style="display:flex;align-items:center;gap:.4rem">Image ' +
         _infoIc('Any size or shape works — it is resized automatically. Appears beside the company name in the header and on the loading screen.') +
       '</label>' +
       '<div id="coLogoWrap">' + _coLogoBoxHtml() + '</div>' +
@@ -8656,9 +9092,11 @@ function _renderCompanyTab(){
         (_coLogoRemove || _coLogo
           ? '<button type="button" class="btn btn-ghost btn-sm" onclick="_coUndoLogo()">Undo</button>' : '') +
       '</div>' +
+    '</div>' +
 
-      '<div class="co-save"><button type="button" class="btn btn-primary" id="coSave" onclick="_saveCompanyProfile()">Save changes</button></div>' +
-    '</div>';
+    // Fuera de los recuadros a propósito: guardar no es un área de ajustes, es
+    // lo que se hace con las dos de arriba.
+    '<div class="co-save"><button type="button" class="btn btn-primary" id="coSave" onclick="_saveCompanyProfile()">Save changes</button></div>';
 }
 
 function _coLogoPick(inp){
@@ -9254,7 +9692,9 @@ function _dqApply(i){
         }
       });
       // Stock can move: merging two materials joins two stock lines into one.
-      loadDataFromGoogle(true);
+      // Silencioso: la tarjeta de "Check my data" ya dice ahí mismo cuántas
+      // filas cambió. Ese texto es el acuse de recibo.
+      loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
       _btnReset(btn);
@@ -9620,16 +10060,25 @@ var _importParsedRows = [];
 
 function _renderImportTab() {
   var content = document.getElementById('settingsTabContent');
+  // Dos áreas: de dónde sale el archivo, y qué se va a guardar. La vista previa
+  // va en su propio recuadro porque es lo que se mira antes de decidir — y
+  // separarla es lo que hace evidente que todavía no se ha guardado nada.
   content.innerHTML =
-    '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' +
-      'Bulk-import an existing inventory from an Excel (.xlsx) or CSV file — useful for the first setup, or catching up after counting on paper. ' +
-      'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Multi-sheet workbooks: the right sheet is detected automatically, and you can switch sheets after loading.' +
-    '</p>' +
-    '<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">' +
-      '<button class="btn btn-ghost btn-sm" onclick="_downloadImportTemplate()">⬇ Download CSV Template</button>' +
-      '<input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="font-size:.82rem">' +
+    '<div class="field">' +
+      '<label>Bring in a file</label>' +
+      '<p style="font-size:.8rem;color:var(--muted);margin:0 0 .75rem">' +
+        'Bulk-import an existing inventory from an Excel (.xlsx) or CSV file — useful for the first setup, or catching up after counting on paper. ' +
+        'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Multi-sheet workbooks: the right sheet is detected automatically, and you can switch sheets after loading.' +
+      '</p>' +
+      '<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">' +
+        '<button class="btn btn-ghost btn-sm" onclick="_downloadImportTemplate()">⬇ Download CSV Template</button>' +
+        '<input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="font-size:.82rem">' +
+      '</div>' +
     '</div>' +
-    '<div id="importPreviewBox"></div>';
+    '<div class="field">' +
+      '<label>What will be saved</label>' +
+      '<div id="importPreviewBox"></div>' +
+    '</div>';
   document.getElementById('importFileInput').addEventListener('change', _onImportFileChange);
   _importParsedRows = [];
 }
@@ -9757,7 +10206,10 @@ function _commitImport(){
       _importParsedRows = [];
       var box = document.getElementById('importPreviewBox'); if (box) box.innerHTML = '';
       var fi  = document.getElementById('importFileInput');  if (fi)  fi.value = '';
-      loadDataFromGoogle(true);
+      // Silencioso aunque una importación cambie mucho: sigue siendo el
+      // resultado de algo que se acaba de pulsar, y el aviso dice cuántas filas
+      // entraron.
+      loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
       btn.disabled = false; btn.innerHTML = '✓ Import ' + validRows.length + ' Valid Row(s)';
@@ -9909,33 +10361,42 @@ function _renderLocationsTab(){
   _locLayout = names.map(function(n){ return { name: n, type: (types[n] || LOC_DEFAULT_GROUP) }; });
   _locExtraGroups = [];
 
+  // Dos áreas: cómo funciona esta pantalla, y la lista en sí. La explicación y
+  // el botón de crear van juntos arriba; los estantes, dentro de su propio
+  // recuadro, que es lo que separa "leer las reglas" de "moverlos".
   content.innerHTML =
-    '<div class="loc-toolbar">' +
-      '<p style="font-size:.8rem;color:var(--muted);margin:0;flex:1">' +
-        'Drag a location into a group to file it there. Grouping is for organising only — every location still counts toward stock, ' +
-        'and the Warehouse Map shows these same groups.' +
-        // Said here for the same reason it is said on the other catalog tabs:
-        // where a thing WAS is a fact about the past, and renaming the rack
-        // today cannot make January's material have sat somewhere else.
-        '<br>Renaming a location updates the list only — existing movements keep the name they were recorded with.' +
-        '<br><b>Dragging needs a mouse</b> — on a phone this list is read-only for now.' +
-      '</p>' +
-      '<div class="loc-plus-wrap">' +
-        '<button class="loc-plus" id="locPlusBtn" title="Add">+</button>' +
-        '<div class="loc-plus-menu">' +
-          '<button onclick="_locShowNew(\'location\')">📍 Create location</button>' +
-          '<button onclick="_locShowNew(\'group\')">🗂 Create group</button>' +
+    '<div class="field">' +
+      '<label>How this works</label>' +
+      '<div class="loc-toolbar">' +
+        '<p style="font-size:.8rem;color:var(--muted);margin:0;flex:1">' +
+          'Drag a location into a group to file it there. Grouping is for organising only — every location still counts toward stock, ' +
+          'and the Warehouse Map shows these same groups.' +
+          // Said here for the same reason it is said on the other catalog tabs:
+          // where a thing WAS is a fact about the past, and renaming the rack
+          // today cannot make January's material have sat somewhere else.
+          '<br>Renaming a location updates the list only — existing movements keep the name they were recorded with.' +
+          '<br><b>Dragging needs a mouse</b> — on a phone this list is read-only for now.' +
+        '</p>' +
+        '<div class="loc-plus-wrap">' +
+          '<button class="loc-plus" id="locPlusBtn" title="Add">+</button>' +
+          '<div class="loc-plus-menu">' +
+            '<button onclick="_locShowNew(\'location\')">📍 Create location</button>' +
+            '<button onclick="_locShowNew(\'group\')">🗂 Create group</button>' +
+          '</div>' +
         '</div>' +
       '</div>' +
+      '<div id="locNewRow" class="cfg-add-row" style="display:none">' +
+        '<input type="text" id="locNewVal" placeholder="Name…" onkeydown="if(event.key===\'Enter\')_locCreate()">' +
+        '<button class="btn btn-primary btn-sm" onclick="_locCreate()">Create</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'locNewRow\').style.display=\'none\'">Cancel</button>' +
+      '</div>' +
     '</div>' +
-    '<div id="locNewRow" class="cfg-add-row" style="display:none">' +
-      '<input type="text" id="locNewVal" placeholder="Name…" onkeydown="if(event.key===\'Enter\')_locCreate()">' +
-      '<button class="btn btn-primary btn-sm" onclick="_locCreate()">Create</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'locNewRow\').style.display=\'none\'">Cancel</button>' +
+    '<div class="field">' +
+      '<label>Locations and groups</label>' +
+      '<div id="locMergeBar" class="cfg-pickbar"></div>' +
+      _rowModeBarHtml('loc') +
+      '<div class="loc-groups" id="locGroups" data-rowscope="loc"></div>' +
     '</div>' +
-    '<div id="locMergeBar" class="cfg-pickbar"></div>' +
-    _rowModeBarHtml('loc') +
-    '<div class="loc-groups" id="locGroups" data-rowscope="loc"></div>' +
     '<div id="locSaveBar" class="loc-savebar"></div>';
   _redrawLocGroups();
 }
@@ -13552,15 +14013,25 @@ function unlockMaterialConfirm(lockId, name){
 
 function _doUnlockMaterial(lockId){
   google.script.run
-    .withSuccessHandler(function(){
+    .withSuccessHandler(function(res){
       materialLocks = materialLocks.filter(function(l){ return l.id !== lockId; });
       _rebuildLocksIndex();
-      showToast('🔓 Unlocked.', 'ok');
+      // Si otro lo quitó primero, el resultado es el mismo, y se dice como lo
+      // que es: una coincidencia, no un fallo de quien pulsó. Todo lo de abajo
+      // —quitarlo de la lista y repintar el estante y el mapa— pasa igual, que
+      // es justo lo que faltaba: antes este caso iba por el manejador de FALLO,
+      // que sólo enseñaba un error, y por eso el candado se quedaba pintado.
+      if (res && res.alreadyGone) {
+        showToast('🔓 Already unlocked — someone else got there first. ' +
+                  'Nothing left to do.', 'info', 5000);
+      } else {
+        showToast('🔓 Unlocked.', 'ok');
+      }
       if (_openRackName) openRackDrawer(_openRackName);
       renderStock();
       renderWarehouseMap();
     })
-    .withFailureHandler(function(err){ showToast('Error: ' + (err.message || err), 'err', 6000); })
+    .withFailureHandler(function(err){ showToast('Error: ' + _stripTags(err), 'err', 6000); })
     .processMovement('unlockMaterial', _h({ id: lockId }));
 }
 
@@ -14446,7 +14917,8 @@ function _incomingDeleted(btn){
     closeModal('incomingOverlay');
     showToast('Expected delivery deleted.', 'ok');
   });
-  loadDataFromGoogle(true); // skipCache
+  // Silencioso: la ventana se cierra con su tick y el aviso lo confirma.
+  loadDataFromGoogle(true, true);
 }
 
 // ── Read an email into expected deliveries ──────────────────────────────────
@@ -15356,6 +15828,9 @@ function _startGoogleLogin() {
 function _signOut() {
   try { localStorage.removeItem(_SESSION_KEY); } catch(e) {}
   _sessionToken = '';
+  // RUIDOSO A PROPÓSITO, el otro sitio. Al cerrar sesión la pantalla TIENE que
+  // vaciarse: dejar el inventario de la empresa a la vista mientras se vuelve a
+  // la pantalla de acceso sería enseñar datos a quien acaba de salir.
   loadDataFromGoogle(true);
 }
 
@@ -15406,9 +15881,29 @@ function loadDataFromGoogle(skipCache, quiet){
   lastLoadTime = null;
   if (!quiet) setConnStatus('loading');
 
-  // ── Show cached data instantly while fresh data loads in background ──────
-  // skipCache=true is passed after a save/delete so user sees loading state
-  // rather than stale data that doesn't include their new movement yet.
+  // ── LOS TRES MODOS DE ESTA FUNCIÓN, Y CUÁNDO USAR CADA UNO ───────────────
+  //
+  // El comentario que había aquí decía que skipCache=true se pasa "después de
+  // guardar o borrar, para que el usuario vea el estado de carga en vez de
+  // datos viejos". Era verdad cuando se escribió y dejó de serlo: ver la
+  // pantalla de carga después de guardar es exactamente lo que Jose fotografió
+  // y pidió quitar (v11.47). Los dos argumentos son independientes:
+  //
+  //   ()            → usa la caché. Pinta lo conocido al instante y lo
+  //                   reemplaza cuando llega lo fresco. El arranque normal.
+  //   (true)        → sin caché Y CON pantalla de carga: esqueletos y el aviso
+  //                   de los 10-20 segundos. Sólo para cuando de verdad no hay
+  //                   nada que enseñar — el primer arranque tras el asistente,
+  //                   y cerrar sesión.
+  //   (true, true)  → sin caché y EN SILENCIO. Lo de antes se queda en pantalla
+  //                   hasta que llega lo nuevo. Éste es el que va después de
+  //                   guardar, borrar o editar: quien acaba de pulsar un botón
+  //                   ya sabe que algo está pasando —lo dice el botón— y no
+  //                   necesita que la pantalla se desarme para creérselo.
+  //
+  // Un fallo sí se enseña aunque el modo sea silencioso: el manejador de error
+  // de abajo escribe en statsRow igualmente. Silencioso significa sin
+  // parpadeo, no sin noticias.
   var cached = skipCache ? null : _loadCache();
   if (cached && cached.userRole) {
     _applyData(cached);
@@ -15460,6 +15955,11 @@ function loadDataFromGoogle(skipCache, quiet){
         _saveCache(data);
         _announceSystemActivity();
         lastLoadTime = Date.now();
+        // La referencia del latido. Se pone SIEMPRE que llegan datos frescos,
+        // incluidos los refrescos que el propio latido dispara — si no, el sello
+        // que provocó el refresco seguiría pareciendo nuevo y la app se
+        // refrescaría en bucle cada 20 segundos.
+        if (data.dataStamp) _dataStamp = data.dataStamp;
         setConnStatus('online');
         _checkVersionMatch(data.serverVersion, data.serverBuild);
         _setAccountIdentity(data.userName, userEmail, userRole, false);
@@ -15473,6 +15973,11 @@ function loadDataFromGoogle(skipCache, quiet){
           var sr = document.getElementById('statsRow');
           if (sr) sr.innerHTML = '<p style="padding:1rem;color:var(--red)">⚠ Render error: '+_he(e.message)+'</p>';
         }
+        // Con datos nuevos en la mano, la ventana de salida abierta —si la
+        // hay— se entera sola: repinta sus disponibles y avisa DENTRO de la
+        // ventana si algo que se pidió ya no cabe. Va aquí, y no en el latido,
+        // para que valga igual venga el refresco de donde venga.
+        try { _refreshOpenExitForm();     } catch(e){ console.error('_refreshOpenExitForm:', e); }
         try { _restoreTab();              } catch(e){ console.error('_restoreTab:', e); }
         try { checkMorningPopup();        } catch(e){ console.error('checkMorningPopup:', e); }
         try { _offerSetupIfUnconfigured(data); } catch(e){ console.error('_offerSetupIfUnconfigured:', e); }
@@ -16056,10 +16561,17 @@ function toggleDarkMode() {
 var _splashTimer = null, _splashPct = 8;
 
 // A single "almost there" message read the same whether the load takes 3
-// seconds or 20 — a real wait deserves more than one sentence. Rotates every
-// 3.5s (Jose: 2.5s read as too fast) — the last one stays up and stops
-// rotating rather than looping, since repeating "taking longer than
-// expected" over and over reads as broken, not as still trying.
+// seconds or 20 — a real wait deserves more than one sentence. Rotates cada
+// 4s — el último se queda quieto y deja de rotar en vez de dar la vuelta,
+// porque repetir "taking longer than expected" una y otra vez se lee como
+// averiado, no como que sigue intentándolo.
+//
+// El intervalo ha subido dos veces por la misma razón, y las dos veces lo
+// pidió Jose leyéndolo de verdad: 2.5s → 3.5s (v9.x, "demasiado rápido") y
+// 3.5s → 4s (v11.45, "0.5 segundos más cada una"). Se anota el histórico
+// porque el número parece arbitrario y no lo es: es lo que tarda alguien en
+// leer la frase más larga de la lista sin sentirse apurado.
+var SPLASH_NOTE_MS = 4000;
 var SPLASH_NOTES = [
   'Connecting to your spreadsheet…',
   'Reading your inventory…',
@@ -16092,7 +16604,7 @@ var _splashNoteTimer = null, _splashNoteIdx = 0;
       return;
     }
     if (n) n.textContent = SPLASH_NOTES[_splashNoteIdx];
-  }, 3500);
+  }, SPLASH_NOTE_MS);
 })();
 
 function _showSplashReload(){
@@ -16317,10 +16829,19 @@ function setConnStatus(status){
   btn.title = labels[status] || '';
 }
 
-// Check every 60 s — if last load > 5 min ago, mark stale
+// Check every 60 s — if last load > 5 min ago, mark stale.
+//
+// UN LATIDO CORRECTO CUENTA COMO CONTACTO. Antes esto miraba sólo la última
+// CARGA DE DATOS, así que una app conectada y al día se marcaba "stale" a los
+// cinco minutos simplemente porque nadie había guardado nada. Eso es lo
+// contrario de lo que la palabra significa: "stale" tiene que querer decir "no
+// hemos podido confirmar que esto siga siendo verdad", no "no ha cambiado
+// nada". Con el latido comprobando cada 20-150 s, no cambiar nada es
+// información buena, no motivo de sospecha.
 setInterval(function(){
-  if (!lastLoadTime) return;
-  var ageSec = (Date.now() - lastLoadTime) / 1000;
+  var ultimo = Math.max(lastLoadTime || 0, _lastPulseOk || 0);
+  if (!ultimo) return;
+  var ageSec = (Date.now() - ultimo) / 1000;
   if (ageSec > 300) setConnStatus('stale');
 }, 60000);
 
@@ -16937,7 +17458,8 @@ function saveEditMov() {
       _setModalBusy('editMovOverlay', false);
       closeModal('editMovOverlay');
       showToast('Movement updated — ' + res.changes + ' field(s) changed. Email sent.', 'ok');
-      loadDataFromGoogle(true);
+      // Silencioso: mismo caso que borrar un movimiento.
+      loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err) {
       btn.disabled = false; btn.textContent = '💾 Save Changes';
@@ -16970,20 +17492,193 @@ function saveEditMov() {
 // so presence is correct the moment someone actually looks. Interval widened
 // 90s → 150s, still well inside the 5-minute window that decides who counts as
 // active.
-setInterval(function(){
-  if (document.hidden) return;
-  google.script.run
-    .withSuccessHandler(renderActiveUsers)
-    .withFailureHandler(function(){})
-    .heartbeat(_sessionToken || null);
-}, 150000);
+/* ── EL LATIDO, QUE AHORA HACE TRES COSAS ────────────────────────────────────
+ *
+ * Antes: preguntaba quién está conectado cada 150 s y TIRABA el resultado si
+ * fallaba (`withFailureHandler(function(){})`, vacío). Ahora, con lo mismo,
+ * resuelve las dos cosas que Jose reportó el 2026-09-05.
+ *
+ * 1. QUE CADA QUIEN VEA LOS CAMBIOS DE LOS DEMÁS.
+ *    El servidor devuelve un sello que cambia SÓLO cuando cambian los datos del
+ *    almacén (ver DATA_STAMP_ACTIONS en Code.gs — la lista es la regla de Jose
+ *    escrita como datos). Si el sello cambió, se refresca en silencio. Si no,
+ *    no se mueve nada. Sus reglas, una por una:
+ *      · off-line no se actualiza  → si el latido falla, no hay refresco
+ *      · on-line, cuando cambien los datos → el sello
+ *      · nada de respaldos, permisos ni tarjetas → no bombean el sello
+ *
+ * 2. QUE EL PUNTO NARANJA VUELVA SOLO.
+ *    Jose: "puede pasar minutos con el punto naranja, sin volver a estar online,
+ *    solo se actualiza cuando alguien toca el punto naranja... pero sino nunca."
+ *    Tenía razón literal: NADA lo intentaba. El estado off-line se ponía sólo
+ *    desde el fallo de la carga de datos; este latido tenía el manejador de
+ *    fallo vacío; y el temporizador de 60 s sólo marcaba "stale" a los cinco
+ *    minutos, sin reintentar. Ahora el éxito del latido pone verde, el fallo
+ *    pone naranja, y volver de naranja a verde dispara un refresco — volver de
+ *    off-line es justo cuando más probable es haberse perdido algo.
+ *
+ * 3. EL RITMO SE ADAPTA, Y ESTO ES UNA DECISIÓN DE COSTE, NO DE GUSTO.
+ *    Cada latido gasta cuota de ejecución de Apps Script. A 20 s durante ocho
+ *    horas son ~1400 llamadas por persona y día; con tres personas es media
+ *    hora diaria de cuota. A 150 s la prueba de concurrencia no sirve: los
+ *    cambios de los demás tardan dos minutos y medio en aparecer.
+ *    Así que: RÁPIDO cuando hay actividad —alguien tocó esta pestaña hace poco,
+ *    o el sello se acaba de mover— y LENTO cuando lleva rato quieto. Un almacén
+ *    tranquilo no quema cuota y tres personas trabajando se ven casi al
+ *    instante.
+ */
+var PULSE_FAST_MS   = 20000;    // alguien está trabajando
+var PULSE_SLOW_MS   = 150000;   // quieto: el ritmo de siempre
+var PULSE_ACTIVE_MS = 180000;   // cuánto dura "hace poco" desde el último toque
 
+var _dataStamp    = null;   // null = todavía no se sabe; no se compara contra eso
+var _lastActivity = Date.now();
+var _lastPulseOk  = null;
+var _pulseTimer   = null;
+
+['mousedown','keydown','touchstart','wheel'].forEach(function(ev){
+  document.addEventListener(ev, function(){ _lastActivity = Date.now(); },
+    { passive: true });
+});
+
+function _pulseInterval(){
+  var activo = (Date.now() - _lastActivity) < PULSE_ACTIVE_MS;
+  return activo ? PULSE_FAST_MS : PULSE_SLOW_MS;
+}
+
+function _pulseOnce(){
+  if (document.hidden) return;
+
+  // SI EL SERVIDOR TODAVÍA NO CONOCE `pulse`, SE USA EL LATIDO DE SIEMPRE.
+  //
+  // Los dos archivos se despliegan A MANO y por separado, así que "el Index es
+  // de la v11.48 y el Code.gs es de la v11.47" no es un caso raro: es media
+  // hora de cualquier despliegue, y es un estado en el que la app tiene que
+  // seguir funcionando.
+  //
+  // Y sin esto la avería es TOTAL, no parcial: google.script.run sólo conoce
+  // las funciones que el servidor desplegado tiene de verdad, así que llamar a
+  // una que no existe LANZA — de forma síncrona, dentro del temporizador. El
+  // bucle de abajo moría en el primer tick y no volvía a latir nunca: ni
+  // presencia, ni punto verde, ni ver lo de los demás. Sólo pulsar el punto
+  // arreglaba algo, porque eso llama a otra cosa.
+  //
+  // Con el latido viejo se pierde el sello —o sea, no se ven los cambios de los
+  // demás hasta desplegar el servidor— pero el punto sigue vivo y la lista de
+  // usuarios también. Degradarse no es lo mismo que caerse.
+  var run = google.script.run
+    .withSuccessHandler(function(res){ _pulseOk(res); })
+    .withFailureHandler(function(){ _pulseFail(); });
+
+  if (typeof run.pulse !== 'function') {
+    google.script.run
+      .withSuccessHandler(function(users){
+        _pulseOk({ users: (users && users.length) ? users : null, stamp: '' });
+      })
+      .withFailureHandler(function(){ _pulseFail(); })
+      .heartbeat(_sessionToken || null);
+    return;
+  }
+  run.pulse(_sessionToken || null);
+}
+
+/** Lo que hace un latido que llegó. Separado de _pulseOnce para que el camino
+ *  de respaldo de arriba use exactamente el mismo, y no una copia. */
+function _pulseOk(res){
+  res = res || {};
+  _lastPulseOk = Date.now();
+
+  // `users: null` significa "el limitador cortó, no toques la lista", que NO es
+  // lo mismo que "no hay nadie conectado". Pintar [] aquí borraría la lista de
+  // usuarios activos cada vez que se pasa de llamadas.
+  if (res.users) renderActiveUsers(res.users);
+
+  // El punto vuelve a verde por sí solo. Si venía caído, además se recupera lo
+  // que haya pasado mientras tanto.
+  var btn = document.getElementById('connBtn');
+  var veniaCaido = btn && /offline|stale/.test(btn.className);
+  setConnStatus('online');
+
+  var cambio = (_dataStamp !== null && res.stamp && res.stamp !== _dataStamp);
+  if (res.stamp) _dataStamp = res.stamp;
+
+  if (cambio || veniaCaido) {
+    // El modo silencioso de la v11.47: lo de antes se queda en pantalla hasta
+    // que llega lo nuevo. Sin esto, ver el trabajo de otro desarmaría el
+    // tablero cada vez que otra persona guarda algo, que sería peor que no
+    // verlo.
+    loadDataFromGoogle(true, true);
+  }
+}
+
+/** Y lo que hace un latido que no llegó. Este manejador estaba VACÍO hasta la
+ *  v11.48, y ése era el fallo entero: el latido sabía que no había conexión y
+ *  no se lo decía a nadie. */
+function _pulseFail(){
+  setConnStatus('offline');
+}
+
+/* EL BUCLE SE VUELVE A ARMAR PASE LO QUE PASE.
+ *
+ * La v11.48 llamaba a _pulseOnce() y luego a _pulseSchedule() en el mismo
+ * cuerpo del temporizador. Si _pulseOnce lanzaba —y lanzaba, en cuanto el
+ * servidor desplegado no conocía todavía `pulse`— la segunda línea no se
+ * ejecutaba nunca y EL LATIDO MORÍA PARA SIEMPRE, en silencio, sin dejar rastro
+ * en la pantalla.
+ *
+ * Ese es el fallo que Jose vio con dos cuentas: una siguió latiendo y la otra
+ * no volvió del rojo hasta que pulsó el punto a mano.
+ *
+ * El `finally` es lo que hace que un tick malo cueste un tick y no la sesión
+ * entera. Un temporizador que se rearma solo puede sobrevivir a cualquier
+ * error de dentro; uno que depende de que el cuerpo llegue al final, no.
+ */
+function _pulseSchedule(){
+  clearTimeout(_pulseTimer);
+  _pulseTimer = setTimeout(function(){
+    try { _pulseOnce(); }
+    catch (e) { console.error('pulse:', e && e.message); }
+    finally { _pulseSchedule(); }
+  }, _pulseInterval());
+}
+_pulseSchedule();
+
+/* EL NAVEGADOR YA SABE CUÁNDO VUELVE EL WIFI. Sólo había que escucharlo.
+ *
+ * Jose apagó el wifi y lo volvió a encender: una cuenta volvió a verde y la
+ * otra se quedó en rojo hasta que pulsó el punto. Esperar al siguiente latido
+ * puede ser hasta dos minutos y medio, y si el bucle había muerto (arriba), no
+ * llegaba nunca.
+ *
+ * `online` y `offline` son eventos del propio navegador y llegan en el momento.
+ * No sustituyen al latido —el navegador sólo sabe si HAY red, no si el servidor
+ * responde— pero convierten "hasta que alguien lo toque" en "al instante".
+ */
+window.addEventListener('online', function(){
+  _lastActivity = Date.now();   // volver de una caída cuenta como actividad
+  _pulseOnce();
+  _pulseSchedule();
+});
+window.addEventListener('offline', function(){ setConnStatus('offline'); });
+
+// Y al traer la ventana al frente. `visibilitychange` NO cubre esto: una
+// ventana visible pero detrás de otra no está "hidden", así que dos ventanas
+// lado a lado —que es como Jose hace las pruebas— nunca disparaban el latido de
+// vuelta. Con `focus` sí.
+window.addEventListener('focus', function(){
+  _lastActivity = Date.now();
+  _pulseOnce();
+  _pulseSchedule();
+});
+
+// Al volver a la pestaña se late de inmediato: es el momento en que alguien
+// mira, y —desde este cambio— también el reintento de una conexión caída. Por
+// eso cuenta como actividad, para volver al ritmo rápido.
 document.addEventListener('visibilitychange', function(){
   if (document.hidden) return;
-  google.script.run
-    .withSuccessHandler(renderActiveUsers)
-    .withFailureHandler(function(){})
-    .heartbeat(_sessionToken || null);
+  _lastActivity = Date.now();
+  _pulseOnce();
+  _pulseSchedule();
 });
 
 // ── Version tag — set by JS so we can confirm script is running ───────────────

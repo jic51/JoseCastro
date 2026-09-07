@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.44';
+var APP_VERSION = '11.51';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.44';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '17ffbff4';
+var APP_BUILD = '16ba3d3c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1687,6 +1687,10 @@ function getInitialData(sessionToken) {
       config:             config,
       reservations:       reservations,
       userRole:           auth.role,
+      // La referencia contra la que el latido compara. Sin esto, el primer
+      // latido tras cargar vería un sello "distinto" del que no tiene, y todo
+      // el mundo se refrescaría una vez de más nada más entrar.
+      dataStamp:          dataStamp_(),
       rolePerms:          rolePerms_(),
       warehouseRoleLabel: warehouseRoleLabel_(),
       userName:           auth.name || '',
@@ -2006,7 +2010,17 @@ function processMovement(action, data) {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   try {
-    return processMovementInner_(ss, action, data, auth);
+    var out = processMovementInner_(ss, action, data, auth);
+    // EL SELLO SE PONE AQUÍ, en el único sitio por el que pasan todas las
+    // acciones, y DESPUÉS de que la acción haya salido bien. Bombearlo dentro
+    // de cada función que escribe habría significado repartirlo por cuatro
+    // sitios con varios `return` cada uno — que es exactamente cómo se olvida
+    // uno. Aquí no se puede olvidar ninguno: o está en la lista o no está.
+    //
+    // Y la lista ES la regla de Jose, escrita como datos en vez de como
+    // comentario. Ver DATA_STAMP_ACTIONS.
+    if (DATA_STAMP_ACTIONS[action]) bumpDataStamp_();
+    return out;
   } catch (err) {
     var reqId = newRequestId_();
     var severity = classifyErrorSeverity_(err.message);
@@ -2291,13 +2305,164 @@ function processMovementInner_(ss, action, data, auth) {
 // Apps Script releases a script lock when the execution ends, so even a bug
 // that skipped releaseLock could only hold others up until this request
 // finishes, never permanently.
+// SYSTEM_BUSY| ES UNA MARCA PARA EL NAVEGADOR, NO UN TEXTO PARA LEER.
+//
+// Jose, tras la prueba con tres cuentas: tres salidas que sumaban exactamente
+// lo que había en el estante (142 = 42 + 50 + 50). Una pasó y dos vieron un
+// error. Sus palabras: "no debemos dejar que la app muestre un error cuando los
+// movimientos sí están hechos correctamente, pero es el sistema el que no lo
+// está haciendo bien. debemos poner en cola los movimientos o reintentar".
+//
+// Tiene razón, y la distinción es la que importa: "no cabe" es un NO, y "estoy
+// ocupado" es un TODAVÍA NO. Los dos llegaban al navegador como texto rojo de
+// la misma forma, así que la app no podía tratarlos distinto — y quien se
+// llevaba el "todavía no" leía un fallo suyo.
+//
+// El prefijo lo arregla sin cambiar nada más: el navegador reconoce la marca y
+// reintenta solo (ver _isBusyError en Index). Es el mismo recurso que ya usa
+// DUPLICATE_MOVEMENT|, y por el mismo motivo — Apps Script entrega los errores
+// al cliente como texto, así que un código DENTRO del texto es la única forma
+// de distinguir una causa de otra sin adivinar por el idioma del mensaje.
+//
+// El texto que va detrás se sigue enseñando cuando los reintentos se agotan,
+// así que tiene que seguir leyéndose bien por sí solo.
+var BUSY_PREFIX = 'SYSTEM_BUSY|';
+
 function withStockLock_(fn) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) {
-    throw new Error('System busy — someone else is saving right now. Please try again in a moment.');
+    throw new Error(BUSY_PREFIX + 'System busy — someone else is saving right now. Please try again in a moment.');
   }
   try { return fn(); }
   finally { try { lock.releaseLock(); } catch (e) {} }
+}
+
+/* ── EL SELLO DE LOS DATOS ────────────────────────────────────────────────────
+ *
+ * Un número que cambia cuando cambian LOS DATOS DEL ALMACÉN, y sólo entonces.
+ * El navegador lo pide en cada latido y, si cambió, se refresca en silencio.
+ *
+ * LAS REGLAS SON DE JOSE, y son la parte importante de esto:
+ *
+ *   "la pagina no se actualiza cuando esta off-line, si el usuario esta on
+ *    line, se actualiza cada vez que haya un cambio en los datos, hay que
+ *    verificar que no se actualize por otras cosas como crear la copia de
+ *    seguridad, cambios en los permisos de los usuarios, nuevas tarjetas, solo
+ *    debe ser por los datos, ingresos, salidas, transfers, etc."
+ *
+ * Por eso el sello NO se bombea solo. Se llama a mano desde los cuatro sitios
+ * que cambian movimientos o existencias, y desde ningún otro. Un respaldo
+ * nocturno, un permiso, una tarjeta o un cambio de catálogo NO lo tocan — no
+ * porque se les haya olvidado, sino porque no deben.
+ *
+ * QUÉ QUEDA FUERA A PROPÓSITO, para que nadie lo "arregle" luego:
+ *   · archiveOldMovements — mueve filas entre hojas a las 3 de la mañana. Las
+ *     existencias no cambian y no hay nadie mirando.
+ *   · los respaldos, los permisos, los usuarios, el catálogo y los candados.
+ *   · las entregas esperadas (INCOMING). Es discutible y está anotado en el
+ *     backlog: no son existencias, y la regla de Jose enumera movimientos. Se
+ *     deja fuera porque pasarse de refrescos es peor que quedarse corto — una
+ *     pantalla que se sacude sola enseña a desconfiar del movimiento.
+ *
+ * Se guarda en ScriptProperties y no en CacheService: la caché caduca y se
+ * vacía sola, y un sello que desaparece se lee como "todo cambió" en todos los
+ * navegadores a la vez.
+ */
+/* ── SHORT_STOCK: el número verdadero, en un formato que el navegador entienda
+ *
+ * Jose, prueba con tres cuentas: dos personas sacan todo lo que hay en un
+ * estante. "aun le aparece un error a la segunda persona, no se actualiza la
+ * cantidad ni la ventana de exit se cierra, ni explica que paso y porque no se
+ * puede."
+ *
+ * LO CURIOSO ES QUE EL DATO YA VIAJABA. El servidor lanzaba, literalmente,
+ * "INSUFFICIENT at C3B for 44 NORTH. Available there: 42" — con el número
+ * correcto dentro. El navegador lo enseñaba como texto rojo y lo tiraba, así
+ * que la ventana seguía diciendo 92 mientras el error decía 42.
+ *
+ * Esta etiqueta no añade información: hace legible por máquina la que ya había.
+ *
+ * VA AL FINAL, NO AL PRINCIPIO, y ésa es la diferencia con SYSTEM_BUSY|. Los
+ * dos archivos se despliegan a mano y por separado —la v11.49 se pagó ese
+ * precio— así que un Index viejo contra un Code.gs nuevo tiene que seguir
+ * siendo legible. Con la etiqueta al final, ese Index enseña la frase de
+ * siempre y un poco de ruido detrás. Con la etiqueta delante, enseñaría un
+ * churro de JSON y nada más.
+ *
+ * Y por eso también la frase humana se conserva entera: es la que se lee si
+ * algo falla al interpretar la etiqueta.
+ */
+var SHORT_PREFIX = 'SHORT_STOCK|';
+
+function shortStockTag_(cat, name, rack, there, total, asked) {
+  try {
+    return ' ' + SHORT_PREFIX + JSON.stringify({
+      cat: cat, name: name, rack: rack || '',
+      there: there, total: total, asked: asked
+    });
+  } catch (e) { return ''; }   // sin etiqueta, la frase humana sigue sirviendo
+}
+
+var DATA_STAMP_KEY = 'WMS_DATA_STAMP';
+
+/* LAS ACCIONES QUE MUEVEN EL SELLO. Es una lista corta a propósito, y lo que
+ * NO está en ella importa tanto como lo que está.
+ *
+ * Están: las que escriben movimientos o cambian existencias.
+ *
+ *   addMovement          entradas, salidas, transfers, waste, adjust, returns
+ *   addMultiEntry        una entrada con varios materiales
+ *   addMultiExit         una salida con varios materiales
+ *   modifyMovement       editar un movimiento ya guardado
+ *   manageMaterial       borrar una fila, renombrar o fusionar un material
+ *   applyDataQualityFix  los arreglos en bloque de "Check my data"
+ *   commitImport         una importación, que son entradas de verdad
+ *
+ * NO están, y ninguna es un olvido:
+ *
+ *   runBackupOnDemand, setBackupEnabled  — Jose lo pidió por su nombre
+ *   setRolePerms, addUser, removeUser    — permisos y usuarios, también
+ *   dismissSystemCard                    — "nuevas tarjetas", también
+ *   updateConfig, mergeConfigValues,
+ *   mergeLocations, saveLocationLayout   — catálogo: nombres, no existencias
+ *   lockMaterial, unlockMaterial         — cambian permisos sobre el material,
+ *                                          no cuánto hay. (Que el candado se
+ *                                          vea al momento es una petición
+ *                                          aparte, anotada en el backlog.)
+ *   addIncoming, deleteIncoming          — entregas ESPERADAS. Discutible, y
+ *                                          anotado: no son existencias, y la
+ *                                          regla de Jose enumera movimientos.
+ *   todo lo que empieza por get…         — no escriben nada
+ *
+ * La regla al añadir una acción nueva: si después de ejecutarla el número de
+ * AVAILABLE de algún material puede ser distinto, va en la lista. Si no, no.
+ */
+var DATA_STAMP_ACTIONS = {
+  addMovement:         true,
+  addMultiEntry:       true,
+  addMultiExit:        true,
+  modifyMovement:      true,
+  manageMaterial:      true,
+  applyDataQualityFix: true,
+  commitImport:        true
+};
+
+function bumpDataStamp_() {
+  // Nunca puede tumbar la escritura que acaba de ocurrir: el movimiento ya está
+  // guardado, y quedarse sin sello sólo significa que los demás lo verán en su
+  // siguiente carga en vez de en los próximos segundos.
+  try {
+    PropertiesService.getScriptProperties()
+      .setProperty(DATA_STAMP_KEY, String(new Date().getTime()));
+  } catch (e) {
+    Logger.log('bumpDataStamp_ failed: ' + e.message);
+  }
+}
+
+function dataStamp_() {
+  try {
+    return String(PropertiesService.getScriptProperties().getProperty(DATA_STAMP_KEY) || '');
+  } catch (e) { return ''; }
 }
 
 function addMovementsBatch_(ss, archive, movements, auth) {
@@ -2306,7 +2471,7 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
   var lock = LockService.getScriptLock();
   try { lock.waitLock(8000); }
-  catch (e) { throw new Error('System busy — another save is in progress. Please retry in a moment.'); }
+  catch (e) { throw new Error(BUSY_PREFIX + 'System busy — another save is in progress. Please retry in a moment.'); }
 
   try {
     // ── ONE read of the whole archive ────────────────────────────────────────
@@ -2453,11 +2618,13 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         var locAvail = srcKey ? (snap.locs[srcKey] || 0) : avail;
         if (avail < qty) {
           throw new Error('INSUFFICIENT STOCK for ' + name + '. Available: ' + avail +
-            ' (Warehouse: ' + snap.wh + ', Reserved: ' + reserved + '). Cannot remove ' + qty + '.');
+            ' (Warehouse: ' + snap.wh + ', Reserved: ' + reserved + '). Cannot remove ' + qty + '.' +
+            shortStockTag_(cat, name, '', avail, avail, qty));
         }
         if (srcKey && locAvail < qty) {
           throw new Error('INSUFFICIENT at ' + src + ' for ' + name + '. Available there: ' +
-            locAvail + '. Total available: ' + avail);
+            locAvail + '. Total available: ' + avail +
+            shortStockTag_(cat, name, src, locAvail, avail, qty));
         }
       }
       if (mt === 'WASTE' && !String(d.comments || '').trim()) {
@@ -4840,7 +5007,28 @@ function unlockMaterial(data, auth) {
       return { status: 'success' };
     }
   }
-  throw new Error('Lock not found or already removed.');
+  // NO ES UN ERROR: EL OBJETIVO SE CUMPLIÓ.
+  //
+  // Jose lo vio con dos cuentas quitando el mismo candado a la vez: la segunda
+  // recibía "Error: error: lock not found or already removed" Y EL CANDADO
+  // SEGUÍA PINTADO. Sus palabras: "no debería decirle error al usuario, debe
+  // darle la explicación sin hacerlo sentir como que hizo algo malo o que la
+  // app está fallando".
+  //
+  // Tiene razón, y hay algo más de fondo que él señaló sin nombrarlo: la
+  // persona quería que el material quedara desbloqueado, y está desbloqueado.
+  // Que lo haya conseguido otro no lo convierte en un fallo suyo. Lo mismo que
+  // borrar algo que ya no estaba: el mundo acabó como se pedía.
+  //
+  // Y devolver éxito ARREGLA EL CANDADO PINTADO SIN TOCAR EL NAVEGADOR: el
+  // manejador de éxito de _doUnlockMaterial ya quita el candado de la lista,
+  // reconstruye el índice y repinta el estante y el mapa. Era el manejador de
+  // FALLO el que no hacía nada de eso. O sea que el código correcto ya existía
+  // y sólo lo estábamos mandando por el camino equivocado.
+  //
+  // `alreadyGone` es para poder decirlo con otras palabras, no para decidir
+  // nada distinto.
+  return { status: 'success', alreadyGone: true };
 }
 
 // ─── DOCUMENT UPLOAD ─────────────────────────────────────────────────────────
@@ -7948,6 +8136,54 @@ function heartbeat(sessionToken) {
 
   // Return sorted list: most-recent first
   return Object.values(sessions).sort(function(a, b) { return b.time - a.time; });
+}
+
+/* ── pulse: el latido que además dice si los datos cambiaron ──────────────────
+ *
+ * Jose: "cada persona en la app necesita ver cada cambio cuando se realiza".
+ *
+ * NO ES UN MECANISMO NUEVO. heartbeat ya corría cada dos minutos y medio, y ya
+ * se disparaba al volver a la pestaña. Lo único que faltaba era que trajera el
+ * sello, para que el navegador pueda comparar y refrescarse SOLO cuando hay
+ * algo que refrescar. Sin sello habría que traerse todo el almacén cada vez
+ * para averiguar si cambió algo — que es la forma cara de hacer esta pregunta.
+ *
+ * SE AÑADE EN VEZ DE CAMBIAR heartbeat porque getInitialData también lo llama
+ * (`activeUsers = heartbeat(sessionToken)`) y espera recibir un array. Cambiarle
+ * la forma a heartbeat habría roto ese sitio en silencio: JavaScript no se
+ * queja de leer .users en un array, simplemente devuelve undefined y la lista
+ * de usuarios activos aparece vacía para siempre.
+ *
+ * EL SELLO SE LEE AUNQUE EL LATIDO ESTÉ LIMITADO. heartbeat devuelve [] cuando
+ * el limitador corta —60 llamadas por 300 s y por persona— y eso es correcto
+ * para la lista de usuarios, pero el sello tiene que llegar igual: si no, subir
+ * la frecuencia del latido apagaría justo la función por la que se subió.
+ * `users: null` es la forma de decir "no toques la lista", distinta de `[]`,
+ * que significaría "no hay nadie".
+ */
+function pulse(sessionToken) {
+  // COMPRUEBA LA IDENTIDAD AQUÍ, no sólo dentro de heartbeat.
+  //
+  // La primera versión delegaba: llamaba a heartbeat y devolvía el sello sin
+  // más. test-endpoint-auth.js la marcó, y tenía razón. Todo global sin guion
+  // bajo final es alcanzable por google.script.run desde cualquier cuenta de
+  // Google que tenga la URL, y aunque heartbeat sí se defiende, EL SELLO NO
+  // PASABA POR ÉL: cualquiera con el enlace habría podido preguntar cada 20
+  // segundos y deducir a qué horas se mueve material en este almacén. Es poco,
+  // y es información del cliente igualmente.
+  //
+  // Devuelve vacío en vez de lanzar, por el mismo motivo que heartbeat: un
+  // error aquí sacaría un aviso rojo en una sesión perfectamente sana.
+  var auth = getUserRole(sessionToken);
+  if (!auth || auth.role === 'DENIED' || auth.role === 'NO_SESSION' || !auth.email) {
+    return { users: null, stamp: '' };
+  }
+  var users = [];
+  try { users = heartbeat(sessionToken) || []; } catch (e) { users = []; }
+  return {
+    users: users.length ? users : null,
+    stamp: dataStamp_()
+  };
 }
 
 // ─── LOCKING ─────────────────────────────────────────────────────────────────
