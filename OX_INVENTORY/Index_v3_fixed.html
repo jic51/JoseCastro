@@ -3304,7 +3304,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.52';
+var APP_VERSION = '11.53';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3316,7 +3316,7 @@ var APP_VERSION = '11.52';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0df91cf0';
+var APP_BUILD = 'a7b4347f';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -9416,6 +9416,14 @@ function _renderSystemTab() {
       '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
         '<button id="btnRebuildStock" class="btn btn-ghost btn-sm" onclick="_rebuildStockNow()">🔧 Rebuild Stock Totals Now</button>' +
       '</div>' +
+    '</div>' +
+    '<div class="field" style="margin-top:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Movement IDs ' +
+        _infoIc('Every movement saved from now on gets an ID of its own. Movements saved before this update do not have one yet, and this gives them one. It only ever fills in a blank, so running it more than once is safe and changes nothing the second time.') +
+      '</label>' +
+      '<div id="movIdBox" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
+        '<span style="font-size:.8rem;color:var(--muted)">Checking…</span>' +
+      '</div>' +
     '</div>';
 
   // The list exists in the DOM as of the line above, so this is the earliest
@@ -9427,6 +9435,74 @@ function _renderSystemTab() {
   _loadDailyReport();
   _loadSpaceUsage();
   _loadAiStatus();
+  _loadMovIdStatus();
+}
+
+/* ── Giving every existing movement a name ──────────────────────────────────
+   Until this update a movement was known only by its POSITION in the sheet, and
+   positions move — which is how one person deleting a movement could delete a
+   different one on somebody else's screen. Every movement saved from now on
+   carries an ID of its own; the ones already saved need one filling in, and
+   that is what this button does.
+
+   Deliberately a button and not something that happens on its own: it writes
+   to the real archive, and Jose asked to be the one who decides when anything
+   touches his data. It is safe to press twice — the server only ever fills a
+   blank — and the panel says so rather than making anyone guess. */
+function _loadMovIdStatus(){
+  var box = document.getElementById('movIdBox');
+  if (!box) return;
+  google.script.run
+    .withSuccessHandler(function(res){ _paintMovIdStatus(res); })
+    .withFailureHandler(function(){
+      var b = document.getElementById('movIdBox');
+      // Not an error worth shouting about: an older Code.gs simply does not
+      // know this action yet, which is normal for the half hour between
+      // deploying one file and the other.
+      if (b) b.innerHTML = '<span style="font-size:.8rem;color:var(--muted)">Not available on this version.</span>';
+    })
+    .processMovement('adminAction', _h({ action: 'movementIdStatus' }));
+}
+
+function _paintMovIdStatus(res){
+  var box = document.getElementById('movIdBox');
+  if (!box) return;
+  var without = (res && Number(res.without)) || 0;
+  var total   = (res && Number(res.total))   || 0;
+  if (!without){
+    box.innerHTML = '<span style="font-size:.8rem;color:var(--muted)">✓ All ' + total +
+      ' movement' + (total === 1 ? '' : 's') + ' already have an ID.</span>';
+    return;
+  }
+  box.innerHTML =
+    '<button id="btnMovIdFill" class="btn btn-ghost btn-sm" onclick="_fillMovIds()">🏷 Give every movement an ID</button>' +
+    '<span style="font-size:.8rem;color:var(--muted)">' + without + ' of ' + total + ' still without one.</span>';
+}
+
+function _fillMovIds(){
+  var btn = document.getElementById('btnMovIdFill');
+  _showConfirm({
+    icon: '🏷',
+    title: 'Give every movement an ID',
+    message: 'This writes one new column into your movement history. Nothing else is ' +
+             'touched — no quantity, rack, date or price is changed, and a movement that ' +
+             'already has an ID is left alone.\n\nYour nightly backup already covers this. Continue?',
+    confirmText: 'Continue',
+    onConfirm: function(){
+      _btnBusy(btn, 'Working…');
+      google.script.run
+        .withSuccessHandler(function(res){
+          _btnReset(btn);
+          showToast('✓ ' + ((res && res.message) || 'Done.'), 'ok', 6000);
+          _loadMovIdStatus();
+        })
+        .withFailureHandler(function(e){
+          _btnReset(btn);
+          showToast('⚠ ' + _stripTags(e), 'err', 8000);
+        })
+        .processMovement('adminAction', _h({ action: 'backfillMovementIds' }));
+    }
+  });
 }
 
 /* ── The daily movement report ──────────────────────────────────────────────

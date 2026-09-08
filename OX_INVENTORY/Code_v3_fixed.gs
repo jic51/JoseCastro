@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.52';
+var APP_VERSION = '11.53';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.52';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0df91cf0';
+var APP_BUILD = 'a7b4347f';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -143,14 +143,73 @@ var AC = {
   // sheet already has data in, and inserting would shift every column after
   // it on every installation that has ever saved a movement. Appending is the
   // only change here that is safe on data that already exists.
-  UNIT_COST:20, TOTAL_COST:21
+  UNIT_COST:20, TOTAL_COST:21,
+  // A MOVEMENT'S OWN NAME. Appended for exactly the same reason as the two
+  // above, and it is the fix for a whole family of bugs rather than a feature.
+  //
+  // Until this column existed, a movement was identified ONLY by its position
+  // in the sheet, so every operation that points at one movement — delete,
+  // edit, restore, undo — pointed at a row number. Row numbers move: deleting
+  // a row lifts every row below it, and the 3am archive job rewrites both
+  // sheets from scratch. The number the browser was holding could therefore
+  // name a DIFFERENT movement by the time it was used, and nothing anywhere
+  // would notice. Jose confirmed the delete case live on 2026-09-07.
+  //
+  // With a name of its own, a movement can be pointed at from anywhere, and
+  // its position is free to change as much as it likes.
+  MOV_ID:22
 };
 // The archive row's true width. Every fixed-size read or write of the whole
 // row uses this constant, not a literal — four different places in this file
 // used to each spell out `20` by hand, which is exactly the kind of duplicated
 // magic number that gets fixed in three places and shipped broken in the
 // fourth. One constant, so adding a column here again means changing ONE line.
-var AC_WIDTH = 22;
+var AC_WIDTH = 23;
+
+// A movement's id. Time first, in base 36, so ids sort in the order the
+// movements happened and stay short; then three random characters, so two
+// people saving in the same millisecond from different machines cannot land on
+// the same one; then the row's place in its own batch, which makes rows saved
+// together in a single call distinct by construction rather than by luck.
+//
+// `when` exists for the backfill: an old row's id is built from ITS timestamp,
+// not from the moment the migration ran, so the ids of existing history sort
+// the same way the history does.
+function newMovId_(seq, when) {
+  var t = (when instanceof Date ? when.getTime() : new Date().getTime()).toString(36).toUpperCase();
+  var r = ('00' + Math.floor(Math.random() * 46656).toString(36).toUpperCase()).slice(-3);
+  return 'M' + t + '-' + r + '-' + (seq || 0);
+}
+
+// An archive row read from a sheet that is narrower than AC_WIDTH comes back
+// short, and writing a short row into a full-width range throws. Every sheet
+// that has ever existed is narrower than the current AC_WIDTH the moment a
+// column is added, so this is the normal case on an upgrade, not the odd one.
+function padRow_(row, width) {
+  var out = (row || []).slice(0, width);
+  while (out.length < width) out.push('');
+  return out;
+}
+
+// The same problem one level down: a sheet can have fewer COLUMNS than the row
+// model needs. A spreadsheet arrives with 26 and most never change, but anyone
+// who has ever deleted the empty columns to tidy up has a narrower sheet, and
+// asking for a range past the last one fails outright. Grows the sheet, never
+// shrinks it, and does nothing at all in the normal case.
+function ensureArchiveWidth_(sheet) {
+  if (!sheet) return;
+  var have = sheet.getMaxColumns();
+  if (have < AC_WIDTH) sheet.insertColumnsAfter(have, AC_WIDTH - have);
+}
+
+// The read-only half of the same problem. A read must NOT grow the sheet —
+// widening a spreadsheet as a side effect of looking at it is exactly the kind
+// of surprise this file avoids elsewhere — so it asks for as much of the row as
+// actually exists. Columns past the end come back as undefined, which every
+// caller already treats as blank.
+function readWidth_(sheet) {
+  return Math.min(AC_WIDTH, sheet.getMaxColumns());
+}
 
 // ═══ COMPANY IDENTITY ════════════════════════════════════════════════════════
 // Everything that used to say "OX Glass" reads from here instead, so one copy
@@ -332,7 +391,7 @@ function ensureCoreSheets_(ss) {
     { name: SHEETS.ARCHIVE, header: [
         'System Date','Type','Name','GC','PO#','Qty','Unit','Date Received','Source Location',
         'Supplier','Comments','Status','Received By','Project','Mat ID','Doc Links','User Email',
-        'Destination Location','MoveType','PM','Unit Cost','Total Cost'] },
+        'Destination Location','MoveType','PM','Unit Cost','Total Cost','Movement ID'] },
     { name: SHEETS.CONFIG, header: [
         'Projects','Categories','Suppliers','Locations','Location Type','User Email','User Role',
         'Admin Email','Truck','Truck Person','Truck Status','Min Stock Material','Min Stock Qty',
@@ -1740,6 +1799,10 @@ function parseArchiveRow(row, rowIdx) {
 
   return {
     rowIdx:      rowIdx,
+    // Empty on any row saved before the movement-id column existed, until the
+    // migration in Settings has been run. Everything that uses it has to cope
+    // with that, which is why nothing is switched over to it in this version.
+    movId:       String(row[AC.MOV_ID] || '').trim(),
     timestamp:   ts,
     moveType:    mt,
     category:    String(row[AC.CATEGORY]    || '').toUpperCase().trim(),
@@ -2238,8 +2301,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'runDataQualityScan')  return runDataQualityScan(data);
   if (action === 'applyDataQualityFix') return applyDataQualityFix(data);
   if (action === 'adminAction') {
-    requireAuth_('ADMIN');
-    return adminAction_(ss, data);
+    return adminAction_(ss, data, requireAuth_('ADMIN'));
   }
   if (action === 'getErrorLog')     return getErrorLog(auth);
   if (action === 'clearErrorLog')   return clearErrorLog(data, auth);
@@ -2474,6 +2536,11 @@ function addMovementsBatch_(ss, archive, movements, auth) {
   catch (e) { throw new Error(BUSY_PREFIX + 'System busy — another save is in progress. Please retry in a moment.'); }
 
   try {
+    // A sheet whose columns were trimmed by hand can be physically NARROWER
+    // than AC_WIDTH, and every write below asks for a full-width range. One
+    // cheap check here beats "cannot write outside the sheet" on a save.
+    ensureArchiveWidth_(archive);
+
     // ── ONE read of the whole archive ────────────────────────────────────────
     var archiveValues = archive.getDataRange().getValues();
 
@@ -2710,6 +2777,10 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       row[AC.PM]          = sheetSafe_(String(d.pm || '').trim());
       row[AC.UNIT_COST]   = (unitCost  === null) ? '' : unitCost;
       row[AC.TOTAL_COST]  = (totalCost === null) ? '' : totalCost;
+      // Given here, at the moment the row is built, and never again. An id
+      // that could be recomputed later from the row's contents would not be an
+      // id: two identical movements are still two movements.
+      row[AC.MOV_ID]      = newMovId_(newRows.length, now);
 
       newRows.push(row);
       rowMeta.push({
@@ -3422,7 +3493,7 @@ function ensureArchiveHistorySheet_(ss) {
   var sheet = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
   if (!sheet) {
     var archive = ss.getSheetByName(SHEETS.ARCHIVE);
-    var headers = archive.getRange(1, 1, 1, AC_WIDTH).getValues()[0];
+    var headers = archive.getRange(1, 1, 1, readWidth_(archive)).getValues()[0];
     sheet = ss.insertSheet(SHEETS.ARCHIVE_HISTORY);
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
@@ -3447,14 +3518,25 @@ function archiveOldMovements(ss) {
     var cutoffDate   = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - cutoffMonths);
 
-    var colCount = 20;
+    // THIS SAID 20, AND 20 STOPPED BEING TRUE THE DAY THE PRICING COLUMNS WERE
+    // ADDED. The rows are read at their real width — getDataRange() gives back
+    // however many columns the sheet actually has — and were then written into
+    // a 20-wide range, which either throws ("the number of columns in the data
+    // does not match") or, on a narrower sheet, quietly drops Unit Cost and
+    // Total Cost from every row the nightly job touched. The constant exists
+    // precisely so this cannot happen; this was the one place still spelling
+    // the number out by hand.
+    var colCount = AC_WIDTH;
     var aData    = archive.getDataRange().getValues();
     var keep = [], toArchive = [];
     for (var i = 1; i < aData.length; i++) {
       var row = aData[i];
       if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
       var ts = row[AC.TIMESTAMP] instanceof Date ? row[AC.TIMESTAMP] : null;
-      (ts && ts < cutoffDate ? toArchive : keep).push(row);
+      // Padded on the way in, not on the way out: the two sheets can be
+      // different widths (one upgraded, one not), and the write below needs
+      // every row to agree with the range it goes into.
+      (ts && ts < cutoffDate ? toArchive : keep).push(padRow_(row, colCount));
     }
 
     var hData = history.getDataRange().getValues();
@@ -3463,7 +3545,7 @@ function archiveOldMovements(ss) {
       var hrow = hData[j];
       if (!hrow[AC.CATEGORY] && !hrow[AC.NAME]) continue;
       var hts = hrow[AC.TIMESTAMP] instanceof Date ? hrow[AC.TIMESTAMP] : null;
-      (hts && hts >= cutoffDate ? toRestore : stillOld).push(hrow);
+      (hts && hts >= cutoffDate ? toRestore : stillOld).push(padRow_(hrow, colCount));
     }
 
     if (!toArchive.length && !toRestore.length) return { status: 'noop' };
@@ -5563,14 +5645,42 @@ function getOrCreateFolder_(path) {
 }
 
 // ─── ADMIN ACTIONS ───────────────────────────────────────────────────────────
-function adminAction_(ss, data) {
+function adminAction_(ss, data, auth) {
   var action = data.action;
   if (action === 'updateTruck')   return updateTruck_(ss, data);
   if (action === 'addUser')       return addUser_(ss, data);
   if (action === 'removeUser')    return removeUser_(ss, data);
   if (action === 'reconcile')     return runReconciliation_(ss);
   if (action === 'updateMinStock')return updateMinStock_(ss, data);
+  if (action === 'movementIdStatus')   return movementIdStatus_(ss);
+  if (action === 'backfillMovementIds')return backfillMovementIds_(ss, auth);
   throw new Error('Unknown admin action.');
+}
+
+// Read-only: how many movements still have no name of their own. Deliberately
+// NOT a side effect of the backfill — the app has to be able to say "nothing to
+// do" without writing anything to find out.
+function movementIdStatus_(ss) {
+  var withId = 0, without = 0;
+  [SHEETS.ARCHIVE, SHEETS.ARCHIVE_HISTORY].forEach(function (sheetName) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
+    var last = sheet.getLastRow();
+    if (last < 2) return;
+    var count = last - 1;
+    // A sheet not even wide enough to hold the column has no ids in it by
+    // definition, and asking for that column would fail outright. Its rows
+    // count as unnamed, which is exactly what they are.
+    var narrow = sheet.getMaxColumns() < AC_WIDTH;
+    var ids    = narrow ? null : sheet.getRange(2, AC.MOV_ID + 1, count, 1).getValues();
+    var cats   = sheet.getRange(2, AC.CATEGORY + 1, count, 1).getValues();
+    var names  = sheet.getRange(2, AC.NAME + 1,     count, 1).getValues();
+    for (var i = 0; i < count; i++) {
+      if (!String(cats[i][0] || '').trim() && !String(names[i][0] || '').trim()) continue;
+      if (ids && String(ids[i][0] || '').trim()) withId++; else without++;
+    }
+  });
+  return { status: 'success', withId: withId, without: without, total: withId + without };
 }
 
 function updateTruck_(ss, data) {
@@ -5998,6 +6108,81 @@ function commitImport(data, auth) {
 function runReconciliation_(ss) {
   refreshDerivedSheets_(ss);
   return { status: 'success', message: 'Reconciliation complete. LIVE_STOCK and SITE_STOCK refreshed.' };
+}
+
+// ─── GIVING EVERY EXISTING MOVEMENT A NAME ───────────────────────────────────
+//
+// Every movement saved from now on gets an id when it is written (see
+// AC.MOV_ID and newMovId_). Every movement saved BEFORE that has an empty one,
+// and nothing can point at a movement safely until they all have one. This is
+// the one-time pass that fills them in.
+//
+// THREE PROPERTIES, ALL THREE ON PURPOSE:
+//
+//   1. It only ever fills a BLANK. A row that already has an id is left
+//      exactly as it was, so running this twice — or twenty times — does
+//      nothing after the first. That matters more than it sounds: a migration
+//      that must be run exactly once is a migration that will eventually be
+//      run twice, by someone who is not sure whether it worked.
+//   2. It writes ONE column and nothing else. It never rewrites a row, so
+//      there is no path by which a bug here could damage a quantity, a rack or
+//      a price — the worst it can do is put a name on something.
+//   3. It takes the same lock every save takes, because it writes to the
+//      archive while people may be saving into it.
+//
+// It does NOT take a backup first: the nightly copy already exists, and an
+// admin is asked to confirm in the app before this runs.
+function backfillMovementIds_(ss, auth) {
+  return withStockLock_(function () {
+    var out = { status: 'success', filled: 0, alreadyHad: 0, sheets: [] };
+
+    [SHEETS.ARCHIVE, SHEETS.ARCHIVE_HISTORY].forEach(function (sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return;
+      ensureArchiveWidth_(sheet);
+
+      // The header first, so the column reads as something in the spreadsheet
+      // instead of a stripe of codes under a blank heading.
+      var head = sheet.getRange(1, AC.MOV_ID + 1);
+      if (!String(head.getValue() || '').trim()) {
+        head.setValue('Movement ID').setFontWeight('bold');
+      }
+
+      var last = sheet.getLastRow();
+      if (last < 2) { out.sheets.push({ sheet: sheetName, filled: 0, rows: 0 }); return; }
+
+      var count = last - 1;
+      var ids   = sheet.getRange(2, AC.MOV_ID + 1,    count, 1).getValues();
+      var stamp = sheet.getRange(2, AC.TIMESTAMP + 1, count, 1).getValues();
+      var cats  = sheet.getRange(2, AC.CATEGORY + 1,  count, 1).getValues();
+      var names = sheet.getRange(2, AC.NAME + 1,      count, 1).getValues();
+
+      var filled = 0;
+      for (var i = 0; i < count; i++) {
+        if (String(ids[i][0] || '').trim()) { out.alreadyHad++; continue; }
+        // A blank row in the middle of the sheet is not a movement. Naming one
+        // would invent a movement that has lost all its data — and the rest of
+        // this file already skips those rows on exactly this test.
+        if (!String(cats[i][0] || '').trim() && !String(names[i][0] || '').trim()) continue;
+        ids[i][0] = newMovId_(i, stamp[i][0] instanceof Date ? stamp[i][0] : null);
+        filled++;
+      }
+
+      if (filled) sheet.getRange(2, AC.MOV_ID + 1, count, 1).setValues(ids);
+      out.filled += filled;
+      out.sheets.push({ sheet: sheetName, filled: filled, rows: count });
+    });
+
+    auditLog_(ss, 'MOVEMENT_ID_BACKFILL', (auth && auth.email) || 'system',
+      out.filled + ' movement(s) named', out.alreadyHad + ' already had one',
+      JSON.stringify(out.sheets));
+
+    out.message = out.filled
+      ? (out.filled + ' movement' + (out.filled === 1 ? '' : 's') + ' named. ' +
+         out.alreadyHad + ' already had an ID.')
+      : ('Nothing to do — all ' + out.alreadyHad + ' movements already have an ID.');
+    return out;
+  });
 }
 
 // ─── AUDIT LOG ───────────────────────────────────────────────────────────────
@@ -9007,7 +9192,7 @@ function manageMaterialLocked_(data, auth) {
     // audit record of a deleted movement had been quietly dropping the PM and
     // both cost columns — the record of a deletion is the one place that must
     // be complete.
-    var rowData = archive.getRange(rowIdx, 1, 1, AC_WIDTH).getValues()[0];
+    var rowData = archive.getRange(rowIdx, 1, 1, readWidth_(archive)).getValues()[0];
     auditLog_(ss, 'DELETE_ROW', auth.email, String(rowData[AC.CATEGORY]), String(rowData[AC.NAME]),
               'row ' + rowIdx + ' — ' + JSON.stringify(rowData.slice(0, 8)));
     archive.deleteRow(rowIdx);
@@ -9303,7 +9488,7 @@ function dqReadRows_(ss) {
     if (!sheet) return;
     var last = sheet.getLastRow();
     if (last < 2) return;
-    var width = Math.max(sheet.getLastColumn(), AC_WIDTH);
+    var width = Math.min(Math.max(sheet.getLastColumn(), AC_WIDTH), sheet.getMaxColumns());
     var vals  = sheet.getRange(2, 1, last - 1, width).getValues();
     for (var i = 0; i < vals.length; i++) out.push(vals[i]);
   });
@@ -9855,7 +10040,7 @@ function modifyMovementLocked_(data, auth) {
   if (rowIdx > lastRow) throw new Error('Row #' + rowIdx + ' does not exist (last row: ' + lastRow + ').');
 
   // Read current row (20 cols)
-  var range   = archive.getRange(rowIdx, 1, 1, AC_WIDTH);
+  var range   = archive.getRange(rowIdx, 1, 1, readWidth_(archive));
   var rowVals = range.getValues()[0];
 
   // Row numbers shift whenever archiveOldMovements() reconciles the sheet —
