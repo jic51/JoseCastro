@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.53';
+var APP_VERSION = '11.54';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.53';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'a7b4347f';
+var APP_BUILD = 'fa354706';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2544,6 +2544,20 @@ function addMovementsBatch_(ss, archive, movements, auth) {
     // ── ONE read of the whole archive ────────────────────────────────────────
     var archiveValues = archive.getDataRange().getValues();
 
+    // ── Names already in use, and any clash among them ───────────────────────
+    // Free: the whole archive is already in memory and we are already inside
+    // the lock, so this costs no read, no write and no round trip. It does two
+    // things — it stops a new row from being handed a name that already
+    // exists, and it repairs a clash somebody made by copying a row in the
+    // spreadsheet. Silent, by Jose's rule. See dedupeMovementIds_.
+    //
+    // ARCHIVE_HISTORY is NOT read here, deliberately: pulling a second whole
+    // sheet on every single save would be a real cost against an astronomically
+    // unlikely collision. The nightly job already has both sheets in memory and
+    // covers the pair — see archiveOldMovements.
+    var takenIds = {};
+    var idFixes  = dedupeMovementIds_(archiveValues, takenIds);
+
     // ── ONE read of reservations → reserved qty per matId ────────────────────
     var reservedByMat = {};
     var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
@@ -2593,8 +2607,22 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
       var matId = getMaterialId(cat, name);
 
-      var proj = d.isGeneric ? 'GENERIC' : normalizeString(d.project || '');
-      if (!proj && mt === 'ENTRY') proj = 'GENERIC';
+      // NO PROJECT MEANS NO PROJECT. It used to mean 'GENERIC'.
+      //
+      // GENERIC was the app's own word for "received into stock, not assigned
+      // to a job". The trouble is that it went into the sheet as if it were a
+      // job's name, and nobody's job is called GENERIC — Jose read his own
+      // history on 2026-09-08 and took it for a bug, which is exactly what it
+      // looks like.
+      //
+      // And it was never load-bearing: EVERY reader, server and browser, spells
+      // the test `proj && proj !== 'GENERIC'`, so a blank has always meant the
+      // same thing to all of them. It was a placeholder nothing needed.
+      //
+      // The readers keep tolerating it, deliberately: rows written before this
+      // version still say GENERIC, and they must keep behaving the same until
+      // (and unless) somebody cleans them.
+      var proj = normalizeString(d.project || '');
 
       // A TRANSFER moves material from one rack to another INSIDE the same
       // warehouse. Nothing about that changes which job it belongs to, so a
@@ -2780,7 +2808,11 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       // Given here, at the moment the row is built, and never again. An id
       // that could be recomputed later from the row's contents would not be an
       // id: two identical movements are still two movements.
-      row[AC.MOV_ID]      = newMovId_(newRows.length, now);
+      //
+      // Drawn against the names already in the archive, so a new row cannot be
+      // handed one that exists — and each draw is added to that list, so the
+      // rows of one batch cannot collide with each other either.
+      row[AC.MOV_ID]      = uniqueMovId_(takenIds, newRows.length, now);
 
       newRows.push(row);
       rowMeta.push({
@@ -2807,6 +2839,26 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         throw new Error('WRITE_VERIFY_FAIL: row ' + (startRow + v) +
           ' could not be confirmed in the archive. Please reload and check before retrying.');
       }
+    }
+
+    // ── Repair any duplicated name found on the way in ───────────────────────
+    // Normally there is nothing to do and this costs one `if`. When there IS
+    // something, it happens here — AFTER the user's movement is written and
+    // verified, and wrapped so that a failure to tidy up can never cost anyone
+    // the movement they just saved. Housekeeping does not get to fail a save.
+    //
+    // Only rows that existed before this save are rewritten, and only their id
+    // column, so it cannot collide with the block just appended above.
+    if (idFixes.length) {
+      try {
+        writeMovIdColumn_(archive, archiveValues);
+        // Recorded, not reported — and under 'auto', which is deliberately not
+        // one of SYSTEM_ACTORS, so it cannot appear in "what the system did on
+        // its own". See dedupeMovementIds_.
+        auditLog_(ss, 'MOVEMENT_ID_DEDUPE', 'auto',
+          idFixes.length + ' duplicated movement ID(s) renamed',
+          'sheet rows ' + idFixes.map(function (i) { return i + 1; }).join(','), '');
+      } catch (de) { Logger.log('dedupe movement ids: ' + de.message); }
     }
 
     // ── Persist the cost blend — only now, with the archive write verified ───
@@ -3528,6 +3580,31 @@ function archiveOldMovements(ss) {
     // the number out by hand.
     var colCount = AC_WIDTH;
     var aData    = archive.getDataRange().getValues();
+    var hData    = history.getDataRange().getValues();
+
+    // ── The one place both sheets are in memory together ─────────────────────
+    // Which makes it the only place a name duplicated ACROSS them can be seen
+    // at all. A save only ever holds the active archive, so it cannot catch
+    // that pair; this can, and it costs nothing extra because both grids were
+    // just read anyway. One list of names shared between the two, because a row
+    // here and a row there are two movements. Silent — see dedupeMovementIds_.
+    var takenIds = {};
+    var aIdFix   = dedupeMovementIds_(aData, takenIds);
+    var hIdFix   = dedupeMovementIds_(hData, takenIds);
+    if (aIdFix.length || hIdFix.length) {
+      try {
+        // Written now rather than left to the rewrite below, because the rewrite
+        // does not happen on a night when nothing crosses the cutoff — which is
+        // most nights, and would be exactly when the repair quietly never ran.
+        if (aIdFix.length) writeMovIdColumn_(archive, aData);
+        if (hIdFix.length) writeMovIdColumn_(history, hData);
+        auditLog_(ss, 'MOVEMENT_ID_DEDUPE', 'auto',
+          (aIdFix.length + hIdFix.length) + ' duplicated movement ID(s) renamed',
+          'archive rows ' + (aIdFix.join(',') || '—'),
+          'history rows ' + (hIdFix.join(',') || '—'));
+      } catch (de) { Logger.log('nightly dedupe movement ids: ' + de.message); }
+    }
+
     var keep = [], toArchive = [];
     for (var i = 1; i < aData.length; i++) {
       var row = aData[i];
@@ -3539,7 +3616,6 @@ function archiveOldMovements(ss) {
       (ts && ts < cutoffDate ? toArchive : keep).push(padRow_(row, colCount));
     }
 
-    var hData = history.getDataRange().getValues();
     var stillOld = [], toRestore = [];
     for (var j = 1; j < hData.length; j++) {
       var hrow = hData[j];
@@ -6110,6 +6186,79 @@ function runReconciliation_(ss) {
   return { status: 'success', message: 'Reconciliation complete. LIVE_STOCK and SITE_STOCK refreshed.' };
 }
 
+// ─── NO TWO MOVEMENTS MAY SHARE A NAME ───────────────────────────────────────
+//
+// The generator itself cannot realistically collide: saves are serialised by
+// the script lock, each one takes hundreds of milliseconds, the clock advances
+// between them, rows inside one batch are numbered, and three random characters
+// sit underneath all of that.
+//
+// SO THE DUPLICATES DO NOT COME FROM THE GENERATOR. They come from outside it:
+// somebody copies a row in the spreadsheet by hand, or pastes rows back out of
+// a backup. Jose works in the sheet directly, so this is not a hypothetical —
+// and a copied row is invisible to any amount of care taken over here.
+//
+// THE RULE: THE FIRST OCCURRENCE KEEPS THE NAME. It has held that id the
+// longest, so anything already pointing at it keeps working; the copy is what
+// gets renamed. Renaming the earlier one instead would silently break whatever
+// pointed at it, which is the exact harm the id exists to prevent.
+//
+// NEVER ANNOUNCED. Jose, 2026-09-08: "el cliente o usuario no debe ni saber que
+// la app hace eso, es solo algo que hace y ya, no se confirma ni se da la
+// noticia de lo que hizo". It IS written to the audit sheet — an unrecorded
+// repair is indistinguishable from a bug — but under an actor that is not in
+// SYSTEM_ACTORS, so it cannot surface in "what the system did on its own"
+// either. Recorded, not reported.
+//
+// `rows` is a whole grid as read from a sheet, header included: index 0 is the
+// header row and is skipped, the same as every other loop over these sheets.
+// Rows are corrected IN PLACE; the returned list says which ones moved.
+function dedupeMovementIds_(rows, taken) {
+  var fixes = [];
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    if (!row) continue;
+    // A blank row is not a movement, and an id on one would invent a movement
+    // that had lost all its data.
+    if (!String(row[AC.CATEGORY] || '').trim() && !String(row[AC.NAME] || '').trim()) continue;
+    var id = String(row[AC.MOV_ID] || '').trim();
+    // No name yet is the backfill's business, not this one. Leaving it alone
+    // keeps the two jobs separable: this one only ever resolves a clash.
+    if (!id) continue;
+    if (!taken[id]) { taken[id] = true; continue; }
+    var when = row[AC.TIMESTAMP] instanceof Date ? row[AC.TIMESTAMP] : null;
+    // A grid read from a sheet narrower than the row model comes back short,
+    // and assigning straight to index MOV_ID would leave holes behind it that
+    // setValues cannot write. Fill the gap first.
+    while (row.length < AC.MOV_ID) row.push('');
+    row[AC.MOV_ID] = uniqueMovId_(taken, i, when);
+    fixes.push(i);
+  }
+  return fixes;
+}
+
+// Draws an id nobody has. Terminates for certain: `taken` is finite and the
+// counter never repeats a value, so the walk cannot run out of candidates.
+function uniqueMovId_(taken, seq, when) {
+  var base = newMovId_(seq, when);
+  if (!taken[base]) { taken[base] = true; return base; }
+  for (var n = 1; ; n++) {
+    var id = base + '-' + n;
+    if (!taken[id]) { taken[id] = true; return id; }
+  }
+}
+
+// Writes back only the id column, from a grid already corrected in place. One
+// call, and it never touches any other column — the same guarantee the backfill
+// makes, for the same reason.
+function writeMovIdColumn_(sheet, rows) {
+  if (!sheet || rows.length < 2) return;
+  ensureArchiveWidth_(sheet);
+  var col = [];
+  for (var i = 1; i < rows.length; i++) col.push([rows[i] ? (rows[i][AC.MOV_ID] || '') : '']);
+  sheet.getRange(2, AC.MOV_ID + 1, col.length, 1).setValues(col);
+}
+
 // ─── GIVING EVERY EXISTING MOVEMENT A NAME ───────────────────────────────────
 //
 // Every movement saved from now on gets an id when it is written (see
@@ -6134,7 +6283,13 @@ function runReconciliation_(ss) {
 // admin is asked to confirm in the app before this runs.
 function backfillMovementIds_(ss, auth) {
   return withStockLock_(function () {
-    var out = { status: 'success', filled: 0, alreadyHad: 0, sheets: [] };
+    var out = { status: 'success', filled: 0, alreadyHad: 0, renamed: 0, sheets: [] };
+
+    // ONE list of names for BOTH sheets. Kept across the two on purpose: a row
+    // in the active archive and a row in the history are two movements, and two
+    // movements may not share a name. Filling each sheet with its own private
+    // list is how you produce a pair that only collides once they meet.
+    var taken = {};
 
     [SHEETS.ARCHIVE, SHEETS.ARCHIVE_HISTORY].forEach(function (sheetName) {
       var sheet = ss.getSheetByName(sheetName);
@@ -6157,29 +6312,44 @@ function backfillMovementIds_(ss, auth) {
       var cats  = sheet.getRange(2, AC.CATEGORY + 1,  count, 1).getValues();
       var names = sheet.getRange(2, AC.NAME + 1,      count, 1).getValues();
 
-      var filled = 0;
+      var filled = 0, renamed = 0;
       for (var i = 0; i < count; i++) {
-        if (String(ids[i][0] || '').trim()) { out.alreadyHad++; continue; }
         // A blank row in the middle of the sheet is not a movement. Naming one
         // would invent a movement that has lost all its data — and the rest of
         // this file already skips those rows on exactly this test.
         if (!String(cats[i][0] || '').trim() && !String(names[i][0] || '').trim()) continue;
-        ids[i][0] = newMovId_(i, stamp[i][0] instanceof Date ? stamp[i][0] : null);
-        filled++;
+        var when = stamp[i][0] instanceof Date ? stamp[i][0] : null;
+        var id   = String(ids[i][0] || '').trim();
+        if (!id) {
+          ids[i][0] = uniqueMovId_(taken, i, when);
+          filled++;
+          continue;
+        }
+        out.alreadyHad++;
+        if (!taken[id]) { taken[id] = true; continue; }
+        // Two rows carrying the same name. The first one seen keeps it — see
+        // dedupeMovementIds_ for why the later copy is the one that moves.
+        ids[i][0] = uniqueMovId_(taken, i, when);
+        renamed++;
       }
 
-      if (filled) sheet.getRange(2, AC.MOV_ID + 1, count, 1).setValues(ids);
-      out.filled += filled;
-      out.sheets.push({ sheet: sheetName, filled: filled, rows: count });
+      if (filled || renamed) sheet.getRange(2, AC.MOV_ID + 1, count, 1).setValues(ids);
+      out.filled  += filled;
+      out.renamed += renamed;
+      out.sheets.push({ sheet: sheetName, filled: filled, renamed: renamed, rows: count });
     });
 
     auditLog_(ss, 'MOVEMENT_ID_BACKFILL', (auth && auth.email) || 'system',
       out.filled + ' movement(s) named', out.alreadyHad + ' already had one',
       JSON.stringify(out.sheets));
 
+    // The message counts names FILLED, and says nothing about names moved.
+    // That is Jose's rule for the de-duplication, not an oversight: it is
+    // something the app just does, and the audit line above is where it is
+    // recorded. See dedupeMovementIds_.
     out.message = out.filled
       ? (out.filled + ' movement' + (out.filled === 1 ? '' : 's') + ' named. ' +
-         out.alreadyHad + ' already had an ID.')
+         (out.alreadyHad - out.renamed) + ' already had an ID.')
       : ('Nothing to do — all ' + out.alreadyHad + ' movements already have an ID.');
     return out;
   });
@@ -10101,15 +10271,15 @@ function modifyMovementLocked_(data, auth) {
       ? String(parseFloat(data[key]) || 0)
       : String(data[key] || '').trim();
     if (NORMALIZE_ON_WRITE[key]) newStr = NORMALIZE_ON_WRITE[key](newStr);
-    // The edit form deliberately shows GENERIC as an EMPTY project box, since
-    // GENERIC is the app's word for "in stock, unassigned" and not the name of
-    // anybody's job. Re-derive it here, or simply opening an ENTRY and saving
-    // an unrelated change would blank the project and log it as an edit the
-    // person never made.
-    if (key === 'project' && !newStr &&
-        String(rowVals[AC.MOVETYPE] || '').toUpperCase() === 'ENTRY') {
-      newStr = 'GENERIC';
-    }
+    // A row written before v11.54 says GENERIC where it now says nothing, and
+    // the edit form has always shown GENERIC as an EMPTY project box. So on
+    // those rows "blank" and "GENERIC" are the SAME answer, and opening one to
+    // change the quantity must not record a project edit nobody made.
+    //
+    // This used to re-derive GENERIC and write it back, which kept the phantom
+    // edit away by keeping the placeholder alive. Now it simply treats the two
+    // as equal: no write, no log, and nothing put back.
+    if (key === 'project' && !newStr && oldStr.toUpperCase() === 'GENERIC') return;
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
