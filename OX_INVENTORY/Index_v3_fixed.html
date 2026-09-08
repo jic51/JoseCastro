@@ -3304,7 +3304,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.51';
+var APP_VERSION = '11.52';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3316,7 +3316,7 @@ var APP_VERSION = '11.51';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '16ba3d3c';
+var APP_BUILD = '0df91cf0';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -15877,7 +15877,37 @@ function _showAccessDeniedScreen(status, email) {
 // skeleton or the "connecting…" line. Used after an edit that has already been
 // applied on screen, where the round trip is only there to true up the totals
 // the server derives.
+/* ── POR QUÉ ESTA FUNCIÓN LLEVA UN NÚMERO DE ORDEN ───────────────────────────
+ *
+ * Jose, 2026-09-07: borró cuatro movimientos en una cuenta y doce minutos
+ * después la OTRA cuenta seguía enseñando uno de ellos. Las dos en verde, la
+ * consola limpia, y el latido llamando al servidor sin parar. O sea: los datos
+ * frescos SÍ llegaban, y aun así la pantalla enseñaba lo viejo.
+ *
+ * LA CAUSA ES QUE NADA IMPEDÍA QUE DOS CARGAS SE SOLAPARAN. Desde la v11.48 hay
+ * un latido cada 20 s que puede disparar una recarga silenciosa, y además la
+ * dispara cada guardado, cada borrado y cada vuelta de off-line. Apps Script no
+ * garantiza que las respuestas lleguen en el orden en que se pidieron: si la
+ * carga A (pedida antes del borrado) tarda seis segundos y la carga B (pedida
+ * después) tarda dos, B pinta los datos buenos y A llega detrás y los pisa con
+ * los de antes. El movimiento borrado REAPARECE — y no hay error en ninguna
+ * parte, porque las dos llamadas fueron un éxito.
+ *
+ * Es intermitente por definición, porque depende de qué respuesta gane la
+ * carrera. Y es exactamente lo que Jose describía: "a veces deja de
+ * actualizarse aun cuando estamos trabajando en ella".
+ *
+ * El número de orden lo cierra: cada llamada se lleva el suyo, y una respuesta
+ * cuyo número ya quedó atrás se descarta sin tocar la pantalla. Es una línea de
+ * defensa, no un ajuste de tiempos — no importa cuánto tarde cada una.
+ */
+var _loadSeq     = 0;    // el número de la última carga PEDIDA
+var _loadApplied = 0;    // el de la última APLICADA — nunca retrocede
+var _loadBusy    = false;
+
 function loadDataFromGoogle(skipCache, quiet){
+  var seq = ++_loadSeq;
+  _loadBusy = true;
   lastLoadTime = null;
   if (!quiet) setConnStatus('loading');
 
@@ -15926,6 +15956,13 @@ function loadDataFromGoogle(skipCache, quiet){
 
   google.script.run
     .withSuccessHandler(function(data){
+      _loadBusy = false;
+      // La carrera, cortada aquí. Una respuesta más vieja que la última ya
+      // aplicada no pinta nada: pintaría el almacén de hace unos segundos
+      // encima del de ahora, y devolvería a la pantalla movimientos que ya
+      // están borrados.
+      if (seq < _loadApplied) return;
+      _loadApplied = seq;
       try {
         applyCompanyBranding(data.company);
         // ── Access denied / not authenticated ──────────────────────────────
@@ -15990,6 +16027,7 @@ function loadDataFromGoogle(skipCache, quiet){
       }
     })
     .withFailureHandler(function(err){
+      _loadBusy = false;
       setConnStatus('offline');
       _hideSplash();   // an error must be readable, not hidden behind the splash
       var msg = (err && err.message) ? err.message : String(err);
@@ -16050,9 +16088,14 @@ function _applyData(data) {
 // background refresh lands, and it kept showing the material that's already
 // gone — because openRackDrawer only ever re-reads stockData when something
 // EXPLICITLY re-opens it, never when fresh data quietly arrives underneath an
-// already-open drawer. loadDataFromGoogle only ever runs _applyData after a
-// real change (there is no idle polling in this app — see the heartbeat
-// comment below), so this can only fire when something legitimately moved.
+// already-open drawer.
+//
+// OJO: la frase que había aquí —"there is no idle polling in this app"— dejó de
+// ser verdad en la v11.48, cuando el latido pasó a disparar recargas
+// silenciosas cada 20 s. Se corrige en vez de borrarse porque el motivo por el
+// que se escribió sigue en pie: este repintado sólo debe ocurrir cuando el
+// contenido del estante cambió de verdad, y _applyData ya sólo se ejecuta con
+// datos frescos que llegaron a aplicarse (ver el número de orden).
 function _refreshOpenRackDrawer(){
   var drawer = document.getElementById('rackDrawer');
   if (!drawer || !drawer.classList.contains('open') || !_openRackName) return;
@@ -17599,10 +17642,18 @@ function _pulseOk(res){
   var veniaCaido = btn && /offline|stale/.test(btn.className);
   setConnStatus('online');
 
+  // EL SELLO NO SE APUNTA AQUÍ, y es a propósito. La v11.48 lo guardaba en este
+  // punto, ANTES de pedir los datos — así que si esa carga fallaba, se perdía o
+  // llegaba tarde y se descartaba, el cambio quedaba dado por visto y NADIE
+  // VOLVÍA A INTENTARLO. Ahora sólo lo aprende una carga que de verdad se
+  // aplicó (ver loadDataFromGoogle), así que un intento perdido se reintenta
+  // solo en el siguiente latido.
   var cambio = (_dataStamp !== null && res.stamp && res.stamp !== _dataStamp);
-  if (res.stamp) _dataStamp = res.stamp;
 
-  if (cambio || veniaCaido) {
+  // Y no se amontonan cargas: si ya hay una en camino, el sello sigue distinto
+  // y el próximo latido lo verá igual. Pedir tres veces lo mismo sólo gasta
+  // cuota y hace más probable la carrera que esto evita.
+  if ((cambio || veniaCaido) && !_loadBusy) {
     // El modo silencioso de la v11.47: lo de antes se queda en pantalla hasta
     // que llega lo nuevo. Sin esto, ver el trabajo de otro desarmaría el
     // tablero cada vez que otra persona guarda algo, que sería peor que no
