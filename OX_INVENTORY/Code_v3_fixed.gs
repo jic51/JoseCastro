@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.62';
+var APP_VERSION = '11.63';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.62';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'c06e632d';
+var APP_BUILD = '7d828273';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -602,7 +602,11 @@ function writeConfigColumn_(cfg, colIdx, values) {
   var needed = values.length + 1;
   if (cfg.getMaxRows() < needed) cfg.insertRowsAfter(cfg.getMaxRows(), needed - cfg.getMaxRows());
   cfg.getRange(2, colIdx + 1, values.length, 1)
-     .setValues(values.map(function(v){ return [sheetSafe_(v)]; }));
+     // textCell_, not sheetSafe_: every value in these four columns is a LABEL
+     // — a category, a project, a supplier, a location. A category typed "3-4"
+     // becoming a date would split one material into two and make the stock
+     // numbers wrong, which is the worst version of this bug in the app.
+     .setValues(values.map(function(v){ return [textCell_(v)]; }));
 }
 
 // ─── ROUTING ─────────────────────────────────────────────────────────────────
@@ -1574,6 +1578,56 @@ function sheetSafe_(val) {
   if (val instanceof Date || typeof val === 'number' || typeof val === 'boolean') return val;
   var s = String(val);
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
+// ─── TEXT THAT STAYS TEXT ───────────────────────────────────────────────────
+// SHEETS PARSES WHAT IT IS GIVEN. setValues("07-6329") does not store those
+// eight characters: it reads "month 07, year 6329", stores the number 1617842
+// and hangs a date format on it. The PO is gone from the cell, and what comes
+// back on the next read is a date nobody typed.
+//
+// Jose hit it on 2026-09-09 by deleting three movements and restoring them:
+//
+//   "07-6329"   written into MOVEMENT_TRASH   →  1617842  (a date, silently)
+//   1617842     written back into the archive →  a PO that never existed
+//
+// In his words: "está dando un dato que no existe y borrando uno que sí". Both
+// halves are true, and the second is the worse one — the real PO is not
+// recoverable from the cell afterwards, only from the other rows that still
+// have it.
+//
+// A LEADING APOSTROPHE IS SHEETS' OWN ANSWER, AND IT IS NOT PART OF THE VALUE:
+// getValue() returns "07-6329", not "'07-6329". So it costs nothing to put on
+// every string, including the ones the parser would not have touched — which is
+// what this does, deliberately. Quoting only the strings that "look like a
+// date" means reimplementing Sheets' parser ("07-6329" yes, "08-795" no, "3/4"
+// yes, "1-2-3" yes...) and being wrong the first time the two disagree.
+//
+// Numbers, dates and booleans pass through untouched. Their type is already
+// right, and quoting them WOULD change what is stored.
+//
+// One visible consequence, and it is the correct one: a PO typed as "12345"
+// is now stored as text rather than as the number 12345, so it sits on the
+// left of the cell instead of the right. A purchase order is a label, not a
+// quantity — nobody adds two of them up.
+function textCell_(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v !== 'string') return v;          // Date, number, boolean
+  return v === '' ? '' : "'" + v;
+}
+
+// Every string in a row, quoted. Used by every path that writes a movement row,
+// because each of them hands Sheets values it will re-parse: saving new rows,
+// editing one, copying one into the trash, restoring it, and the nightly
+// rotation between the two archive sheets.
+//
+// No list of "which columns are text" appears anywhere here, on purpose. Such a
+// list drifts the moment a column is added — the way colCount = 20 in
+// archiveOldMovements quietly went stale when the two cost columns arrived. The
+// row already carries its own types, so "is this a string" is the whole
+// question, and it cannot go out of date.
+function textSafeRow_(row) {
+  return (row || []).map(textCell_);
 }
 
 // Convert a spreadsheet cell value to a plain string.
@@ -2871,7 +2925,7 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
     // ── ONE write of all rows ────────────────────────────────────────────────
     var startRow = archive.getLastRow() + 1;
-    archive.getRange(startRow, 1, newRows.length, AC_WIDTH).setValues(newRows);
+    archive.getRange(startRow, 1, newRows.length, AC_WIDTH).setValues(newRows.map(textSafeRow_));
     archive.getRange(startRow, AC.TIMESTAMP + 1, newRows.length, 1).setNumberFormat('mm/dd/yyyy hh:mm');
 
     // ── ONE write-verify read of the whole block ─────────────────────────────
@@ -3756,10 +3810,10 @@ function archiveOldMovements(ss) {
     var newHistory = stillOld.concat(toArchive).sort(byTs);
 
     archive.getRange(2, 1, Math.max(archive.getMaxRows() - 1, 1), colCount).clearContent();
-    if (newActive.length) archive.getRange(2, 1, newActive.length, colCount).setValues(newActive);
+    if (newActive.length) archive.getRange(2, 1, newActive.length, colCount).setValues(newActive.map(textSafeRow_));
 
     history.getRange(2, 1, Math.max(history.getMaxRows() - 1, 1), colCount).clearContent();
-    if (newHistory.length) history.getRange(2, 1, newHistory.length, colCount).setValues(newHistory);
+    if (newHistory.length) history.getRange(2, 1, newHistory.length, colCount).setValues(newHistory.map(textSafeRow_));
 
     auditLog_(ss, 'ARCHIVE_RECONCILE', 'system', 'cutoff=' + cutoffMonths + 'mo',
       toArchive.length + ' archived', toRestore.length + ' restored');
@@ -4917,7 +4971,12 @@ function refreshDerivedSheets_(ss) {
     }
   }
   live.clearContents();
-  if (liveRows.length > 0) live.getRange(1, 1, liveRows.length, 8).setValues(liveRows);
+  // Quoted for the same reason the archive is. These three sheets are a cache
+  // of the archive, but a cache Sheets is free to re-parse on the way in: a
+  // material called "3-4 TEMP" or a rack called "07-6329" would land here as a
+  // date, and every screen reads THESE, not the archive. It heals on the next
+  // rebuild, which is precisely what makes it hard to catch.
+  if (liveRows.length > 0) live.getRange(1, 1, liveRows.length, 8).setValues(liveRows.map(textSafeRow_));
 
   var siteRows = [['Category','Name','Project','Qty','Unit','Status','Last_Updated']];
   for (var k2 in stock) {
@@ -4930,7 +4989,7 @@ function refreshDerivedSheets_(ss) {
     }
   }
   site.clearContents();
-  if (siteRows.length > 0) site.getRange(1, 1, siteRows.length, 7).setValues(siteRows);
+  if (siteRows.length > 0) site.getRange(1, 1, siteRows.length, 7).setValues(siteRows.map(textSafeRow_));
 
   // Cumulative wasted qty per material — the only stock figure that had NO derived
   // sheet before, forcing getInitialData() to fall back to a full movement scan
@@ -4943,7 +5002,7 @@ function refreshDerivedSheets_(ss) {
     if (item3.wasted > 0) wasteRows.push([item3.cat, item3.name, item3.wasted, item3.unit, now]);
   }
   waste.clearContents();
-  if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 5).setValues(wasteRows);
+  if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 5).setValues(wasteRows.map(textSafeRow_));
 }
 
 // ─── RESERVATIONS ────────────────────────────────────────────────────────────
@@ -9681,7 +9740,7 @@ function manageMaterialLocked_(data, auth) {
     saved[TR.DELETED_AT] = new Date();
     saved[TR.DELETED_BY] = auth.email;
     saved[TR.FROM_SHEET] = found.sheetName;
-    trash.getRange(trash.getLastRow() + 1, 1, 1, TRASH_WIDTH).setValues([saved]);
+    trash.getRange(trash.getLastRow() + 1, 1, 1, TRASH_WIDTH).setValues([textSafeRow_(saved)]);
 
     // The audit line records the whole row, not a summary. AC_WIDTH, not the 19
     // that used to be hardcoded here: the row grew when pricing was added, so
@@ -9717,7 +9776,7 @@ function manageMaterialLocked_(data, auth) {
     ensureArchiveWidth_(target);
 
     var restored = padRow_(entry.row, AC_WIDTH);   // drops the three trash columns
-    target.getRange(target.getLastRow() + 1, 1, 1, AC_WIDTH).setValues([restored]);
+    target.getRange(target.getLastRow() + 1, 1, 1, AC_WIDTH).setValues([textSafeRow_(restored)]);
     target.getRange(target.getLastRow(), AC.TIMESTAMP + 1, 1, 1).setNumberFormat('mm/dd/yyyy hh:mm');
 
     // Only now does it leave the trash. The other order can lose the movement
@@ -10711,7 +10770,7 @@ function modifyMovementLocked_(data, auth) {
   }
 
   // Write updated row back
-  range.setValues([rowVals]);
+  range.setValues([textSafeRow_(rowVals)]);
   // Same class of bug as manageMaterial's deleteRow: qty/category/location edits
   // change what LIVE_STOCK/SITE_STOCK/WASTED_STOCK should total to — without this,
   // the derived sheets keep reflecting the pre-edit numbers indefinitely.
