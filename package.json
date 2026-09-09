@@ -1,0 +1,15 @@
+{
+  "name": "josecastro-apps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo de apps + sistema de agentes con verificacion ejecutable",
+  "scripts": {
+    "serve": "node tests/server.mjs",
+    "test": "playwright test",
+    "test:secondguess": "playwright test tests/secondguess.spec.js",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
