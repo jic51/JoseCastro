@@ -2915,6 +2915,12 @@
         <label id="mSrcLabel">Source Rack</label>
         <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
         <datalist id="rackList"></datalist>
+        <!-- Only the racks the material being transferred is ACTUALLY in.
+             Rebuilt per material by renderTransferLocPicker; falls back to the
+             full rackList when the app does not recognise the material, since
+             "we don't know where this is" is better answered with everything
+             than with nothing. -->
+        <datalist id="transferSrcRacks"></datalist>
       </div>
       <div class="field" id="mDestField" style="display:none">
         <label id="mDestLabel">Destination</label>
@@ -3304,7 +3310,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.54';
+var APP_VERSION = '11.57';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3316,7 +3322,7 @@ var APP_VERSION = '11.54';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fa354706';
+var APP_BUILD = '7d5e59a9';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3728,7 +3734,10 @@ var ROW_MODES = {
          delHint:  'Bin deletes a group (its locations move to ALL LOCATIONS). The box archives a single location.' },
   mov: { edit: 'Edit', del: 'Delete',
          editHint: 'Click the pencil on a row to correct that record.',
-         delHint:  'Click the bin on a row to delete that record permanently.',
+         // No longer "permanently" — since v11.55 it goes to the trash and can
+         // be put back. A warning that overstates what a button does costs the
+         // same as one that understates it: people stop trusting either.
+         delHint:  'Click the bin on a row to remove that record. It goes to the trash, so you can put it back.',
          refresh: function(){ renderMovements(); } },   // its actions column comes and goes with the mode
   usr: { edit: 'Edit', del: 'Deactivate',
          editHint: 'Click the pencil on a person to change their name or role.',
@@ -4574,7 +4583,7 @@ function wizFinish(){
       // and the company identity, and loadDataFromGoogle re-reads all three.
       document.getElementById('wizOverlay').classList.remove('show');
       document.body.style.overflow = '';
-      btn.disabled = false; btn.textContent = '✓ Start using ' + PRODUCT;
+      _btnLabel(btn, _he('✓ Start using ' + PRODUCT));
       _wizJustFinished = true;
       // RUIDOSO A PROPÓSITO, y es uno de los dos sitios donde lo es. El
       // asistente acaba de terminar: no hay caché, no hay nada en pantalla, y
@@ -4587,7 +4596,7 @@ function wizFinish(){
     .withFailureHandler(function(err){
       clearInterval(ticker);
       if (wrap) wrap.style.display = 'none';
-      btn.disabled = false; btn.textContent = '✓ Start using ' + PRODUCT;
+      _btnLabel(btn, _he('✓ Start using ' + PRODUCT));
       showToast('Setup failed: ' + ((err && err.message) || err), 'err');
     })
     .saveSetupWizard(_wiz);
@@ -4925,12 +4934,12 @@ function submitReportIssue(){
   _btnBusy(btn, 'Sending…');
   google.script.run
     .withSuccessHandler(function(){
-      btn.disabled = false; btn.textContent = 'Send Report';
+      _btnLabel(btn, 'Send Report');
       closeModal('reportIssueOverlay');
       showToast('Thanks — your report was sent.', 'ok');
     })
     .withFailureHandler(function(err){
-      btn.disabled = false; btn.textContent = 'Send Report';
+      _btnLabel(btn, 'Send Report');
       showToast('Could not send the report: ' + ((err && err.message) || err), 'err');
     })
     // location.href here is the INSIDE of Google's sandboxed frame
@@ -5871,14 +5880,13 @@ function _loadOlderHistoryClicked() {
     .withSuccessHandler(function(rows) {
       oldMovements = rows || [];
       _oldHistoryLoaded = true;
-      btn.disabled = false;
-      btn.textContent = '📜 Older History (' + oldMovements.length + ')';
+      _btnLabel(btn, '📜 Older History (' + oldMovements.length + ')');
       _movPage = 1;
       renderMovements();
       showToast('✓ Loaded ' + oldMovements.length + ' archived movement(s).', 'ok');
     })
     .withFailureHandler(function(e) {
-      btn.disabled = false; btn.textContent = '📜 Load Older History';
+      _btnLabel(btn, '📜 Load Older History');
       showToast('⚠ Error: ' + (e.message||e), 'err');
     })
     .processMovement('loadOlderHistory', _h({}));
@@ -5893,26 +5901,60 @@ function _loadMoreMovements(){
 }
 
 function deleteMovementRow(rowIdx){
+  var mov = _movByRowIdx(rowIdx);
+  var what = mov ? (mov.qty + ' ' + (mov.unit || '') + ' of ' + mov.name).replace(/\s+/g, ' ') : 'This movement';
   _showConfirm({
     icon: '🗑️', danger: true,
-    title: 'Delete Movement Record?',
-    message: 'Row #' + rowIdx + ' will be permanently removed.\nThis cannot be undone.',
+    title: 'Delete this movement?',
+    // No longer "permanently removed, this cannot be undone" — since v11.55 it
+    // goes to the trash and can be put back. Saying otherwise made people stop
+    // and go and ask somebody before pressing a button that is now reversible.
+    message: what + ' will be removed from the warehouse history.\n\n' +
+             'It goes to the trash, so you can put it back from Settings → System.',
     confirmText: 'Yes, Delete',
     onConfirm: function(){ _doDeleteMovementRow(rowIdx); }
   });
 }
+
+function _movByRowIdx(rowIdx){
+  for (var i = 0; i < movements.length; i++) {
+    if (movements[i].rowIdx === rowIdx) return movements[i];
+  }
+  return null;
+}
+
 function _doDeleteMovementRow(rowIdx){
+  var mov = _movByRowIdx(rowIdx);
   google.script.run
     .withSuccessHandler(function(){
-      showToast('Movement deleted.', 'ok');
-      // Silencioso: la fila desaparece de la tabla y el aviso lo dice. Desarmar
-      // el tablero para volver a montarlo no añade nada.
+      // AL INSTANTE. El servidor YA lo hizo — este manejador es el de ÉXITO —
+      // así que esperar a que una recarga entera nos lo repita es hacer esperar
+      // a alguien por algo que ya se sabe. Jose: "el feedback visual no debe
+      // demorar nunca". Y ahora es seguro: quitar una fila de la lista ya no
+      // desplaza los números de las demás, porque nada se identifica por su
+      // número desde la v11.53.
+      if (mov) {
+        var at = movements.indexOf(mov);
+        if (at !== -1) movements.splice(at, 1);
+        renderAll();
+      }
+      showToast('Movement deleted. It is in the trash.', 'ok');
+      // La recarga silenciosa sigue: reconcilia los totales de stock, que los
+      // calcula el servidor. Ya no es lo que hace desaparecer la fila.
       loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
-      showToast('Delete failed: ' + (err.message || err), 'err', 6000);
+      // Nada se ha quitado de la pantalla todavía, así que no hay que devolver
+      // nada a su sitio — el orden importa: primero el servidor, luego la
+      // pantalla. Al revés, un "ya lo borró otro" dejaría la fila desaparecida
+      // en una cuenta y presente en la otra.
+      showToast(_stripTags(err), 'err', 8000);
     })
-    .processMovement('manageMaterial', _h({ op: 'deleteRow', rowIdx: rowIdx }));
+    .processMovement('manageMaterial', _h({
+      op: 'deleteRow',
+      movId: mov ? (mov.movId || '') : '',
+      rowIdx: rowIdx            // sólo para el registro; el servidor borra por movId
+    }));
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
@@ -6117,12 +6159,21 @@ function renderTransferLocPicker(){
 
   var cat  = nt((document.getElementById('mType') || {}).value || '');
   var name = ((document.getElementById('mName') || {}).value || '').trim().toUpperCase();
-  if (!name) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  // No material typed yet: no material-specific answer to give, so the boxes
+  // go back to suggesting every rack rather than keeping the last material's.
+  if (!name) { _syncTransferSrcRacks([], {}); box.style.display = 'none'; box.innerHTML = ''; return; }
 
   var key   = _normKey(cat) + '|||' + _normKey(name);
   var locs  = stockData[key] && stockData[key].warehouseLocs;
   var racks = locs ? Object.keys(locs).filter(function(r){ return locs[r] > 0; })
                                        .sort(function(a,b){ return locs[b] - locs[a]; }) : [];
+
+  // The same list of racks, as suggestions inside the Source Rack boxes. The
+  // chips are only useful once you know they are there; the dropdown is what
+  // opens under your finger. Both are now the same short, true answer instead
+  // of the chips saying "C3B" three lines above a menu offering the whole
+  // building.
+  _syncTransferSrcRacks(racks, locs);
 
   if (!racks.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
@@ -6147,6 +6198,24 @@ function renderTransferLocPicker(){
   box.style.display = 'block';
 }
 
+// Fills the per-material suggestion list, and points every Source Rack box at
+// it — or back at the full rackList when the material is not one the app knows,
+// because an empty dropdown on an unrecognised name reads as a broken field.
+function _syncTransferSrcRacks(racks, locs){
+  var dl = document.getElementById('transferSrcRacks');
+  if (dl){
+    dl.innerHTML = racks.map(function(r){
+      // The quantity rides along in the label, so choosing a rack and knowing
+      // how much is in it is one look instead of two.
+      return '<option value="' + _escAttr(r) + '">' + _he(r + ' — ' + locs[r] + ' in stock') + '</option>';
+    }).join('');
+  }
+  var which = racks.length ? 'transferSrcRacks' : 'rackList';
+  document.querySelectorAll('#transferRowsContainer .tr-rack').forEach(function(inp){
+    inp.setAttribute('list', which);
+  });
+}
+
 function addTransferRowFromChip(chip){
   var rack = chip.getAttribute('data-rack');
   var qty  = _qty(chip.getAttribute('data-qty'));
@@ -6159,7 +6228,14 @@ function addTransferRow(rack, qty, dest, silent){
   var row = document.createElement('div');
   row.className = 'transfer-row';
   row.innerHTML =
-    '<input type="text"   class="tr-rack" list="rackList"     placeholder="Source rack">' +
+    // NOT list="rackList". That is every location in the building — racks,
+    // projects, site addresses — offered as the source of a transfer for a
+    // material that is sitting in one rack. Jose opened it on 2026-09-08 and
+    // got "2PER SAGE@COMPASS", "565 REDWOOD", "A", "A1A"… for a material that
+    // was only ever in C3B. The suggestions are rebuilt per material in
+    // renderTransferLocPicker; a datalist only suggests, so anything can still
+    // be typed by hand.
+    '<input type="text"   class="tr-rack" list="transferSrcRacks" placeholder="Source rack">' +
     '<input type="number" class="tr-qty"  min="0" step="any"   placeholder="Qty">' +
     '<span  class="exit-avail neutral">—</span>' +
     '<input type="text"   class="tr-dest" list="rackListDest" placeholder="Destination rack">' +
@@ -6184,6 +6260,10 @@ function addTransferRow(rack, qty, dest, silent){
 
   container.appendChild(row);
   validateTransferRows();
+  // Points the new row's Source Rack box at the right suggestion list. A row
+  // built before this runs carries the per-material list by default, which is
+  // wrong on a material the app does not recognise.
+  renderTransferLocPicker();
   if (!silent) (dest ? destInp : (rack ? destInp : rackInp)).focus();
 }
 
@@ -6599,6 +6679,13 @@ function _syncMoveMatTotal(){
   var n = 0;
   if (currentMoveType === 'TRANSFER'){
     document.querySelectorAll('#transferRowsContainer .transfer-row').forEach(function(row){
+      // A ROW WITH NO SOURCE RACK IS NOT A TRANSFER, so its number is not part
+      // of the total. Jose filmed it on 2026-09-08: an orphan row holding 142
+      // and no rack, plus the real row holding 142, and the badge reading
+      // **284** — of a material there are 142 of in the whole warehouse.
+      // A number nobody typed on purpose is still a number somebody acts on.
+      var rk = row.querySelector('.tr-rack');
+      if (!rk || !(rk.value || '').trim()) return;
       var q = row.querySelector('.tr-qty');
       n += Math.max(0, parseFloat(q && q.value) || 0);
     });
@@ -8509,7 +8596,7 @@ function submitMultiExit(){
         // —tres salidas del mismo estante— así que es el que más importa.
         if (_busyRetry(err, { btn: btn, overlay: 'moveOverlay', state: _busyState,
                               retry: function(){ doSubmit(force); } })) return;
-        if (btn){ btn.disabled=false; btn.textContent='Save to System'; }
+        _btnLabel(btn, 'Save to System');
         _setModalBusy('moveOverlay', false);
         var msg = err.message || String(err);
         // Same "possible duplicate" confirmation submitMovement() already has —
@@ -8686,7 +8773,7 @@ function submitMultiEntry(){
         if (_busyRetry(err, { btn: btn, overlay: 'moveOverlay', state: _busyState,
                               retry: function(){ _doMultiSubmit(force); } })) return;
         var msg = err.message || String(err);
-        btn.textContent = 'Save to System'; btn.disabled = false;
+        _btnLabel(btn, 'Save to System');
         _setModalBusy('moveOverlay', false);
         // Same "possible duplicate" confirmation submitMovement() already has for
         // single movements — addMultiEntry() never got it wired up, so it was
@@ -8910,14 +8997,14 @@ function _rebuildStockNow() {
   _btnBusy(btn, 'Rebuilding…');
   google.script.run
     .withSuccessHandler(function(res){
-      btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
+      _btnLabel(btn, '🔧 Rebuild Stock Totals Now');
       showToast('✓ ' + (res && res.message ? res.message : 'Stock totals rebuilt.'), 'ok');
       // Silencioso: esto se pulsa desde Ajustes, con su propio botón ocupado y
       // su propio aviso. La pantalla de carga taparía las dos cosas.
       loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(e){
-      btn.disabled = false; btn.textContent = '🔧 Rebuild Stock Totals Now';
+      _btnLabel(btn, '🔧 Rebuild Stock Totals Now');
       showToast('⚠ Error: ' + (e.message||e), 'err', 6000);
     })
     .processMovement('adminAction', _h({ action: 'reconcile' }));
@@ -9147,7 +9234,7 @@ function _saveCompanyProfile(){
       showToast('Company details saved ✓', 'ok');
     })
     .withFailureHandler(function(e){
-      btn.disabled = false; btn.textContent = 'Save changes';
+      _btnLabel(btn, 'Save changes');
       _settingMsg('Could not save: ' + (e.message || e), 'error');
     })
     .processMovement('saveCompanyProfile', _h(payload));
@@ -9293,13 +9380,13 @@ function _spotMovementRows(want, mayFetch){
       .withSuccessHandler(function(rows){
         oldMovements     = rows || [];
         _oldHistoryLoaded = true;
-        if (btn){ btn.disabled = false; btn.textContent = '📜 Older History (' + oldMovements.length + ')'; }
+        _btnLabel(btn, '📜 Older History (' + oldMovements.length + ')');
         _movPage = 1;
         renderMovements();
         setTimeout(function(){ _spotMovementRows(want, false); }, 60);
       })
       .withFailureHandler(function(e){
-        if (btn){ btn.disabled = false; btn.textContent = '📜 Load Older History'; }
+        _btnLabel(btn, '📜 Load Older History');
         showToast('Could not load the archived history: ' + (e.message || e), 'err', 6000);
       })
       .processMovement('loadOlderHistory', _h({}));
@@ -9424,6 +9511,12 @@ function _renderSystemTab() {
       '<div id="movIdBox" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">' +
         '<span style="font-size:.8rem;color:var(--muted)">Checking…</span>' +
       '</div>' +
+    '</div>' +
+    '<div class="field" style="margin-top:1.25rem">' +
+      '<label style="display:flex;align-items:center;gap:.4rem">Deleted movements ' +
+        _infoIc('Deleting a movement moves it here instead of destroying it. Putting one back restores it exactly as it was, and the stock totals are recalculated straight away.') +
+      '</label>' +
+      '<div id="trashBox"><span style="font-size:.8rem;color:var(--muted)">Checking…</span></div>' +
     '</div>';
 
   // The list exists in the DOM as of the line above, so this is the earliest
@@ -9436,6 +9529,77 @@ function _renderSystemTab() {
   _loadSpaceUsage();
   _loadAiStatus();
   _loadMovIdStatus();
+  _loadTrash();
+}
+
+/* ── The trash: undo for a deleted movement ─────────────────────────────────
+   Jose: "hay algunas cosas que hice que quisiera eliminar pero no se puede".
+   Deleting used to destroy the row outright, so there was nothing to undo with.
+   Now it moves to a sheet of its own and comes back exactly as it was. */
+function _loadTrash(){
+  var box = document.getElementById('trashBox');
+  if (!box) return;
+  google.script.run
+    .withSuccessHandler(function(res){ _paintTrash(res && res.items); })
+    .withFailureHandler(function(){
+      var b = document.getElementById('trashBox');
+      // An older Code.gs simply does not know this op yet, which is normal for
+      // the half hour between deploying one file and the other.
+      if (b) b.innerHTML = '<span style="font-size:.8rem;color:var(--muted)">Not available on this version.</span>';
+    })
+    .processMovement('manageMaterial', _h({ op: 'listTrash' }));
+}
+
+function _paintTrash(items){
+  var box = document.getElementById('trashBox');
+  if (!box) return;
+  items = items || [];
+  if (!items.length){
+    box.innerHTML = '<span style="font-size:.8rem;color:var(--muted)">Nothing deleted. ' +
+      'Anything you delete lands here and can be put back.</span>';
+    return;
+  }
+  box.innerHTML =
+    '<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px">' +
+      items.map(function(it){
+        var where = it.destLoc || it.srcLoc || '';
+        return '<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem .65rem;border-bottom:1px solid var(--border)">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+              _he(it.name) + ' <span style="font-weight:400;color:var(--muted)">· ' +
+              _he(String(it.qty)) + ' ' + _he(it.unit) + ' · ' + _he(it.moveType) +
+              (where ? ' · ' + _he(where) : '') + '</span>' +
+            '</div>' +
+            '<div style="font-size:.72rem;color:var(--muted)">Deleted by ' + _he(it.deletedBy) +
+              (it.deletedAt ? ' · ' + _he(_fmtWhen(it.deletedAt)) : '') + '</div>' +
+          '</div>' +
+          // El id va en un atributo, no dentro de las comillas de un onclick.
+          // Lo que hay en la hoja lo puede haber escrito una persona a mano, y
+          // una comilla ahí dentro rompería el botón — o algo peor.
+          '<button class="btn btn-ghost btn-sm" data-movid="' + _escAttr(it.movId) +
+            '" onclick="_restoreMovement(this)">↩ Put back</button>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+}
+
+function _restoreMovement(btn){
+  var movId = btn ? (btn.getAttribute('data-movid') || '') : '';
+  _btnBusy(btn, 'Restoring…');
+  google.script.run
+    .withSuccessHandler(function(){
+      showToast('✓ Movement restored.', 'ok');
+      _loadTrash();
+      loadDataFromGoogle(true, true);
+    })
+    .withFailureHandler(function(e){
+      _btnReset(btn);
+      showToast('⚠ ' + _stripTags(e), 'err', 8000);
+      // Somebody else may have put it back already, in which case the list on
+      // screen is out of date and saying so is not enough — show the truth.
+      _loadTrash();
+    })
+    .processMovement('manageMaterial', _h({ op: 'restoreMovement', movId: movId }));
 }
 
 /* ── Giving every existing movement a name ──────────────────────────────────
@@ -10288,7 +10452,7 @@ function _commitImport(){
       loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
-      btn.disabled = false; btn.innerHTML = '✓ Import ' + validRows.length + ' Valid Row(s)';
+      _btnLabel(btn, '✓ Import ' + validRows.length + ' Valid Row(s)');
       showToast('Import failed: ' + (err.message || err).replace(/^Error:\s*/i,''), 'err', 8000);
     })
     .processMovement('commitImport', _h({ rows: validRows }));
@@ -10685,7 +10849,7 @@ function _wireLocMerge(){
               loadDataFromGoogle(true, true);   // skipCache, quiet
             })
             .withFailureHandler(function(e){
-              btn.disabled = false; btn.textContent = 'Merge';
+              _btnLabel(btn, 'Merge');
               showToast('Merge failed: ' + (e.message || e), 'err', 6000);
             })
             .processMovement('mergeLocations', _h({ from: from, into: into }));
@@ -10777,7 +10941,7 @@ function _locMarkDirty(){
         refreshDropdowns();
       })
       .withFailureHandler(function(e){
-        btn.disabled = false; btn.textContent = 'Save layout';
+        _btnLabel(btn, 'Save layout');
         showToast('Could not save: ' + (e.message || e), 'err', 6000);
       })
       .processMovement('saveLocationLayout', _h({ locations: _locLayout }));
@@ -10836,7 +11000,7 @@ function _wireManualMerge(tab, label){
               loadDataFromGoogle(true, true);   // skipCache, quiet
             })
             .withFailureHandler(function(e){
-              btn.disabled = false; btn.textContent = 'Merge';
+              _btnLabel(btn, 'Merge');
               showToast('Merge failed: ' + (e.message || e), 'err', 6000);
             })
             .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
@@ -10998,7 +11162,7 @@ function _wireSimilarGroups(tab){
               _refreshSimHeader();
             })
             .withFailureHandler(function(e){
-              btn.disabled = false; btn.textContent = 'Merge into selected';
+              _btnLabel(btn, 'Merge into selected');
               showToast('Merge failed: ' + (e.message || e), 'err', 6000);
             })
             .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
@@ -12961,7 +13125,7 @@ function _cfgCardAction(act, key, btn){
     if (ok){
       showToast('Added to your ' + (p.type === 'suppliers' ? 'suppliers' : 'projects') + ' ✓', 'ok');
     } else {
-      if (btn){ btn.disabled = false; btn.textContent = '+ Add to list'; }
+      _btnLabel(btn, '+ Add to list');
       showToast('Could not add: ' + err, 'err', 5000);
       return;
     }
@@ -13169,7 +13333,7 @@ function _cfgAddInline(type, value, hintEl){
   if (btn){ _btnBusy(btn, 'Adding…'); }
   _cfgAddValue(type, value, function(ok, err){
     if (!ok){
-      if (btn){ btn.disabled = false; btn.textContent = '+ Add it'; }
+      _btnLabel(btn, '+ Add it');
       showToast('Could not add: ' + err, 'err', 5000);
       return;
     }
@@ -13658,6 +13822,18 @@ function _readMoveMaterial(){
   return { cat: val('mType'), name: val('mName'), qty: Math.max(0, parseFloat(val('mQty')) || 0) };
 }
 
+// The single rack a material is in, or '' when that question has no single
+// answer — nothing in stock, or stock spread over several racks. Deliberately
+// returns '' rather than "the biggest one": picking the fullest rack for
+// somebody would be the app deciding which shelf they walked to.
+function _soleRackFor(cat, name){
+  var key  = _normKey(nt(cat || '')) + '|||' + _normKey((name || '').trim().toUpperCase());
+  var locs = stockData[key] && stockData[key].warehouseLocs;
+  if (!locs) return '';
+  var withStock = Object.keys(locs).filter(function(r){ return locs[r] > 0; });
+  return withStock.length === 1 ? withStock[0] : '';
+}
+
 function _applyMoveMaterial(m){
   if (!m) return;
   var name = (m.name || '').trim();
@@ -13680,8 +13856,25 @@ function _applyMoveMaterial(m){
     updateExitMatNameList(1); syncExitRackAvail(1); syncExitMatTotal(1); updateMultiExitTotal();
   } else if (currentMoveType === 'TRANSFER'){
     set('mType', m.cat); set('mName', name);
-    var tq = document.querySelector('#transferRowsContainer .tr-qty');
-    if (tq && q) tq.value = q;
+    // THE RACK AND THE QUANTITY TRAVEL TOGETHER, OR NEITHER TRAVELS.
+    //
+    // This used to drop the quantity into the first row and leave the rack
+    // empty, producing a row that read "? unknown rack" with 142 in it — a row
+    // that LOOKS filled in and is not. Jose filmed it on 2026-09-08 switching
+    // from Exit to Transfer. Half the information carried across is worse than
+    // none: none is obviously empty, half is quietly wrong.
+    //
+    // When the material sits in exactly ONE rack, that rack is not a guess and
+    // both go. When it is spread over several, the app does not know which one
+    // was meant, so it carries neither and the chips above the rows offer the
+    // choice.
+    var trRow = document.querySelector('#transferRowsContainer .transfer-row');
+    var only  = _soleRackFor(m.cat, name);
+    if (trRow && only){
+      trRow.querySelector('.tr-rack').value = only;
+      if (q) trRow.querySelector('.tr-qty').value = q;
+    }
+    renderTransferLocPicker();
     validateTransferRows(); checkStock();
   } else if (currentMoveType === 'ADJUST'){
     // Material only — see _readMoveMaterial for why the quantity stays behind.
@@ -13689,7 +13882,20 @@ function _applyMoveMaterial(m){
     _syncAdjustCount();
   } else {
     set('mType', m.cat); set('mName', name);
-    if (q) set('mQty', q);
+    // WASTE has the same shape as TRANSFER — a quantity and a rack it comes
+    // out of — so it follows the same rule. RETURN does NOT: its source is a
+    // site or a job, which is not something the app can know, and its quantity
+    // sits in a plain field rather than in a location row, so it produces no
+    // orphan. Noted in docs/BACKLOG.md rather than guessed at here.
+    if (currentMoveType === 'WASTE'){
+      var wRack = _soleRackFor(m.cat, name);
+      if (wRack){
+        set('mSrc', wRack);
+        if (q) set('mQty', q);
+      }
+    } else if (q) {
+      set('mQty', q);
+    }
     _syncMoveMatTotal(); checkStock();
   }
   _updateMoveSubmitState();
@@ -14057,7 +14263,7 @@ function submitLockMaterial(){
 
   google.script.run
     .withSuccessHandler(function(res){
-      btn.disabled = false; btn.innerHTML = '🔒 Lock Material';
+      _btnLabel(btn, '🔒 Lock Material');
       closeModal('lockMatOverlay');
       // Apply locally + re-index immediately — don't wait on a full async reload,
       // which would leave the just-reopened drawer showing stale (unlocked) state.
@@ -14072,7 +14278,7 @@ function submitLockMaterial(){
       renderWarehouseMap();
     })
     .withFailureHandler(function(err){
-      btn.disabled = false; btn.innerHTML = '🔒 Lock Material';
+      _btnLabel(btn, '🔒 Lock Material');
       showToast('Error: ' + (err.message || err), 'err', 6000);
     })
     .processMovement('lockMaterial', _h(payload));
@@ -15029,7 +15235,7 @@ function runEmailImport(){
 
   google.script.run
     .withSuccessHandler(function(res){
-      btn.disabled = false; btn.textContent = 'Read it';
+      _btnLabel(btn, 'Read it');
       _emailDrafts = (res && res.items) || [];
       if (!_emailDrafts.length){
         status.textContent = 'Nothing about a delivery in that one. Try another email, or add it by hand.';
@@ -15043,7 +15249,7 @@ function runEmailImport(){
       _renderEmailDrafts();
     })
     .withFailureHandler(function(err){
-      btn.disabled = false; btn.textContent = 'Read it';
+      _btnLabel(btn, 'Read it');
       var msg = (err && err.message ? err.message : String(err)).replace(/^Error:\s*/i, '');
       // A feature that was never switched on is not a broken feature, and it
       // should not look like one. The server sends NO_AI_KEY as a marker; this
@@ -15157,7 +15363,7 @@ function _eiSave(i, done){
       if (done) done();
     })
     .withFailureHandler(function(err){
-      if (btn){ btn.disabled = false; btn.textContent = 'Save'; }
+      _btnLabel(btn, 'Save');
       showToast('Could not save item ' + (i + 1) + ': ' + ((err && err.message) || err), 'err', 6000);
       if (done) done();
     })
@@ -15172,7 +15378,7 @@ function _emailSaveAll(){
   var i = 0;
   (function next(){
     if (i >= _emailDrafts.length){
-      btn.disabled = false; btn.textContent = 'Save all';
+      _btnLabel(btn, 'Save all');
       showToast('Saved. Closing — the list will refresh.', 'ok');
       closeModal('emailImportOverlay');
       loadDataFromGoogle(true, true);   // quiet refresh
@@ -16606,6 +16812,32 @@ function _btnReset(btn){
 // deliberate: a save that closes its window instantly is indistinguishable from
 // a save that did nothing. `then` runs after the tick, so callers close the
 // window there rather than racing it.
+/* Finish, and come back under a NEW name.
+   ────────────────────────────────────────
+   For the case _btnReset alone does not cover: a button that is done and now
+   says something else. "Load Older History" becomes "Older History (247)".
+
+   It exists because writing that by hand is a trap, and the trap sprang. Every
+   handler that did
+
+       btn.disabled = false; btn.textContent = 'something new';
+
+   skipped _btnReset — and _btnReset is the ONLY thing that calls
+   _btnShowSiblings. _btnBusy hides the neighbouring buttons so a growing label
+   cannot land on top of them; without the matching reset they stay hidden for
+   the rest of the session. Jose filmed it on 2026-09-08: pressing "Load Older
+   History" made "+ Entry (IN)" and "− Exit (OUT)" vanish, and only a page
+   reload brought them back. Nothing errored — the neighbours were simply never
+   told the button had finished.
+
+   The hand-written version also leaves min-width pinned and `is-busy` on. */
+function _btnLabel(btn, html){
+  if (!btn) return;
+  _btnReset(btn);                       // siblings back, width free, class off
+  if (html != null) btn.innerHTML = html;
+  btn._acHtml = null;                   // the new label is the label now
+}
+
 function _btnDone(btn, ok, then){
   if (!btn){ if (then) then(); return; }
   btn.classList.remove('is-busy');
@@ -17581,7 +17813,7 @@ function saveEditMov() {
       loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err) {
-      btn.disabled = false; btn.textContent = '💾 Save Changes';
+      _btnLabel(btn, '💾 Save Changes');
       _setModalBusy('editMovOverlay', false);
       var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
       showToast('Error: ' + msg, 'err', 6000);

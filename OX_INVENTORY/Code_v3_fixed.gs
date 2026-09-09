@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.54';
+var APP_VERSION = '11.57';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.54';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fa354706';
+var APP_BUILD = '7d5e59a9';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -120,6 +120,15 @@ var SHEETS = {
   AUDIT: 'AUDIT_LOG',
   ERRORS: 'ERROR_LOG',
   ARCHIVE_HISTORY: 'ARCHIVE_HISTORY',
+  // Deleted movements. A separate sheet rather than a "deleted" flag on the row
+  // ON PURPOSE: with a flag, every reader in this file — the stock engine, the
+  // derived sheets, the data-quality sweep, the nightly archive job — would
+  // have to learn to skip those rows, and the first one that forgot would
+  // report a warehouse that still contains material somebody threw away.
+  // Moving the row out means every reader keeps working unchanged, because the
+  // row genuinely is not there any more. It is the same shape as
+  // ARCHIVE_HISTORY, which already moves rows between sheets safely.
+  TRASH: 'MOVEMENT_TRASH',
   // Only ever created inside a BACKUP COPY, never in the live file — see
   // writeConfigSnapshot_.
   CONFIG_SNAPSHOT: 'ACOPIO_CONFIG_SNAPSHOT',
@@ -165,6 +174,12 @@ var AC = {
 // magic number that gets fixed in three places and shipped broken in the
 // fourth. One constant, so adding a column here again means changing ONE line.
 var AC_WIDTH = 23;
+
+// A deleted movement is the movement's OWN row, unchanged, with three columns
+// added on the end saying what happened to it. The row is copied verbatim so a
+// restore puts back exactly what was there — not a reconstruction of it.
+var TR = { DELETED_AT: AC_WIDTH, DELETED_BY: AC_WIDTH + 1, FROM_SHEET: AC_WIDTH + 2 };
+var TRASH_WIDTH = AC_WIDTH + 3;
 
 // A movement's id. Time first, in base 36, so ids sort in the order the
 // movements happened and stay short; then three random characters, so two
@@ -3541,6 +3556,85 @@ function packMath_(packCount, perPack, pricePerPack) {
 // Stock totals are unaffected either way: refreshDerivedSheets_() below scans
 // BOTH sheets, so LIVE_STOCK/SITE_STOCK/WASTED_STOCK stay correct regardless of
 // which sheet a given row currently sits in.
+// ─── THE TRASH ───────────────────────────────────────────────────────────────
+//
+// Deleting a movement used to mean archive.deleteRow(): the row was gone, and
+// with it any way to answer "who deleted the count that was here yesterday".
+// Jose asked for undo — "hay algunas cosas que hice que quisiera eliminar pero
+// no se puede" — and the trash is what makes undo possible at all.
+//
+// It also removes the danger, not just the inconvenience. Deleting by ROW
+// NUMBER could delete a different movement than the one that was clicked (rows
+// below shift up, so a stale number points somewhere else). Deleting by the
+// movement's own id cannot: an id names one movement and no other, wherever it
+// happens to be sitting.
+function ensureTrashSheet_(ss) {
+  var sheet = ss.getSheetByName(SHEETS.TRASH);
+  if (!sheet) {
+    var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+    var headers = archive
+      ? padRow_(archive.getRange(1, 1, 1, readWidth_(archive)).getValues()[0], AC_WIDTH)
+      : new Array(AC_WIDTH).fill('');
+    headers = headers.concat(['Deleted At', 'Deleted By', 'Came From']);
+    sheet = ss.insertSheet(SHEETS.TRASH);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
+  ensureArchiveWidth_(sheet);
+  if (sheet.getMaxColumns() < TRASH_WIDTH) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), TRASH_WIDTH - sheet.getMaxColumns());
+  }
+  return sheet;
+}
+
+// Finds one movement by its own name, in whichever sheet it currently sits.
+// Returns null rather than throwing: "it is not here" is an answer the callers
+// need to act on differently (deleted already? never existed?), not an error.
+function findMovementById_(ss, movId) {
+  var want = String(movId || '').trim();
+  if (!want) return null;
+  var names = [SHEETS.ARCHIVE, SHEETS.ARCHIVE_HISTORY];
+  for (var s = 0; s < names.length; s++) {
+    var sheet = ss.getSheetByName(names[s]);
+    if (!sheet) continue;
+    var last = sheet.getLastRow();
+    if (last < 2 || sheet.getMaxColumns() < AC_WIDTH) continue;
+    // One column, not the whole sheet: this runs on every delete and every
+    // restore, and the id is the only thing being looked for.
+    var ids = sheet.getRange(2, AC.MOV_ID + 1, last - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0] || '').trim() === want) {
+        return {
+          sheet:     sheet,
+          sheetName: names[s],
+          rowIdx:    i + 2,
+          row:       padRow_(sheet.getRange(i + 2, 1, 1, readWidth_(sheet)).getValues()[0], AC_WIDTH)
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// The same lookup in the trash, so a second person deleting the same movement
+// can be told what actually happened to it instead of being told it worked.
+function findTrashedById_(ss, movId) {
+  var want = String(movId || '').trim();
+  if (!want) return null;
+  var sheet = ss.getSheetByName(SHEETS.TRASH);
+  if (!sheet) return null;
+  var last = sheet.getLastRow();
+  if (last < 2) return null;
+  var rows = sheet.getRange(2, 1, last - 1, Math.min(TRASH_WIDTH, sheet.getMaxColumns())).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][AC.MOV_ID] || '').trim() === want) {
+      return { sheet: sheet, rowIdx: i + 2, row: rows[i] };
+    }
+  }
+  return null;
+}
+
 function ensureArchiveHistorySheet_(ss) {
   var sheet = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
   if (!sheet) {
@@ -9296,8 +9390,39 @@ function listMaterials(auth) {
 //   • changeCategory changes what a material's MatID IS, since the id is built
 //     from category+name. Without the rebuild, every stored MatID for it went
 //     stale; refreshDerivedSheets_ repairs them as it goes.
+// TWO VERY DIFFERENT JOBS SHARING ONE DOOR, and until v11.56 the door was
+// ADMIN for both.
+//
+//   rename / changeCategory / merge rewrite EVERY row of both archive sheets
+//   for a material. One click can change thousands of movements, and there is
+//   no undo. Those stay ADMIN, and should.
+//
+//   deleteRow / restoreMovement / listTrash touch ONE movement. That is
+//   precisely what the "Edit movements" permission is about, and its own
+//   tooltip has promised since the day it shipped that warehouse staff can
+//   "fix or delete a movement someone already saved, the same way an admin
+//   can today".
+//
+// The delete half never worked. modifyMovement was wired to the permission;
+// deleteRow was left sitting behind this blanket ADMIN gate and nobody noticed,
+// because the BROWSER honours the permission (renderMovements shows Edit and
+// Delete to a WAREHOUSE whose admin turned it on) and only the server refused.
+// So the switch looked on, the buttons appeared, and pressing one said "Admin
+// only." Jose found it on 2026-09-08 with the SUPERVISOR role and the switch
+// turned on — and his question was the right one: was it broken, or did it
+// never work? It never worked.
+var MOVEMENT_OPS = { deleteRow: true, restoreMovement: true, listTrash: true };
+
 function manageMaterial(data, auth) {
-  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  // ignores any caller-supplied `auth` — see requireAuth_
+  if (MOVEMENT_OPS[data && data.op]) {
+    // VIEWER never reaches the permission check: requireAuth_('WRITE') refuses
+    // it first. Read-only means read-only, with no switch to widen it.
+    auth = requireAuth_('WRITE');
+    requirePerm_(auth, 'canEditMovements');
+  } else {
+    auth = requireAuth_('ADMIN');
+  }
   return withStockLock_(function () { return manageMaterialLocked_(data, auth); });
 }
 
@@ -9355,22 +9480,115 @@ function manageMaterialLocked_(data, auth) {
     return { status: 'success', merged: countM };
 
   } else if (op === 'deleteRow') {
-    var rowIdx = parseInt(data.rowIdx || 0);
-    if (rowIdx < 2) throw new Error('Invalid row index.');
-    // Log the row content before deleting. AC_WIDTH, not the 19 that used to be
-    // hardcoded here: the row grew to 22 columns when pricing was added, so the
-    // audit record of a deleted movement had been quietly dropping the PM and
-    // both cost columns — the record of a deletion is the one place that must
-    // be complete.
-    var rowData = archive.getRange(rowIdx, 1, 1, readWidth_(archive)).getValues()[0];
-    auditLog_(ss, 'DELETE_ROW', auth.email, String(rowData[AC.CATEGORY]), String(rowData[AC.NAME]),
-              'row ' + rowIdx + ' — ' + JSON.stringify(rowData.slice(0, 8)));
-    archive.deleteRow(rowIdx);
+    // BY NAME, NOT BY POSITION. A row number is what made this dangerous:
+    // deleting a row lifts every row below it, so the number the browser was
+    // holding could point at a different movement by the time it arrived. Jose
+    // confirmed that live on 2026-09-07 with two accounts. An id cannot drift.
+    var movId = String(data.movId || '').trim();
+    if (!movId) {
+      throw new Error('This movement has no ID yet, so it cannot be deleted safely. ' +
+        'Open Settings → System → Movement IDs and press the button there first.');
+    }
+
+    var found = findMovementById_(ss, movId);
+
+    if (!found) {
+      // NOT AN "IT WORKED". Two people deleting the same movement used to be
+      // told, both of them, that they had deleted it — the same lie the double
+      // unlock told. Say what actually happened, and to whom.
+      var gone = findTrashedById_(ss, movId);
+      if (gone) {
+        var who  = String(gone.row[TR.DELETED_BY] || 'someone else');
+        var when = gone.row[TR.DELETED_AT] instanceof Date
+          ? Utilities.formatDate(gone.row[TR.DELETED_AT], Session.getScriptTimeZone(), 'MMM d, h:mm a')
+          : String(gone.row[TR.DELETED_AT] || '');
+        throw new Error('Already deleted by ' + who + (when ? ' on ' + when : '') +
+          '. It is in the trash — you can put it back from there.');
+      }
+      throw new Error('This movement is no longer there. Refresh and take another look.');
+    }
+
+    // Into the trash BEFORE the row goes, so a failure here leaves the movement
+    // where it was rather than destroying it with nowhere to put it back from.
+    var trash = ensureTrashSheet_(ss);
+    var saved = found.row.slice();
+    saved[TR.DELETED_AT] = new Date();
+    saved[TR.DELETED_BY] = auth.email;
+    saved[TR.FROM_SHEET] = found.sheetName;
+    trash.getRange(trash.getLastRow() + 1, 1, 1, TRASH_WIDTH).setValues([saved]);
+
+    // The audit line records the whole row, not a summary. AC_WIDTH, not the 19
+    // that used to be hardcoded here: the row grew when pricing was added, so
+    // the record of a deletion had been quietly dropping the PM and both cost
+    // columns — the record of a deletion is the one place that must be complete.
+    auditLog_(ss, 'DELETE_ROW', auth.email, String(found.row[AC.CATEGORY]), String(found.row[AC.NAME]),
+              movId + ' — ' + JSON.stringify(found.row.slice(0, 8)));
+
+    found.sheet.deleteRow(found.rowIdx);
     // LIVE_STOCK/SITE_STOCK/WASTED_STOCK are aggregates built from the archive —
     // deleting a row without recomputing them leaves stale totals behind forever
     // (the deleted movement's effect stays baked in even though the row is gone).
     refreshDerivedSheets_(ss);
-    return { status: 'success' };
+    return { status: 'success', movId: movId, trashed: true };
+
+  } else if (op === 'restoreMovement') {
+    // Undo. The row goes back EXACTLY as it was — the trash kept the movement's
+    // own row, not a reconstruction of it — and back into the sheet it came
+    // from, so a movement old enough to have been archived out does not
+    // reappear in the recent list and confuse the cutoff.
+    var rid = String(data.movId || '').trim();
+    if (!rid) throw new Error('Which movement?');
+
+    if (findMovementById_(ss, rid)) {
+      throw new Error('That movement is already back — somebody restored it first.');
+    }
+    var entry = findTrashedById_(ss, rid);
+    if (!entry) throw new Error('That movement is not in the trash.');
+
+    var backTo = String(entry.row[TR.FROM_SHEET] || SHEETS.ARCHIVE);
+    var target = backTo === SHEETS.ARCHIVE_HISTORY
+      ? ensureArchiveHistorySheet_(ss) : archive;
+    ensureArchiveWidth_(target);
+
+    var restored = padRow_(entry.row, AC_WIDTH);   // drops the three trash columns
+    target.getRange(target.getLastRow() + 1, 1, 1, AC_WIDTH).setValues([restored]);
+    target.getRange(target.getLastRow(), AC.TIMESTAMP + 1, 1, 1).setNumberFormat('mm/dd/yyyy hh:mm');
+
+    // Only now does it leave the trash. The other order can lose the movement
+    // outright if the write fails in between.
+    entry.sheet.deleteRow(entry.rowIdx);
+
+    auditLog_(ss, 'RESTORE_ROW', auth.email, String(restored[AC.CATEGORY]), String(restored[AC.NAME]),
+              rid + ' → ' + backTo);
+    refreshDerivedSheets_(ss);
+    return { status: 'success', movId: rid };
+
+  } else if (op === 'listTrash') {
+    var tSheet = ss.getSheetByName(SHEETS.TRASH);
+    if (!tSheet || tSheet.getLastRow() < 2) return { status: 'success', items: [] };
+    var tLast  = tSheet.getLastRow();
+    var span   = Math.min(200, tLast - 1);          // the tail: recent deletions
+    var tRows  = tSheet.getRange(tLast - span + 1, 1, span,
+                   Math.min(TRASH_WIDTH, tSheet.getMaxColumns())).getValues();
+    var items  = [];
+    for (var t = tRows.length - 1; t >= 0; t--) {   // newest first
+      var tr = tRows[t];
+      if (!String(tr[AC.CATEGORY] || '').trim() && !String(tr[AC.NAME] || '').trim()) continue;
+      items.push({
+        movId:     String(tr[AC.MOV_ID] || ''),
+        category:  String(tr[AC.CATEGORY] || ''),
+        name:      String(tr[AC.NAME] || ''),
+        qty:       Number(tr[AC.QTY] || 0),
+        unit:      String(tr[AC.UNIT] || ''),
+        moveType:  String(tr[AC.MOVETYPE] || ''),
+        project:   String(tr[AC.PROJECT] || ''),
+        srcLoc:    String(tr[AC.SRC_LOC] || ''),
+        destLoc:   String(tr[AC.DEST_LOC] || ''),
+        deletedBy: String(tr[TR.DELETED_BY] || ''),
+        deletedAt: tr[TR.DELETED_AT] instanceof Date ? tr[TR.DELETED_AT].toISOString() : ''
+      });
+    }
+    return { status: 'success', items: items };
   }
 
   throw new Error('Unknown manageMaterial op: ' + op);
