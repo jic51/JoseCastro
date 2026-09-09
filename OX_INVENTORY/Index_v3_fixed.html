@@ -1011,6 +1011,41 @@
     }
     .settings-modal .mhdr{border-radius:14px 14px 0 0;margin:0}
     .settings-body{display:flex;flex:1;min-height:0}
+    /* EL FILO DE ABAJO. Jose, 2026-09-08: "no hay marco o filo de la ventana en
+       la parte de abajo; debemos dejar un marco en la ventana igual que en la
+       parte superior." La cabecera cierra la ventana por arriba con su propio
+       fondo; abajo el contenido llegaba al borde y la ventana parecía cortada
+       en vez de terminada. Esta franja no lleva nada dentro a propósito: su
+       único trabajo es cerrar el marco, igual que la cabecera lo abre. */
+    /* La barra de acciones vive en la misma fila que Columns, separada por una
+       línea en vez de por un salto: la fila no puede crecer ni encogerse al
+       marcar una casilla. */
+    /* Las dos celdas de dos líneas de Movements. La de arriba es por la que se
+       encuentra la fila; la de abajo se lee después, y por eso va más pequeña y
+       en gris — salvo el nombre del material, que es lo que la gente busca. */
+    td.mc-when, td.mc-what{white-space:nowrap;vertical-align:top}
+    .mc-sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+    .mc-main{font-weight:700;margin-top:.15rem;white-space:normal;
+      max-width:22ch;overflow-wrap:anywhere}
+    .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
+    /* Mismo alto, mismo ancho, mismo sitio: sólo cambia el color. */
+    .btn.col-open{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .mov-act-sep{display:inline-flex;align-items:center;gap:.4rem;
+      padding-left:.7rem;margin-left:.35rem;border-left:1px solid var(--border)}
+    .mov-sel-count{font-size:.74rem;color:var(--muted);min-width:5.5rem}
+    .mov-sel-cell{width:32px;text-align:center}
+    .mov-select-cb{cursor:pointer}
+    .mov-select-cb:disabled{cursor:not-allowed;opacity:.35}
+    .settings-modal .sftr{flex-shrink:0;height:14px;background:var(--bg);
+      border-top:1px solid var(--border);border-radius:0 0 14px 14px}
+    /* Una fila esperando su turno en la cola de borrado. Sigue ahí porque
+       TODAVÍA NO SE HA BORRADO — atenuarla es la verdad, no un adorno — y de
+       paso deja claro que la papelera ya se pulsó. Nada de animación: la fila
+       está a punto de irse, y llamar la atención sobre algo que desaparece es
+       ruido. */
+    tr.row-deleting{opacity:.4}
+    tr.row-deleting .btn-icon{pointer-events:none}
+    @media (prefers-reduced-motion:reduce){ tr.row-deleting{opacity:.45} }
     /* A quarter of the dialog, not a fixed 210px. On a narrow window that
        fixed width was eating half the screen and the settings themselves were
        reading through a slot. */
@@ -1775,6 +1810,9 @@
     .loc-arch-note{font-size:.66rem;color:var(--muted);margin-left:.4rem}
     .loc-arch-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 0 0 .2rem;line-height:1}
     .loc-arch-btn:hover{color:var(--accent)}
+    /* The bin is destructive, so it does not share the archive button's accent
+       hover — a row with both must not read as two shades of the same action. */
+    .loc-del-btn:hover{color:var(--red)}
     .loc-pick{margin-right:.15rem;cursor:pointer}
     .loc-savebar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem .75rem;margin-top:.75rem;font-size:.8rem}
     .loc-savebar.show{display:flex}
@@ -2327,7 +2365,7 @@
         <span class="col-edit-help" id="colEditHelp_stock" style="display:none">
           Drag a heading to move it · click the eye to hide it<span id="colEditAdminHelp_stock"> · click a name to rename it for everyone</span>
         </span>
-        <button class="btn btn-primary btn-sm" id="btnColDone_stock" style="display:none" onclick="finishColEdit('stock')">Done</button>
+        <button class="btn btn-primary btn-sm" id="btnColDone_stock" style="display:none" onclick="finishColEdit('stock')">Save</button>
         <button class="btn btn-ghost btn-sm" id="btnColReset_stock" style="display:none" onclick="resetColEdit('stock')">Reset</button>
       </div>
       <div id="stockSelectBar" style="display:none;align-items:center;gap:.75rem;background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:.5rem .9rem;margin-bottom:.75rem">
@@ -2367,22 +2405,39 @@
           <button id="btnExit" class="btn btn-danger">− Exit (OUT)</button>
         </div>
       </div>
-      <div class="col-bar">
+      <!-- ONE ROW, THE SAME HEIGHT ALWAYS.
+           Jose, 2026-09-07: "los botones edit y delete deben aparecer en la
+           misma línea que el botón columns... podemos modificar la app para que
+           nada se mueva al dar clic en el botón".
+
+           The row used to change shape twice. Edit and Delete once sat here and
+           got pushed onto a new toolbar row when the column help text appeared;
+           moving them to a line of their own fixed the jumping by adding a
+           permanent empty row. Now they are back here for good, and the two
+           things that made the row grow are gone instead of hidden:
+
+             · the long help text lives in the ⓘ, which is Jose's own
+               correction and better than my floating panel — his removes the
+               problem, mine covered it up;
+             · Edit and Delete are ALWAYS here, greyed out with nothing
+               selected. A button that appears is a button that moves the page. -->
+      <div class="col-bar" id="movColBar">
         <button class="btn btn-ghost btn-sm" id="btnEditCols_mov" onclick="toggleColEdit('mov')">⚙ Columns</button>
-        <span class="col-edit-help" id="colEditHelp_mov" style="display:none">
-          Drag a heading to move it · click the eye to hide it<span id="colEditAdminHelp_mov"> · click a name to rename it for everyone</span>
+        <span class="info-ic tip" tabindex="0" data-tip="Drag a heading to move it &#183; click the eye to hide it &#183; click a name to rename it for everyone. Your order and what you hide are yours; a renamed heading is the company's and everyone sees it.">i</span>
+        <span class="mov-act-sep" id="movActBar" style="display:none">
+          <button class="btn btn-ghost btn-sm" id="btnMovEdit" onclick="editSelectedMovement()" disabled>✏️ Edit</button>
+          <button class="btn btn-ghost btn-sm" id="btnMovDel"  onclick="deleteSelectedMovements()" disabled>🗑 Delete</button>
+          <span id="movSelCount" class="mov-sel-count"></span>
         </span>
-        <button class="btn btn-primary btn-sm" id="btnColDone_mov" style="display:none" onclick="finishColEdit('mov')">Done</button>
-        <button class="btn btn-ghost btn-sm" id="btnColReset_mov" style="display:none" onclick="resetColEdit('mov')">Reset</button>
+        <!-- Save y Reset A LA DERECHA DEL TODO, empujados por el hueco. Sólo
+             existen mientras se están cambiando las columnas, y aparecer es lo
+             único que un botón puede hacer para mover la página: puestos aquí,
+             lo que empujan es el hueco vacío y no los botones de la izquierda. -->
+        <span class="col-bar-right">
+          <button class="btn btn-primary btn-sm" id="btnColDone_mov" style="display:none" onclick="finishColEdit('mov')">Save</button>
+          <button class="btn btn-ghost btn-sm" id="btnColReset_mov" style="display:none" onclick="resetColEdit('mov')">Reset</button>
+        </span>
       </div>
-      <!-- On its own line, not sharing the "Columns" toolbar row above: Edit and
-           Delete used to sit beside "⚙ Columns" until the hint text below them
-           got long enough to not fit anymore, which shoved both buttons down
-           onto a whole new toolbar row the moment Jose clicked one — a
-           different top position every time (bug report). Giving this its own
-           row from the start means that row never happens; the buttons never
-           move again regardless of the hint's length. -->
-      <div id="rowModeSlot_mov"></div>
       <div class="table-wrapper" id="tableContainer" data-rowscope="mov"></div>
     </div>
   </div>
@@ -2501,7 +2556,7 @@
 <div class="morning-overlay" id="morningOverlay">
   <div class="morning-popup">
     <div class="morning-popup-hdr">
-      <h3>☀️ Good Morning — This Week's Schedule</h3>
+      <h3 id="morningTitle">☀️ Good Morning — This Week's Schedule</h3>
       <button onclick="closeMorningPopup()">✕</button>
     </div>
     <div class="morning-popup-body" id="morningPopupBody"></div>
@@ -3170,6 +3225,7 @@
         <div id="settingsMsgBar" style="display:none;margin-top:.75rem;padding:.5rem .75rem;border-radius:6px;font-size:.82rem"></div>
       </div>
     </div>
+    <div class="sftr"></div>
   </div>
 </div>
 
@@ -3310,7 +3366,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.57';
+var APP_VERSION = '11.62';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3322,7 +3378,7 @@ var APP_VERSION = '11.57';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '7d5e59a9';
+var APP_BUILD = 'c06e632d';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3731,14 +3787,13 @@ var ROW_MODES = {
          editHint: 'Rename a material, move it to another category, or merge it into another.' },
   loc: { edit: 'Rename', del: 'Remove',
          editHint: 'Click the pencil on a group to rename it.',
-         delHint:  'Bin deletes a group (its locations move to ALL LOCATIONS). The box archives a single location.' },
-  mov: { edit: 'Edit', del: 'Delete',
-         editHint: 'Click the pencil on a row to correct that record.',
-         // No longer "permanently" — since v11.55 it goes to the trash and can
-         // be put back. A warning that overstates what a button does costs the
-         // same as one that understates it: people stop trusting either.
-         delHint:  'Click the bin on a row to remove that record. It goes to the trash, so you can put it back.',
-         refresh: function(){ renderMovements(); } },   // its actions column comes and goes with the mode
+         delHint:  'On a group, the bin deletes it (its locations move to ALL LOCATIONS). On a location, the box ' +
+                   'archives it, and a bin appears only when nothing is stored there.' },
+  // `mov` YA NO ESTÁ AQUÍ. Movements dejó de tener modos en la v11.59: sus
+  // acciones viven en la fila de Columns, encendidas por lo que hay marcado, y
+  // la columna de la papelera y el lápiz está siempre puesta para quien puede
+  // usarla. El modo era lo que hacía crecer y encoger la tabla al pulsar un
+  // botón — quitarlo es el arreglo que pidió Jose, no esconderlo.
   usr: { edit: 'Edit', del: 'Deactivate',
          editHint: 'Click the pencil on a person to change their name or role.',
          delHint:  'Click 🚫 to stop someone signing in. Their history is kept.' }
@@ -3817,11 +3872,26 @@ var STOCK_COLS = [
 // Movements is the record of what happened, Stock is what is on hand — different
 // columns, but the same gesture edits both. What is locked here is what makes a
 // movement readable at a glance: what kind it was, when, of what, and how much.
+// CUATRO COLUMNAS EN DOS. Idea de Jose, 2026-09-09:
+//
+//   "decidimos que las columnas type, date, category y name no se van a cambiar
+//    nunca, entonces si no se van a cambiar podemos unir type sobre date, y
+//    category sobre name, reducimos 2 columnas y la pantalla no debe hacerse
+//    muy larga horizontalmente."
+//
+// Es mejor que lo que yo iba a hacer, que era pelearme con el alto del
+// encabezado al abrir el editor de columnas. Eso arregla el síntoma; esto quita
+// dos columnas de verdad y la tabla se estrecha.
+//
+// EL PRECIO, QUE ÉL YA NOMBRÓ: esas cuatro dejan de poder reordenarse por
+// separado, porque ya no son cuatro. Vale la pena — nadie reordena el tipo y la
+// fecha de un movimiento — pero es una decisión, no un efecto secundario.
+//
+// Las dos siguen siendo `lock:true`: no se pueden esconder. Un movimiento sin
+// tipo ni fecha, o sin nombre, no es una fila que sirva para nada.
 var MOV_COLS = [
-  { key:'type',     def:'Type',        lock:true  },
-  { key:'date',     def:'Date',        lock:true  },
-  { key:'category', def:'Category',    lock:true  },
-  { key:'name',     def:'Name',        lock:true  },
+  { key:'when',     def:'Type / Date',     lock:true  },
+  { key:'what',     def:'Category / Name', lock:true  },
   { key:'qty',      def:'Qty',         lock:true  },
   { key:'unit',     def:'Unit',        lock:false },
   { key:'po',       def:'PO#',         lock:false },
@@ -3876,10 +3946,19 @@ var COL_TABLES = {
     // on upgrade for someone who never touched the old checkboxes.
     defaultHidden: ['rawLoc','gc','supplier','pm','sysDate'],
     head: 'movHeadRow',
-    lead: function(){ return ''; },
-    // The actions column comes and goes with the row mode, so a table nobody
-    // is editing has no empty column hanging off the end of it.
-    tail: function(){ return (userRole === 'ADMIN' && _rowModes.mov) ? '<th></th>' : ''; },
+    // La casilla de "todo", como en el Dashboard. Sólo para quien puede actuar:
+    // a alguien que no puede editar ni borrar, una columna de casillas le
+    // ofrece elegir para nada.
+    lead: function(){
+      if (!_movCanAct()) return '';
+      return '<th style="width:32px"><input type="checkbox" id="movSelAll" ' +
+             'onclick="event.stopPropagation()" onchange="toggleMovSelectAll(this)" ' +
+             'title="Select everything you can see"></th>';
+    },
+    // La columna de acciones ya NO va y viene: aparecía y desaparecía con el
+    // modo, y eso era justo lo que hacía saltar la tabla al pulsar un botón.
+    // Ahora está siempre para quien puede usarla, y para nadie más.
+    tail: function(){ return _movCanAct() ? '<th></th>' : ''; },
     refresh: function(){ renderMovements(); }                             // rebuilds its own header
   }
 };
@@ -3897,10 +3976,32 @@ function _colCfg(t){ return COL_TABLES[t]; }
 
 function _defaultColOrder(t){ return _colCfg(t).cols.map(function(c){ return c.key; }); }
 
+// Cuando dos columnas se convierten en una, el orden que la gente ya tenía
+// guardado sigue hablando de las viejas. Sin esta traducción, el filtro de abajo
+// las tira y la columna nueva se añade AL FINAL — o sea que a Jose la tabla se
+// le abriría empezando por Qty y con el tipo y el nombre al otro extremo, sin
+// que él hubiera tocado nada.
+//
+// La vieja de arriba se queda con el sitio, la de abajo desaparece: es lo que
+// significa "type SOBRE date".
+var COL_MERGES = { mov: { type: 'when', date: null, category: 'what', name: null } };
+
 function _colOrder(t){
   var cfg = _colCfg(t);
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(cfg.orderKey) || '[]') || []; } catch (e) {}
+
+  var merge = COL_MERGES[t];
+  if (merge){
+    var vistos = {};
+    saved = saved.map(function(k){
+      return Object.prototype.hasOwnProperty.call(merge, k) ? merge[k] : k;
+    }).filter(function(k){
+      if (!k || vistos[k]) return false;   // la segunda mitad del par, y los repetidos
+      vistos[k] = 1; return true;
+    });
+  }
+
   var known = {};
   cfg.cols.forEach(function(c){ known[c.key] = 1; });
   // Filtered against the current column set, then topped up: a saved order from
@@ -4020,13 +4121,22 @@ function _colBarEl(t, base){ return document.getElementById(base + '_' + t); }
 
 function _setColBarMode(t){
   var on = _colEdit[t];
-  [['btnColDone', on], ['btnColReset', on], ['colEditHelp', on], ['btnEditCols', !on]]
+  // "⚙ Columns" SE QUEDA. Se escondía mientras el panel estaba abierto, y como
+  // es el primer botón de la fila, esconderlo corría a los de su derecha —
+  // exactamente lo que Jose pidió que dejara de pasar ("que nada se mueva al
+  // dar clic en el botón"). Además es el mismo botón que cierra el panel, así
+  // que quitarlo dejaba abierto algo sin una forma obvia de cerrarlo.
+  [['btnColDone', on], ['btnColReset', on], ['colEditHelp', on]]
     .forEach(function(pair){
       var el = _colBarEl(t, pair[0]);
       if (el) el.style.display = pair[1] ? '' : 'none';
     });
   var adminHelp = _colBarEl(t, 'colEditAdminHelp');
   if (adminHelp) adminHelp.style.display = (userRole === 'ADMIN') ? '' : 'none';
+  // Encendido mientras el panel está abierto, para que se vea cuál es el botón
+  // que lo cierra. Cambia de color, no de tamaño ni de sitio.
+  var open = _colBarEl(t, 'btnEditCols');
+  if (open) open.classList.toggle('col-open', !!on);
 }
 
 function toggleColEdit(t){
@@ -5747,7 +5857,7 @@ function renderMovements(){
   // Permissions (see requirePerm_/canEditMovements server-side, which is what
   // actually enforces this; hiding the buttons here is just so a WAREHOUSE
   // user without the flag never sees a control that would fail on the save).
-  var isAdmin   = userRole === 'ADMIN' || (userRole === 'WAREHOUSE' && !!rolePerms.canEditMovements);
+  var isAdmin   = _movCanAct();   // una sola regla, escrita una vez — ver _movCanAct
   var order     = _colOrder('mov');
   var hiddenNow = {};
   _colHidden('mov').forEach(function(k){ hiddenNow[k] = 1; });
@@ -5802,10 +5912,13 @@ function renderMovements(){
     var srcDest = (m.sourceLoc||'—') + ' → ' + (m.destLoc||'—');
 
     var cells = {
-      type:     '<td class="mc-type">'+moveBadge(m.moveType)+'</td>',
-      date:     '<td class="mc-date" style="white-space:nowrap">'+_he(m.dateRec||m.timestamp||'—')+'</td>',
-      category: '<td class="mc-category">'+catBadge(m.category)+'</td>',
-      name:     '<td class="mc-name"><strong>'+_he(displayName(m))+'</strong></td>',
+      // Dos líneas en una celda: la insignia arriba, el dato debajo. La segunda
+      // línea va en gris y más pequeña porque es la que se lee DESPUÉS de haber
+      // encontrado la fila por la de arriba.
+      when:     '<td class="mc-when">'+moveBadge(m.moveType)+
+                '<div class="mc-sub">'+_he(m.dateRec||m.timestamp||'—')+'</div></td>',
+      what:     '<td class="mc-what">'+catBadge(m.category)+
+                '<div class="mc-main">'+_he(displayName(m))+'</div></td>',
       qty:      '<td class="mc-qty" style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+(isOut?'−':'+')+m.qty+'</td>',
       unit:     '<td class="mc-unit" style="color:var(--muted);font-size:.78rem">'+_he(m.unit||'—')+'</td>',
       po:       '<td class="mc-po" style="font-size:.78rem">'+_he(m.po||'—')+'</td>',
@@ -5827,14 +5940,31 @@ function renderMovements(){
       return cells[k] || '';
     }).join('');
 
-    var adminCell = (isAdmin && _rowModes.mov)
+    // Siempre, para quien puede actuar. Antes venía y se iba con el modo de
+    // fila, y esa columna apareciendo y desapareciendo era lo que hacía saltar
+    // la tabla entera al pulsar un botón.
+    var adminCell = isAdmin
       ? '<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" data-rowact="edit" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" data-rowact="del" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>'
       : '';
 
-    return '<tr class="'+rowClass(m.moveType)+'">' + body + adminCell + '</tr>';
+    // La casilla de la fila. Un movimiento archivado no la lleva: no se puede
+    // editar ni borrar, así que ofrecerlo sería ofrecer un callejón sin salida.
+    var selCell = isAdmin
+      ? '<td class="mov-sel-cell">' + (m.archived ? '' :
+          '<input type="checkbox" class="mov-select-cb" data-movid="' + _escAttr(m.movId || '') +
+          '" data-rowidx="' + m.rowIdx + '"' + (m.movId && _movSelection[m.movId] ? ' checked' : '') +
+          (m.movId ? '' : ' disabled title="This movement has no ID yet — run Settings → System → Movement IDs"') +
+          ' onclick="event.stopPropagation()" onchange="toggleMovSelect(this)">') + '</td>'
+      : '';
+
+    // A row waiting its turn in the delete queue says so. It is still there
+    // because it has NOT been deleted yet — dimming it is the truth, and it
+    // stops the same bin being pressed twice.
+    var pendCls = (m.movId && _delPending[m.movId]) ? ' row-deleting' : '';
+    return '<tr class="'+rowClass(m.moveType)+pendCls+'">' + selCell + body + adminCell + '</tr>';
   }).join('');
 
-  var span = _visibleColCount('mov') + ((isAdmin && _rowModes.mov) ? 1 : 0);
+  var span = _visibleColCount('mov') + (isAdmin ? 2 : 0);   // casilla + acciones
 
   // An empty result used to replace the whole table, header included — which
   // took the column editor off screen with it. The message is a row now, so the
@@ -5861,11 +5991,10 @@ function renderMovements(){
   // to be attached again each time.
   if (_colEdit.mov) _wireColEdit('mov');
 
-  // Admins get the Edit / Delete toggles beside the column button. Mounted once
-  // and then left alone — re-rendering the table must not reset the mode.
-  var rmSlot = document.getElementById('rowModeSlot_mov');
-  if (rmSlot && isAdmin && !rmSlot.firstChild) rmSlot.innerHTML = _rowModeBarHtml('mov');
-  _mountRowMode('mov');
+  // La selección sobrevive al repintado, y la barra de acciones se pone al día
+  // con lo que de verdad hay marcado — no con lo que había antes de filtrar.
+  _syncMovSelectAll();
+  _updateMovActionBar();
 
   tc.querySelectorAll('[data-row]').forEach(function(btn){
     btn.addEventListener('click', function(){ openAttachModal(parseInt(btn.dataset.row), btn.dataset.po); });
@@ -5916,6 +6045,139 @@ function deleteMovementRow(rowIdx){
   });
 }
 
+/* ── SELECCIÓN DE MOVIMIENTOS ───────────────────────────────────────────────
+   Jose, 2026-09-07: "quiero hacer la selección de los movimientos como en el
+   dashboard, con los checkmarks... también quiero poner un checkmark general".
+
+   Se guarda por ID, no por número de fila. Es lo que hace que la selección
+   sobreviva a un filtro, a un cambio de página y a una recarga silenciosa: los
+   números de fila cambian, los nombres no. Antes de la v11.53 esto no se podía
+   escribir.
+
+   Un movimiento archivado no se puede marcar, y uno sin ID tampoco — el
+   servidor se negaría a borrarlo, así que dejar marcarlo sería prometer algo
+   que no se va a cumplir. */
+var _movSelection = {};   // movId → true
+
+// Quién ve las casillas y la barra: exactamente la misma regla que decide si
+// ve la columna de acciones, escrita una vez.
+function _movCanAct(){
+  return userRole === 'ADMIN' ||
+         (userRole === 'WAREHOUSE' && !!(rolePerms || {}).canEditMovements);
+}
+
+function _clearMovSelection(){ _movSelection = {}; }
+
+function toggleMovSelect(cb){
+  var id = cb.getAttribute('data-movid');
+  if (!id) return;
+  if (cb.checked) _movSelection[id] = true; else delete _movSelection[id];
+  _syncMovSelectAll();
+  _updateMovActionBar();
+}
+
+// "Todo" es LO QUE SE ESTÁ VIENDO, no las 604 filas del archivo. Marcar en un
+// filtro y borrar sin él sería exactamente el accidente que esta pantalla tiene
+// que hacer imposible.
+function toggleMovSelectAll(cb){
+  document.querySelectorAll('#tableContainer .mov-select-cb').forEach(function(x){
+    if (x.disabled) return;
+    var id = x.getAttribute('data-movid');
+    if (!id) return;
+    x.checked = cb.checked;
+    if (cb.checked) _movSelection[id] = true; else delete _movSelection[id];
+  });
+  _updateMovActionBar();
+}
+
+// El estado intermedio existe porque "algunas" es una respuesta distinta de
+// "ninguna" y de "todas", y una casilla que sólo sabe decir dos de las tres
+// miente en el tercio que falta.
+function _syncMovSelectAll(){
+  var all = document.getElementById('movSelAll');
+  if (!all) return;
+  var boxes = [];
+  document.querySelectorAll('#tableContainer .mov-select-cb').forEach(function(x){
+    if (!x.disabled) boxes.push(x);
+  });
+  var marcadas = boxes.filter(function(x){ return x.checked; }).length;
+  all.checked       = boxes.length > 0 && marcadas === boxes.length;
+  all.indeterminate = marcadas > 0 && marcadas < boxes.length;
+  all.disabled      = boxes.length === 0;
+}
+
+// Los movimientos marcados que TODAVÍA existen en la lista. Uno borrado por
+// otra persona desaparece de aquí solo, sin que nadie tenga que acordarse de
+// limpiar la selección.
+function _selectedMovements(){
+  var out = [];
+  movements.forEach(function(m){ if (m.movId && _movSelection[m.movId]) out.push(m); });
+  return out;
+}
+
+function _updateMovActionBar(){
+  var bar = document.getElementById('movActBar');
+  if (!bar) return;
+  var puede = _movCanAct();
+  bar.style.display = puede ? '' : 'none';
+  if (!puede) return;
+
+  var n    = _selectedMovements().length;
+  var edit = document.getElementById('btnMovEdit');
+  var del  = document.getElementById('btnMovDel');
+  var cnt  = document.getElementById('movSelCount');
+
+  // APAGADOS, NO ESCONDIDOS. Un botón que aparece es un botón que mueve la
+  // página, y mover la página al marcar una casilla es lo que Jose pidió que
+  // dejara de pasar.
+  if (del){
+    del.disabled = n === 0;
+    del.title = n === 0 ? 'Tick a row first' : 'Delete ' + n + ' movement' + (n === 1 ? '' : 's');
+  }
+  if (edit){
+    // Editar sólo tiene sentido con UNA. Con dos no hay un formulario que
+    // pueda decir la verdad sobre las dos a la vez.
+    edit.disabled = n !== 1;
+    edit.title = n === 0 ? 'Tick a row first'
+               : n > 1   ? 'Edit works on one movement at a time'
+                         : 'Edit this movement';
+  }
+  if (cnt) cnt.textContent = n ? (n + ' selected') : '';
+}
+
+function editSelectedMovement(){
+  var sel = _selectedMovements();
+  if (sel.length !== 1) return;
+  openEditMovModal(sel[0].rowIdx);
+}
+
+function deleteSelectedMovements(){
+  var sel = _selectedMovements();
+  if (!sel.length) return;
+  var n = sel.length;
+  _showConfirm({
+    icon: '🗑️', danger: true,
+    title: n === 1 ? 'Delete this movement?' : 'Delete ' + n + ' movements?',
+    message: (n === 1
+        ? (sel[0].qty + ' ' + (sel[0].unit || '') + ' of ' + sel[0].name).replace(/\s+/g, ' ')
+        : n + ' movements') +
+      ' will be removed from the warehouse history.\n\n' +
+      'They go to the trash, so you can put them back from Settings → System.',
+    confirmText: n === 1 ? 'Yes, Delete' : 'Yes, delete ' + n,
+    onConfirm: function(){
+      // De uno en uno por la misma cola de la v11.58 — pedirle al servidor
+      // veinte reconstrucciones del almacén de golpe es justo lo que daba
+      // "System busy". La selección se suelta ya: las filas se ven esperando
+      // por su cuenta, y dejarlas marcadas invitaría a pulsar otra vez.
+      sel.forEach(function(m){
+        delete _movSelection[m.movId];
+        _doDeleteMovementRow(m.rowIdx);
+      });
+      _updateMovActionBar();
+    }
+  });
+}
+
 function _movByRowIdx(rowIdx){
   for (var i = 0; i < movements.length; i++) {
     if (movements[i].rowIdx === rowIdx) return movements[i];
@@ -5923,38 +6185,94 @@ function _movByRowIdx(rowIdx){
   return null;
 }
 
+/* ── BORRAR VARIOS A LA VEZ ─────────────────────────────────────────────────
+   Jose, 2026-09-08: borrar cuatro movimientos seguidos daba "System busy" en
+   los últimos. Pedía lo mismo que ya hace un guardado — ponerse en cola en vez
+   de enseñar un error.
+
+   Y tenía razón dos veces, porque la cola ya existía (_busyRetry, v11.47) y
+   estaba enganchada a los tres caminos de guardado y a NINGÚN borrado. Hueco
+   mío.
+
+   PERO LA COLA DEL SERVIDOR NO ES LA PRIMERA RESPUESTA, ES LA SEGUNDA. La causa
+   de que saltara tan fácil es que cada borrado reconstruye los totales de TODO
+   el almacén con el candado en la mano; cuatro borrados son cuatro
+   reconstrucciones enteras peleándose por el mismo candado. Contra eso, el
+   arreglo correcto no es reintentar más rápido: es NO PEDIRLO TODO A LA VEZ.
+
+   Así que los borrados salen de aquí de uno en uno, en el orden en que se
+   pulsaron. El reintento con espera creciente sigue detrás, para cuando quien
+   tiene el candado es OTRA persona — eso el navegador no lo puede evitar. */
+var _delQueue   = [];      // trabajos esperando turno
+var _delRunning = false;   // hay uno en el aire
+var _delPending = {};      // movId → true, para que la fila se vea esperando
+
+function _delEnqueue(job){ _delQueue.push(job); _delPump(); }
+
+function _delPump(){
+  if (_delRunning || !_delQueue.length) return;
+  _delRunning = true;
+  var job = _delQueue.shift();
+  job(function(){ _delRunning = false; _delPump(); });
+}
+
 function _doDeleteMovementRow(rowIdx){
   var mov = _movByRowIdx(rowIdx);
-  google.script.run
-    .withSuccessHandler(function(){
-      // AL INSTANTE. El servidor YA lo hizo — este manejador es el de ÉXITO —
-      // así que esperar a que una recarga entera nos lo repita es hacer esperar
-      // a alguien por algo que ya se sabe. Jose: "el feedback visual no debe
-      // demorar nunca". Y ahora es seguro: quitar una fila de la lista ya no
-      // desplaza los números de las demás, porque nada se identifica por su
-      // número desde la v11.53.
-      if (mov) {
-        var at = movements.indexOf(mov);
-        if (at !== -1) movements.splice(at, 1);
-        renderAll();
-      }
-      showToast('Movement deleted. It is in the trash.', 'ok');
-      // La recarga silenciosa sigue: reconcilia los totales de stock, que los
-      // calcula el servidor. Ya no es lo que hace desaparecer la fila.
-      loadDataFromGoogle(true, true);
-    })
-    .withFailureHandler(function(err){
-      // Nada se ha quitado de la pantalla todavía, así que no hay que devolver
-      // nada a su sitio — el orden importa: primero el servidor, luego la
-      // pantalla. Al revés, un "ya lo borró otro" dejaría la fila desaparecida
-      // en una cuenta y presente en la otra.
-      showToast(_stripTags(err), 'err', 8000);
-    })
-    .processMovement('manageMaterial', _h({
-      op: 'deleteRow',
-      movId: mov ? (mov.movId || '') : '',
-      rowIdx: rowIdx            // sólo para el registro; el servidor borra por movId
-    }));
+  if (!mov) return;
+  // Pulsar dos veces la misma papelera no encola dos borrados. El segundo
+  // recibiría "ya lo borró jose@…", que es verdad y no ayuda a nadie.
+  if (mov.movId && _delPending[mov.movId]) return;
+  if (mov.movId) { _delPending[mov.movId] = true; renderAll(); }
+
+  _delEnqueue(function(done){
+    var state = { tries: 0 };
+
+    function attempt(){
+      google.script.run
+        .withSuccessHandler(function(){
+          if (mov.movId) delete _delPending[mov.movId];
+          // AL INSTANTE. El servidor YA lo hizo — este manejador es el de
+          // ÉXITO — así que esperar a que una recarga entera nos lo repita es
+          // hacer esperar a alguien por algo que ya se sabe. Jose: "el
+          // feedback visual no debe demorar nunca". Y es seguro desde la
+          // v11.53: quitar una fila ya no desplaza los números de las demás,
+          // porque nada se identifica por su número.
+          var at = movements.indexOf(mov);
+          if (at !== -1) movements.splice(at, 1);
+          renderAll();
+          _sysCacheDrop('trash');
+          showToast('Movement deleted. It is in the trash.', 'ok');
+          done();
+          // La recarga silenciosa va DESPUÉS de soltar la cola, y sólo cuando
+          // no queda ninguno esperando: traerse el almacén entero entre un
+          // borrado y el siguiente es justo lo que hacía la ráfaga lenta.
+          if (!_delQueue.length && !_delRunning) loadDataFromGoogle(true, true);
+        })
+        .withFailureHandler(function(err){
+          // Ocupado no es un fallo: es un turno. Se espera y se vuelve, sin
+          // decir nada — la fila ya se ve esperando, y un aviso por cada
+          // reintento sería ruido sobre algo que se está arreglando solo.
+          if (_isBusyError(err) && state.tries < BUSY_MAX_RETRIES){
+            state.tries++;
+            setTimeout(attempt, _busyDelay(state.tries));
+            return;
+          }
+          if (mov.movId) { delete _delPending[mov.movId]; renderAll(); }
+          showToast(_isBusyError(err)
+            ? ('The system stayed busy through ' + (BUSY_MAX_RETRIES + 1) +
+               ' tries. Nothing was deleted — try that one again in a moment.')
+            : _stripTags(err), 'err', 8000);
+          done();
+        })
+        .processMovement('manageMaterial', _h({
+          op: 'deleteRow',
+          movId: mov.movId || '',
+          rowIdx: rowIdx            // sólo para el registro; el servidor borra por movId
+        }));
+    }
+
+    attempt();
+  });
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
@@ -9539,8 +9857,14 @@ function _renderSystemTab() {
 function _loadTrash(){
   var box = document.getElementById('trashBox');
   if (!box) return;
+  var hit = _sysCacheGet('trash');
+  if (hit) { _paintTrash(hit); return; }
   google.script.run
-    .withSuccessHandler(function(res){ _paintTrash(res && res.items); })
+    .withSuccessHandler(function(res){
+      var items = (res && res.items) || [];
+      _sysCachePut('trash', items);
+      _paintTrash(items);
+    })
     .withFailureHandler(function(){
       var b = document.getElementById('trashBox');
       // An older Code.gs simply does not know this op yet, which is normal for
@@ -9560,6 +9884,15 @@ function _paintTrash(items){
     return;
   }
   box.innerHTML =
+    // El botón de vaciar va DENTRO del cuadro, junto a lo que vacía — pedido de
+    // Jose, y es donde se busca. Sólo aparece cuando hay algo que vaciar: un
+    // botón que no puede hacer nada es una pregunta sin respuesta.
+    '<div style="display:flex;align-items:center;justify-content:space-between;' +
+         'gap:.6rem;margin-bottom:.5rem;flex-wrap:wrap">' +
+      '<span style="font-size:.78rem;color:var(--muted)">' + items.length +
+        ' movement' + (items.length === 1 ? '' : 's') + ' you can still put back.</span>' +
+      '<button id="btnEmptyTrash" class="btn btn-ghost btn-sm" onclick="_emptyTrash()">🗑 Empty the trash</button>' +
+    '</div>' +
     '<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px">' +
       items.map(function(it){
         var where = it.destLoc || it.srcLoc || '';
@@ -9583,12 +9916,44 @@ function _paintTrash(items){
     '</div>';
 }
 
+function _emptyTrash(){
+  var btn = document.getElementById('btnEmptyTrash');
+  _showConfirm({
+    icon: '🗑', danger: true,
+    title: 'Empty the trash?',
+    // El único aviso de la app que puede decir esto con verdad. Desde la v11.55
+    // borrar un movimiento NO es definitivo — va aquí. Vaciar sí lo es, y el
+    // aviso tiene que separar las dos cosas o deja de significar nada.
+    message: 'Everything in the trash is discarded for good and can no longer be put back.\n\n' +
+             'The movements themselves are already out of your stock totals — this only ' +
+             'gives up the ability to undo those deletions.',
+    confirmText: 'Empty it',
+    onConfirm: function(){
+      _btnBusy(btn, 'Emptying…');
+      google.script.run
+        .withSuccessHandler(function(res){
+          _btnReset(btn);
+          var n = (res && res.removed) || 0;
+          showToast('✓ ' + n + ' deleted movement' + (n === 1 ? '' : 's') + ' discarded.', 'ok');
+          _sysCacheDrop('trash');
+          _loadTrash();
+        })
+        .withFailureHandler(function(e){
+          _btnReset(btn);
+          showToast('⚠ ' + _stripTags(e), 'err', 8000);
+        })
+        .processMovement('manageMaterial', _h({ op: 'emptyTrash' }));
+    }
+  });
+}
+
 function _restoreMovement(btn){
   var movId = btn ? (btn.getAttribute('data-movid') || '') : '';
   _btnBusy(btn, 'Restoring…');
   google.script.run
     .withSuccessHandler(function(){
       showToast('✓ Movement restored.', 'ok');
+      _sysCacheDrop('trash');         // uno menos, y lo sabemos ya
       _loadTrash();
       loadDataFromGoogle(true, true);
     })
@@ -9597,6 +9962,7 @@ function _restoreMovement(btn){
       showToast('⚠ ' + _stripTags(e), 'err', 8000);
       // Somebody else may have put it back already, in which case the list on
       // screen is out of date and saying so is not enough — show the truth.
+      _sysCacheDrop('trash');
       _loadTrash();
     })
     .processMovement('manageMaterial', _h({ op: 'restoreMovement', movId: movId }));
@@ -9613,11 +9979,53 @@ function _restoreMovement(btn){
    to the real archive, and Jose asked to be the one who decides when anything
    touches his data. It is safe to press twice — the server only ever fills a
    blank — and the panel says so rather than making anyone guess. */
+/* ── LO QUE YA SE SABE NO SE VUELVE A PREGUNTAR ─────────────────────────────
+   Jose, 2026-09-08: "'deleted movements' y 'movements ids' se recargan cada vez
+   que abro la ventana... nada debe recargarse a cada rato en la app, sólo cosas
+   puntuales y específicas."
+
+   Cada apertura de Ajustes disparaba tres llamadas al servidor para pintar
+   datos que no habían cambiado desde la apertura anterior. Sale del presupuesto
+   de ejecución de Jose —la cuota es del dueño, no de cada usuario— y hace que
+   la ventana parezca lenta por trabajo que ya estaba hecho.
+
+   EL SELLO YA EXISTÍA. Desde la v11.48 el servidor devuelve `dataStamp`, que
+   cambia cuando cambian los datos y no cambia cuando no. O sea que ya había una
+   respuesta exacta a "¿hace falta volver a preguntar?" y estos paneles no la
+   usaban. Con ella: se pinta lo guardado al instante, y sólo se pregunta si el
+   almacén se movió desde la última vez.
+
+   `_sysCacheDrop` es para cuando el propio panel cambia lo que enseña — un
+   borrado, un restaurado, la migración de IDs. Ahí no hay que esperar a que el
+   sello se entere: ya sabemos que lo que teníamos dejó de valer. */
+var _sysCache = {};
+
+function _sysCacheGet(k){
+  var e = _sysCache[k];
+  if (!e) return null;
+  // `own` = esto no depende del sello del almacén. La lista de usuarios cambia
+  // cuando alguien cambia un usuario, y no porque se haya guardado una entrada
+  // — atarla al sello la haría recargarse después de cada movimiento, que es
+  // exactamente lo que Jose pidió que dejara de pasar. Se tira a mano donde se
+  // cambia (ver _sysCacheDrop).
+  if (e.stamp === 'own') return e.data;
+  // `_dataStamp` es null hasta la primera carga aplicada; hasta entonces no hay
+  // con qué comparar, así que no se sirve nada de la caché.
+  if (_dataStamp === null || e.stamp !== _dataStamp) return null;
+  return e.data;
+}
+function _sysCachePut(k, data, own){
+  _sysCache[k] = { stamp: own ? 'own' : _dataStamp, data: data };
+}
+function _sysCacheDrop(k){ delete _sysCache[k]; }
+
 function _loadMovIdStatus(){
   var box = document.getElementById('movIdBox');
   if (!box) return;
+  var hit = _sysCacheGet('movId');
+  if (hit) { _paintMovIdStatus(hit); return; }
   google.script.run
-    .withSuccessHandler(function(res){ _paintMovIdStatus(res); })
+    .withSuccessHandler(function(res){ _sysCachePut('movId', res); _paintMovIdStatus(res); })
     .withFailureHandler(function(){
       var b = document.getElementById('movIdBox');
       // Not an error worth shouting about: an older Code.gs simply does not
@@ -9656,8 +10064,9 @@ function _fillMovIds(){
       _btnBusy(btn, 'Working…');
       google.script.run
         .withSuccessHandler(function(res){
-          _btnReset(btn);
+              _btnReset(btn);
           showToast('✓ ' + ((res && res.message) || 'Done.'), 'ok', 6000);
+          _sysCacheDrop('movId');     // acabamos de cambiar lo que cuenta
           _loadMovIdStatus();
         })
         .withFailureHandler(function(e){
@@ -10615,6 +11024,11 @@ function _renderLocationsTab(){
           // where a thing WAS is a fact about the past, and renaming the rack
           // today cannot make January's material have sat somewhere else.
           '<br>Renaming a location updates the list only — existing movements keep the name they were recorded with.' +
+          // The rule for the bin, said before it is met rather than after. It is
+          // the same sentence as the rename above, which is not a coincidence:
+          // both come from a location being stored on a movement as TEXT.
+          '<br>🗄 archives a location — it keeps its history and stops being offered. 🗑 appears only on a ' +
+          'location with nothing stored in it, and deletes it outright; past movements are unaffected.' +
           '<br><b>Dragging needs a mouse</b> — on a phone this list is read-only for now.' +
         '</p>' +
         '<div class="loc-plus-wrap">' +
@@ -10641,12 +11055,64 @@ function _renderLocationsTab(){
   _redrawLocGroups();
 }
 
-function _renderLocGroup(type){
+// ─── WHAT IS STILL POINTING AT EACH LOCATION ────────────────────────────────
+// Archiving exists because a location usually cannot just go: material sits in
+// it, or a lock names it. But a location with NOTHING in it is a name somebody
+// typed by mistake or stopped using, and forcing that into the archive box for
+// ever is not filing, it is clutter. Jose's words: "SI LA LOCACION NO TIENE
+// NADA DENTRO SE LA DEBE PODER BORRAR, ESO NO CAMBIA EL HISTORIAL PERO YA NO
+// APARECE EN LA LISTA."
+//
+// This is only what the screen OFFERS. saveLocationLayout checks the same three
+// things on the server before it writes, because this screen sends the whole
+// list and leaving a name out of it has always been enough to delete one.
+function _locUsage(){
+  var use = {};
+  function slot(r){
+    var k = String(r || '').trim().toUpperCase();
+    if (!k) return null;
+    if (!use[k]) use[k] = { qty: 0, locked: 0, allowed: 0 };
+    return use[k];
+  }
+  for (var key in stockData){
+    if (!stockData.hasOwnProperty(key)) continue;
+    var locs = (stockData[key] || {}).warehouseLocs || {};
+    for (var r in locs){
+      if (!locs.hasOwnProperty(r) || !(locs[r] > 0)) continue;
+      var s = slot(r);
+      if (s) s.qty += locs[r];
+    }
+  }
+  (materialLocks || []).forEach(function(l){
+    var sr = slot(l.rack);
+    if (sr) sr.locked++;
+    (l.allowedDest || []).forEach(function(d){
+      var sd = slot(d);
+      if (sd) sd.allowed++;
+    });
+  });
+  return use;
+}
+
+// '' when the location can be deleted, otherwise the reason it has to stay —
+// shown on the archive button so the answer to "why is there no bin here?" is
+// one hover away instead of a guess.
+function _locWhyKept(name, use){
+  var u = use[String(name || '').trim().toUpperCase()];
+  if (!u) return '';
+  if (u.qty > 0) return 'Has ' + u.qty + ' in stock';
+  if (u.locked)  return 'A material is locked to it';
+  if (u.allowed) return 'A lock allows moving material here';
+  return '';
+}
+
+function _renderLocGroup(type, use){
   var items = _locLayout.filter(function(l){ return (l.type || LOC_DEFAULT_GROUP) === type; });
   var isDefault  = (type === LOC_DEFAULT_GROUP);
   var isArchived = (type === LOC_ARCHIVED_GROUP);
   var fixed = isDefault || isArchived;   // neither can be renamed or removed
   if (isArchived && !items.length) return '';   // no empty archive box in the way
+  use = use || {};
 
   return '<div class="loc-group' + (isDefault ? ' loc-group-default' : '') +
       (isArchived ? ' loc-group-archived' : '') + '" data-type="' + _he(type) + '">' +
@@ -10663,15 +11129,59 @@ function _renderLocGroup(type){
     '<ul class="loc-list" data-type="' + _he(type) + '">' +
       (items.length
         ? items.map(function(l){
+            var why = _locWhyKept(l.name, use);
             return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
               '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to merge">' +
               '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span>' +
-              '<button class="loc-arch-btn" data-rowact="del" title="' + (isArchived ? 'Restore' : 'Archive') + '" ' +
+              '<button class="loc-arch-btn" data-rowact="del" title="' +
+                _escAttr(isArchived ? 'Restore'
+                                    : (why ? why + ' — archive it instead of deleting' : 'Archive')) + '" ' +
                 'onclick="_locToggleArchive(\'' + _he(l.name) + '\')">' + (isArchived ? '↩' : '🗄') + '</button>' +
+              // The bin appears only for a location nothing points at. It is
+              // absent rather than disabled on purpose: a disabled bin invites
+              // the click that has to be refused, while its absence plus the
+              // reason on the archive button next to it says the same thing
+              // without the dead end.
+              (why ? '' :
+                '<button class="loc-arch-btn loc-del-btn" data-rowact="del" title="Delete — nothing is stored here" ' +
+                  'onclick="_locDelete(\'' + _he(l.name) + '\')">🗑</button>') +
             '</li>';
           }).join('')
         : '<li class="loc-empty">' + (isDefault ? 'Nothing unfiled' : 'Drop a location here') + '</li>') +
     '</ul></div>';
+}
+
+// Deleting is a removal from the list, so like archiving and like dragging it
+// waits for "Save layout" — one trip to the server, and Discard still puts
+// everything back until then.
+function _locDelete(name){
+  var entry = null;
+  _locLayout.forEach(function(l){ if (l.name === name) entry = l; });
+  if (!entry) return;
+
+  // Re-checked at the moment of the click, not trusted from when the row was
+  // drawn: the panel can sit open while somebody on the floor puts material
+  // into this very rack.
+  var why = _locWhyKept(name, _locUsage());
+  if (why){
+    showToast(why + ' — archive it instead.', 'warn', 5000);
+    _redrawLocGroups();
+    return;
+  }
+
+  _showConfirm({
+    icon: '📍', title: 'Delete location "' + name + '"?',
+    message: 'Nothing is stored here, so no stock moves and no number changes.\n\n' +
+             'Past movements keep the name they were recorded with — this only takes it off the list ' +
+             'so it stops being offered.',
+    confirmText: 'Delete',
+    danger: true,
+    onConfirm: function(){
+      _locLayout = _locLayout.filter(function(l){ return l.name !== name; });
+      _redrawLocGroups();
+      _locMarkDirty();
+    }
+  });
 }
 
 // Archive / restore is a group move, so it goes through the same save as
@@ -10692,7 +11202,9 @@ function _locShowNew(kind){
   var inp = document.getElementById('locNewVal');
   if (!row || !inp) return;
   row.style.display = 'flex';
-  inp.placeholder = (kind === 'group') ? 'Group name (e.g. CARTS)' : 'Location name (e.g. A1A)';
+  inp.placeholder = (kind === 'group')
+    ? 'Group name (e.g. CARTS)'
+    : 'One name, or several separated by commas: A1A, A1B, A1C';
   inp.value = '';
   inp.focus();
 }
@@ -10710,11 +11222,45 @@ function _locCreate(){
     // lands in it.
     _locExtraGroups.push(v);
   } else {
-    if (_locLayout.some(function(l){ return l.name.toUpperCase() === v; })) {
-      showToast('That location already exists.', 'warn'); return;
+    // SEVERAL AT A TIME. Jose's video: he created one location expecting to be
+    // able to create several, because that is how a rack actually gets set up —
+    // A1A through A1F in one go, not six trips through the same box.
+    //
+    // Split on commas (and semicolons and newlines) but NOT on spaces, even
+    // though "A1A A1B A1C" is what a hand would type. A space is a legal
+    // character in a location name — "BACK ROOM" is a place a business can
+    // have — and a separator that silently makes a name impossible to type is
+    // worse than one that occasionally needs a comma. Typing spaces here now
+    // creates one location with that literal name, which is visible in the list
+    // straight away and, as of this version, deletable.
+    var wanted = v.split(/[,;\n]+/)
+                  .map(function(s){ return s.trim(); })
+                  .filter(function(s){ return s; });
+
+    var made = [], already = [];
+    wanted.forEach(function(name){
+      var dup = _locLayout.some(function(l){ return l.name.toUpperCase() === name; });
+      if (dup || made.indexOf(name) !== -1) { if (already.indexOf(name) === -1) already.push(name); return; }
+      // New locations always start unfiled, then get dragged where they belong.
+      _locLayout.push({ name: name, type: LOC_DEFAULT_GROUP });
+      made.push(name);
+    });
+
+    // One name that was already there is the old single-name case, and it kept
+    // the box open so the typo could be corrected. That still holds.
+    if (!made.length){
+      showToast(already.length === 1
+        ? '"' + already[0] + '" already exists.'
+        : 'All ' + already.length + ' of those already exist.', 'warn');
+      return;
     }
-    // New locations always start unfiled, then get dragged where they belong.
-    _locLayout.push({ name: v, type: LOC_DEFAULT_GROUP });
+
+    showToast(
+      (made.length === 1 ? '"' + made[0] + '" added' : made.length + ' locations added') +
+      (already.length ? ' — ' + already.join(', ') + ' ' +
+                        (already.length === 1 ? 'was' : 'were') + ' already there' : '') +
+      '. Press Save layout to keep ' + (made.length === 1 ? 'it' : 'them') + '.',
+      already.length ? 'warn' : 'ok', 5000);
     _locMarkDirty();
   }
   document.getElementById('locNewRow').style.display = 'none';
@@ -10777,7 +11323,10 @@ function _locSortGroup(type){
 function _redrawLocGroups(){
   var box = document.getElementById('locGroups');
   if (!box) return;
-  box.innerHTML = _locTypesInOrder().map(_renderLocGroup).join('');
+  // Once for the whole redraw, not once per location: it walks every material's
+  // racks and every active lock, and the answer is the same for all of them.
+  var use = _locUsage();
+  box.innerHTML = _locTypesInOrder().map(function(t){ return _renderLocGroup(t, use); }).join('');
   _wireLocDnD();
   _wireLocMerge();
   _mountRowMode('loc');
@@ -10930,8 +11479,12 @@ function _locMarkDirty(){
     var btn = this;
     _btnBusy(btn, 'Saving…');
     google.script.run
-      .withSuccessHandler(function(){
-        showToast('Location layout saved ✓', 'ok');
+      .withSuccessHandler(function(res){
+        // Names the deletions rather than reporting a generic save: deleting is
+        // the one thing on this screen that cannot be undone by dragging back.
+        var gone = (res && res.deleted) || [];
+        showToast('Location layout saved ✓' +
+          (gone.length ? ' — deleted ' + gone.join(', ') : ''), 'ok', gone.length ? 5000 : 3000);
         bar.classList.remove('show'); bar.innerHTML = ''; bar.dataset.dirty = '0';
         // Local mirror so other screens see the new types without a full reload.
         _settingsData.locations     = _locLayout.map(function(l){ return l.name; });
@@ -14284,16 +14837,62 @@ function submitLockMaterial(){
     .processMovement('lockMaterial', _h(payload));
 }
 
+/* QUIÉN LO CERRÓ, CUÁNDO Y POR QUÉ — antes de quitarlo.
+   ─────────────────────────────────────────────────────
+   Jose: "al desbloquear deberíamos decir quién lo hizo y mostrar la razón que
+   dio esa persona". Y añadió lo que lo hace fácil: "ya tenemos la información,
+   sólo hay que mostrarla". Es exactamente así — el motivo, quién y cuándo
+   viajan en cada candado desde que existen, y aquí sólo se veían pasando el
+   ratón por encima de un icono diminuto.
+
+   Ese sitio es el equivocado. Un candado lo pone alguien PARA QUE NADIE TOQUE
+   ESE MATERIAL, casi siempre porque está apartado para una obra o hay algo mal
+   con él. Quien va a quitarlo es justo quien necesita leer el motivo, y es
+   justo el momento en que puede parar. Esconderlo en un tooltip es enseñárselo
+   a quien pasa por al lado y no a quien va a decidir. */
+function _lockById(lockId){
+  var out = null;
+  (materialLocks || []).forEach(function(l){ if (l.id === lockId) out = l; });
+  return out;
+}
+
 function unlockMaterialConfirm(lockId, name){
+  var lock = _lockById(lockId);
+  var lineas = [];
+
+  if (lock && lock.lockedBy){
+    lineas.push('Locked by ' + lock.lockedBy +
+      (lock.lockedAt ? ' on ' + lock.lockedAt : '') + '.');
+  }
+  if (lock && String(lock.reason || '').trim()){
+    // Entre comillas y tal cual se escribió. Es lo que dijo una persona, no un
+    // estado que la app calculó, y resumirlo o recortarlo sería ponerle
+    // palabras en la boca.
+    lineas.push('Their reason: "' + lock.reason + '"');
+  } else if (lock){
+    // Decirlo es mejor que dejar el hueco: "no dio ninguna" es una respuesta,
+    // y un espacio en blanco parece que la app perdió el dato.
+    lineas.push('They did not give a reason.');
+  }
+  if (lock && lock.allowedDest && lock.allowedDest.length){
+    lineas.push('It could only be moved to: ' + lock.allowedDest.join(', ') + '.');
+  }
+
+  lineas.push('');
+  lineas.push('Unlocking it makes it exit-able and unrestricted again at this rack.');
+
   _showConfirm({
     icon: '🔓', title: 'Unlock ' + name + '?',
-    message: 'This material will be exit-able and unrestricted again at this rack.',
+    message: lineas.join('\n'),
     confirmText: 'Unlock', danger: false,
     onConfirm: function(){ _doUnlockMaterial(lockId); }
   });
 }
 
 function _doUnlockMaterial(lockId){
+  // Se lee ANTES de quitarlo de la lista: después ya no está, y el aviso se
+  // quedaría sin poder decir qué material se soltó.
+  var lock = _lockById(lockId);
   google.script.run
     .withSuccessHandler(function(res){
       materialLocks = materialLocks.filter(function(l){ return l.id !== lockId; });
@@ -14307,7 +14906,9 @@ function _doUnlockMaterial(lockId){
         showToast('🔓 Already unlocked — someone else got there first. ' +
                   'Nothing left to do.', 'info', 5000);
       } else {
-        showToast('🔓 Unlocked.', 'ok');
+        showToast('🔓 Unlocked' +
+          (lock && lock.name ? ' — ' + lock.name + (lock.rack ? ' at ' + lock.rack : '') : '') +
+          '.', 'ok');
       }
       if (_openRackName) openRackDrawer(_openRackName);
       renderStock();
@@ -15604,7 +16205,32 @@ function _refreshMorningPopup(){
   showMorningPopup(quedan, todayStr);
 }
 
+// El saludo, según la hora que es de verdad. Jose, a las 8 de la tarde: "la
+// ventana de los incomings me dice buenos días". Estaba escrito a mano en el
+// HTML, así que decía "Good Morning" a cualquier hora — y una app que saluda
+// como si fueran las siete de la mañana a las ocho de la tarde da la impresión
+// de no saber nada de lo que está pasando, que es justo lo contrario de lo que
+// esta ventana intenta transmitir.
+//
+// Se pregunta al reloj cada vez que se abre, no al cargar la página: alguien
+// que deja la app abierta toda la tarde tiene que ver cambiar el saludo con
+// ella.
+function _timeOfDayGreeting(){
+  var h = new Date().getHours();
+  if (h < 12) return { icon: '☀️', text: 'Good morning' };
+  if (h < 18) return { icon: '🌤️', text: 'Good afternoon' };
+  return { icon: '🌙', text: 'Good evening' };
+}
+
+function _applyMorningGreeting(){
+  var el = document.getElementById('morningTitle');
+  if (!el) return;
+  var g = _timeOfDayGreeting();
+  el.textContent = g.icon + ' ' + g.text + " — This Week's Schedule";
+}
+
 function showMorningPopup(items, todayStr) {
+  _applyMorningGreeting();
   var todayItems = items.filter(function(i){ return _incOnDay(i, todayStr); });
   var restItems  = items.filter(function(i){ return !_incOnDay(i, todayStr); });
 
@@ -15829,10 +16455,17 @@ function openUsersModal() {
 
 function _loadUsersTable() {
   var tbody = document.getElementById('usersTableBody');
+  // Misma regla que los paneles de Ajustes: si el almacén no se ha movido desde
+  // la última vez, la lista de usuarios tampoco, y volver a pedirla es pagar
+  // por una respuesta que ya tenemos. Sin el "Loading…" tampoco — parpadear
+  // para acabar enseñando lo mismo es peor que no parpadear.
+  var hit = _sysCacheGet('users');
+  if (hit) { _usersData = hit; _renderUsersTable(); return; }
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem"><span class="spin-hg">⏳</span> Loading…</td></tr>';
   google.script.run
     .withSuccessHandler(function(res) {
       _usersData = res || [];
+      _sysCachePut('users', _usersData, true);
       _renderUsersTable();
     })
     .withFailureHandler(function(err) {
@@ -15934,6 +16567,7 @@ function saveUser() {
       else _usersData.push({ email: email, name: name, role: role, active: true,
                              addedBy: userEmail, addedAt: _isoDate(new Date()) });
       resetUserForm();
+      _sysCachePut('users', _usersData, true);   // ya está al día, no hay que ir a buscarla
       _renderUsersTable();
     })
     .withFailureHandler(function(err) {
@@ -15953,6 +16587,7 @@ function deactivateUser(email) {
       google.script.run
         .withSuccessHandler(function() {
           _usersData.forEach(function(u){ if (u.email === email) u.active = false; });
+          _sysCachePut('users', _usersData, true);
           _renderUsersTable();
           showToast(email + ' can no longer sign in.', 'ok');
         })
@@ -17042,9 +17677,14 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('stockStatusFilter','change', renderStock);
 
   // Movement filters
-  _safeOn('movSearch','input', _debounce(function(){ _movPage=1; renderMovements(); }, 220));
-  _safeOn('movTypeFilter','change', function(){ _movPage=1; renderMovements(); });
-  _safeOn('movCatFilter','change', function(){ _movPage=1; renderMovements(); });
+  // Cambiar el filtro SUELTA la selección. Sin esto, alguien puede marcar tres
+  // filas, filtrar hasta que dejen de verse, y pulsar Delete sobre movimientos
+  // que ya no tiene delante — el accidente exacto que esta pantalla tiene que
+  // hacer imposible. Pasar de página NO la suelta: la página cambia lo que se
+  // ve, no lo que se buscó.
+  _safeOn('movSearch','input', _debounce(function(){ _clearMovSelection(); _movPage=1; renderMovements(); }, 220));
+  _safeOn('movTypeFilter','change', function(){ _clearMovSelection(); _movPage=1; renderMovements(); });
+  _safeOn('movCatFilter','change', function(){ _clearMovSelection(); _movPage=1; renderMovements(); });
 
   // Export
   _safeOn('btnExportCSV','click', exportMovementsCSV);
