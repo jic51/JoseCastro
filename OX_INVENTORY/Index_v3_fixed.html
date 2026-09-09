@@ -3366,7 +3366,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.63';
+var APP_VERSION = '11.64';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3378,7 +3378,7 @@ var APP_VERSION = '11.63';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '7d828273';
+var APP_BUILD = '2127626e';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -5167,6 +5167,12 @@ function _activeTab() {
 
 function showTab(tab, btnId){
   _clearRowModes();     // Edit / Delete never survive leaving the screen they were armed on
+  // Y la selección de movimientos tampoco, por el mismo motivo y con las mismas
+  // palabras. Es la línea que faltaba: en la v11.59 las casillas SUSTITUYERON a
+  // los modos de fila en Movements, y este limpiado se quedó hablando sólo de
+  // los modos — así que la selección era lo único de la pantalla que sobrevivía
+  // a irse de ella.
+  _clearMovSelection();
   document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(tab).classList.add('active');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
@@ -6066,7 +6072,25 @@ function _movCanAct(){
          (userRole === 'WAREHOUSE' && !!(rolePerms || {}).canEditMovements);
 }
 
-function _clearMovSelection(){ _movSelection = {}; }
+/* SE VA LA MARCA Y SE VAN LAS CASILLAS, LAS DOS COSAS.
+ *
+ * Jose: "una vez que se selecciona un movimiento, se lo edita y se guarda, el
+ * check debe desaparecer. Si cambio de página, el check debe desaparecer. El
+ * check debe mantenerse solo si estoy en la misma página."
+ *
+ * Vaciar el mapa no basta: las casillas ya dibujadas siguen marcadas en la
+ * pantalla, así que quedaría una selección que se VE pero no EXISTE — que es
+ * peor que cualquiera de las dos cosas por separado, porque Edit y Delete
+ * estarían apagados encima de tres filas con el check puesto.
+ */
+function _clearMovSelection(){
+  _movSelection = {};
+  document.querySelectorAll('#tableContainer .mov-select-cb').forEach(function(cb){
+    cb.checked = false;
+  });
+  _syncMovSelectAll();
+  _updateMovActionBar();
+}
 
 function toggleMovSelect(cb){
   var id = cb.getAttribute('data-movid');
@@ -7236,8 +7260,22 @@ function updateNotifyPreview(){
 // al lado — ver .modal-actions. El `wrap` de allí evita que se pisen; esto evita
 // que llegue a hacer falta.
 var BUSY_LABEL = 'Waiting…';
-var BUSY_MAX_RETRIES = 4;
+// OCHO INTENTOS, NO CUATRO. Jose, 2026-09-09, después de que "Check my data"
+// le fallara dos veces seguidas: "no tiene sentido poner una cola si la cola
+// solo puede con 3 o 4 cosas a la vez. Debemos hacer que el sistema los maneje
+// todos, los mantenga en la cola hasta que se puedan realizar".
+//
+// Con cuatro y sin tope, las esperas eran 0.9s, 1.8s, 3.6s y 7.2s: unos TRECE
+// SEGUNDOS antes de rendirse. Trece segundos es poco para un almacén donde tres
+// personas guardan a la vez. Con ocho y el tope en 8s son unos 45 — que es una
+// espera que una persona aguanta sin pensar que se rompió algo, y para la que
+// el botón ya dice "Waiting…".
+//
+// El tope importa tanto como el número: sin él, el octavo intento esperaría dos
+// minutos él solo y la app parecería colgada justo cuando ya iba a funcionar.
+var BUSY_MAX_RETRIES = 8;
 var BUSY_BASE_MS     = 900;
+var BUSY_MAX_MS      = 8000;
 var BUSY_JITTER_MS   = 700;
 
 function _isBusyError(err){
@@ -7353,10 +7391,151 @@ function _shortStockFix(err){
   return true;
 }
 
+/* Las tres fusiones —locaciones, catálogo desde la barra, y catálogo desde los
+ * parecidos— fallaban con el mismo texto escrito tres veces, y ninguna de las
+ * tres distinguía "ocupado" de "no se pudo". Reescribir miles de filas es
+ * justo lo que más tarda, así que son de las que MÁS se topan con el candado.
+ *
+ * No van por la cola: una fusión es una decisión que la persona acaba de
+ * confirmar mirando la pantalla, y encolarla detrás de otra cosa la dejaría
+ * ejecutándose minutos después, sobre unos datos que ya no son los que vio.
+ * Aquí lo que hacía falta era decir la verdad, no reintentar a ciegas.
+ */
+function _mergeFailed(btn, label){
+  return function(e){
+    _btnLabel(btn, label);
+    showToast(_isBusyError(e)
+      ? 'The system is busy right now — nothing was merged. Try again in a few seconds.'
+      : 'Merge failed: ' + _humanErr(e),
+      _isBusyError(e) ? 'warn' : 'err', 6000);
+  };
+}
+
 /** Cuánto esperar antes del intento número `attempt` (1 = el primer reintento). */
 function _busyDelay(attempt){
-  return BUSY_BASE_MS * Math.pow(2, attempt - 1) +
+  return Math.min(BUSY_BASE_MS * Math.pow(2, attempt - 1), BUSY_MAX_MS) +
          Math.floor(Math.random() * BUSY_JITTER_MS);
+}
+
+/* ── LO QUE SE LE ENSEÑA A UNA PERSONA CUANDO ALGO FALLA ─────────────────────
+ *
+ * Jose vio esto en pantalla:
+ *
+ *   Could not apply: Error: SYSTEM_BUSY|System busy — someone else is saving
+ *   right now. Please try again in a moment. [ID: 3da14230]
+ *
+ * Y dijo lo que había que decir: "estos mensajes no le ayudan al usuario. A mí
+ * me dicen algo, pero al usuario no."
+ *
+ * Tres cosas sobran ahí y ninguna es el mensaje:
+ *   - `SYSTEM_BUSY|` es una marca para el código, no una palabra.
+ *   - `Error:` lo añade Apps Script y no informa de nada.
+ *   - `[ID: 3da14230]` es la referencia del registro del servidor. Sirve para
+ *     el soporte, no para quien está de pie en el almacén — así que va a la
+ *     consola, que es donde el soporte la puede buscar.
+ *
+ * _stripTags ya quitaba las dos primeras. La tercera no la quitaba nadie.
+ */
+function _humanErr(err){
+  var msg = _stripTags(err);
+  var m = msg.match(/\s*\[ID:\s*([0-9a-zA-Z]+)\]\s*$/);
+  if (m){
+    try { console.warn('Acopio — request id for support:', m[1]); } catch (e) {}
+    msg = msg.slice(0, m.index);
+  }
+  msg = msg.trim();
+  // Un Error sin texto vuelve de Apps Script como la palabra "Error" a secas —
+  // sin dos puntos, así que el replace de _stripTags no la toca. Enseñar eso es
+  // peor que no enseñar nada: ocupa el sitio de una explicación y no es una.
+  if (!msg || /^error\.?$/i.test(msg)) return 'Something went wrong, and nothing was saved.';
+  return msg;
+}
+
+/* ── UNA SOLA COLA PARA TODO LO QUE ESCRIBE ──────────────────────────────────
+ *
+ * Ocho funciones del servidor toman el candado del stock y pueden contestar
+ * "ocupado": guardar movimientos, editar uno, borrarlo, restaurarlo, renombrar
+ * o fusionar un material, fusionar locaciones o valores del catálogo, rellenar
+ * los IDs de movimiento, y aplicar un arreglo de "Check my data".
+ *
+ * Hasta la v11.64 sólo DOS estaban protegidas en el navegador, y cada una a su
+ * manera: guardar tenía reintento sin cola, borrar tenía cola con reintento, y
+ * las otras seis no tenían nada. Por eso el error crudo del servidor le llegó
+ * entero a Jose: _dqApply no lo intercepta nadie.
+ *
+ * Esto es una cola, no sólo un reintento, y la diferencia importa: DOS PESTAÑAS
+ * DE LA MISMA PERSONA YA NO COMPITEN ENTRE SÍ. El reintento resuelve el choque
+ * con OTRA persona; la cola quita el que uno se hace a sí mismo pulsando dos
+ * botones seguidos, que es el más frecuente y el más tonto.
+ *
+ * EL LÍMITE, DICHO AQUÍ PARA QUE NO SE PROMETA DE MÁS: esta cola vive en el
+ * navegador y MUERE CON LA PESTAÑA. "Mantenerlos hasta que se puedan realizar"
+ * llega hasta ahí. Una cola que sobreviva a cerrar la ventana tiene que vivir
+ * en el servidor con un disparador, y eso gasta cuota de Apps Script — que es
+ * del DUEÑO de la copia, no de cada usuario. Es una decisión de negocio, no
+ * técnica, y está anotada como tal.
+ */
+var _wq     = [];      // trabajos esperando turno
+var _wqBusy = false;   // hay uno en el aire
+
+function _wqPump(){
+  if (_wqBusy || !_wq.length) return;
+  _wqBusy = true;
+  var job = _wq.shift();
+  job(function(){ _wqBusy = false; _wqPump(); });
+}
+
+/* Una escritura, encolada y con reintento.
+ *
+ *   fn       nombre del método del servidor (por defecto processMovement)
+ *   args     lo que se le pasa, tal cual
+ *   btn      el botón que la lanzó, para dejarlo en "Waiting…" mientras espera
+ *   ok(res)  qué hacer cuando funcione
+ *   fail(e)  opcional; si no se pasa, se enseña _humanErr con un aviso
+ *   what     de qué se trata, para el aviso final ("Could not apply", …)
+ */
+function _acWrite(o){
+  _wq.push(function(done){
+    var tries = 0;
+
+    function attempt(){
+      var run = google.script.run
+        .withSuccessHandler(function(res){
+          done();
+          try { if (o.ok) o.ok(res); } catch (e) {}
+        })
+        .withFailureHandler(function(err){
+          // OCUPADO NO ES UN FALLO, ES UN TODAVÍA NO. El botón se queda
+          // esperando: devolvérselo a la persona la invitaría a pulsar otra
+          // vez, y no ha pasado nada malo.
+          if (_isBusyError(err) && tries < BUSY_MAX_RETRIES){
+            tries++;
+            if (o.btn) _btnBusy(o.btn, BUSY_LABEL);
+            setTimeout(attempt, _busyDelay(tries));
+            return;
+          }
+          done();
+          if (o.btn) _btnReset(o.btn);
+          if (o.fail) { try { o.fail(err, _isBusyError(err)); } catch (e) {} return; }
+
+          // Se agotó la espera, o fue otra cosa. Se dicen cosas distintas
+          // porque SON distintas: una es "el sistema está lleno", la otra es
+          // "esto que pediste no se puede", y confundirlas deja a la persona
+          // sin saber si volver a intentarlo sirve de algo.
+          if (_isBusyError(err)){
+            showToast('The system has been busy for a while, so this is still ' +
+              'waiting. Nothing was lost and nothing you did is wrong — try ' +
+              'again in a few seconds.', 'warn', 9000);
+          } else {
+            showToast((o.what ? o.what + ': ' : '') + _humanErr(err), 'err', 8000);
+          }
+        });
+      run[o.fn || 'processMovement'].apply(run, o.args || []);
+    }
+
+    attempt();
+  });
+  _wqPump();
 }
 
 /* Reintento compartido por los TRES caminos de guardado.
@@ -9930,19 +10109,18 @@ function _emptyTrash(){
     confirmText: 'Empty it',
     onConfirm: function(){
       _btnBusy(btn, 'Emptying…');
-      google.script.run
-        .withSuccessHandler(function(res){
+      _acWrite({
+        args: ['manageMaterial', _h({ op: 'emptyTrash' })],
+        btn:  btn,
+        what: 'Could not empty the trash',
+        ok: function(res){
           _btnReset(btn);
           var n = (res && res.removed) || 0;
           showToast('✓ ' + n + ' deleted movement' + (n === 1 ? '' : 's') + ' discarded.', 'ok');
           _sysCacheDrop('trash');
           _loadTrash();
-        })
-        .withFailureHandler(function(e){
-          _btnReset(btn);
-          showToast('⚠ ' + _stripTags(e), 'err', 8000);
-        })
-        .processMovement('manageMaterial', _h({ op: 'emptyTrash' }));
+        }
+      });
     }
   });
 }
@@ -9950,22 +10128,26 @@ function _emptyTrash(){
 function _restoreMovement(btn){
   var movId = btn ? (btn.getAttribute('data-movid') || '') : '';
   _btnBusy(btn, 'Restoring…');
-  google.script.run
-    .withSuccessHandler(function(){
+  _acWrite({
+    args: ['manageMaterial', _h({ op: 'restoreMovement', movId: movId })],
+    btn:  btn,
+    ok: function(){
       showToast('✓ Movement restored.', 'ok');
       _sysCacheDrop('trash');         // uno menos, y lo sabemos ya
       _loadTrash();
       loadDataFromGoogle(true, true);
-    })
-    .withFailureHandler(function(e){
+    },
+    fail: function(e, ocupado){
       _btnReset(btn);
-      showToast('⚠ ' + _stripTags(e), 'err', 8000);
+      showToast(ocupado
+        ? 'The system has been busy for a while — nothing was lost. Try again in a few seconds.'
+        : '⚠ ' + _humanErr(e), ocupado ? 'warn' : 'err', 8000);
       // Somebody else may have put it back already, in which case the list on
       // screen is out of date and saying so is not enough — show the truth.
       _sysCacheDrop('trash');
       _loadTrash();
-    })
-    .processMovement('manageMaterial', _h({ op: 'restoreMovement', movId: movId }));
+    }
+  });
 }
 
 /* ── Giving every existing movement a name ──────────────────────────────────
@@ -10062,18 +10244,17 @@ function _fillMovIds(){
     confirmText: 'Continue',
     onConfirm: function(){
       _btnBusy(btn, 'Working…');
-      google.script.run
-        .withSuccessHandler(function(res){
-              _btnReset(btn);
+      _acWrite({
+        args: ['adminAction', _h({ action: 'backfillMovementIds' })],
+        btn:  btn,
+        what: 'Could not finish',
+        ok: function(res){
+          _btnReset(btn);
           showToast('✓ ' + ((res && res.message) || 'Done.'), 'ok', 6000);
           _sysCacheDrop('movId');     // acabamos de cambiar lo que cuenta
           _loadMovIdStatus();
-        })
-        .withFailureHandler(function(e){
-          _btnReset(btn);
-          showToast('⚠ ' + _stripTags(e), 'err', 8000);
-        })
-        .processMovement('adminAction', _h({ action: 'backfillMovementIds' }));
+        }
+      });
     }
   });
 }
@@ -10328,9 +10509,15 @@ function _dqApply(i){
     payload.value = f.value;
   }
 
+  // ÉSTE ES EL QUE LE FALLÓ A JOSE, y era el único de los ocho caminos con
+  // candado que no tenía ni cola ni reintento: el error del servidor le llegaba
+  // crudo a la pantalla, con marca e ID incluidos.
   _btnBusy(btn, 'Applying…');
-  google.script.run
-    .withSuccessHandler(function(r){
+  _acWrite({
+    args: ['applyDataQualityFix', _h(payload)],
+    btn:  btn,
+    what: 'Could not apply',
+    ok: function(r){
       var n = (r && r.rows) || 0;
       _btnDone(btn, true, function(){
         if (card){
@@ -10344,12 +10531,8 @@ function _dqApply(i){
       // Silencioso: la tarjeta de "Check my data" ya dice ahí mismo cuántas
       // filas cambió. Ese texto es el acuse de recibo.
       loadDataFromGoogle(true, true);
-    })
-    .withFailureHandler(function(err){
-      _btnReset(btn);
-      showToast('Could not apply: ' + ((err && err.message) || err), 'err', 8000);
-    })
-    .processMovement('applyDataQualityFix', _h(payload));
+    }
+  });
 }
 
 // ── The AI key, set from inside the app ─────────────────────────────────────
@@ -11397,10 +11580,7 @@ function _wireLocMerge(){
               // v10.2.
               loadDataFromGoogle(true, true);   // skipCache, quiet
             })
-            .withFailureHandler(function(e){
-              _btnLabel(btn, 'Merge');
-              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
-            })
+            .withFailureHandler(_mergeFailed(btn, 'Merge'))
             .processMovement('mergeLocations', _h({ from: from, into: into }));
         }
       });
@@ -11552,10 +11732,7 @@ function _wireManualMerge(tab, label){
               // rebuild in the browser.
               loadDataFromGoogle(true, true);   // skipCache, quiet
             })
-            .withFailureHandler(function(e){
-              _btnLabel(btn, 'Merge');
-              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
-            })
+            .withFailureHandler(_mergeFailed(btn, 'Merge'))
             .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
         }
       });
@@ -11714,10 +11891,7 @@ function _wireSimilarGroups(tab){
               if (g) g.remove();
               _refreshSimHeader();
             })
-            .withFailureHandler(function(e){
-              _btnLabel(btn, 'Merge into selected');
-              showToast('Merge failed: ' + (e.message || e), 'err', 6000);
-            })
+            .withFailureHandler(_mergeFailed(btn, 'Merge into selected'))
             .processMovement('mergeConfigValues', _h({ type: tab, from: from, into: into }));
         }
       });
@@ -12041,7 +12215,12 @@ function _cfgCall(payload, onDone) {
       // A duplicate is not a failure worth a red banner — the value is on the
       // list, which is what was asked for.
       if (/already exists/i.test(msg)) { if (onDone) onDone(); _applyCfgChangeLocally(payload); return; }
-      _settingMsg('Error: ' + msg, 'error');
+      // Renombrar una categoría reescribe el archivo entero, así que este
+      // camino también puede contestar "ocupado" — y decía "Error: SYSTEM_BUSY|…"
+      // en el mismo banner rojo que un fallo de verdad.
+      _settingMsg(_isBusyError(e)
+        ? 'The system is busy right now. Nothing changed — try again in a few seconds.'
+        : _humanErr(e), _isBusyError(e) ? 'info' : 'error');
     })
     .processMovement('updateConfig', _h(payload));
 }
@@ -12358,18 +12537,21 @@ function _matMergeConfirm(name, cat, nvTrimmed){
 function _matCall(payload) {
   if (_matBusy) return;
   _matSetBusy(true);
-  google.script.run
-    .withSuccessHandler(function(res) {
+  _acWrite({
+    args: ['manageMaterial', _h(payload)],
+    ok: function(res) {
       _matSetBusy(false);
       _applyMatChangeLocally(payload);
       showToast('Done ✓ — ' + (res.updated || res.merged || 1) + ' row(s) updated.', 'ok');
       loadDataFromGoogle(true, true);   // skipCache, quiet
-    })
-    .withFailureHandler(function(e){
+    },
+    fail: function(e, ocupado){
       _matSetBusy(false);
-      _settingMsg('Error: '+(e.message||e), 'error');
-    })
-    .processMovement('manageMaterial', _h(payload));
+      _settingMsg(ocupado
+        ? 'The system has been busy for a while. Nothing changed — try again in a few seconds.'
+        : _humanErr(e), 'error');
+    }
+  });
 }
 
 var _matBusy = false;
@@ -18444,21 +18626,32 @@ function saveEditMov() {
   _btnBusy(btn, 'Saving…');
   _setModalBusy('editMovOverlay', true);
 
-  google.script.run
-    .withSuccessHandler(function(res) {
+  _acWrite({
+    args: ['modifyMovement', _h(payload)],
+    btn:  btn,
+    what: 'Could not save',
+    ok: function(res) {
       _setModalBusy('editMovOverlay', false);
       closeModal('editMovOverlay');
+      // EL CHECK SE VA AQUÍ. Jose: "una vez que se selecciona un movimiento, se
+      // lo edita y se guarda, el check debe desaparecer". Tenía razón — la
+      // selección sólo se limpiaba desde los tres filtros, así que después de
+      // guardar la fila seguía marcada y la barra seguía ofreciendo Edit y
+      // Delete sobre algo que la persona ya había terminado de tocar.
+      _clearMovSelection();
       showToast('Movement updated — ' + res.changes + ' field(s) changed. Email sent.', 'ok');
       // Silencioso: mismo caso que borrar un movimiento.
       loadDataFromGoogle(true, true);
-    })
-    .withFailureHandler(function(err) {
+    },
+    fail: function(err, ocupado) {
       _btnLabel(btn, '💾 Save Changes');
       _setModalBusy('editMovOverlay', false);
-      var msg = (err.message || String(err)).replace(/^Error:\s*/i, '');
-      showToast('Error: ' + msg, 'err', 6000);
-    })
-    .processMovement('modifyMovement', _h(payload));
+      showToast(ocupado
+        ? 'The system has been busy for a while. Nothing was saved and nothing ' +
+          'you typed is wrong — press Save again in a few seconds.'
+        : _humanErr(err), ocupado ? 'warn' : 'err', 8000);
+    }
+  });
 }
 
 // The Gmail delivery scanner used to live here. It is out of the product: it
