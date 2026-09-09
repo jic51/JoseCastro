@@ -619,7 +619,7 @@
        it would be clipped by the modal's own scroll edge. */
     /* La regla que volteaba ESTE tooltip hacia arriba se quitó: usaba
        bottom:calc(100% + 8px), que con position:fixed sería relativo a la
-       ventana y no al icono. Ahora _positionTip voltea cualquier tooltip que
+       ventana y no al icono. Ahora _tipPlace voltea cualquier tooltip que
        no tenga sitio debajo, así que este caso lo hereda en vez de ser una
        excepción escrita a mano — y lo hereda también el siguiente. */
     /* A cost of 0 is accepted, but it is not the way to say "we don't know".
@@ -1719,43 +1719,37 @@
     /* Own tooltip instead of the browser's title bubble: that one cannot be
        styled at all — its shape, delay, colours and single-line wrapping are
        decided by the operating system, not by the page. */
+    /* .tip ya NO dibuja nada. Sigue existiendo como la marca que dice "esto
+       lleva ayuda", y `position:relative` se queda porque hay elementos con
+       hijos posicionados dentro — quitarlo movería cosas que no tienen que ver
+       con esto. La burbuja la pinta #acTip, colgado del <body>. */
     .tip{position:relative}
-    /* FIXED, not absolute — and that is the whole fix, not a preference.
-       Jose photographed the Settings tooltips cut off mid-sentence and drawn
-       through the text under them. An absolutely positioned bubble is clipped
-       by the nearest scrolling ancestor, and the settings panel is exactly
-       that: .settings-content has overflow-y:auto. So every tooltip near the
-       bottom of that panel was sliced at the panel's edge, and no z-index
-       could have helped — clipping is not stacking.
-       position:fixed takes the bubble out of every overflow in the page. It
-       costs coordinates: a fixed box cannot be placed relative to its anchor
-       by CSS alone, so _positionTip measures the anchor and writes --tip-x /
-       --tip-y. That is also what lets it flip above and clamp to the window,
-       which the old .tip-edge-l/-r classes only approximated. */
-    .tip::after{content:attr(data-tip);position:fixed;left:var(--tip-x,-9999px);top:var(--tip-y,-9999px);
-      transform:translateX(-50%) translateY(-4px);
-      background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;letter-spacing:0;text-transform:none;
-      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);white-space:pre-line;width:max-content;max-width:240px;
-      opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease;z-index:9999}
-    .tip:hover::after,.tip:focus-visible::after{opacity:1;transform:translateX(-50%) translateY(0)}
-    /* Sin sitio debajo: la burbuja se pone encima del icono. --tip-y es
-       entonces el BORDE SUPERIOR del ancla, y el -100% la sube entera. */
-    .tip.tip-above::after{transform:translateX(-50%) translateY(calc(-100% + 4px))}
-    .tip.tip-above:hover::after,.tip.tip-above:focus-visible::after{transform:translateX(-50%) translateY(-100%)}
-    /* The account button's own tooltip (name + role) waits 4s before showing
-       — Jose: unlike the info icons, this one is meant for someone who
-       lingers, not a quick glance, so it should not compete with the
-       instant tooltips everywhere else. Delay only on the way IN: leaving
-       still uses the base .tip::after transition above (no delay), so
-       dismissing it stays snappy. */
-    #acctBtn.tip:hover::after,#acctBtn.tip:focus-visible::after{transition-delay:4s}
-    /* Las clases .tip-edge-l / .tip-edge-r se retiraron aquí. Anclaban la
-       burbuja al borde IZQUIERDO o DERECHO DEL ICONO, que es una aproximación
-       a "que no se salga de la pantalla" y sólo funcionaba porque el icono
-       estaba cerca del borde de la ventana. Con position:fixed el JS puede
-       hacer lo que aquellas imitaban: mover el centro de la burbuja lo justo
-       para que quepa. _positionTip ya no las pone, y nada más las lee —
-       comprobado antes de quitarlas. */
+
+    /* LA BURBUJA, UNA SOLA PARA TODA LA APP.
+       Vive en el <body> por una razón concreta y medida: un `::after` dentro
+       del icono queda a merced de sus ancestros. El <label> de un recuadro de
+       Ajustes lleva transform:translateY(-50%) para subirse a la línea del
+       borde, y eso convierte al label en el marco de referencia de todo
+       position:fixed que tenga dentro — la burbuja se iba dos centímetros
+       abajo y se pintaba detrás de los recuadros de al lado. Ver _tipPlace.
+       Aquí arriba no hay más que el body: ningún overflow la recorta y ningún
+       transform la mueve. */
+    #acTip{position:fixed;left:-9999px;top:-9999px;
+      background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;
+      letter-spacing:0;text-transform:none;text-align:left;
+      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);
+      white-space:pre-line;width:max-content;max-width:min(280px,88vw);
+      opacity:0;pointer-events:none;visibility:hidden;
+      transition:opacity .15s ease,transform .15s ease;transform:translateY(-4px);
+      /* Por encima de todo lo que la app dibuja: el overlay está en 550, el
+         cajón en 500, y el aviso de versión en 99999. Una ayuda que se lee
+         detrás de la ventana que explica no sirve de nada. */
+      z-index:2147483000}
+    /* `ready` la hace medible sin enseñarla: _tipPlace necesita su tamaño real
+       antes de colocarla, y medir algo con display:none devuelve ceros. */
+    #acTip.ready{visibility:visible}
+    #acTip.show{opacity:1;transform:translateY(0)}
+
     /* The small "i" badge that replaces a paragraph of always-visible help text —
        same explanation, available on demand instead of taking up the window. */
     .info-ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
@@ -3366,7 +3360,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.64';
+var APP_VERSION = '11.65';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3378,7 +3372,7 @@ var APP_VERSION = '11.64';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2127626e';
+var APP_BUILD = '9bbed04d';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4958,7 +4952,7 @@ function _syncProductLinks(productName){
 // media query alone: forcing it on and then checking whether the tabs
 // wrapped is the only way to know it really fits, for the same reason a
 // fixed pixel breakpoint keeps being wrong — this is a measure-then-verify
-// pass, not a guess, exactly like _positionTip's edge avoidance elsewhere
+// pass, not a guess, exactly like _tipPlace's edge avoidance elsewhere
 // in this file.
 function _syncBrandWidth(){
   var brandEl = document.querySelector('.topbar-brand');
@@ -7477,6 +7471,33 @@ function _humanErr(err){
  */
 var _wq     = [];      // trabajos esperando turno
 var _wqBusy = false;   // hay uno en el aire
+
+/* UNA RECARGA AL FINAL, NO UNA POR ARREGLO.
+ *
+ * Jose aplicó unos veinte arreglos de "Check my data" seguidos. Cada uno pedía
+ * por su cuenta una recarga COMPLETA de todos los datos del almacén: veinte
+ * barridos del archivo para un trabajo que sólo necesitaba uno.
+ *
+ * Eso es cuota suya tirada —la de Apps Script es del DUEÑO de la copia, no de
+ * cada usuario— y además es lo que le hizo pensar que el caché de la v11.58
+ * había dejado de funcionar: cada recarga cambia el sello de los datos, y el
+ * sello es justo lo que invalida el caché. El caché estaba haciendo su trabajo
+ * correctamente sobre veinte cambios que no tenían por qué haber sido veinte.
+ *
+ * Espera a que la cola esté vacía y recarga una vez. Cada arreglo nuevo empuja
+ * la espera hacia adelante, así que veinte seguidos siguen siendo una recarga.
+ */
+var _reloadTimer = null;
+function _reloadWhenIdle(){
+  if (_reloadTimer) clearTimeout(_reloadTimer);
+  _reloadTimer = setTimeout(function(){
+    _reloadTimer = null;
+    // Todavía hay trabajo en la cola: recargar ahora daría una foto a medias
+    // y habría que repetirla igual. Se vuelve a esperar.
+    if (_wq.length || _wqBusy) { _reloadWhenIdle(); return; }
+    loadDataFromGoogle(true, true);   // skipCache, silencioso
+  }, 700);
+}
 
 function _wqPump(){
   if (_wqBusy || !_wq.length) return;
@@ -10027,6 +10048,20 @@ function _renderSystemTab() {
   _loadAiStatus();
   _loadMovIdStatus();
   _loadTrash();
+
+  // LO QUE YA SE ENCONTRÓ SIGUE AHÍ, Y HAY QUE VOLVER A PINTARLO.
+  //
+  // Jose, 2026-09-09: revisó "Check my data", aplicó unos veinte arreglos,
+  // cerró la ventana y al volver "ya no hay ningún dato en la ventana en la
+  // parte de data". Tenía razón y no era lo que yo suponía: _dqFindings NUNCA
+  // se perdió — sigue en memoria toda la sesión. Lo que pasaba es que este
+  // render reconstruía el recuadro con sólo el botón y no volvía a dibujar lo
+  // que todavía tenía guardado.
+  //
+  // O sea: los datos estaban, la pantalla no los pintaba. Volver a escanear
+  // habría sido la respuesta fácil y la equivocada — cuesta un barrido entero
+  // del archivo para enseñar algo que ya se sabe.
+  if (_dqFindings.length) _drawDataCheck(_dqLast || {});
 }
 
 /* ── The trash: undo for a deleted movement ─────────────────────────────────
@@ -10392,6 +10427,10 @@ function _sendDailyReportNow(){
 // The DATA QUALITY SWEEP section in Code.gs says why both of those are the
 // design rather than timidity.
 var _dqFindings = [];
+// El resultado entero del último barrido, no sólo los hallazgos: _drawDataCheck
+// necesita `total` y `scannedRows` para decir "los N mayores de M". Sin esto,
+// repintar al reabrir la ventana perdía justo la frase que dice que hay más.
+var _dqLast = null;
 
 function _runDataCheck(){
   var btn = document.getElementById('btnDataCheck');
@@ -10401,11 +10440,12 @@ function _runDataCheck(){
     .withSuccessHandler(function(res){
       _btnReset(btn);
       _dqFindings = (res && res.findings) || [];
-      _drawDataCheck(res || {});
+      _dqLast     = res || {};
+      _drawDataCheck(_dqLast);
     })
     .withFailureHandler(function(err){
       _btnReset(btn);
-      showToast('Could not check: ' + ((err && err.message) || err), 'err', 6000);
+      showToast('Could not check: ' + _humanErr(err), 'err', 6000);
     })
     .processMovement('runDataQualityScan', _h({}));
 }
@@ -10530,7 +10570,10 @@ function _dqApply(i){
       // Stock can move: merging two materials joins two stock lines into one.
       // Silencioso: la tarjeta de "Check my data" ya dice ahí mismo cuántas
       // filas cambió. Ese texto es el acuse de recibo.
-      loadDataFromGoogle(true, true);
+      //
+      // Y UNA sola vez al final: veinte arreglos seguidos son veinte cambios,
+      // pero una sola foto nueva. Ver _reloadWhenIdle.
+      _reloadWhenIdle();
     }
   });
 }
@@ -12630,46 +12673,158 @@ function _statLabel(text, tip){
   return '<label style="display:flex;align-items:center;gap:.32rem">' + _infoIc(tip) + text + '</label>';
 }
 
-// ── Tooltip edge avoidance ────────────────────────────────────────────────────
-// .tip's default centers its bubble on the anchor, which is wrong the instant
-// the anchor sits near the left or right edge of the window — a stat tile's
-// info icon at the end of the row, for instance. Delegated on mouseenter
-// (capture, since it doesn't bubble) and focusin so it works for every .tip
-// added anywhere, including ones rendered long after this file loaded.
-var TIP_MAX_WIDTH = 240, TIP_EDGE_MARGIN = 8;
-// Alto que se le reserva a la burbuja debajo del icono antes de decidir que
-// no cabe. 140 es holgado a propósito: los textos de estos iconos llegan a
-// cuatro renglones, y voltear de más sólo mueve la burbuja, mientras que
-// voltear de menos la vuelve a cortar — que es el fallo que se está arreglando.
-var TIP_FLIP_ROOM = 140;
-function _positionTip(el){
-  var r = el.getBoundingClientRect();
-  var half = TIP_MAX_WIDTH / 2;
+// ── LA BURBUJA VIVE EN EL <body>, NO DENTRO DEL ICONO ────────────────────────
+//
+// Hasta la v11.65 el tooltip era un `::after` del propio icono, colocado con
+// position:fixed. Jose fotografió los de Ajustes saliendo un par de centímetros
+// por debajo de su icono y dibujados DETRÁS de los recuadros, y su queja fue
+// exacta: "deben salir en la parte legible de la ventana… debe aparecer sobre
+// todo y donde se lo pueda leer completo".
+//
+// LA CAUSA, MEDIDA EN UN NAVEGADOR DE VERDAD Y NO DEDUCIDA:
+//
+//   #settingsTabContent > .field > label:first-child lleva
+//   transform: translateY(-50%) — es lo que sube el título encima de la línea
+//   del recuadro. Y en CSS un elemento con `transform` PASA A SER EL MARCO DE
+//   REFERENCIA de todo position:fixed que tenga dentro, además de crear su
+//   propia capa de apilado.
+//
+// Así que la burbuja, que calcula sus coordenadas contra la VENTANA, las
+// aplicaba contra ese <label>. Las dos cosas que Jose ve —desplazada y
+// detrás— resultan ser una sola.
+//
+// POR QUÉ NO SE ARREGLA QUITANDO ESE transform, que era lo obvio: porque deja
+// la trampa puesta. `transform`, `filter`, `will-change`, `contain` y
+// `perspective` hacen todos lo mismo, y el día que alguien anime cualquier otro
+// recuadro vuelve el fallo, en otro sitio y sin relación aparente.
+//
+// UN SOLO div COLGADO DEL <body> no lo puede sufrir nunca: no tiene encima más
+// que el body, así que ningún overflow lo recorta y ningún transform lo mueve.
+// Es literalmente lo que Jose pidió, y quita la clase entera de fallos en vez
+// de este caso.
+//
+// Y POR QUÉ NO SE VIO ANTES, que es la parte que más importa: tools/test-tooltip-edge.js
+// SE FABRICA SUS PROPIOS ICONOS en un div suelto y los mide ahí. Nunca tocó el
+// panel de Ajustes. Es el mismo error de siempre — una prueba que se construye
+// su propio entorno mide ese entorno, no el producto.
+var TIP_EDGE_MARGIN = 8;   // lo que se le deja al borde de la ventana
+var TIP_GAP         = 8;   // separación entre el icono y la burbuja
+var TIP_SLOW_MS     = 4000;// la del botón de cuenta: para quien se detiene, no para un vistazo
 
-  // El centro de la burbuja, corrido lo justo para que no se salga por los
-  // lados. Con la ventana más estrecha que la burbuja los dos límites se
-  // cruzan y Math.min/Math.max devolverían el equivocado, así que ahí se
-  // centra en la pantalla y se acabó.
-  var lo = TIP_EDGE_MARGIN + half, hi = window.innerWidth - TIP_EDGE_MARGIN - half;
-  var cx = (lo > hi) ? window.innerWidth / 2
-                     : Math.min(Math.max(r.left + r.width / 2, lo), hi);
+var _tipEl = null, _tipFor = null, _tipTimer = null;
 
-  // Debajo por defecto. Si no cabe, encima — que es lo que la regla suelta de
-  // .pack-math hacía para un solo caso y ahora vale para todos.
-  var above = (window.innerHeight - r.bottom) < TIP_FLIP_ROOM;
-  el.classList.toggle('tip-above', above);
-
-  el.style.setProperty('--tip-x', Math.round(cx) + 'px');
-  el.style.setProperty('--tip-y', Math.round(above ? (r.top - 8) : (r.bottom + 8)) + 'px');
+function _tipNode(){
+  if (!_tipEl){
+    _tipEl = document.createElement('div');
+    _tipEl.id = 'acTip';
+    _tipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(_tipEl);
+  }
+  return _tipEl;
 }
+
+/* Debajo si cabe, encima si no, y si no cabe en ninguno de los dos, donde más
+ * sitio haya — nunca fuera. El de antes no tenía ese tercer caso: en una
+ * ventana baja la burbuja se salía por abajo y nadie la volvía a meter.
+ *
+ * Se mide la burbuja DE VERDAD en vez de dar por hecho un ancho máximo de 240,
+ * que es lo que hacía el anterior. Un texto corto ocupa 120 y se le empujaba
+ * como si ocupara 240, así que se descentraba sin necesidad. */
+function _tipPlace(anchor){
+  var t = _tipNode();
+  var a = anchor.getBoundingClientRect();
+  var b = t.getBoundingClientRect();
+  var M = TIP_EDGE_MARGIN;
+
+  var left = a.left + a.width / 2 - b.width / 2;
+  left = Math.min(Math.max(left, M), Math.max(M, window.innerWidth - M - b.width));
+
+  var debajo = a.bottom + TIP_GAP;
+  var encima = a.top - TIP_GAP - b.height;
+  var top;
+  if (debajo + b.height <= window.innerHeight - M)      top = debajo;
+  else if (encima >= M)                                 top = encima;
+  else top = Math.max(M, Math.min(debajo, window.innerHeight - M - b.height));
+
+  t.style.left = Math.round(left) + 'px';
+  t.style.top  = Math.round(top)  + 'px';
+}
+
+function _tipShow(el){
+  var txt = el.getAttribute('data-tip');
+  if (!txt) return;
+  var t = _tipNode();
+  // textContent, nunca innerHTML: el texto de un tooltip sale de data-tip, y
+  // data-tip sale a veces de un nombre de material que escribió una persona.
+  t.textContent = txt;
+  _tipFor = el;
+  // Se coloca con la burbuja ya medible pero todavía invisible, para que no se
+  // vea el salto desde la posición anterior.
+  t.classList.add('ready');
+  _tipPlace(el);
+  t.classList.add('show');
+}
+
+function _tipHide(){
+  if (_tipTimer){ clearTimeout(_tipTimer); _tipTimer = null; }
+  _tipFor = null;
+  if (_tipEl) _tipEl.classList.remove('show', 'ready');
+}
+
+function _tipEnter(el){
+  if (_tipTimer){ clearTimeout(_tipTimer); _tipTimer = null; }
+  // El botón de cuenta espera cuatro segundos: es para quien se detiene encima,
+  // no para un vistazo, y no debe competir con los iconos de información que
+  // salen al instante.
+  var lento = (el.id === 'acctBtn');
+  if (lento) _tipTimer = setTimeout(function(){ _tipTimer = null; _tipShow(el); }, TIP_SLOW_MS);
+  else _tipShow(el);
+}
+
 document.addEventListener('mouseenter', function(e){
   var el = e.target && e.target.closest && e.target.closest('.tip');
-  if (el) _positionTip(el);
+  if (el) _tipEnter(el);
+}, true);
+document.addEventListener('mouseleave', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.tip');
+  if (el && el === _tipFor) _tipHide();
+  else if (el) _tipHide();          // salió de otro .tip mientras se esperaba el retardo
 }, true);
 document.addEventListener('focusin', function(e){
   var el = e.target && e.target.closest && e.target.closest('.tip');
-  if (el) _positionTip(el);
+  if (el) _tipEnter(el);
 });
+document.addEventListener('focusout', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.tip');
+  if (el) _tipHide();
+});
+/* AL HACER SCROLL LA BURBUJA SIGUE A SU ICONO, no desaparece.
+ *
+ * Es fixed y el icono no, así que sin hacer nada se quedaba flotando en mitad
+ * de la pantalla mientras su icono se iba — un fallo que el ::after de antes
+ * también tenía y que nadie había mirado.
+ *
+ * Esconderla era la respuesta fácil y resultó ser la peor, y lo enseñó la
+ * prueba: al llegar al icono con el teclado o con page.hover(), el navegador
+ * DESPLAZA LA PÁGINA para enseñarlo — y la ayuda se iba en el mismo instante en
+ * que se acababa de pedir. Seguirla es además lo que una persona espera.
+ *
+ * Si el icono se sale de la ventana, entonces sí: una explicación sin nada que
+ * explicar sobra. */
+function _tipFollow(){
+  if (!_tipFor || !_tipEl) return;
+  var r = _tipFor.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth){
+    _tipHide(); return;
+  }
+  _tipPlace(_tipFor);
+}
+window.addEventListener('scroll', _tipFollow, true);
+window.addEventListener('resize', _tipFollow);
+// Y pulsar algo la cierra: si el clic abre una ventana, la burbuja se quedaría
+// encima de ella.
+document.addEventListener('click', _tipHide, true);
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _tipHide(); });
 
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
