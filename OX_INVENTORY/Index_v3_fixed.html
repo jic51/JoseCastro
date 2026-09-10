@@ -3360,7 +3360,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.65';
+var APP_VERSION = '11.66';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3372,7 +3372,7 @@ var APP_VERSION = '11.65';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9bbed04d';
+var APP_BUILD = '08ba376f';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -10123,8 +10123,12 @@ function _paintTrash(items){
           // El id va en un atributo, no dentro de las comillas de un onclick.
           // Lo que hay en la hoja lo puede haber escrito una persona a mano, y
           // una comilla ahí dentro rompería el botón — o algo peor.
-          '<button class="btn btn-ghost btn-sm" data-movid="' + _escAttr(it.movId) +
-            '" onclick="_restoreMovement(this)">↩ Put back</button>' +
+          // Un repintado NO puede olvidar lo que está en camino. Sin esto, el
+          // primer "Done" rearmaba todos los demás botones — ver _trashPending.
+          '<button class="btn btn-ghost btn-sm"' + (_trashPending[it.movId] ? ' disabled' : '') +
+            ' data-movid="' + _escAttr(it.movId) +
+            '" onclick="_restoreMovement(this)">' +
+            (_trashPending[it.movId] ? '⏳ Restoring…' : '↩ Put back') + '</button>' +
         '</div>';
       }).join('') +
     '</div>';
@@ -10160,19 +10164,43 @@ function _emptyTrash(){
   });
 }
 
+/* QUÉ MOVIMIENTOS ESTÁN VOLVIENDO AHORA MISMO.
+ *
+ * Jose lo grabó: pulsó "Put back" en varios seguidos, y AL LLEGAR EL PRIMER
+ * "Done" en verde todos los demás botones volvieron a su estado inicial, como
+ * si nadie los hubiera tocado.
+ *
+ * La causa: cada restauración que funcionaba pedía la lista otra vez al
+ * servidor y repintaba el cuadro ENTERO. Los botones que seguían esperando su
+ * turno en la cola se rehacían desde cero — el trabajo seguía en marcha, pero
+ * la pantalla decía que no.
+ *
+ * Es exactamente el mismo fallo que ya tuvo borrar, y se arregla igual: la
+ * pantalla se dibuja desde una lista de "estos están en camino", así que un
+ * repintado los sigue enseñando esperando en vez de olvidarlos. */
+var _trashPending = {};   // movId → true
+
 function _restoreMovement(btn){
   var movId = btn ? (btn.getAttribute('data-movid') || '') : '';
+  if (!movId || _trashPending[movId]) return;   // pulsarlo dos veces no encola dos
+  _trashPending[movId] = true;
   _btnBusy(btn, 'Restoring…');
   _acWrite({
     args: ['manageMaterial', _h({ op: 'restoreMovement', movId: movId })],
     btn:  btn,
     ok: function(){
+      delete _trashPending[movId];
       showToast('✓ Movement restored.', 'ok');
-      _sysCacheDrop('trash');         // uno menos, y lo sabemos ya
-      _loadTrash();
-      loadDataFromGoogle(true, true);
+      // AL INSTANTE Y EN LOCAL. El servidor YA lo hizo — esto es el manejador
+      // de ÉXITO — así que volver a pedirle la lista para enterarnos de algo
+      // que ya sabemos es lo que borraba el "Restoring…" de los demás.
+      _trashDrop(movId);
+      // Y UNA sola recarga del almacén al final de la ráfaga, no una por
+      // movimiento. Misma razón que en "Check my data".
+      _reloadWhenIdle();
     },
     fail: function(e, ocupado){
+      delete _trashPending[movId];
       _btnReset(btn);
       showToast(ocupado
         ? 'The system has been busy for a while — nothing was lost. Try again in a few seconds.'
@@ -10183,6 +10211,16 @@ function _restoreMovement(btn){
       _loadTrash();
     }
   });
+}
+
+/* Quita uno de la lista que ya tenemos y repinta, sin ir al servidor. Si no la
+ * tenemos (caché caducado), entonces sí hay que pedirla. */
+function _trashDrop(movId){
+  var items = _sysCacheGet('trash');
+  if (!items) { _sysCacheDrop('trash'); _loadTrash(); return; }
+  items = items.filter(function(it){ return it.movId !== movId; });
+  _sysCachePut('trash', items);
+  _paintTrash(items);
 }
 
 /* ── Giving every existing movement a name ──────────────────────────────────

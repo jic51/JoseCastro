@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.65';
+var APP_VERSION = '11.66';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.65';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9bbed04d';
+var APP_BUILD = '08ba376f';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -420,9 +420,24 @@ function ensureCoreSheets_(ss) {
     { name: SHEETS.SITE, header: null }
   ];
 
-  var created = [];
+  var created = [], repaired = [];
   SPEC.forEach(function(spec){
-    if (ss.getSheetByName(spec.name)) return;
+    var yaEsta = ss.getSheetByName(spec.name);
+    if (yaEsta) {
+      // EL COMENTARIO DE ARRIBA YA PROMETÍA ESTO Y EL CÓDIGO NO LO HACÍA:
+      // "this only fills in what is missing". Una hoja que ya existía se
+      // saltaba entera, así que las columnas añadidas después de instalarla
+      // se quedaban SIN NOMBRE para siempre.
+      //
+      // No es cosmético. Jose estuvo a punto de borrar las columnas U y V de
+      // su archivo —Unit Cost y Total Cost— precisamente porque sus cabeceras
+      // estaban en blanco y no había forma de saber qué eran. Una columna sin
+      // nombre en una hoja de cálculo parece basura, y alguien acaba
+      // limpiándola.
+      var n = fillMissingHeaders_(yaEsta, spec.header);
+      if (n) repaired.push(spec.name + ' (' + n + ')');
+      return;
+    }
     var sheet;
     // A brand-new spreadsheet arrives with one empty default tab ("Sheet1" /
     // "Hoja 1"). Reuse it for the first sheet we need rather than leaving a
@@ -451,7 +466,47 @@ function ensureCoreSheets_(ss) {
   try { ensureErrorLogSheet_(ss);       } catch (e) {}
   try { ensureWasteSheet_(ss);          } catch (e) {}
   try { ensureArchiveHistorySheet_(ss); } catch (e) {}
+
+  if (repaired.length) {
+    try { auditLog_(ss, 'REPAIR_HEADERS', 'system', repaired.join(', '), '', ''); } catch (e) {}
+  }
   return created;
+}
+
+/* PONE NOMBRE A LAS COLUMNAS QUE NO LO TIENEN, y sólo a ésas.
+ *
+ * La regla es conservadora a propósito: una celda de cabecera CON TEXTO no se
+ * toca nunca, diga lo que diga. La hoja de Jose llama "Racks" a la columna que
+ * la especificación llama "Locations" y "email" a la que llama "User Email" —
+ * y da igual, porque todo el código va por POSICIÓN, no por nombre. Renombrarlas
+ * sería un cambio que él no pidió, y podría romper un filtro o una fórmula
+ * suyos.
+ *
+ * Lo que sí hace falta es que una columna añadida después de instalar deje de
+ * estar ANÓNIMA. Ése es el caso real: las de costo llegaron en una versión
+ * posterior, se escribieron por su índice, y su cabecera se quedó vacía.
+ *
+ * Devuelve cuántas rellenó, para que quede en la auditoría. */
+function fillMissingHeaders_(sheet, header) {
+  if (!sheet || !header || !header.length) return 0;
+
+  // La hoja puede ser más estrecha que la especificación: sin esto, escribir
+  // la cabecera 23 en una hoja de 20 columnas revienta.
+  var have = sheet.getMaxColumns();
+  if (have < header.length) sheet.insertColumnsAfter(have, header.length - have);
+
+  var fila = sheet.getRange(1, 1, 1, header.length).getValues()[0];
+  var faltan = 0;
+  for (var i = 0; i < header.length; i++) {
+    if (String(fila[i] || '').trim() !== '') continue;   // con texto: no se toca
+    fila[i] = header[i];
+    faltan++;
+  }
+  if (!faltan) return 0;
+
+  sheet.getRange(1, 1, 1, header.length).setValues([fila]).setFontWeight('bold');
+  try { sheet.setFrozenRows(1); } catch (e) {}
+  return faltan;
 }
 
 function saveSetupWizard(data) {
