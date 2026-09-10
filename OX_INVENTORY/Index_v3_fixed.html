@@ -1765,6 +1765,39 @@
        is a positioned value, so it anchors the bubble just as well as relative
        did. */
     thead th.tip{position:sticky;top:0}
+    /* La categoría que se quitó de la tabla, dicha una sola vez en el título.
+       Va pegada al h2 y no en la barra de columnas: es lo que la lista ES, no
+       una opción sobre cómo mirarla. */
+    /* ── LA BARRA DE EXISTENCIAS ──
+       Cuatro trozos que suman lo que hoy tenemos contado de este material. Los
+       colores dicen QUÉ SE PUEDE HACER con cada parte, que es la pregunta:
+         verde  — se puede tomar ahora
+         ámbar  — está aquí pero apartado para alguien
+         azul   — salió a una obra
+         rojo   — se dio de baja
+       Los cuatro salen de las variables del tema, así que el modo oscuro los
+       ajusta solo en vez de tener su propia lista que se queda vieja. */
+    td.sc-levels{white-space:nowrap;vertical-align:middle}
+    .lv-wrap{display:inline-block;min-width:104px;cursor:help}
+    .lv-wrap:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+    .lv-top{display:flex;align-items:baseline;gap:.3rem;line-height:1.1}
+    .lv-num{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
+    .lv-num.lv-zero{color:var(--red)}
+    .lv-of{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+    .lv-bar{display:flex;height:7px;margin-top:.28rem;border-radius:999px;overflow:hidden;
+      background:var(--border)}
+    /* Sin nada registrado no hay reparto que enseñar: se ve la pista vacía, que
+       dice "cero" mejor que una barra llena de un solo color. */
+    .lv-bar.lv-empty{opacity:.5}
+    .lv-bar i{display:block;height:100%;min-width:2px}
+    .lv-avail{background:var(--green)}
+    .lv-resv {background:var(--yellow)}
+    .lv-used {background:var(--accent)}
+    .lv-waste{background:var(--red)}
+
+    .cat-badge{display:inline-block;margin-left:.6rem;font-size:.72rem;font-weight:700;
+      letter-spacing:.03em;vertical-align:middle;
+      background:var(--accent2, #1E52A0);color:#fff;border-radius:999px;padding:.2rem .6rem}
     .cfg-pick{margin-right:.5rem;flex-shrink:0;cursor:pointer}
     .cfg-pickbar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:8px;padding:.5rem .7rem;margin-bottom:.75rem}
     .cfg-pickbar.show{display:flex}
@@ -2342,7 +2375,9 @@
     <div class="stats" id="statsRow"></div>
     <div class="card">
       <div class="card-header">
-        <h2>Live Inventory Stock</h2>
+        <!-- La categoría elegida va aquí, en el título, porque es donde se lee
+             UNA vez en lugar de repetirse en cada fila. Ver _colSuppressed. -->
+        <h2>Live Inventory Stock<span id="stockCatBadge" class="cat-badge" hidden></span></h2>
         <div class="toolbar">
           <input type="text" id="stockSearch" placeholder="Search name or comment...">
           <select id="stockFilter"><option value="">All Categories</option></select>
@@ -3360,7 +3395,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.66';
+var APP_VERSION = '11.70';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3372,7 +3407,7 @@ var APP_VERSION = '11.66';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '08ba376f';
+var APP_BUILD = '2e08c440';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3491,7 +3526,21 @@ var monitoredMaterials = null; // null = all; array of names = filtered
 // a window is one unit and will never appear in here.
 var materialPacks = {};
 var rackPhotos = {}; // { LOCATION_UPPER: { url, uploadedBy, uploadedAt } }
-var _stockSelection = {}; // { matId: stockData[matId] } — checked rows in Stock Dashboard, for "Exit Selected"
+/* SÓLO LOS NOMBRES, NUNCA LAS FILAS.
+ *
+ * Guardaba { matId: stockData[matId] } — o sea, una COPIA de la fila del
+ * momento en que se marcó la casilla. Y `stockData` se reemplaza entero en cada
+ * carga (`stockData = data.stock || {}`), así que la cesta se quedaba con
+ * objetos huérfanos de una foto vieja.
+ *
+ * Consecuencia real: alguien marca cinco materiales, otra persona guarda una
+ * salida, y "Exit Selected" abre el formulario con las cantidades de ANTES. La
+ * cesta se veía igual de bien y ya no era verdad.
+ *
+ * Con sólo el nombre, la fila se busca en el momento de usarla y siempre es la
+ * de ahora. Y un material que ya no existe —fusionado, renombrado— simplemente
+ * deja de estar en la cesta en vez de aparecer con datos de un pasado. */
+var _stockSelection = {}; // { matId: true } — casillas marcadas en el Stock Dashboard
 var materialLocks = []; // [{id, matId, category, name, rack, allowedDest:[...], reason, lockedBy, lockedAt}]
 var _locksByKey = {}; // 'MATID|||RACK' -> lock object, rebuilt whenever materialLocks changes (fast lookup for row rendering)
 function _rebuildLocksIndex(){
@@ -3851,11 +3900,16 @@ function _mountRowMode(scope){ _applyRowMode(scope); }
 var STOCK_COLS = [
   { key:'category',     def:'Category',         lock:true  },   // the row is unreadable without it
   { key:'name',         def:'Name / Description', lock:true },   // the row would be meaningless without it
-  { key:'inWarehouse',  def:'In Warehouse',     lock:false },
-  { key:'atSite',       def:'Used / Del',       lock:false },
-  { key:'available',    def:'Available',        lock:false },
-  { key:'wasted',       def:'Wasted',           lock:false },
-  { key:'reserved',     def:'Reserved',         lock:false },
+  // CINCO COLUMNAS EN UNA BARRA. Idea de Jose, 2026-09-09:
+  //
+  //   "una barra de 2 colores que muestra la cantidad que hay con la cantidad
+  //    que ya se fue, y si hay reservas también metemos esa cantidad ahí…
+  //    así unimos IN WAREHOUSE, USED, AVAILABLE, WASTE y RESERVED."
+  //
+  // Cinco números sueltos obligan al ojo a sumarlos para entender la situación
+  // de un material. La barra dice de un vistazo cuánto había en total y qué
+  // proporción queda — y la proporción es la pregunta de verdad.
+  { key:'levels',       def:'Stock',            lock:false },
   { key:'location',     def:'Location',         lock:false },
   { key:'status',       def:'Status',           lock:false },
   { key:'dateReceived', def:'Date Received',    lock:false },
@@ -3903,10 +3957,9 @@ var MOV_COLS = [
 ];
 
 var STOCK_COL_TIPS = {
-  inWarehouse:  'Units on hand in the warehouse',
-  atSite:       'Sent out to a job — used or delivered',
-  available:    'In warehouse, minus what is reserved',
-  wasted:       'Recorded as damaged or scrapped',
+  levels:       'Everything this material is accounted for as today, in one bar: ' +
+                'what you can take, what is spoken for, what has gone out to a job, ' +
+                'and what was written off. Hover a row to see the numbers.',
   location:     'Where this material is stored',
   dateReceived: 'Date of the most recent entry'
 };
@@ -3978,7 +4031,14 @@ function _defaultColOrder(t){ return _colCfg(t).cols.map(function(c){ return c.k
 //
 // La vieja de arriba se queda con el sitio, la de abajo desaparece: es lo que
 // significa "type SOBRE date".
-var COL_MERGES = { mov: { type: 'when', date: null, category: 'what', name: null } };
+var COL_MERGES = {
+  mov:   { type: 'when', date: null, category: 'what', name: null },
+  // La barra se queda con el sitio que tenía "In Warehouse", que es la primera
+  // de las cinco en el orden de fábrica. Las otras cuatro desaparecen del orden
+  // guardado de cada persona sin que tenga que tocar nada.
+  stock: { inWarehouse: 'levels', atSite: null, available: null,
+           wasted: null, reserved: null }
+};
 
 function _colOrder(t){
   var cfg = _colCfg(t);
@@ -4006,11 +4066,86 @@ function _colOrder(t){
   return out;
 }
 
+/* UNA COLUMNA DONDE TODAS LAS FILAS DICEN LO MISMO NO ES INFORMACIÓN, ES MARGEN.
+ *
+ * Idea de Jose, 2026-09-09:
+ *
+ *   "si al seleccionar un material en 'All Categories' en específico ya sabemos
+ *    que solo nos mostrará ese material… solo en ese caso podemos eliminar la
+ *    columna de category y poner la category arriba donde se vea bien, y
+ *    eliminamos ese espacio haciendo la lista más pequeña horizontalmente."
+ *
+ * Es el mismo razonamiento que la v11.61 aplicó a Movements. Con el filtro en
+ * una categoría concreta, la columna Category repite el mismo texto en TODAS
+ * las filas: se va, y su valor pasa al encabezado, donde se lee una vez.
+ *
+ * ESCONDIDA NO ES LO MISMO QUE OCULTA, y la diferencia importa:
+ *
+ *   - No se toca el orden guardado de nadie. La columna sigue en el modelo y
+ *     vuelve sola en cuanto el filtro vuelve a "All Categories" — nadie tiene
+ *     que ir a Columns a recuperarla.
+ *   - En MODO EDICIÓN se ve siempre. No se puede reordenar lo que no está, y
+ *     alguien que abra el editor con un filtro puesto tiene que ver su tabla
+ *     entera, no la de este momento.
+ */
+function _colSuppressed(t){
+  if (t !== 'stock' || _colEdit[t]) return {};
+  var el = document.getElementById('stockFilter');
+  return (el && el.value) ? { category: 1 } : {};
+}
+
 function _colHidden(t){
   var raw = null;
   try { raw = localStorage.getItem(_colCfg(t).hiddenKey); } catch (e) {}
-  if (raw === null || raw === undefined) return _migratedHidden(t);
-  try { return JSON.parse(raw) || []; } catch (e) { return []; }
+  var lista;
+  if (raw === null || raw === undefined) lista = _migratedHidden(t);
+  else { try { lista = JSON.parse(raw) || []; } catch (e) { lista = []; } }
+  return _mergedHidden(t, lista);
+}
+
+/* CUÁNDO HEREDA LA BARRA EL "ESCONDIDO" DE LAS CINCO QUE SUSTITUYE.
+ *
+ * Sólo si estaban escondidas LAS CINCO. Es la única lectura que no le quita a
+ * nadie algo que estaba usando:
+ *
+ *   - Quien escondió las cinco no quería ver cantidades. La barra tampoco.
+ *   - Quien escondió cuatro y dejó "Available" SÍ quería ver una cantidad.
+ *     Heredar el escondido de las otras cuatro le quitaría la que le
+ *     importaba, y ésa es la peor de las dos equivocaciones posibles.
+ *
+ * Las claves viejas que quedan en la lista guardada no molestan: ya no
+ * corresponden a ninguna columna y nadie las lee. */
+function _mergedHidden(t, lista){
+  var merge = COL_MERGES[t];
+  if (!merge) return lista;
+  var viejas = Object.keys(merge);
+  if (!viejas.length) return lista;
+
+  var escondidas = {};
+  lista.forEach(function(k){ escondidas[k] = 1; });
+
+  // Por cada columna nueva, ¿estaban TODAS sus antiguas escondidas?
+  var destinos = {};
+  viejas.forEach(function(v){ if (merge[v]) destinos[merge[v]] = true; });
+
+  Object.keys(destinos).forEach(function(nueva){
+    if (escondidas[nueva]) return;                       // ya lo decidió la persona
+    var suyas = viejas.filter(function(v){
+      return merge[v] === nueva || (merge[v] === null && _eraDeLaMisma(t, v, nueva));
+    });
+    if (suyas.length && suyas.every(function(v){ return escondidas[v]; })) lista = lista.concat(nueva);
+  });
+  return lista;
+}
+
+// Las que se fusionaron en `nueva` son las que apuntan a ella MÁS las que la
+// fusión mandó a null en el mismo grupo. Como sólo hay un grupo por tabla, un
+// null pertenece al único destino que hay.
+function _eraDeLaMisma(t, vieja, nueva){
+  var merge = COL_MERGES[t] || {};
+  var destinos = {};
+  Object.keys(merge).forEach(function(k){ if (merge[k]) destinos[merge[k]] = 1; });
+  return Object.keys(destinos).length === 1 && merge[vieja] === null;
 }
 
 // Read the pre-v9.41 Movements checkboxes once, the first time this browser
@@ -4041,6 +4176,9 @@ function _visibleColCount(t){
   if (_colEdit[t]) return _colOrder(t).length;      // edit mode shows every column
   var hidden = {};
   _colHidden(t).forEach(function(k){ hidden[k] = 1; });
+  // Las quitadas por el filtro cuentan igual que las ocultas: si no, el
+  // colspan del "no hay resultados" sobra una columna y la fila se descuadra.
+  Object.keys(_colSuppressed(t)).forEach(function(k){ hidden[k] = 1; });
   return _colOrder(t).filter(function(k){ return !hidden[k]; }).length;
 }
 
@@ -4073,6 +4211,8 @@ function _colHeadRowHtml(t){
   var editing = _colEdit[t];
   var hidden = {};
   _colHidden(t).forEach(function(k){ hidden[k] = 1; });
+  var quitadas = _colSuppressed(t);
+  Object.keys(quitadas).forEach(function(k){ hidden[k] = 1; });
   var isAdmin = userRole === 'ADMIN';
 
   var html = cfg.lead();
@@ -5355,19 +5495,29 @@ function toggleStockDetail(rowId) {
 // ── Stock Selection → bulk "Exit Selected" ──────────────────────────────────
 function toggleStockSelect(cb){
   var matId = cb.getAttribute('data-matid');
-  if (cb.checked) {
-    var s = stockData[matId];
-    if (s) _stockSelection[matId] = s;
-  } else {
-    delete _stockSelection[matId];
-  }
+  if (cb.checked) { if (stockData[matId]) _stockSelection[matId] = true; }
+  else delete _stockSelection[matId];
   _updateStockSelectBar();
+}
+
+/* Las filas de la cesta, TAL COMO ESTÁN AHORA. Se intersecta con stockData en
+ * cada llamada: lo que ya no existe no viaja, y lo que sigue existiendo viaja
+ * con sus números de este momento, no con los de cuando se marcó. */
+function _selectedStockRows(){
+  var out = [];
+  for (var id in _stockSelection) {
+    if (!_stockSelection.hasOwnProperty(id)) continue;
+    if (stockData[id]) out.push(stockData[id]);
+    else delete _stockSelection[id];   // se fusionó, se renombró o se acabó
+  }
+  return out;
 }
 
 function _updateStockSelectBar(){
   var bar = document.getElementById('stockSelectBar');
   if (!bar) return;
-  var count = Object.keys(_stockSelection).length;
+  // Se cuenta lo que de verdad sigue ahí, no lo que se marcó alguna vez.
+  var count = _selectedStockRows().length;
   if (count > 0) {
     bar.style.display = 'flex';
     document.getElementById('stockSelectCount').textContent =
@@ -5387,7 +5537,7 @@ function clearStockSelection(){
 // racks auto-filled — same engine as the "↗ Auto-fill Racks" button, just applied
 // to each selection instead of typed one at a time.
 function exitSelectedStock(){
-  var mats = Object.values(_stockSelection);
+  var mats = _selectedStockRows();
   if (!mats.length) return;
 
   openMoveModal('EXIT'); // synchronous — modal + multi-exit section are ready after this returns
@@ -5426,7 +5576,7 @@ function _fillExitLinesFrom(mats){
 // The materials the dashboard handed to this form, still selected. Used to
 // rebuild every line when the type goes back to one that holds several.
 function _liveStockSelection(){
-  return Object.values(_stockSelection || {});
+  return _selectedStockRows();
 }
 
 // How many material lines the form is holding RIGHT NOW. ENTRY and EXIT keep one
@@ -5440,13 +5590,130 @@ function _countMoveMaterialLines(){
   return (el && String(el.value || '').trim()) ? 1 : 0;
 }
 
+/* El nombre de la categoría TAL COMO SE ESCRIBIÓ, no como se normaliza.
+ * El valor del filtro viene de nt() —minúsculas, sin acentos— y enseñar eso en
+ * el título sería enseñar la forma interna de un dato en lugar del dato. */
+function _catLabelFor(cfNorm){
+  var found = '';
+  (config.categories || []).forEach(function(c){
+    if (!found && nt(c) === cfNorm) found = c;
+  });
+  if (!found) {
+    for (var k in stockData) {
+      if (!stockData.hasOwnProperty(k)) continue;
+      if (nt(stockData[k].category) === cfNorm) { found = stockData[k].category; break; }
+    }
+  }
+  return found || String(cfNorm).toUpperCase();
+}
+
+/* ── LA BARRA: CINCO NÚMEROS EN UN REPARTO ──────────────────────────────────
+ *
+ * Idea de Jose. Lo primero que se hizo fue COMPROBAR QUE LAS PARTES SUMAN, y
+ * no sumaban como él las describió. Las dos cosas que salieron, y que están
+ * aquí porque son la diferencia entre una barra verdadera y una que lo parece:
+ *
+ * 1. RESERVED ESTÁ DENTRO DE IN WAREHOUSE. El motor de stock hace
+ *    `availableQty = warehouseQty − reservedQty`. Así que dibujar
+ *    [In Warehouse][Used][Reserved] contaría lo reservado DOS VECES y la barra
+ *    saldría más larga que la realidad. El reparto que no se pisa es
+ *    [Available | Reserved | Used | Wasted], donde Available + Reserved ES In
+ *    Warehouse.
+ *
+ * 2. EL TOTAL NO PUEDE LLAMARSE "lo que el almacén recibió". ADJUST sube o baja
+ *    warehouseQty SIN CONTRAPARTIDA — a propósito, porque un recuento corregido
+ *    no es material recibido ni desperdiciado. Eso rompe la identidad:
+ *    Warehouse + Used + Wasted sólo es igual a lo recibido si nunca hubo un
+ *    ajuste, y en un almacén de verdad siempre lo hay.
+ *
+ *    Lo que SÍ cierra siempre, porque cada unidad está hoy en exactamente uno
+ *    de esos sitios, es la suma de los cuatro trozos. Por eso el total se llama
+ *    "accounted for" y no "received": es una promesa que la app puede cumplir.
+ *
+ * Jose eligió las dos: total = lo que hoy tenemos contado, y Waste dentro.
+ *
+ * EL NÚMERO SIGUE ESTANDO. Una barra sin cifras es más bonita y menos útil: en
+ * un almacén la pregunta es "¿me alcanza para 40?", y eso no se contesta
+ * mirando una proporción. Va delante, y es el DISPONIBLE — el único de los
+ * cinco sobre el que se puede actuar ahora mismo.
+ */
+var LV_PARTES = [
+  { k:'avail', clase:'lv-avail', etiqueta:'Available',   campo:'availableQty' },
+  { k:'resv',  clase:'lv-resv',  etiqueta:'Reserved',    campo:'reservedQty'  },
+  { k:'used',  clase:'lv-used',  etiqueta:'Out on a job',campo:'siteQty'      },
+  { k:'waste', clase:'lv-waste', etiqueta:'Written off', campo:'wastedQty'    }
+];
+
+function _levelsOf(s){
+  var partes = LV_PARTES.map(function(p){
+    return { k:p.k, clase:p.clase, etiqueta:p.etiqueta, qty: Math.max(0, Number(s[p.campo]) || 0) };
+  });
+  var total = partes.reduce(function(a, p){ return a + p.qty; }, 0);
+  return { partes: partes, total: total };
+}
+
+/* Por qué está reservado, con las palabras de quien lo reservó. Jose:
+ * "al hacer hover podemos mostrar datos o detalles… como el detalle de por qué
+ * se reservó". Los datos ya viajan al navegador; sólo había que enseñarlos. */
+function _lvReasons(s){
+  var out = [];
+  (reservations || []).forEach(function(r){
+    if (String(r.status || 'Active').toLowerCase() !== 'active') return;
+    if (nt(r.category) !== nt(s.category) || nt(r.name) !== nt(s.name)) return;
+    var quien = r.by ? (' · ' + r.by) : '';
+    out.push('  ' + r.qty + ' for ' + (r.project || 'a job') + quien);
+  });
+  return out;
+}
+
+function _levelsCell(s){
+  var lv = _levelsOf(s), total = lv.total;
+  var disponible = Math.max(0, Number(s.availableQty) || 0);
+
+  // El texto de la ayuda: los números que la barra reparte, y el total que
+  // suman. Se escriben todos, incluidos los ceros que no se dibujan — un cero
+  // es una respuesta y la ausencia de una línea no lo es.
+  var lineas = lv.partes.map(function(p){ return p.etiqueta + ': ' + p.qty; });
+  lineas.push('Accounted for: ' + total + ' ' + (s.unit || 'UNIT'));
+  var porque = _lvReasons(s);
+  if (porque.length) lineas.push('', 'Reserved for:', porque.join('\n'));
+  if (!total) lineas = ['Nothing recorded for this material yet.'];
+
+  var barra = total > 0
+    ? lv.partes.filter(function(p){ return p.qty > 0; }).map(function(p){
+        return '<i class="' + p.clase + '" style="width:' + (p.qty / total * 100) + '%"></i>';
+      }).join('')
+    : '';
+
+  return '<td class="sc-levels">' +
+    '<div class="lv-wrap tip" tabindex="0" data-tip="' + _escAttr(lineas.join('\n')) + '">' +
+      '<div class="lv-top">' +
+        '<b class="lv-num' + (disponible <= 0 ? ' lv-zero' : '') + '">' + disponible + '</b>' +
+        '<span class="lv-of">of ' + total + '</span>' +
+      '</div>' +
+      '<div class="lv-bar' + (total ? '' : ' lv-empty') + '">' + barra + '</div>' +
+    '</div></td>';
+}
+
 // ── Dashboard: Stock Table ────────────────────────────────────────────────────
 function renderStock(){
   // Header and body are drawn from the same order on every pass — rendering one
   // without the other is how a column ends up under the wrong heading.
-  renderColHead('stock');
   var q  = (document.getElementById('stockSearch').value || '').toLowerCase();
   var cf = document.getElementById('stockFilter').value;
+
+  // El título dice la categoría elegida — el mismo dato que se acaba de quitar
+  // de la tabla, y en el sitio donde se lee una vez. Con el filtro en "All
+  // Categories" no hay nada que decir y la insignia no está.
+  var badge = document.getElementById('stockCatBadge');
+  if (badge){
+    badge.textContent = cf ? _catLabelFor(cf) : '';
+    badge.hidden = !cf;
+  }
+
+  // DESPUÉS de leer el filtro, porque la cabecera depende de él: con una
+  // categoría elegida, la columna Category no se dibuja.
+  renderColHead('stock');
   var sf = document.getElementById('stockStatusFilter').value;
 
   var items = Object.values(stockData).filter(function(s){
@@ -5494,6 +5761,12 @@ function renderStock(){
   }
   var canUpload  = userRole !== 'VIEWER';
   var canSelect  = userRole !== 'VIEWER'; // EXIT requires write access, same gate as elsewhere
+
+  // UNA vez por tabla, no una por fila: se leía localStorage y se reconstruía
+  // este mapa para cada material de la lista.
+  var hiddenNow = {};
+  _colHidden('stock').forEach(function(k){ hiddenNow[k] = 1; });
+  Object.keys(_colSuppressed('stock')).forEach(function(k){ hiddenNow[k] = 1; });
 
   document.getElementById('stockBody').innerHTML = items.map(function(s, idx){
     var zero    = s.warehouseQty <= 0 && s.siteQty <= 0;
@@ -5591,19 +5864,13 @@ function renderStock(){
     var cells = {
       category:     '<td class="sc-category">'+catBadge(s.category)+'</td>',
       name:         '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>',
-      inWarehouse:  '<td class="sc-inWarehouse" style="color:var(--green);font-weight:600">'+Math.max(0,s.warehouseQty)+'</td>',
-      atSite:       '<td class="sc-atSite" style="color:var(--orange);font-weight:600">'+Math.max(0,s.siteQty)+'</td>',
-      available:    '<td class="sc-available"><strong style="font-size:1.05rem;color:'+(s.availableQty<=0?'var(--red)':'inherit')+'">'+Math.max(0,s.availableQty)+'</strong></td>',
-      wasted:       '<td class="sc-wasted" style="color:'+(s.wastedQty>0?'var(--red)':'var(--muted)')+';font-size:.82rem;font-weight:'+(s.wastedQty>0?'600':'400')+'">'+(s.wastedQty>0?'✕ '+s.wastedQty:'—')+'</td>',
-      reserved:     '<td class="sc-reserved" style="color:var(--muted);font-size:.8rem">'+(s.reservedQty>0?'<span class="badge badge-orange">'+s.reservedQty+' reserved</span>':'—')+'</td>',
+      levels:       _levelsCell(s),
       location:     '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>',
       status:       '<td class="sc-status">'+stockBadge(s)+'</td>',
       dateReceived: '<td class="sc-dateReceived">'+dateCell+'</td>',
       lastNote:     '<td class="sc-lastNote">'+noteCell+'</td>',
       docs:         '<td class="sc-docs" style="text-align:center">'+summaryCell+'</td>'
     };
-    var hiddenNow = {};
-    _colHidden('stock').forEach(function(k){ hiddenNow[k] = 1; });
     var body = _colOrder('stock').map(function(k){
       if (hiddenNow[k] && !_colEdit.stock) return '';
       return cells[k] || '';
@@ -9100,6 +9367,13 @@ function submitMultiExit(){
     google.script.run
       .withSuccessHandler(function(res){
         _setModalBusy('moveOverlay', false);
+        // Una salida NO salda una entrada pendiente, y _entryTodoResolve lo
+        // sabe: con 'EXIT' suelta el id y deja la tarjeta donde estaba. Se
+        // llama igual para que los tres caminos de guardado dejen el mismo
+        // rastro —ninguno se va con un id de tarjeta colgando— en vez de que
+        // uno lo limpie y los otros dos dependan de que la próxima apertura
+        // del formulario lo haga por ellos.
+        _entryTodoResolve('EXIT');
         closeModal('moveOverlay');
         if (res && res.refreshError) {
           showToast('✓ '+res.rowCount+' movement record(s) saved — but ⚠ '+res.refreshError, 'warn', 12000);
@@ -9269,6 +9543,20 @@ function submitMultiEntry(){
     google.script.run
       .withSuccessHandler(function(res){
         _setModalBusy('moveOverlay', false);
+        // La entrada existe. Si este formulario venía de una tarjeta de "llegó
+        // y falta su entrada", queda saldada aquí.
+        //
+        // ESTA LÍNEA FALTABA HASTA LA v11.70 y es la que Jose vio fallar. La
+        // tarjeta seguía ahí después de guardar, y con ella su botón "Make the
+        // entry", que volvía a abrir el formulario relleno con lo mismo:
+        // guardar otra vez creaba el mismo movimiento otra vez, y otra, sin
+        // límite. La llamada SÍ estaba escrita —en submitMovement, en el
+        // camino de TRANSFER/RETURN/WASTE/ADJUST— pero ENTRY sale de
+        // submitMovement en su primera línea y nunca llegaba hasta ella: lo
+        // escrito para un camino no estaba conectado a los otros. Es el mismo
+        // fallo que este archivo ya avisa dos veces por su nombre:
+        // "addMultiEntry never got it wired up".
+        _entryTodoResolve('ENTRY');
         closeModal('moveOverlay');
         loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
         setTimeout(function(){
