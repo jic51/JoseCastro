@@ -10,6 +10,10 @@ Instala: los 3 agentes, el skill `build-loop`, los 2 hooks, `settings.json`,
 No pisa nada. Si un archivo ya existe, deja el suyo como `*.nuevo` para que
 compares antes de reemplazar.
 
+> **Las URL de abajo apuntan a la rama `claude/nice-rubin-u5hv3g`**, que es donde
+> vive el archivo hoy. Cuando fusiones esa rama a `master`, cambia
+> `claude/nice-rubin-u5hv3g` por `master` en las tres.
+
 ---
 
 ## Camino 1 — en otra sesión de Claude Code (lo más fácil)
@@ -19,7 +23,7 @@ Pégale esto a Claude en la otra sesión:
 ```
 Instala el kit de agentes con verificación ejecutable en este repo:
 
-curl -fsSL https://raw.githubusercontent.com/jic51/JoseCastro/master/scripts/instalar-kit.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jic51/JoseCastro/claude/nice-rubin-u5hv3g/scripts/instalar-kit.sh | bash
 
 Después corre npm install y dime qué quedó instalado.
 ```
@@ -28,7 +32,7 @@ Después corre npm install y dime qué quedó instalado.
 
 ```bash
 cd /ruta/del/otro/repo
-curl -fsSL https://raw.githubusercontent.com/jic51/JoseCastro/master/scripts/instalar-kit.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jic51/JoseCastro/claude/nice-rubin-u5hv3g/scripts/instalar-kit.sh | bash
 npm install
 ```
 
