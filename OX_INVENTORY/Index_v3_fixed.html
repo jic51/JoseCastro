@@ -1232,6 +1232,23 @@
     .inc-item-qty{font-weight:700;font-size:.82rem;line-height:1.35}
     .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    /* Dónde se puso: sólo aparece cuando la entrada existe de verdad. Ver
+       _incEntryWhere — si no hay entrada, esta línea NO se dibuja, y ese hueco
+       es la señal de que llegó material que todavía nadie registró. */
+    .inc-item-where{font-size:.72rem;line-height:1.35;color:var(--green);font-weight:600}
+    /* EL "ARRIVED" MÁS GRANDE, Y SÓLO EN EL POPUP. Jose: "no quiero más grande
+       el arrived aquí en incomings, sino más grande el arrived en el popup".
+       En la pestaña de Incoming la etiqueta va en una tabla de muchas filas y
+       crecer allí es ruido; en el popup son tres o cuatro renglones que se
+       miran una vez, de pie, con el teléfono en la mano. Es la misma etiqueta
+       leída en dos sitios distintos, no dos etiquetas. */
+    #morningPopupBody .inc-status-arrived{font-size:.82rem;padding:.18rem .7rem}
+    #morningPopupBody .inc-item-where{font-size:.78rem}
+    /* El bloque de lo que YA llegó hoy, en verde, para que no se confunda con
+       el azul de lo que todavía está por llegar. */
+    .morning-done{background:var(--green-bg);border:1px solid var(--green);border-radius:8px;
+                  padding:.75rem 1rem;margin-bottom:.75rem}
+    .morning-done-label{font-size:.7rem;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:.4rem}
     /* Draft rows from an email — editable before anything is saved. */
     .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
     .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
@@ -3395,7 +3412,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.70';
+var APP_VERSION = '11.71';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3407,7 +3424,7 @@ var APP_VERSION = '11.70';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2e08c440';
+var APP_BUILD = 'fd5069ad';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -16350,6 +16367,10 @@ function _incItemHtml(item, opts){
         '<div class="inc-item-side">' +
           '<div class="inc-item-qty">' + _he(_incQtyText(item)) + '</div>' +
           '<div><span class="inc-status-' + String(status).toLowerCase() + '">' + _he(status) + '</span></div>' +
+          // Dónde se puso. Va SÓLO si consta que la entrada existe; ver
+          // _incEntryWhere, que devuelve '' cuando no la encuentra. Quien
+          // llama decide si preguntar — la pestaña de Incoming no lo hace.
+          (opts.where ? '<div class="inc-item-where">' + _he(opts.where) + '</div>' : '') +
           (canMark
             ? '<div><button class="morning-arrived" data-action="morning-arrived" data-id="' + _escAttr(item.id) + '">Mark arrived →</button></div>'
             : '') +
@@ -16812,6 +16833,88 @@ function _incStillPending(item){
   return st !== 'arrived' && st !== 'cancelled' && st !== 'received';
 }
 
+/* Lo que YA llegó hoy — lo contrario exacto de _thisWeeksDeliveries.
+ *
+ * Jose, con la captura del popup: "dice nada llegando hoy, pero la cosa es que
+ * yo ya recibí 3 materiales hoy que sí estaban en la lista, entonces nada
+ * llegando hoy no es correcto."
+ *
+ * Tenía razón y la causa era de una línea: _thisWeeksDeliveries filtra con
+ * _incStillPending, así que una entrega marcada como llegada no se ordena más
+ * abajo — DESAPARECE. La frase "nothing arriving today" se calculaba sobre una
+ * lista de la que ya se habían quitado justo las tres cosas que sí llegaron.
+ *
+ * La lista de pendientes se queda como está: es la que decide si el popup se
+ * abre y cuándo se cierra, y "lo que queda por hacer" es la pregunta correcta
+ * para eso. Lo que faltaba era la otra mitad, y se pregunta aparte.
+ */
+function _todayArrivals(todayStr){
+  return incoming.filter(function(item){
+    if (!_incOnDay(item, todayStr)) return false;
+    return String((item && item.status) || '').toLowerCase().trim() === 'arrived';
+  });
+}
+
+/* ¿Dónde se puso lo que llegó? Sólo si consta; si no, nada.
+ *
+ * Jose: "cuando se haga el entry se muestra la locación en donde se los puso,
+ * si no se hizo el entry no se muestra nada."
+ *
+ * NO HAY UN HILO ENTRE LA ENTREGA Y EL MOVIMIENTO. La entrega vive en INCOMING
+ * y el movimiento en el archivo, y nada guarda el id de una en la otra: la
+ * pantalla de entrada se rellena con los datos de la entrega, pero lo que se
+ * guarda es un movimiento suelto, igual que si se hubiera tecleado a mano. Así
+ * que esto EMPAREJA, y emparejar es adivinar.
+ *
+ * Por eso las dos reglas van de estrictas a menos, y ninguna se estira:
+ *
+ *   1. MISMO PO. Si la entrega trae PO y hay una entrada del mismo material
+ *      con el mismo PO fechada desde el día que se esperaba en adelante, eso no
+ *      es un parecido: es la misma compra. Vale aunque la entrada esté fechada
+ *      otro día, que es lo normal cuando se registra al día siguiente.
+ *   2. MISMO DÍA. Sin PO, sólo cuenta una entrada del mismo material fechada
+ *      HOY.
+ *
+ * Y la ventana se deja corta A PROPÓSITO. Los dos errores posibles no cuestan
+ * lo mismo: enseñar un estante equivocado APAGA la alarma —da por registrado
+ * algo que no lo está, que es exactamente el hueco por donde se pierde
+ * inventario— mientras que no enseñar ninguno cuando sí se registró sólo
+ * molesta. Ante la duda, callar.
+ */
+function _incEntryWhere(item, todayStr){
+  if (!item || !Array.isArray(movements)) return '';
+  var nombre = nt(item.name);
+  if (!nombre) return '';
+  var cat    = nt(item.category);
+  var po     = String(item.po || '').trim().toUpperCase();
+  var desde  = item.estDate || todayStr;
+
+  var suyas = movements.filter(function(m){
+    if (!m || m.moveType !== 'ENTRY') return false;
+    if (nt(m.name) !== nombre) return false;
+    // La categoría sólo descarta cuando las DOS la tienen: una entrega vieja
+    // sin categoría no puede desmentir a una entrada que sí la trae.
+    if (cat && nt(m.category) && nt(m.category) !== cat) return false;
+    var f = String(m.dateRec || '');
+    if (po && String(m.po || '').trim().toUpperCase() === po) return f >= desde;
+    return f === todayStr;
+  });
+  if (!suyas.length) return '';
+
+  // Un mismo ingreso puede haber ido a varios estantes: son varias filas del
+  // archivo y hay que decirlos todos, o el número de una de ellas queda sin
+  // sitio a la vista.
+  var estantes = [];
+  suyas.forEach(function(m){
+    var d = String(m.destLoc || '').trim();
+    if (d && estantes.indexOf(d) === -1) estantes.push(d);
+  });
+  // Una entrada sin estante existe —el archivo la admite— y lo que importa
+  // decir entonces es que la entrada está hecha, no dónde.
+  if (!estantes.length) return 'Entry made';
+  return '→ ' + estantes.join(', ');
+}
+
 function _thisWeeksDeliveries(todayStr){
   var today     = new Date(todayStr + 'T12:00:00');
   var endOfWeek = new Date(today);
@@ -16834,7 +16937,11 @@ function _thisWeeksDeliveries(todayStr){
 function openWeekSchedule(){
   var todayStr = _isoDate(new Date());
   var items = _thisWeeksDeliveries(todayStr);
-  if (!items.length){
+  // Lo que ya llegó hoy también es motivo para abrir. Si no, el día que se
+  // recibe todo lo de la semana el botón contesta "nothing expected" y la
+  // lista de lo que llegó —la que dice cuál está sin registrar— no hay forma
+  // de verla.
+  if (!items.length && !_todayArrivals(todayStr).length){
     showToast('Nothing expected for the rest of this week.', 'ok');
     return;
   }
@@ -16861,6 +16968,18 @@ function _refreshMorningPopup(){
 
      Y sin _incStillPending arreglado esto no habría servido de nada: la lista
      nunca se vaciaba, porque el filtro descartaba un estado que no existe. */
+  /* LA REGLA DE CIERRE NO SE TOCA, y estuvo a punto de tocarse.
+     Al añadir el bloque de "llegó hoy" pensé en dejar la ventana abierta
+     mientras alguna llegada siguiera sin su entrada — "eso también es trabajo
+     pendiente"—. Pero Jose dijo la regla con estas palabras: "si hay solo un
+     material y ya fue aceptado, la ventana desaparece". Ampliarla habría sido
+     cambiarle una regla suya sin decírselo, y por una razón que además no hace
+     falta: el recordatorio de "llegó y falta su entrada" ya existe y es la
+     TARJETA NARANJA, que se queda en la esquina hasta que la entrada se guarda
+     y sobrevive a cerrar la ventana, a cambiar de pestaña y a recargar la
+     página. La ventana es la lista de la mañana; la tarjeta es lo que persiste.
+     Y para volver a mirar lo que llegó está el botón, que desde la v11.71 abre
+     aunque no quede nada pendiente. */
   if (!quedan.length){
     ov.classList.remove('show');
     return;
@@ -16903,13 +17022,26 @@ function showMorningPopup(items, todayStr) {
     return _incItemHtml(item, { showDate: !_incOnDay(item, todayStr) });
   }
 
+  // Lo que ya llegó hoy. No sale de `items` —esa lista es la de pendientes y
+  // no los contiene— sino de la misma pregunta hecha al revés.
+  var llegaron = _todayArrivals(todayStr);
+
   var body = document.getElementById('morningPopupBody');
   var html = '';
   if (todayItems.length) {
     html += '<div class="morning-today"><div class="morning-today-label">☀️ Arriving Today</div>' +
       todayItems.map(itemRow).join('') + '</div>';
-  } else {
+  } else if (!llegaron.length) {
+    // "Nada llegando hoy" ya sólo se dice cuando de verdad no hay nada hoy, ni
+    // esperando ni llegado. Antes se decía con tres entregas recibidas esa
+    // misma mañana delante, porque el filtro las había quitado de la lista.
     html += '<div class="morning-today" style="border-color:#E5E7EB;background:var(--bg)"><div class="morning-today-label" style="color:var(--muted)">Nothing arriving today</div></div>';
+  }
+  if (llegaron.length) {
+    html += '<div class="morning-done"><div class="morning-done-label">✅ Arrived Today</div>' +
+      llegaron.map(function(item){
+        return _incItemHtml(item, { showDate: false, where: _incEntryWhere(item, todayStr) });
+      }).join('') + '</div>';
   }
   if (restItems.length) {
     html += '<div class="morning-week-label">🗓 Rest of This Week</div>' + restItems.map(itemRow).join('');
