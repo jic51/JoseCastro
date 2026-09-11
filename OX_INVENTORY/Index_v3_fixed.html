@@ -1046,6 +1046,45 @@
     tr.row-deleting{opacity:.4}
     tr.row-deleting .btn-icon{pointer-events:none}
     @media (prefers-reduced-motion:reduce){ tr.row-deleting{opacity:.45} }
+
+    /* ── LA FORMA DE IRSE DE UNA FILA. UNA SOLA, PARA TODA LA APP ───────────
+       Jose, 2026-09-09: "quiero esta animación en cada lugar donde se borre
+       algo, ya sea que se corrija, restaure, elimine, haga merge, etc. Debe ser
+       estándar en la app."
+       Así que no es "la animación de borrar movimientos": es CÓMO SE VA UNA
+       FILA, escrito una vez. Los ocho sitios donde algo desaparece la usan por
+       _rowLeave.
+       Se encoge además de desvanecerse, y eso no es adorno: una fila que se
+       desvanece deja su hueco y las de abajo saltan de golpe cuando el hueco se
+       cierra. Encogiéndose, las de abajo SUBEN, y ese movimiento es lo que se
+       lee como "esto está pasando" en vez de como un parpadeo. Es lo que Jose
+       describía cuando decía que no lo veía con la velocidad que quería. */
+    tr.row-leaving > td{
+      padding-top:0!important;padding-bottom:0!important;
+      line-height:0!important;font-size:0!important;
+      border-bottom-width:0!important;opacity:0;
+      transition:opacity .13s ease,padding .2s ease .03s,line-height .2s ease .03s,
+                 font-size .2s ease .03s,border-bottom-width .2s ease .03s}
+    /* El contenido se va ANTES que el hueco: si se encogen a la vez, el texto
+       se ve aplastado un instante antes de desaparecer. */
+    tr.row-leaving > td > *{opacity:0;transition:opacity .12s ease}
+    /* Lo mismo para lo que no es una fila de tabla: tarjetas del mazo, filas de
+       la papelera, entradas de un catálogo. El desplazamiento lateral dice "se
+       va" sin necesidad de leer nada, y en una tabla no se puede usar porque un
+       <td> no acepta transform. */
+    .card-leaving{
+      opacity:0;transform:translateX(-16px);
+      max-height:0!important;margin-top:0!important;margin-bottom:0!important;
+      padding-top:0!important;padding-bottom:0!important;border-width:0!important;
+      overflow:hidden;
+      transition:opacity .14s ease,transform .18s ease,max-height .22s ease .03s,
+                 margin .22s ease .03s,padding .22s ease .03s,border-width .22s ease .03s}
+    /* Quien pidió menos movimiento no lo recibe. _rowLeave lo respeta aparte,
+       llamando a su callback en el acto; esto es sólo por si alguna regla se
+       aplicara igual. */
+    @media (prefers-reduced-motion:reduce){
+      tr.row-leaving > td,tr.row-leaving > td > *,.card-leaving{transition-duration:.01s!important}
+    }
     /* A quarter of the dialog, not a fixed 210px. On a narrow window that
        fixed width was eating half the screen and the settings themselves were
        reading through a slot. */
@@ -3469,7 +3508,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.74';
+var APP_VERSION = '11.75';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3481,7 +3520,7 @@ var APP_VERSION = '11.74';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2ece8f45';
+var APP_BUILD = '0cc38591';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6347,7 +6386,12 @@ function renderMovements(){
     // because it has NOT been deleted yet — dimming it is the truth, and it
     // stops the same bin being pressed twice.
     var pendCls = (m.movId && _delPending[m.movId]) ? ' row-deleting' : '';
-    return '<tr class="'+rowClass(m.moveType)+pendCls+'">' + selCell + body + adminCell + '</tr>';
+    // data-mov: para poder encontrar ESTA fila y animar su salida sin repintar
+    // la tabla. Va el movId y no el rowIdx a propósito — el rowIdx se mueve
+    // cuando alguien borra una fila de más arriba, y animaríamos la equivocada.
+    return '<tr class="'+rowClass(m.moveType)+pendCls+'"' +
+           (m.movId ? ' data-mov="'+_escAttr(m.movId)+'"' : '') + '>' +
+           selCell + body + adminCell + '</tr>';
   }).join('');
 
   var span = _visibleColCount('mov') + (isAdmin ? 2 : 0);   // casilla + acciones
@@ -6626,7 +6670,31 @@ function _doDeleteMovementRow(rowIdx){
   // Pulsar dos veces la misma papelera no encola dos borrados. El segundo
   // recibiría "ya lo borró jose@…", que es verdad y no ayuda a nadie.
   if (mov.movId && _delPending[mov.movId]) return;
-  if (mov.movId) { _delPending[mov.movId] = true; renderAll(); }
+  if (mov.movId) _delPending[mov.movId] = true;
+
+  /* LA FILA SE VA AL PULSAR, NO CUANDO EL SERVIDOR CONTESTA.
+   *
+   * Jose: "cuando elimino lo que sea que elimine, debe moverse y desaparecer
+   * con la animación en el mismo segundo que el toast."
+   *
+   * Y medido el 2026-09-11 en su hoja, ese segundo son CUATRO: cada borrado
+   * hace que el servidor reconstruya los totales del almacén desde el archivo
+   * entero. Eso no se arregla animando — se arregla no haciendo esperar mirando.
+   *
+   * Se guarda DÓNDE estaba, no sólo que estaba: si el servidor dice que no, la
+   * fila vuelve a su sitio, no al final de la lista. Volver al final sería
+   * decirle a alguien que su movimiento es el más reciente cuando es de hace un
+   * mes.
+   *
+   * El repintado va DENTRO del callback, nunca antes: repintar la tabla borra
+   * la fila que se está animando y no se ve nada (la lección de la v11.66).
+   */
+  var donde = movements.indexOf(mov);
+  _rowLeave(_movRowEl(mov), function(){
+    var at = movements.indexOf(mov);
+    if (at !== -1) movements.splice(at, 1);
+    renderAll();
+  });
 
   _delEnqueue(function(done){
     var state = { tries: 0 };
@@ -6635,15 +6703,15 @@ function _doDeleteMovementRow(rowIdx){
       google.script.run
         .withSuccessHandler(function(){
           if (mov.movId) delete _delPending[mov.movId];
-          // AL INSTANTE. El servidor YA lo hizo — este manejador es el de
-          // ÉXITO — así que esperar a que una recarga entera nos lo repita es
-          // hacer esperar a alguien por algo que ya se sabe. Jose: "el
-          // feedback visual no debe demorar nunca". Y es seguro desde la
-          // v11.53: quitar una fila ya no desplaza los números de las demás,
-          // porque nada se identifica por su número.
+          // La fila ya se fue al pulsar, hace unos cuatro segundos. Esto es el
+          // seguro por si la animación no llegó a correr —pestaña en segundo
+          // plano, movimiento reducido, una fila que no estaba pintada— y
+          // entonces sí hay que quitarla de la lista aquí.
+          //
+          // Es seguro desde la v11.53: quitar una fila ya no desplaza los
+          // números de las demás, porque nada se identifica por su número.
           var at = movements.indexOf(mov);
-          if (at !== -1) movements.splice(at, 1);
-          renderAll();
+          if (at !== -1) { movements.splice(at, 1); renderAll(); }
           _sysCacheDrop('trash');
           showToast('Movement deleted. It is in the trash.', 'ok');
           done();
@@ -6661,11 +6729,36 @@ function _doDeleteMovementRow(rowIdx){
             setTimeout(attempt, _busyDelay(state.tries));
             return;
           }
-          if (mov.movId) { delete _delPending[mov.movId]; renderAll(); }
+          if (mov.movId) delete _delPending[mov.movId];
+
+          /* LA VUELTA ATRÁS, Y EL "NO" QUE NO LA MERECE.
+             La fila se fue al pulsar dando por hecho que el servidor diría que
+             sí. Si dice que no, vuelve — Y A SU SITIO, no al final: ponerla al
+             final sería decirle a alguien que su movimiento es el más reciente
+             cuando es de hace un mes.
+
+             PERO HAY DOS NOES QUE SIGNIFICAN LO CONTRARIO: "ya lo borró otro" y
+             "ese movimiento ya no está ahí". Devolver la fila ahí sería peor
+             que no haberla quitado nunca — enseñaría un movimiento que ya no
+             existe. El servidor los marca con GONE| desde la v11.75, y avisó de
+             esto la prueba de la papelera, con estas palabras: "un 'ya lo borró
+             otro' dejaría la fila desaparecida en una cuenta y presente en la
+             otra". */
+          var siguePuesto = !_isGoneError(err);
+          if (siguePuesto && movements.indexOf(mov) === -1){
+            movements.splice(Math.max(0, Math.min(donde, movements.length)), 0, mov);
+          } else if (!siguePuesto){
+            // No está: si la animación no llegó a correr, se quita aquí.
+            var yaAt = movements.indexOf(mov);
+            if (yaAt !== -1) movements.splice(yaAt, 1);
+            _sysCacheDrop('trash');
+          }
+          renderAll();
           showToast(_isBusyError(err)
             ? ('The system stayed busy through ' + (BUSY_MAX_RETRIES + 1) +
-               ' tries. Nothing was deleted — try that one again in a moment.')
-            : _stripTags(err), 'err', 8000);
+               ' tries. Nothing was deleted — the row is back where it was.')
+            : (_stripTags(err) + (siguePuesto ? ' — the row is back where it was.' : '')),
+            'err', 8000);
           done();
         })
         .processMovement('manageMaterial', _h({
@@ -7663,6 +7756,19 @@ function _isBusyError(err){
   return msg.indexOf('SYSTEM_BUSY|') !== -1;
 }
 
+/* ¿El servidor dice que eso YA NO ESTÁ?
+ *
+ * La diferencia con cualquier otro "no" es qué hacer con la fila que se quitó
+ * de la pantalla al pulsar: con un "estoy ocupado" o un "no tienes permiso" no
+ * se borró nada y la fila VUELVE; con un "ya lo borró otro" la fila NO vuelve,
+ * porque devolverla enseñaría un movimiento que ya no existe — y lo enseñaría
+ * en la pantalla que acaba de dar a entender que sí. Ver GONE_PREFIX en
+ * Code.gs. */
+function _isGoneError(err){
+  var msg = (err && err.message) ? err.message : String(err || '');
+  return msg.indexOf('GONE|') !== -1;
+}
+
 /** El texto legible, sin la marca — para cuando hay que enseñarlo de verdad. */
 function _busyText(err){
   var msg = (err && err.message) ? err.message : String(err || '');
@@ -7708,7 +7814,10 @@ function _stripTags(err){
   var msg = (err && err.message) ? err.message : String(err || '');
   var i = msg.indexOf(SHORT_PREFIX);
   if (i !== -1) msg = msg.slice(0, i);
-  return msg.replace('SYSTEM_BUSY|', '').replace(/^Error:\s*/i, '').trim();
+  // Las marcas se quitan TODAS aquí. Una marca que se cuela en un toast es la
+  // app enseñándole al usuario su propio cableado.
+  return msg.replace('SYSTEM_BUSY|', '').replace('GONE|', '')
+            .replace(/^Error:\s*/i, '').trim();
 }
 
 /**
@@ -10517,7 +10626,10 @@ function _paintTrash(items){
     '<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px">' +
       items.map(function(it){
         var where = it.destLoc || it.srcLoc || '';
-        return '<div style="display:flex;align-items:center;gap:.6rem;padding:.5rem .65rem;border-bottom:1px solid var(--border)">' +
+        // data-trash: para encontrar ESTA fila y animar su salida sin repintar
+        // la lista entera. Ver _trashDrop.
+        return '<div data-trash="' + _escAttr(it.movId) + '" ' +
+               'style="display:flex;align-items:center;gap:.6rem;padding:.5rem .65rem;border-bottom:1px solid var(--border)">' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
               _he(it.name) + ' <span style="font-weight:400;color:var(--muted)">· ' +
@@ -10625,9 +10737,17 @@ function _restoreMovement(btn){
 function _trashDrop(movId){
   var items = _sysCacheGet('trash');
   if (!items) { _sysCacheDrop('trash'); _loadTrash(); return; }
-  items = items.filter(function(it){ return it.movId !== movId; });
-  _sysCachePut('trash', items);
-  _paintTrash(items);
+  // La fila se encoge y se va, y SÓLO DESPUÉS se repinta la lista. Al revés
+  // —repintar y luego animar— no se ve nada, porque el repintado se lleva por
+  // delante el elemento que se estaba animando. Es la misma trampa de la v11.66.
+  var fila = null;
+  try { fila = document.querySelector('#trashBox [data-trash="' + _escAttr(movId) + '"]'); }
+  catch (e) {}
+  _rowLeave(fila, function(){
+    var quedan = items.filter(function(it){ return it.movId !== movId; });
+    _sysCachePut('trash', quedan);
+    _paintTrash(quedan);
+  });
 }
 
 /* ── Giving every existing movement a name ──────────────────────────────────
@@ -18502,6 +18622,60 @@ function _btnShowSiblings(btn){
     if (!el._acWasDisabled) el.disabled = false;   // see the merge note above
     el._acWasDisabled = null;
   });
+}
+
+/* ═══ CÓMO SE VA UNA FILA ════════════════════════════════════════════════════
+ *
+ * Jose, 2026-09-09: "quiero esta animación en cada lugar donde se borre algo, ya
+ * sea que se corrija, restaure, elimine, haga merge, etc. Debe ser estándar en
+ * la app."
+ *
+ * Una función, y el `done` es la parte que importa: quien llama pone ahí lo que
+ * pasa DESPUÉS —quitarla de la lista, repintar, avisar— y no tiene que saber
+ * nada de clases ni de milisegundos. Eso es lo que permite que los ocho sitios
+ * donde algo desaparece compartan una sola forma en vez de ocho parecidas.
+ *
+ * `done` SE LLAMA SIEMPRE, exactamente una vez: sin elemento, con el elemento
+ * fuera del DOM, o con el movimiento reducido. Una animación que se traga el
+ * trabajo que venía detrás es peor que no animar.
+ *
+ * LA LECCIÓN DE LA v11.66 APLICA AQUÍ Y HAY QUE DECIRLA: si quien llama repinta
+ * la lista entera, ESTO NO SE VE — la fila no se encoge, la lista parpadea. Por
+ * eso el repintado va DENTRO de `done`, nunca antes.
+ */
+var ROW_LEAVE_MS = 240;
+
+function _rowLeave(el, done){
+  var una = function(){ if (done){ var d = done; done = null; d(); } };
+  if (!el || !el.parentNode){ una(); return; }
+  var quieto = false;
+  try { quieto = window.matchMedia &&
+                 window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (quieto){ una(); return; }        // quien pidió menos movimiento no lo recibe
+
+  if (el.tagName === 'TR'){
+    el.classList.add('row-leaving');
+  } else {
+    // max-height no transiciona desde `none`, así que primero se le pone su
+    // altura real en píxeles y se fuerza el reflow. Sin esa línea el elemento
+    // desaparece de golpe y la clase parece no hacer nada.
+    el.style.maxHeight = el.scrollHeight + 'px';
+    void el.offsetHeight;
+    el.classList.add('card-leaving');
+  }
+  setTimeout(una, ROW_LEAVE_MS);
+}
+
+/** La fila de un movimiento en la tabla, si está pintada. */
+function _movRowEl(mov){
+  if (!mov || !mov.movId) return null;
+  try { return document.querySelector('#tableContainer tr[data-mov="' + CSS.escape(mov.movId) + '"]'); }
+  catch (e) {
+    // CSS.escape no existe en navegadores viejos. El movId es hexadecimal, así
+    // que el selector directo vale; y si tampoco, se anima nada y se sigue.
+    try { return document.querySelector('#tableContainer tr[data-mov="' + mov.movId + '"]'); }
+    catch (e2) { return null; }
+  }
 }
 
 function _btnBusy(btn, label){

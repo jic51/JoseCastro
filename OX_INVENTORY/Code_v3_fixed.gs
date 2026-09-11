@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.74';
+var APP_VERSION = '11.75';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.74';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2ece8f45';
+var APP_BUILD = '0cc38591';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2543,6 +2543,25 @@ function processMovementInner_(ss, action, data, auth) {
 // El texto que va detrás se sigue enseñando cuando los reintentos se agotan,
 // así que tiene que seguir leyéndose bien por sí solo.
 var BUSY_PREFIX = 'SYSTEM_BUSY|';
+
+// GONE| — "no está, y devolverla a la pantalla sería mentir". La tercera marca,
+// por el mismo motivo que las otras dos y para un caso concreto.
+//
+// Desde la v11.75 la fila se va de la pantalla AL PULSAR la papelera, sin
+// esperar al servidor, y vuelve a su sitio si el servidor dice que no. Eso es
+// lo correcto para un "estoy ocupado" o un "no tienes permiso": no se borró
+// nada, la fila sigue existiendo.
+//
+// Pero hay dos noes que significan lo contrario —"ya lo borró otro" y "ese
+// movimiento ya no está ahí"— y devolver la fila en esos casos sería PEOR que
+// no haberla quitado nunca: enseñaría un movimiento que ya no existe, en una
+// pantalla que acaba de dar a entender que sí. La prueba de la papelera avisaba
+// exactamente de esto, y con estas palabras: "un 'ya lo borró otro' dejaría la
+// fila desaparecida en una cuenta y presente en la otra".
+//
+// Reconocerlo mirando el texto del mensaje habría funcionado hoy y se habría
+// roto el día que alguien le cambiara una palabra. La marca no.
+var GONE_PREFIX = 'GONE|';
 
 function withStockLock_(fn) {
   var lock = LockService.getScriptLock();
@@ -9855,10 +9874,10 @@ function manageMaterialLocked_(data, auth) {
         var when = gone.row[TR.DELETED_AT] instanceof Date
           ? Utilities.formatDate(gone.row[TR.DELETED_AT], Session.getScriptTimeZone(), 'MMM d, h:mm a')
           : String(gone.row[TR.DELETED_AT] || '');
-        throw new Error('Already deleted by ' + who + (when ? ' on ' + when : '') +
+        throw new Error(GONE_PREFIX + 'Already deleted by ' + who + (when ? ' on ' + when : '') +
           '. It is in the trash — you can put it back from there.');
       }
-      throw new Error('This movement is no longer there. Refresh and take another look.');
+      throw new Error(GONE_PREFIX + 'This movement is no longer there. Refresh and take another look.');
     }
 
     // Into the trash BEFORE the row goes, so a failure here leaves the movement
