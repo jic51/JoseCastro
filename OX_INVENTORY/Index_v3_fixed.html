@@ -1234,8 +1234,13 @@
     .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
     /* Dónde se puso: sólo aparece cuando la entrada existe de verdad. Ver
        _incEntryWhere — si no hay entrada, esta línea NO se dibuja, y ese hueco
-       es la señal de que llegó material que todavía nadie registró. */
-    .inc-item-where{font-size:.72rem;line-height:1.35;color:var(--green);font-weight:600}
+       es la señal de que llegó material que todavía nadie registró.
+       En texto normal, NO en verde. Nació verde y en la captura de Jose era la
+       tercera cosa verde de la misma tarjeta, encima sobre fondo verde. El
+       verde de aquí dice "llegó", y eso ya lo dice la etiqueta justo encima;
+       repetirlo en el estante no añade nada y le quita fuerza al sitio donde sí
+       significa algo. El estante es un dato que se lee, no un estado. */
+    .inc-item-where{font-size:.72rem;line-height:1.35;color:var(--text);font-weight:600}
     /* EL "ARRIVED" MÁS GRANDE, Y SÓLO EN EL POPUP. Jose: "no quiero más grande
        el arrived aquí en incomings, sino más grande el arrived en el popup".
        En la pestaña de Incoming la etiqueta va en una tabla de muchas filas y
@@ -1244,11 +1249,25 @@
        leída en dos sitios distintos, no dos etiquetas. */
     #morningPopupBody .inc-status-arrived{font-size:.82rem;padding:.18rem .7rem}
     #morningPopupBody .inc-item-where{font-size:.78rem}
-    /* El bloque de lo que YA llegó hoy, en verde, para que no se confunda con
-       el azul de lo que todavía está por llegar. */
-    .morning-done{background:var(--green-bg);border:1px solid var(--green);border-radius:8px;
+    /* EL RECUADRO ES GRIS Y EL COLOR SE GUARDA PARA LO QUE LO NECESITA.
+       Jose, con la captura: "no me gusta que todo esté en verde, y las letras
+       verdes sobre verde no quedan bien. Haz el color de la tarjeta gris y que
+       sólo el arrived today y el arrived de cada tarjeta sean de fondo verde y
+       color verde."
+       Tenía razón por dos motivos distintos: el verde sobre verde apenas se
+       leía, y un recuadro entero teñido gasta el color en el fondo, que es lo
+       que menos hay que mirar. Sobre gris, el rótulo y la etiqueta se ven MÁS
+       verdes que cuando todo lo era. */
+    .morning-done{background:var(--bg);border:1px solid var(--border);border-radius:8px;
                   padding:.75rem 1rem;margin-bottom:.75rem}
     .morning-done-label{font-size:.7rem;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:.4rem}
+    /* Lo que se esperaba antes de hoy y sigue sin marcar. Va arriba del todo, y
+       con la misma receta: recuadro gris y el ámbar sólo en el rótulo. No es
+       una alarma roja —puede que sólo falte marcarla— pero es lo primero que
+       alguien tiene que mirar por la mañana. */
+    .morning-late{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                  padding:.75rem 1rem;margin-bottom:.75rem}
+    .morning-late-label{font-size:.7rem;font-weight:700;color:#B45309;text-transform:uppercase;margin-bottom:.4rem}
     /* Draft rows from an email — editable before anything is saved. */
     .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
     .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
@@ -1766,6 +1785,44 @@
        antes de colocarla, y medir algo con display:none devuelve ceros. */
     #acTip.ready{visibility:visible}
     #acTip.show{opacity:1;transform:translateY(0)}
+
+    /* ── La celda "User" y la ficha de la persona ────────────────────────────
+       Jose: el nombre arriba, el correo en gris debajo y más pequeño. Es la
+       misma forma que .mc-when y .mc-what desde la v11.61 — por eso el correo
+       reutiliza .mc-sub en vez de estrenar un gris propio que luego se
+       desincroniza. */
+    td.mc-user{vertical-align:top}
+    .mc-who{display:inline-block;cursor:default;border-radius:6px;padding:.1rem .2rem;margin:-.1rem -.2rem}
+    .mc-who:hover,.mc-who:focus-visible{background:var(--bg);outline:none}
+    .mc-who-name{display:block;font-size:.78rem;font-weight:600;color:var(--text);white-space:nowrap}
+    /* El correo, sin nombre por encima, se queda exactamente como estaba antes
+       de la v11.73: pequeño y gris. Nada empeora para quien no tenga su nombre
+       escrito en Manage Users. */
+    .mc-who-mail{font-size:.7rem;color:var(--muted);white-space:nowrap}
+    .mc-who .mc-sub{margin-top:0}
+
+    /* NO es un tooltip: lleva botones, así que tiene que dejarse pulsar y
+       aguantar el viaje del ratón desde el nombre. De ahí pointer-events:auto y
+       la pausa de PERSON_GRACE_MS en el JS. Cuelga de <body> por lo mismo que
+       #acTip: un transform en cualquier antepasado se lleva a un fixed con él. */
+    #acPerson{position:fixed;left:-9999px;top:-9999px;
+      background:var(--card);color:var(--text);border:1px solid var(--border);
+      border-radius:10px;padding:.6rem .7rem;box-shadow:0 8px 24px rgba(0,0,0,.18);
+      width:max-content;max-width:min(300px,90vw);text-align:left;
+      opacity:0;visibility:hidden;
+      transition:opacity .13s ease,transform .13s ease;transform:translateY(-4px);
+      z-index:2147483000}
+    #acPerson.ready{visibility:visible}
+    #acPerson.show{opacity:1;transform:translateY(0)}
+    .ap-name{font-size:.86rem;font-weight:700;line-height:1.3}
+    .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:.1rem;
+      overflow-wrap:anywhere}
+    .ap-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem}
+    .ap-btn{display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;
+      font-size:.72rem;font-weight:600;color:var(--accent);
+      border:1px solid var(--border);border-radius:7px;padding:.25rem .5rem;
+      background:var(--bg);white-space:nowrap}
+    .ap-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
     /* The small "i" badge that replaces a paragraph of always-visible help text —
        same explanation, available on demand instead of taking up the window. */
@@ -3412,7 +3469,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.71';
+var APP_VERSION = '11.74';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3424,7 +3481,7 @@ var APP_VERSION = '11.71';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fd5069ad';
+var APP_BUILD = '2ece8f45';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -3444,6 +3501,10 @@ function _canSeeCosts(){
 }
 var userEmail = '';
 var _lastUserName = '';    // display name on file, so the account menu can be repainted without it
+/* correo → nombre, para toda la app. Lo llena getInitialData (userDirectory_) y
+   se resuelve AL DIBUJAR, nunca se copia dentro de un movimiento: así un cambio
+   de nombre en Manage Users corrige el pasado entero de golpe. */
+var userNames = {};
 // Company identity, filled from getInitialData on every load (including the
 // unauthenticated paths, so the sign-in screen is branded too).
 var _companyName = '', _companyDomain = '';
@@ -4399,6 +4460,47 @@ function _wireColEdit(t){
 
 function displayName(m){
   return (m.name||'').trim() || (m.comments||'').substring(0,60) || 'Unnamed';
+}
+
+/* ═══ QUIÉN GUARDÓ LA FILA ══════════════════════════════════════════════════
+ *
+ * Jose, con captura: "quiero que en lugar del email que aparece en User,
+ * aparezca el nombre de la persona, y el correo en gris abajo pero más
+ * pequeño, y al hacer hover aparezcan las opciones de enviar email o llamar
+ * por Google Meet."
+ *
+ * El nombre NO está en el movimiento y no se mete ahí: se busca en userNames
+ * cada vez que se dibuja. Ver userDirectory_ en Code.gs para por qué.
+ */
+function _personName(email){
+  var e = String(email || '').toLowerCase().trim();
+  if (!e) return '';
+  return userNames[e] || '';
+}
+
+/** El nombre si se sabe, y si no el correo. Para los sitios de una sola línea,
+ *  donde no cabe la celda de dos. */
+function _personLabel(email){
+  return _personName(email) || String(email || '');
+}
+
+/* SIN NOMBRE SE ENSEÑA EL CORREO, TAL CUAL, y no se inventa nada.
+ *
+ * La tentación evidente es partir el correo por el punto y capitalizar —
+ * "j.castro@" → "J Castro". No se hace: "info@", "compras@" y "jc@" darían
+ * nombres que no son de nadie, y un nombre inventado en la columna de quién
+ * hizo un movimiento es peor que un correo, porque el correo al menos es
+ * verdad. Quien quiera ver nombres, que los escriba en Manage Users. */
+function _userCellHtml(email){
+  var mail = String(email || '').trim();
+  if (!mail) return '<span class="mc-who-mail">—</span>';
+  var nombre = _personName(mail);
+  var dentro = nombre
+    ? '<span class="mc-who-name">' + _he(nombre) + '</span>' +
+      '<span class="mc-sub mc-who-mail">' + _he(mail) + '</span>'
+    : '<span class="mc-who-mail">' + _he(mail) + '</span>';
+  return '<span class="mc-who" data-person="' + _escAttr(mail) + '" tabindex="0">' +
+         dentro + '</span>';
 }
 
 function getBase64(file){
@@ -6215,7 +6317,7 @@ function renderMovements(){
       comment:  '<td class="mc-comment" style="font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(m.comments||'')+'">'+_he(m.comments||'—')+'</td>',
       pm:       '<td class="mc-pm" style="font-size:.78rem">'+_he(m.pm||'—')+'</td>',
       sysDate:  '<td class="mc-sysDate" style="font-size:.72rem;color:var(--muted)">'+_he(m.timestamp||'—')+'</td>',
-      user:     '<td class="mc-user" style="font-size:.7rem;color:var(--muted)">'+_he(m.userEmail||'—')+'</td>',
+      user:     '<td class="mc-user">'+_userCellHtml(m.userEmail)+'</td>',
       doc:      '<td class="mc-doc" style="min-width:44px"><div style="display:flex;align-items:center;gap:3px">'+docBtn+attachBtn+'</div></td>'
     };
 
@@ -6642,7 +6744,7 @@ function renderProjectView(){
         s.history.map(function(h){ return '• '+_he(h.date)+': <span style="color:'+(h.isOut?'var(--red)':'var(--green)')+'">'+
           (h.isOut?'−':'+')+h.qty+'</span> @ '+_he(h.loc)+(h.comment?' — '+_he(h.comment):''); }).join('<br>')+
         '</div><div><strong>Last location:</strong> '+_he(s.history[s.history.length-1].loc)+'<br>'+
-        '<strong>Last user:</strong> '+_he(s.history[s.history.length-1].user)+'</div>'+
+        '<strong>Last user:</strong> '+_he(_personLabel(s.history[s.history.length-1].user))+'</div>'+
       '</div></td></tr>';
   }).join('');
 
@@ -13072,11 +13174,14 @@ function _tipNode(){
  *
  * Se mide la burbuja DE VERDAD en vez de dar por hecho un ancho máximo de 240,
  * que es lo que hacía el anterior. Un texto corto ocupa 120 y se le empujaba
- * como si ocupara 240, así que se descentraba sin necesidad. */
-function _tipPlace(anchor){
-  var t = _tipNode();
+ * como si ocupara 240, así que se descentraba sin necesidad.
+ *
+ * Vale para cualquier cosa que flote pegada a algo: la burbuja de ayuda y la
+ * ficha de una persona usan ESTA función, no dos copias parecidas. La segunda
+ * copia es como la primera se queda sin el tercer caso. */
+function _floatPlace(nodo, anchor){
   var a = anchor.getBoundingClientRect();
-  var b = t.getBoundingClientRect();
+  var b = nodo.getBoundingClientRect();
   var M = TIP_EDGE_MARGIN;
 
   var left = a.left + a.width / 2 - b.width / 2;
@@ -13089,9 +13194,11 @@ function _tipPlace(anchor){
   else if (encima >= M)                                 top = encima;
   else top = Math.max(M, Math.min(debajo, window.innerHeight - M - b.height));
 
-  t.style.left = Math.round(left) + 'px';
-  t.style.top  = Math.round(top)  + 'px';
+  nodo.style.left = Math.round(left) + 'px';
+  nodo.style.top  = Math.round(top)  + 'px';
 }
+
+function _tipPlace(anchor){ _floatPlace(_tipNode(), anchor); }
 
 function _tipShow(el){
   var txt = el.getAttribute('data-tip');
@@ -13168,6 +13275,112 @@ window.addEventListener('resize', _tipFollow);
 // encima de ella.
 document.addEventListener('click', _tipHide, true);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _tipHide(); });
+
+/* ═══ LA FICHA DE UNA PERSONA ═══════════════════════════════════════════════
+ *
+ * Jose: "al hacer hover aparezcan las opciones de enviar email o llamar por
+ * Google Meet."
+ *
+ * NO ES UN TOOLTIP, y no puede serlo: un tooltip lleva texto y se va en cuanto
+ * el ratón lo roza, y aquí hay BOTONES que hay que poder pulsar. Así que vive
+ * en su propio nodo, se queda mientras el ratón esté encima de ella o de su
+ * ancla, y sólo se va tras una pausa corta al salir de las dos. Esa pausa es
+ * toda la diferencia entre una ficha usable y una que se escapa por el hueco
+ * entre el nombre y el botón.
+ *
+ * Cuelga de <body> por el mismo motivo que la burbuja: un `transform` en
+ * cualquier antepasado convierte a un position:fixed en hijo de ESE elemento, y
+ * es lo que dejaba todas las ayudas 225px más abajo hasta la v11.65.
+ *
+ * SOBRE "LLAMAR POR MEET": Google no publica ninguna dirección que llame a una
+ * persona por su correo. Lo que sí existe y está documentado es meet.new, que
+ * abre una reunión al instante para pasarle el enlace, y el formulario de
+ * Calendar con esa persona ya invitada. Están los dos, con su nombre de verdad
+ * —"Meet" y "Schedule"— en vez de un botón que prometa un timbre que no suena.
+ */
+var PERSON_GRACE_MS = 220;
+var _personEl = null, _personFor = null, _personTimer = null;
+
+function _personNode(){
+  if (!_personEl){
+    _personEl = document.createElement('div');
+    _personEl.id = 'acPerson';
+    _personEl.addEventListener('mouseenter', function(){
+      if (_personTimer){ clearTimeout(_personTimer); _personTimer = null; }
+    });
+    _personEl.addEventListener('mouseleave', _personSoftHide);
+    document.body.appendChild(_personEl);
+  }
+  return _personEl;
+}
+
+function _personShow(el){
+  var mail = el.getAttribute('data-person') || '';
+  if (!mail) return;
+  if (_personTimer){ clearTimeout(_personTimer); _personTimer = null; }
+  var p = _personNode();
+  var nombre = _personName(mail);
+  var asunto = encodeURIComponent('Acopio — ' + (_companyName || 'warehouse'));
+  // innerHTML con TODO escapado a mano: el nombre y el correo salen de una hoja
+  // que edita una persona.
+  p.innerHTML =
+    (nombre ? '<div class="ap-name">' + _he(nombre) + '</div>' : '') +
+    '<div class="ap-mail">' + _he(mail) + '</div>' +
+    '<div class="ap-acts">' +
+      '<a class="ap-btn" href="mailto:' + _escAttr(mail) + '?subject=' + asunto + '">✉ Email</a>' +
+      '<a class="ap-btn" href="https://meet.new" target="_blank" rel="noopener noreferrer" ' +
+         'title="Opens a new Google Meet — send them the link">📹 Meet</a>' +
+      '<a class="ap-btn" href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;add=' +
+         encodeURIComponent(mail) + '" target="_blank" rel="noopener noreferrer" ' +
+         'title="New Google Calendar event with them already invited">📅 Schedule</a>' +
+    '</div>';
+  _personFor = el;
+  p.classList.add('ready');
+  _floatPlace(p, el);
+  p.classList.add('show');
+}
+
+/* Con pausa: el ratón tiene que poder cruzar el hueco entre el nombre y la
+ * ficha sin que se cierre por el camino. */
+function _personSoftHide(){
+  if (_personTimer) clearTimeout(_personTimer);
+  _personTimer = setTimeout(_personHide, PERSON_GRACE_MS);
+}
+
+function _personHide(){
+  if (_personTimer){ clearTimeout(_personTimer); _personTimer = null; }
+  _personFor = null;
+  if (_personEl) _personEl.classList.remove('show', 'ready');
+}
+
+document.addEventListener('mouseover', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.mc-who');
+  if (el){ _personShow(el); return; }
+  // Salir del ancla no cierra de golpe: puede que vaya camino de la ficha.
+  if (_personFor && !(e.target.closest && e.target.closest('#acPerson'))) _personSoftHide();
+}, true);
+document.addEventListener('focusin', function(e){
+  var el = e.target && e.target.closest && e.target.closest('.mc-who');
+  if (el) _personShow(el);
+});
+// Sigue a su fila igual que la burbuja, y se va si la fila sale de la ventana.
+function _personFollow(){
+  if (!_personFor || !_personEl) return;
+  var r = _personFor.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth){
+    _personHide(); return;
+  }
+  _floatPlace(_personEl, _personFor);
+}
+window.addEventListener('scroll', _personFollow, true);
+window.addEventListener('resize', _personFollow);
+// Un clic DENTRO de la ficha es uno de sus botones y tiene que llegar; sólo se
+// cierra por lo de fuera.
+document.addEventListener('click', function(e){
+  if (e.target && e.target.closest && e.target.closest('#acPerson')) return;
+  _personHide();
+}, true);
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _personHide(); });
 
 // ── Event delegation ──────────────────────────────────────────────────────────
 // Buttons inside dynamically-rendered lists carry  data-action + data-* payload
@@ -16848,11 +17061,71 @@ function _incStillPending(item){
  * abre y cuándo se cierra, y "lo que queda por hacer" es la pregunta correcta
  * para eso. Lo que faltaba era la otra mitad, y se pregunta aparte.
  */
-function _todayArrivals(todayStr){
-  return incoming.filter(function(item){
-    if (!_incOnDay(item, todayStr)) return false;
+function _weekBounds(todayStr){
+  var hoy = new Date(todayStr + 'T12:00:00');
+  var ini = new Date(hoy); ini.setDate(hoy.getDate() - hoy.getDay());        // domingo
+  var fin = new Date(hoy); fin.setDate(hoy.getDate() + (6 - hoy.getDay()));  // sábado
+  return { desde: _isoDate(ini), hasta: _isoDate(fin) };
+}
+
+/* ¿Esta entrega cae en algún punto de esta semana? Una ventana cuenta si la
+ * TOCA, no sólo si empieza dentro. */
+function _incInWeek(item, todayStr){
+  if (!item || !item.estDate) return false;
+  var s = _weekBounds(todayStr);
+  var from = item.estDate;
+  var to   = (item.dateMode === 'window' && item.estDateEnd) ? item.estDateEnd : item.estDate;
+  return to >= s.desde && from <= s.hasta;
+}
+
+/* Lo que YA llegó esta semana.
+ *
+ * Jose, cuando le pregunté si el hueco sin locación debía llevar una marca:
+ * "cuando dije no se ve nada, hablaba de la LOCACIÓN; todo material que se
+ * espera o se recibe debe verse en la ventana."
+ *
+ * Con eso, mirar sólo el día de hoy no alcanzaba: una entrega que llegó el
+ * lunes y sigue sin su entrada desaparecía de la ventana el martes — no está
+ * entre lo pendiente, porque ya llegó, ni entre lo de hoy, porque no es de hoy.
+ * Justo la que más falta hace ver.
+ *
+ * Las de hoy van primero y sin fecha encima; las de antes, con su día. La
+ * lista de pendientes se queda como está: es la que decide si la ventana se
+ * abre y cuándo se cierra, y para eso "lo que queda por hacer" sigue siendo la
+ * pregunta correcta.
+ */
+function _weekArrivals(todayStr){
+  var llegadas = incoming.filter(function(item){
+    if (!_incInWeek(item, todayStr)) return false;
     return String((item && item.status) || '').toLowerCase().trim() === 'arrived';
   });
+  return llegadas.sort(function(a, b){
+    var ha = _incOnDay(a, todayStr) ? 1 : 0, hb = _incOnDay(b, todayStr) ? 1 : 0;
+    if (ha !== hb) return hb - ha;                       // hoy arriba
+    return String(b.estDate || '').localeCompare(String(a.estDate || ''));
+  });
+}
+
+/* Lo que se esperaba antes de hoy y sigue sin marcar.
+ *
+ * _thisWeeksDeliveries pregunta por "lo que QUEDA de la semana" (`to >=
+ * todayStr`), así que una entrega del lunes que nadie tocó también se caía de
+ * la ventana el martes. Se esperaba, o sea que por la regla de Jose tiene que
+ * verse — y es de las pocas cosas que una ventana de la mañana existe para
+ * enseñar: lo que debía haber llegado y no consta que llegara.
+ *
+ * Se muestra pero NO cuenta para cerrar la ventana. Si contara, una fila vieja
+ * que nadie limpia dejaría la ventana abierta para siempre, y la regla de
+ * cierre es de Jose: se cierra cuando no queda nada por atender de lo que viene.
+ */
+function _overdueThisWeek(todayStr){
+  var s = _weekBounds(todayStr);
+  return incoming.filter(function(item){
+    if (!_incStillPending(item)) return false;
+    if (!item.estDate) return false;
+    var to = (item.dateMode === 'window' && item.estDateEnd) ? item.estDateEnd : item.estDate;
+    return to < todayStr && to >= s.desde;
+  }).sort(function(a, b){ return String(a.estDate || '').localeCompare(String(b.estDate || '')); });
 }
 
 /* ¿Dónde se puso lo que llegó? Sólo si consta; si no, nada.
@@ -16872,8 +17145,11 @@ function _todayArrivals(todayStr){
  *      con el mismo PO fechada desde el día que se esperaba en adelante, eso no
  *      es un parecido: es la misma compra. Vale aunque la entrada esté fechada
  *      otro día, que es lo normal cuando se registra al día siguiente.
- *   2. MISMO DÍA. Sin PO, sólo cuenta una entrada del mismo material fechada
- *      HOY.
+ *   2. SU DÍA. Sin PO, sólo cuenta una entrada del mismo material fechada EL
+ *      DÍA DE LA ENTREGA —o dentro de su ventana, si la tiene—, que es lo que
+ *      _incOnDay contesta. No "hoy": desde la v11.72 la ventana enseña también
+ *      lo que llegó antes en la semana, y comparar con hoy dejaría a todas esas
+ *      sin locación por el mero hecho de no ser de hoy.
  *
  * Y la ventana se deja corta A PROPÓSITO. Los dos errores posibles no cuestan
  * lo mismo: enseñar un estante equivocado APAGA la alarma —da por registrado
@@ -16896,8 +17172,9 @@ function _incEntryWhere(item, todayStr){
     // sin categoría no puede desmentir a una entrada que sí la trae.
     if (cat && nt(m.category) && nt(m.category) !== cat) return false;
     var f = String(m.dateRec || '');
+    if (!f) return false;
     if (po && String(m.po || '').trim().toUpperCase() === po) return f >= desde;
-    return f === todayStr;
+    return _incOnDay(item, f);
   });
   if (!suyas.length) return '';
 
@@ -16937,11 +17214,11 @@ function _thisWeeksDeliveries(todayStr){
 function openWeekSchedule(){
   var todayStr = _isoDate(new Date());
   var items = _thisWeeksDeliveries(todayStr);
-  // Lo que ya llegó hoy también es motivo para abrir. Si no, el día que se
-  // recibe todo lo de la semana el botón contesta "nothing expected" y la
-  // lista de lo que llegó —la que dice cuál está sin registrar— no hay forma
-  // de verla.
-  if (!items.length && !_todayArrivals(todayStr).length){
+  // Lo que ya llegó, y lo que se esperaba y no consta, también son motivo para
+  // abrir. Si no, el día que se recibe todo lo de la semana el botón contesta
+  // "nothing expected" y la lista de lo que llegó —la que dice cuál está sin
+  // registrar— no hay forma de verla.
+  if (!items.length && !_weekArrivals(todayStr).length && !_overdueThisWeek(todayStr).length){
     showToast('Nothing expected for the rest of this week.', 'ok');
     return;
   }
@@ -17022,25 +17299,38 @@ function showMorningPopup(items, todayStr) {
     return _incItemHtml(item, { showDate: !_incOnDay(item, todayStr) });
   }
 
-  // Lo que ya llegó hoy. No sale de `items` —esa lista es la de pendientes y
-  // no los contiene— sino de la misma pregunta hecha al revés.
-  var llegaron = _todayArrivals(todayStr);
+  // Lo que ya llegó, y lo que se esperaba y no consta. Ninguna de las dos sale
+  // de `items` —esa lista es la de pendientes de aquí en adelante— sino de la
+  // misma pregunta hecha por los otros dos lados. Con las tres, en la ventana
+  // está TODO lo que esta semana se espera o se recibió, que es la regla que
+  // Jose puso: "todo material que se espera o se recibe debe verse".
+  var llegaron = _weekArrivals(todayStr);
+  var tarde    = _overdueThisWeek(todayStr);
 
   var body = document.getElementById('morningPopupBody');
   var html = '';
+  if (tarde.length) {
+    html += '<div class="morning-late"><div class="morning-late-label">⚠️ Was Due Earlier This Week</div>' +
+      tarde.map(function(item){ return _incItemHtml(item, { showDate: true }); }).join('') + '</div>';
+  }
   if (todayItems.length) {
     html += '<div class="morning-today"><div class="morning-today-label">☀️ Arriving Today</div>' +
       todayItems.map(itemRow).join('') + '</div>';
-  } else if (!llegaron.length) {
-    // "Nada llegando hoy" ya sólo se dice cuando de verdad no hay nada hoy, ni
-    // esperando ni llegado. Antes se decía con tres entregas recibidas esa
+  } else if (!llegaron.some(function(i){ return _incOnDay(i, todayStr); })) {
+    // "Nada llegando hoy" ya sólo se dice cuando de verdad no hay nada DE HOY,
+    // ni esperando ni llegado. Antes se decía con tres entregas recibidas esa
     // misma mañana delante, porque el filtro las había quitado de la lista.
+    // Y se mira "de hoy", no "el bloque está vacío": el bloque puede traer las
+    // del lunes, y entonces la frase sería verdad y hay que decirla.
     html += '<div class="morning-today" style="border-color:#E5E7EB;background:var(--bg)"><div class="morning-today-label" style="color:var(--muted)">Nothing arriving today</div></div>';
   }
   if (llegaron.length) {
-    html += '<div class="morning-done"><div class="morning-done-label">✅ Arrived Today</div>' +
+    html += '<div class="morning-done"><div class="morning-done-label">✅ Arrived</div>' +
       llegaron.map(function(item){
-        return _incItemHtml(item, { showDate: false, where: _incEntryWhere(item, todayStr) });
+        // La fecha sólo en las que no son de hoy: dentro de un bloque de hoy
+        // sería el mismo día escrito en todos los renglones.
+        return _incItemHtml(item, { showDate: !_incOnDay(item, todayStr),
+                                    where: _incEntryWhere(item, todayStr) });
       }).join('') + '</div>';
   }
   if (restItems.length) {
@@ -17784,6 +18074,7 @@ function _applyData(data) {
   if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;
   _applyWarehouseRoleLabel();
   userEmail          = data.userEmail          || '';
+  userNames          = data.userNames          || {};
   incoming           = data.incoming           || [];
   monitoredMaterials = data.monitoredMaterials || null;
   rackPhotos         = data.rackPhotos         || {};
