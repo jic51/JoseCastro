@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.76';
+var APP_VERSION = '11.77';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.76';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9acce5a8';
+var APP_BUILD = '1d38a685';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2664,13 +2664,27 @@ var DATA_STAMP_KEY = 'WMS_DATA_STAMP';
  *                                          no cuánto hay. (Que el candado se
  *                                          vea al momento es una petición
  *                                          aparte, anotada en el backlog.)
- *   addIncoming, deleteIncoming          — entregas ESPERADAS. Discutible, y
- *                                          anotado: no son existencias, y la
- *                                          regla de Jose enumera movimientos.
  *   todo lo que empieza por get…         — no escriben nada
  *
- * La regla al añadir una acción nueva: si después de ejecutarla el número de
- * AVAILABLE de algún material puede ser distinto, va en la lista. Si no, no.
+ * LA REGLA CAMBIÓ EL 2026-09-11, y la que había estaba mal escrita. Decía: "si
+ * después de ejecutarla el número de AVAILABLE de algún material puede ser
+ * distinto, va en la lista". Por eso las entregas esperadas quedaron fuera, con
+ * esta nota: "Discutible, y anotado: no son existencias".
+ *
+ * Jose encontró lo que eso costaba, con dos ventanas abiertas y dos cuentas:
+ * marcó una entrega como llegada en una, y la otra siguió enseñándola como
+ * Pending. No se enteraba nunca, porque el sello no se había movido.
+ *
+ * AVAILABLE nunca fue la pregunta. La pregunta es si alguna PANTALLA enseña lo
+ * que acaba de cambiar — y las entregas esperadas salen en la pestaña de
+ * Incoming, en la ventana de la semana y en la tarjeta de la esquina. Escrita
+ * bien, la regla es: SI ALGUIEN QUE TIENE LA APP ABIERTA VERÍA ALGO DISTINTO
+ * DESPUÉS DE ESTA ACCIÓN, VA EN LA LISTA.
+ *
+ * Y el coste es el que hay que mirar antes de meter algo aquí: cada sello nuevo
+ * hace que TODAS las demás sesiones se traigan los datos enteros. Para las
+ * entregas está bien —se tocan unas pocas veces al día— y para el catálogo o
+ * los permisos seguiría sin estarlo.
  */
 var DATA_STAMP_ACTIONS = {
   addMovement:         true,
@@ -2679,7 +2693,14 @@ var DATA_STAMP_ACTIONS = {
   modifyMovement:      true,
   manageMaterial:      true,
   applyDataQualityFix: true,
-  commitImport:        true
+  commitImport:        true,
+  // Las tres de las entregas esperadas. updateIncoming es la que Jose vio
+  // fallar —es la que marca una entrega como llegada— pero las tres cambian lo
+  // mismo: lo que otra persona tiene delante en la pestaña de Incoming y en la
+  // ventana de la semana.
+  addIncoming:         true,
+  updateIncoming:      true,
+  deleteIncoming:      true
 };
 
 function bumpDataStamp_() {

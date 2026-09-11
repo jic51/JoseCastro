@@ -3508,7 +3508,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.76';
+var APP_VERSION = '11.77';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3520,7 +3520,7 @@ var APP_VERSION = '11.76';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9acce5a8';
+var APP_BUILD = '1d38a685';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14743,7 +14743,38 @@ function _syncCfgBell(){
       '</div></div>';
   }).join('');
 
-  list.innerHTML = cfgRows + sysRows;    // questions first, reports after
+  /* LAS TARJETAS NARANJAS ESTABAN EN EL NÚMERO Y NO EN LA LISTA.
+   *
+   * Jose, 2026-09-11, con captura: la campana decía 3 y al abrirla se veían 2.
+   * El contador de arriba suma _todoDeckTotal; el panel se armaba con
+   * `cfgRows + sysRows` y nada más. Y el comentario de ahí arriba prometía "The
+   * panel lists ALL of them" — otro que decía lo que el código no hacía.
+   *
+   * Van PRIMERAS, antes incluso que las sugerencias: una entrega que llegó y no
+   * tiene entrada es material en el almacén del que las cantidades no saben
+   * nada. Es lo más urgente que puede haber en esa lista.
+   *
+   * Llevan los mismos dos botones que la tarjeta del mazo, con los mismos
+   * data-todo-do / data-todo-x — pero HAY QUE ENGANCHARLOS AQUÍ. Los del mazo
+   * se atan con `deck.querySelectorAll(...)`, o sea dentro del mazo y sólo ahí;
+   * dar por hecho que el mismo atributo trae el mismo comportamiento habría
+   * dejado dos botones que no hacen nada, que es peor que no ponerlos. */
+  _todoLoad();
+  var todoRows = _todoItems.map(function(t){
+    var qty = t.qty > 0 ? (_qtyText(t.qty) + ' ' + (t.unit || 'UNIT')) : 'qty not stated';
+    return '<div class="cfg-bell-row">' +
+      '<div class="cfg-card-lbl" style="color:var(--orange)">Arrived · entry not made</div>' +
+      '<div class="cfg-card-val" title="' + _he(t.name) + '">' + _he(t.name) + '</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem">' +
+        _he(qty) + (t.supplier ? ' · ' + _he(t.supplier) : '') +
+        ' · ' + _he(_fmtWhen(t.at)) + '</div>' +
+      '<div class="cfg-card-acts">' +
+        '<button type="button" class="cfg-card-add" data-todo-do="' + _he(t.id) + '">Make the entry</button>' +
+        '<button type="button" class="cfg-card-skip" data-todo-x="' + _he(t.id) + '">Later</button>' +
+      '</div></div>';
+  }).join('');
+
+  list.innerHTML = todoRows + cfgRows + sysRows;   // lo urgente, lo que pregunta, lo que informa
   list.querySelectorAll('button[data-act]').forEach(function(b){
     b.addEventListener('click', function(e){
       e.stopPropagation();
@@ -14754,6 +14785,24 @@ function _syncCfgBell(){
     b.addEventListener('click', function(e){
       e.stopPropagation();
       _dismissSysCard(b.getAttribute('data-sys-x'));
+    });
+  });
+  // Los de las naranjas, atados al PANEL. Ver el comentario de arriba: los del
+  // mazo están atados al mazo y no alcanzan hasta aquí.
+  list.querySelectorAll('button[data-todo-x]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      _todoDrop(b.getAttribute('data-todo-x'));
+    });
+  });
+  list.querySelectorAll('button[data-todo-do]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      // Abrir el formulario deja el panel por detrás; cerrarlo es lo que hace
+      // la tarjeta del mazo y es lo que espera quien pulsa.
+      var panel = document.getElementById('cfgBellPanel');
+      if (panel) panel.classList.remove('show');
+      _todoDo(b.getAttribute('data-todo-do'));
     });
   });
 }
