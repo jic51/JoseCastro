@@ -1307,6 +1307,20 @@
     .morning-late{background:var(--bg);border:1px solid var(--border);border-radius:8px;
                   padding:.75rem 1rem;margin-bottom:.75rem}
     .morning-late-label{font-size:.7rem;font-weight:700;color:#B45309;text-transform:uppercase;margin-bottom:.4rem}
+    /* "¿También llegó esto?" — una fila por entrega, con su casilla.
+       La casilla arriba y no centrada: una entrega con nombre largo ocupa dos
+       renglones, y una casilla centrada contra dos renglones queda flotando
+       lejos de la primera palabra, que es donde va el ojo. */
+    #alsoArrivedList{margin-top:.6rem;max-height:min(46vh,320px);overflow:auto;text-align:left}
+    .also-row{display:flex;align-items:flex-start;gap:.55rem;padding:.5rem .15rem;
+      border-bottom:1px solid var(--border);cursor:pointer}
+    .also-row:last-child{border-bottom:none}
+    .also-row input{margin-top:.2rem;flex:none;width:16px;height:16px;cursor:pointer}
+    .also-body{display:flex;flex-direction:column;min-width:0}
+    .also-name{font-size:.82rem;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+    .also-sub{font-size:.72rem;color:var(--muted);line-height:1.35;margin-top:.1rem;
+      overflow-wrap:anywhere}
+
     /* Draft rows from an email — editable before anything is saved. */
     .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
     .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
@@ -2864,6 +2878,33 @@
   </div>
 </div>
 
+<!-- ══ ¿TAMBIÉN LLEGÓ ESTO? ═══════════════════════════════════════════════════
+     Jose, 2026-09-11: marcó UNA entrega como llegada, y al abrirse el
+     formulario de entrada metió también los demás materiales del camión,
+     porque tenía los papeles en la mano. Los movimientos se guardaron; las
+     otras entregas se quedaron en Pending para siempre, porque nadie se lo
+     dijo a la app.
+
+     NO ES UN TOOLTIP NI UN _showConfirm: ése escribe su mensaje con
+     textContent, así que no puede llevar una casilla. Y las casillas son el
+     punto entero — la app EMPAREJA por nombre y fecha, y emparejar es adivinar.
+     Marcar sola una entrega que sigue en la carretera es el error caro. Así que
+     propone y la persona confirma. ═══════════════════════════════════════════-->
+<div class="cconfirm-overlay" id="alsoArrivedOverlay">
+  <div class="cconfirm-dialog">
+    <div class="cconfirm-icon-row">📦</div>
+    <div class="cconfirm-body">
+      <h3>Did these arrive too?</h3>
+      <p id="alsoArrivedLead"></p>
+      <div id="alsoArrivedList"></div>
+    </div>
+    <div class="cconfirm-footer">
+      <button class="cconfirm-cancel" id="alsoArrivedSkip" onclick="_alsoArrivedClose()">Not now</button>
+      <button class="btn-primary btn" id="alsoArrivedOk" onclick="_alsoArrivedSave()">Mark as arrived</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ASK-FOR-A-VALUE DIALOG ═════════════════════════════════════════════════
      The browser's own prompt() is a black bar bolted to the top of the window
      that announces the googleusercontent.com address it came from. It looks
@@ -3508,7 +3549,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.77';
+var APP_VERSION = '11.78';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3520,7 +3561,7 @@ var APP_VERSION = '11.77';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '1d38a685';
+var APP_BUILD = '9232dba1';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7226,6 +7267,7 @@ function openMoveModal(type){
   // cualquiera, el id viejo borraría una tarjeta que sigue haciendo falta.
   // _entryFromIncoming lo vuelve a poner después de llamar aquí.
   _entryTodoId = null;
+  _entryFromIncId = null;
   _syncMoveTypeBarForRdw();
 
   // Reset form
@@ -9785,6 +9827,10 @@ function submitMultiEntry(){
         // fallo que este archivo ya avisa dos veces por su nombre:
         // "addMultiEntry never got it wired up".
         _entryTodoResolve('ENTRY');
+        // De qué entrega venía ESTE formulario, leído antes de que la próxima
+        // apertura lo borre. Se usa sólo para no ofrecer marcar la que ya se
+        // marcó — ver _entryFromIncId.
+        var deLaEntrega = _entryFromIncId;
         closeModal('moveOverlay');
         loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
         setTimeout(function(){
@@ -9800,6 +9846,12 @@ function submitMultiEntry(){
           } else {
             showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', 5000);
           }
+          /* Y AL FINAL, NO ANTES: los movimientos ya están guardados. Preguntar
+             por entregas de algo que todavía podía fallar sería pedir confirmar
+             una llegada que quizá no llegue a registrarse.
+             Va detrás del toast a propósito: primero "se guardó", que es lo que
+             la persona vino a hacer; después la pregunta de más. */
+          _offerAlsoArrived(materials, dateRec, po, deLaEntrega);
         }, 400);
       })
       .withFailureHandler(function(err){
@@ -16579,6 +16631,7 @@ function _entryFromIncoming(item, todoId){
   // este formulario, para poder borrarla si la entrada llega a guardarse — y
   // sólo entonces.
   _entryTodoId = todoId || null;
+  _entryFromIncId = item.id || null;
 
   var set = function(id, v){
     var e = document.getElementById(id);
@@ -17342,25 +17395,43 @@ function _overdueThisWeek(todayStr){
  * inventario— mientras que no enseñar ninguno cuando sí se registró sólo
  * molesta. Ante la duda, callar.
  */
-function _incEntryWhere(item, todayStr){
-  if (!item || !Array.isArray(movements)) return '';
+/* ¿ESTE MOVIMIENTO ES EL DE ESTA ENTREGA? UNA REGLA, DOS USOS.
+ *
+ * Se usa para dos preguntas que parecen distintas y son la misma:
+ *
+ *   _incEntryWhere — "¿dónde se puso lo que llegó?", mirando los movimientos
+ *   ya guardados;
+ *   _alsoArrivedCandidates — "¿qué otras entregas acabas de recibir?", mirando
+ *   los materiales de la entrada que se acaba de guardar.
+ *
+ * Escribirla dos veces habría sido garantizar que un día una de las dos se
+ * ajusta y la otra no, y entonces la app diría "está en A-3" de una entrega que
+ * al mismo tiempo se ofrece a marcar como llegada.
+ *
+ * Las dos reglas, de estricta a menos: MISMO PO desde el día esperado en
+ * adelante (eso no es un parecido, es la misma compra), o SU DÍA — el de la
+ * entrega, o dentro de su ventana. Corta a propósito: los dos errores posibles
+ * no cuestan lo mismo, y aquí el caro es dar por recibida una entrega que sigue
+ * en la carretera.
+ */
+function _incMatchesMove(item, m){
+  if (!item || !m || m.moveType !== 'ENTRY') return false;
   var nombre = nt(item.name);
-  if (!nombre) return '';
-  var cat    = nt(item.category);
-  var po     = String(item.po || '').trim().toUpperCase();
-  var desde  = item.estDate || todayStr;
+  if (!nombre || nt(m.name) !== nombre) return false;
+  // La categoría sólo descarta cuando las DOS la tienen: una entrega vieja sin
+  // categoría no puede desmentir a una entrada que sí la trae.
+  var cat = nt(item.category);
+  if (cat && nt(m.category) && nt(m.category) !== cat) return false;
+  var f = String(m.dateRec || '');
+  if (!f) return false;
+  var po = String(item.po || '').trim().toUpperCase();
+  if (po && String(m.po || '').trim().toUpperCase() === po) return f >= (item.estDate || f);
+  return _incOnDay(item, f);
+}
 
-  var suyas = movements.filter(function(m){
-    if (!m || m.moveType !== 'ENTRY') return false;
-    if (nt(m.name) !== nombre) return false;
-    // La categoría sólo descarta cuando las DOS la tienen: una entrega vieja
-    // sin categoría no puede desmentir a una entrada que sí la trae.
-    if (cat && nt(m.category) && nt(m.category) !== cat) return false;
-    var f = String(m.dateRec || '');
-    if (!f) return false;
-    if (po && String(m.po || '').trim().toUpperCase() === po) return f >= desde;
-    return _incOnDay(item, f);
-  });
+function _incEntryWhere(item){
+  if (!item || !Array.isArray(movements)) return '';
+  var suyas = movements.filter(function(m){ return _incMatchesMove(item, m); });
   if (!suyas.length) return '';
 
   // Un mismo ingreso puede haber ido a varios estantes: son varias filas del
@@ -17396,6 +17467,135 @@ function _thisWeeksDeliveries(todayStr){
 // The way back in. Until now the popup appeared once per page load and, once
 // closed, could only be brought back by reloading the whole app — which is
 // exactly what Jose ran into after marking the first delivery of the morning.
+/* ═══ "¿TAMBIÉN LLEGÓ ESTO?" ════════════════════════════════════════════════
+ *
+ * Jose, 2026-09-11: marcó UNA entrega como llegada, y cuando se abrió el
+ * formulario de entrada metió también los demás materiales del camión, porque
+ * tenía los papeles en la mano y tiempo para hacerlo. Los movimientos se
+ * guardaron —están en Movements— y las otras entregas se quedaron en Pending.
+ *
+ * Y la app tenía razón, en el sentido incómodo: NADIE LE DIJO QUE LLEGARON.
+ * Guardar una entrada escribe un movimiento y no toca INCOMING_V3. La única
+ * entrega que se salda es aquella por cuya tarjeta se entró.
+ *
+ * DE LOS DOS DISEÑOS POSIBLES, ÉSTE ES EL QUE ELIGIÓ JOSE, y la razón es su
+ * forma de trabajar. El otro era que la entrada guardara de qué entrega vino:
+ * un enlace duro, más "correcto", y que sólo existe si entraste por la tarjeta
+ * de esa entrega. Para los materiales que añadió a mano habría que ponerle a
+ * CADA LÍNEA un selector de entrega — justo el tecleo que estaba evitando.
+ *
+ * Éste no le cambia el trabajo: guarda como siempre y al final la app pregunta.
+ *
+ * Y PREGUNTA, no decide. El emparejamiento es adivinar —ver _incMatchesMove— y
+ * marcar sola una entrega que sigue en la carretera es el error caro: se deja
+ * de esperar algo que no ha llegado. Una casilla cuesta un segundo.
+ */
+var _alsoArrivedItems = [];     // las entregas que se están ofreciendo ahora
+
+/* Las entregas Pending que se parecen a lo que se acaba de entrar.
+ *
+ * `materiales` son las líneas del formulario, no movimientos guardados, así que
+ * se convierten a la forma de un movimiento para poder pasarlas por la MISMA
+ * regla. Inventar aquí una segunda regla parecida es lo que _incMatchesMove
+ * existe para evitar. */
+function _alsoArrivedCandidates(materiales, dateRec, po, exceptoId){
+  if (!Array.isArray(incoming) || !Array.isArray(materiales)) return [];
+  var comoMov = materiales.map(function(mat){
+    return { moveType: 'ENTRY', name: mat.name, category: mat.category,
+             dateRec: dateRec, po: (mat.po || po || '') };
+  });
+  return incoming.filter(function(it){
+    // Ya llegó o se canceló: no hay nada que ofrecer.
+    if (!_incStillPending(it)) return false;
+    // La que se marcó al abrir el formulario ya está guardada como Arrived en
+    // la hoja — pero la lista del navegador todavía no lo sabe, porque la
+    // recarga va en camino. Sin esta línea se ofrecería marcar otra vez algo
+    // que ya está marcado, y quien lo lea pensaría que no se guardó.
+    if (exceptoId && it.id === exceptoId) return false;
+    return comoMov.some(function(m){ return _incMatchesMove(it, m); });
+  });
+}
+
+function _offerAlsoArrived(materiales, dateRec, po, exceptoId){
+  var cands = _alsoArrivedCandidates(materiales, dateRec, po, exceptoId);
+  // Sin candidatos no aparece nada. Un cuadro vacío que hay que cerrar es peor
+  // que no preguntar.
+  if (!cands.length) return;
+  _alsoArrivedItems = cands;
+
+  var lead = document.getElementById('alsoArrivedLead');
+  var list = document.getElementById('alsoArrivedList');
+  if (!lead || !list) return;
+  lead.textContent = cands.length === 1
+    ? 'This expected delivery matches what you just entered, and is still marked as not arrived.'
+    : 'These ' + cands.length + ' expected deliveries match what you just entered, ' +
+      'and are still marked as not arrived.';
+
+  // TODAS VIENEN MARCADAS. Quien llega aquí acaba de teclear esos materiales
+  // con los papeles delante; lo normal es que sí llegaran. Desmarcar la que no
+  // es más rápido que marcar las cuatro que sí.
+  list.innerHTML = cands.map(function(it){
+    var qty = it.qty > 0 ? (_qtyText(it.qty) + ' ' + (it.unit || 'UNIT')) : 'qty not stated';
+    return '<label class="also-row">' +
+      '<input type="checkbox" checked data-also="' + _escAttr(it.id) + '">' +
+      '<span class="also-body">' +
+        '<span class="also-name">' + _he(it.name) + '</span>' +
+        '<span class="also-sub">' + _he(qty) +
+          (it.supplier ? ' · ' + _he(it.supplier) : '') +
+          (it.po ? ' · PO ' + _he(it.po) : '') +
+          (it.estDate ? ' · ' + _he(_incDateLabel(it)) : '') + '</span>' +
+      '</span></label>';
+  }).join('');
+
+  document.getElementById('alsoArrivedOverlay').classList.add('show');
+}
+
+function _alsoArrivedClose(){
+  _alsoArrivedItems = [];
+  var ov = document.getElementById('alsoArrivedOverlay');
+  if (ov) ov.classList.remove('show');
+}
+
+function _alsoArrivedSave(){
+  var list = document.getElementById('alsoArrivedList');
+  if (!list) { _alsoArrivedClose(); return; }
+  var marcadas = {};
+  list.querySelectorAll('input[data-also]').forEach(function(cb){
+    if (cb.checked) marcadas[cb.getAttribute('data-also')] = true;
+  });
+  var voy = _alsoArrivedItems.filter(function(it){ return marcadas[it.id]; });
+  _alsoArrivedClose();
+  if (!voy.length) return;     // las desmarcó todas: no pasa nada, y está bien
+
+  voy.forEach(function(it){
+    // LA FILA ENTERA con el estado cambiado: updateIncoming reescribe las
+    // diecisiete columnas, así que mandar sólo el estado borraría el resto.
+    var payload = {
+      id: it.id, estDate: it.estDate, dateMode: it.dateMode || 'exact',
+      estDateEnd: it.estDateEnd || '', dateNote: it.dateNote || '',
+      status: 'Arrived', category: it.category, name: it.name,
+      qty: it.qty, unit: it.unit, supplier: it.supplier, po: it.po,
+      pm: it.pm || '', notes: it.notes || ''
+    };
+    _acWrite({
+      args: ['updateIncoming', _h(payload)],
+      what: 'marking "' + it.name + '" as arrived',
+      ok: function(){
+        // La copia del navegador, al día en el acto: la recarga llegará, pero
+        // el popup y la pestaña de Incoming ya pueden decir la verdad.
+        for (var i = 0; i < incoming.length; i++){
+          if (incoming[i].id === it.id) { incoming[i].status = 'Arrived'; break; }
+        }
+        renderAll();
+      }
+    });
+  });
+  showToast(voy.length === 1
+    ? '✓ Marked as arrived.'
+    : '✓ ' + voy.length + ' deliveries marked as arrived.', 'ok');
+  _reloadWhenIdle();
+}
+
 function openWeekSchedule(){
   var todayStr = _isoDate(new Date());
   var items = _thisWeeksDeliveries(todayStr);
@@ -17515,7 +17715,7 @@ function showMorningPopup(items, todayStr) {
         // La fecha sólo en las que no son de hoy: dentro de un bloque de hoy
         // sería el mismo día escrito en todos los renglones.
         return _incItemHtml(item, { showDate: !_incOnDay(item, todayStr),
-                                    where: _incEntryWhere(item, todayStr) });
+                                    where: _incEntryWhere(item) });
       }).join('') + '</div>';
   }
   if (restItems.length) {
@@ -18484,6 +18684,16 @@ var _todoItems = [];
 // tarjeta desaparecía al abrir el formulario —o no llegaba a existir— y cerrar
 // sin guardar dejaba el trabajo sin hacer y sin rastro.
 var _entryTodoId = null;
+
+/* Y DE QUÉ ENTREGA venía, que no es lo mismo que de qué tarjeta.
+ *
+ * La tarjeta es del navegador y se salda al guardar; esto es el id de la
+ * entrega en la hoja, y sirve para UNA cosa: no ofrecer marcar como llegada la
+ * que se acaba de marcar. Al abrirse el formulario esa entrega ya está guardada
+ * como Arrived, pero la lista del navegador todavía dice Pending porque la
+ * recarga va en camino — sin esto, la app se ofrecería a hacer lo que acaba de
+ * hacer, y quien lo lea pensaría que no se guardó. */
+var _entryFromIncId = null;
 
 function _todoLoad(){
   try {
