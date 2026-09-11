@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.75';
+var APP_VERSION = '11.76';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.75';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0cc38591';
+var APP_BUILD = '9acce5a8';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -10114,25 +10114,44 @@ function addIncoming(data) {
   var estDate = incomingDateCell_(mode === 'unknown' ? '' : data.estDate);
   var estEnd  = incomingDateCell_(mode === 'window'  ? data.estDateEnd : '');
   var docLink = uploadIncomingDoc_(data.docFile, data.name, data.po);
-  sheet.appendRow([
+  /* textSafeRow_, NO sheetSafe_. Jose, 2026-09-11, con cuatro capturas: escribió
+   * el PO "08-4885" en una entrega esperada, guardó, volvió a abrirla y el
+   * campo estaba VACÍO.
+   *
+   * sheetSafe_ sólo protege lo que empieza por = + - @, o sea las fórmulas.
+   * "08-4885" empieza por un cero, así que pasaba sin comilla, y Sheets lo leía
+   * como "mes 08, año 4885" y guardaba una fecha. Al leerlo de vuelta,
+   * safeStr_ ve un Date y devuelve '' — las dos mitades del fallo que Jose ya
+   * describió en septiembre: "está dando un dato que no existe y borrando uno
+   * que sí".
+   *
+   * ES EL MISMO FALLO DE LA v11.63, EN UN SITIO DONDE NO SE CABLEÓ. Allí se
+   * arreglaron el archivo, la papelera, el histórico y CONFIG; addIncoming y
+   * updateIncoming se quedaron fuera, y son justo las dos donde una persona
+   * teclea un PO a mano. Tercera vez que muerde el mismo patrón en este
+   * archivo: escrito para un camino, conectado a uno solo.
+   *
+   * textCell_ además sustituye a sheetSafe_ sin perder nada: una comilla
+   * delante hace la celda literal, así que también neutraliza las fórmulas. */
+  sheet.appendRow(textSafeRow_([
     id,
     estDate,
-    sheetSafe_(String(data.category || '').toUpperCase().trim()),
-    sheetSafe_(String(data.name     || '').trim()),
+    String(data.category || '').toUpperCase().trim(),
+    String(data.name     || '').trim(),
     Number(data.qty      || 0),
-    sheetSafe_(String(data.unit     || 'UNIT')),
-    sheetSafe_(String(data.supplier || '')),
-    sheetSafe_(String(data.po       || '')),
-    sheetSafe_(String(data.notes    || '')),
+    String(data.unit     || 'UNIT'),
+    String(data.supplier || ''),
+    String(data.po       || ''),
+    String(data.notes    || ''),
     incomingStatus_(data.status),
     auth.email,
     new Date(),
-    sheetSafe_(String(data.pm       || '')),
+    String(data.pm       || ''),
     docLink,
     mode,
     estEnd,
-    sheetSafe_(String(data.dateNote || ''))
-  ]);
+    String(data.dateNote || '')
+  ]));
   return { status: 'success', id: id, docLink: docLink };
 }
 
@@ -10163,25 +10182,27 @@ function updateIncoming(data) {
       var docLink = data.docFile && data.docFile.fileData
         ? uploadIncomingDoc_(data.docFile, data.name, data.po)
         : (values[i][13] || '');
-      sheet.getRange(i + 1, 1, 1, 17).setValues([[
+      // textSafeRow_ por el mismo motivo que en addIncoming: sin él, un PO con
+      // forma de fecha —"08-4885"— se guarda como fecha y vuelve vacío.
+      sheet.getRange(i + 1, 1, 1, 17).setValues([textSafeRow_([
         data.id,
         estDate,
-        sheetSafe_(String(data.category || '').toUpperCase().trim()),
-        sheetSafe_(String(data.name     || '').trim()),
+        String(data.category || '').toUpperCase().trim(),
+        String(data.name     || '').trim(),
         Number(data.qty      || 0),
-        sheetSafe_(String(data.unit     || 'UNIT')),
-        sheetSafe_(String(data.supplier || '')),
-        sheetSafe_(String(data.po       || '')),
-        sheetSafe_(String(data.notes    || '')),
+        String(data.unit     || 'UNIT'),
+        String(data.supplier || ''),
+        String(data.po       || ''),
+        String(data.notes    || ''),
         incomingStatus_(data.status),
         values[i][10],          // preserve addedBy
         values[i][11],          // preserve addedAt
-        sheetSafe_(String(data.pm || '')),  // PM — Project Manager
+        String(data.pm || ''),  // PM — Project Manager
         docLink,
         mode,
         estEnd,
-        sheetSafe_(String(data.dateNote || ''))
-      ]]);
+        String(data.dateNote || '')
+      ])]);
       return { status: 'success', docLink: docLink };
     }
   }

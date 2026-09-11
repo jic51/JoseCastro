@@ -3508,7 +3508,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.75';
+var APP_VERSION = '11.76';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3520,7 +3520,7 @@ var APP_VERSION = '11.75';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0cc38591';
+var APP_BUILD = '9acce5a8';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -15940,6 +15940,25 @@ function renderAll(){
     _TAB_RENDERS[tab]();
     _dirtyTabs[tab] = false;
   }
+  /* EL POPUP DE LA MAÑANA NO ES DE NINGUNA PESTAÑA, así que su refresco no
+   * puede colgar de una.
+   *
+   * Jose, 2026-09-11, con captura: marcó una entrega como llegada desde el
+   * popup, registró su entrada, y el popup siguió enseñándola como Pending con
+   * su botón "Mark arrived" — "tuve que cerrar la ventana y volverla a abrir
+   * para que cambie".
+   *
+   * La causa está tres líneas más arriba: renderAll repinta SÓLO LA PESTAÑA
+   * ACTIVA, y la llamada a _refreshMorningPopup vivía dentro de renderIncoming.
+   * Jose estaba en Movements & History, así que renderIncoming no corría y el
+   * popup no se enteraba de nada. Funcionaba únicamente si la pestaña de
+   * Incoming resultaba ser la de delante — que es la que menos falta hace,
+   * porque ahí los datos ya se ven.
+   *
+   * Aquí sí: renderAll es "los datos cambiaron, repinta". Y es gratis cuando el
+   * popup está cerrado, que es casi siempre — la primera línea de
+   * _refreshMorningPopup se va si el overlay no está abierto. */
+  _refreshMorningPopup();
 }
 
 // ── Stock Detail Panel ────────────────────────────────────────────────────────
@@ -16235,9 +16254,6 @@ function saveMonitorSettings() {
 function renderIncoming() {
   renderIncomingWeekGrid();
   renderIncomingTable();
-  // If the week popup is open behind an edit window, it is looking at the data
-  // that just changed. A no-op when it is closed.
-  _refreshMorningPopup();
 }
 
 function renderIncomingWeekGrid() {
