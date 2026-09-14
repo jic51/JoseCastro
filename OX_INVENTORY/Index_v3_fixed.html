@@ -245,6 +245,11 @@
     .badge-teal{background:#CCFBF1;color:#0F766E}
     .badge-pink{background:#FCE7F3;color:#BE185D}
     .badge-navy{background:#DBEAFE;color:#1E3A8A}
+    /* El candado de la columna Location en el Stock Dashboard. Un pelo más
+       grande que el texto de la celda (.78rem) porque es lo único de esa celda
+       que hay que ver sin leer, y cursor:help porque el motivo está en el
+       title de la celda, no en una burbuja aparte. */
+    .sc-lock{font-size:.85rem;cursor:help}
     /* ── WAREHOUSE MAP ── */
     .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;padding:1.25rem}
     /* ── WAREHOUSE MAP — RACK GRID ── */
@@ -1261,7 +1266,29 @@
     /* min-width:0 so a long material name wraps instead of shoving the
        quantity column off the card. */
     .inc-item-main{flex:1;min-width:0}
-    .inc-item-name{font-size:.82rem;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
+    /* NOMBRE - SUPPLIER, en UNA sola línea, y CEDE EL QUE SOBRA.
+       El primer intento dejaba encoger a los dos (flex-shrink en ambos), que es
+       lo que parece razonable y no lo es: flex reparte el encogimiento EN
+       PROPORCIÓN al tamaño, así que con un nombre larguísimo y "AMSCO" al lado,
+       AMSCO también perdía su parte y salía "AMSC…" habiendo sitio de sobra.
+       Lo cazó la medición en el navegador, no la lectura del CSS.
+       La regla que sí hace lo que Jose pidió: el supplier NO encoge (flex 0 0)
+       y está topado al 55% de la línea; el nombre se queda con el resto. Los
+       cuatro casos salen bien —nombre largo, supplier largo, los dos, ninguno—
+       y el único número inventado es ese 55%, que existe para que el nombre del
+       material, que es como se reconoce la tarjeta, nunca baje de casi la mitad.
+       El recorte va en cada trozo y NO en .inc-item-name: puesto en el padre,
+       los puntos suspensivos saldrían una sola vez al final de la línea y el
+       supplier desaparecería entero en vez de acortarse.
+       Los dos llevan title, porque recortar en pantalla no puede ser perder el
+       dato — el texto completo se lee pasando el mouse. */
+    .inc-item-name{font-size:.82rem;line-height:1.35;color:var(--text);
+                   display:flex;align-items:baseline;min-width:0;flex-wrap:nowrap}
+    .inc-name-txt,.inc-name-sup{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .inc-name-txt{flex:1 1 auto;min-width:0}
+    .inc-name-sup{flex:0 0 auto;max-width:55%;color:var(--muted)}
+    /* El clip nunca encoge: es un objetivo de toque, no texto. */
+    .inc-item-name > a{flex:none}
     .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:.1rem;overflow-wrap:anywhere}
     /* The right column never shrinks and never wraps its own contents: a
        quantity broken across two lines is unreadable, and the whole reason it
@@ -2234,6 +2261,97 @@
          a los dos lados: se desbordaba aunque la posición fuera correcta. */
       .toast{max-width:100%;min-width:0}
     }
+
+    /* ══ ETIQUETAS DE 4"×6" ═══════════════════════════════════════════════════
+       Jose, 2026-09-11: imprime en una Jadens JD-268BT, térmica, papel de
+       4"×6" (101.6 × 152.4 mm). "Nombre del material, cantidad, locación, PO y
+       un lugar donde podamos poner el QR o código de barras."
+
+       LAS MEDIDAS VAN EN MILÍMETROS, NO EN rem NI EN px. Una etiqueta no es una
+       pantalla: el papel mide lo que mide, y un tamaño relativo al navegador
+       saldría distinto en cada ordenador desde el que se imprima. Es la única
+       parte de esta app donde una medida absoluta es lo correcto.
+
+       Y el @page con margin:0 es lo que hace que una térmica no meta los
+       márgenes de una impresora de oficina: sin él, Chrome reserva un centímetro
+       por lado y la etiqueta sale encogida y corrida hacia una esquina.
+       ═══════════════════════════════════════════════════════════════════════*/
+    #labelSheet{display:none}
+
+    .lbl{width:101.6mm;height:152.4mm;box-sizing:border-box;padding:7mm 6mm;
+      display:flex;flex-direction:column;color:#000;background:#fff;
+      font-family:Inter,Arial,Helvetica,sans-serif;
+      /* Una etiqueta por página. El último no lleva salto o sale una página en
+         blanco al final de cada tanda. */
+      page-break-after:always;break-after:page;overflow:hidden}
+    .lbl:last-child{page-break-after:auto;break-after:auto}
+
+    .lbl-top{display:flex;justify-content:space-between;align-items:baseline;
+      font-size:3.4mm;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+    .lbl-top .lbl-when{font-weight:600;letter-spacing:.02em}
+    /* EL NOMBRE ES LO QUE SE LEE DESDE LEJOS, así que se lleva el sitio. Tres
+       líneas como mucho: un nombre de cuatro líneas empuja la cantidad fuera de
+       la etiqueta, y la cantidad es lo segundo que se busca. */
+    .lbl-name{font-size:8.5mm;font-weight:800;line-height:1.1;margin-top:3mm;
+      overflow-wrap:anywhere;max-height:29mm;overflow:hidden}
+    /* Cantidad y locación, del mismo tamaño y lado a lado: son las dos
+       preguntas que se hacen con el bulto en la mano — cuánto hay, y a dónde
+       vuelve. */
+    .lbl-pair{display:flex;gap:5mm;margin-top:5mm}
+    .lbl-cell{flex:1;min-width:0;border:.4mm solid #000;border-radius:2mm;padding:3mm}
+    .lbl-cell-lbl{font-size:3mm;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    .lbl-cell-val{font-size:10mm;font-weight:800;line-height:1.05;margin-top:1mm;
+      overflow-wrap:anywhere}
+    .lbl-cell-val.sm{font-size:7mm}
+    .lbl-meta{margin-top:5mm;font-size:4.2mm;line-height:1.45;overflow-wrap:anywhere}
+    .lbl-meta b{font-weight:800}
+    .lbl-meta .lbl-dim{color:#444;font-size:3.8mm}
+    /* EL HUECO DEL CÓDIGO. Jose pidió "un lugar donde podamos poner el QR o
+       código de barras" — un LUGAR, y eso es lo que hay: espacio reservado, sin
+       nada dentro. En pantalla se dibuja su contorno para que se vea que está
+       ahí; en el papel no se imprime ninguna línea, porque una etiqueta con un
+       recuadro vacío parece una etiqueta a medio hacer.
+       Qué se codifica ahí es una decisión aparte y más grande que el hueco: lo
+       que lleve dentro decide PARA QUÉ sirve escanearlo. */
+    .lbl-code{margin-top:auto;height:34mm;border:.3mm dashed #bbb;border-radius:2mm;
+      display:flex;align-items:center;justify-content:center;
+      font-size:3.2mm;color:#bbb;letter-spacing:.1em;text-transform:uppercase}
+
+    @media print{
+      /* El papel, tal cual. Sin esto Chrome asume Letter con márgenes. */
+      @page{size:101.6mm 152.4mm;margin:0}
+      html,body{margin:0;padding:0;background:#fff}
+      /* TODO LO DEMÁS DESAPARECE. Hermanos directos de <body>: la app entera
+         cuelga de unos pocos, así que esconderlos por ahí es una regla y no
+         una lista que se queda vieja cada vez que se añade una ventana. */
+      body > *{display:none !important}
+      #labelSheet{display:block !important}
+      .lbl{page-break-inside:avoid;break-inside:avoid}
+      /* En papel el hueco del código no lleva contorno ni texto: es espacio. */
+      .lbl-code{border:none;color:transparent}
+    }
+
+    /* La vista previa dentro del cuadro: la etiqueta de verdad, encogida, para
+       que se vea lo que va a salir antes de gastar papel. */
+    #labelPreview{display:flex;gap:.6rem;overflow-x:auto;padding:.5rem 0 .2rem}
+    #labelPreview .lbl{flex:none;transform:scale(.42);transform-origin:top left;
+      width:101.6mm;height:152.4mm;border:1px solid var(--border);border-radius:3mm;
+      page-break-after:auto}
+    /* scale() no cambia el sitio que ocupa el elemento, así que sin esto la
+       vista previa reserva el alto entero de una etiqueta de 15 cm y deja medio
+       cuadro en blanco debajo. */
+    #labelPreview{height:calc(152.4mm * .42 + .7rem)}
+    #labelPreview .lbl-wrap{flex:none;width:calc(101.6mm * .42);height:calc(152.4mm * .42)}
+    .lbl-row{display:flex;align-items:center;gap:.55rem;padding:.5rem .15rem;
+      border-bottom:1px solid var(--border)}
+    .lbl-row:last-child{border-bottom:none}
+    .lbl-row input[type=checkbox]{flex:none;width:16px;height:16px;cursor:pointer}
+    .lbl-row-body{flex:1;min-width:0}
+    .lbl-row-name{font-size:.82rem;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+    .lbl-row-sub{font-size:.72rem;color:var(--muted);line-height:1.35}
+    .lbl-row-n{flex:none;display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted)}
+    .lbl-row-n input{width:3.4rem;padding:.25rem .35rem;font-size:.8rem;
+      border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)}
   </style>
 </head>
 <body>
@@ -2874,6 +2992,43 @@
     <div class="cconfirm-footer">
       <button class="cconfirm-cancel" id="confirmCancelBtn" onclick="_confirmCancel()">Cancel</button>
       <button class="btn-primary btn" id="confirmOkBtn" onclick="_confirmOk()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ETIQUETAS ══════════════════════════════════════════════════════════════
+     Jose, 2026-09-11: "lo que me hace falta por ahora" — crear e imprimir las
+     etiquetas al hacer los entries. Jadens JD-268BT, térmica, 4"×6".
+
+     Dos piezas separadas a propósito:
+
+     #labelSheet es lo que SE IMPRIME. Vive fuera de todo, oculto en pantalla,
+     y en @media print es lo único que queda visible. Nada de abrir una ventana
+     nueva: la app corre dentro del iframe de Apps Script y un window.open ahí
+     se lo come el bloqueador de ventanas emergentes la mitad de las veces.
+
+     #labelsOverlay es donde se ELIGE. Jose: "debo poder seleccionar los
+     materiales que necesitan una etiqueta, porque no todos la necesitan, y
+     también la cantidad de impresiones por cada etiqueta, aunque 1 debe ser el
+     default." ═══════════════════════════════════════════════════════════════-->
+<div id="labelSheet"></div>
+
+<div class="cconfirm-overlay" id="labelsOverlay">
+  <div class="cconfirm-dialog" style="max-width:560px">
+    <div class="cconfirm-icon-row">🏷️</div>
+    <div class="cconfirm-body">
+      <h3>Print labels</h3>
+      <p id="labelsLead"></p>
+      <div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:.4rem">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_labelsAll(true)">Select all</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="_labelsAll(false)">Select none</button>
+      </div>
+      <div id="labelsList" style="max-height:min(38vh,260px);overflow:auto;text-align:left;margin-top:.3rem"></div>
+      <div id="labelPreview"></div>
+    </div>
+    <div class="cconfirm-footer">
+      <button class="cconfirm-cancel" id="labelsSkip" onclick="_labelsClose()">Not now</button>
+      <button class="btn-primary btn" id="labelsPrintBtn" onclick="_labelsPrint()">🖨 Print</button>
     </div>
   </div>
 </div>
@@ -3549,7 +3704,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.78';
+var APP_VERSION = '11.83';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3561,7 +3716,7 @@ var APP_VERSION = '11.78';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9232dba1';
+var APP_BUILD = '0b4d214b';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -5474,6 +5629,40 @@ function stockBadge(item){
   return '<span class="badge badge-gray">Zero Stock</span>';
 }
 
+/** Los candados que afectan a ESTE material en los estantes donde HOY tiene
+ *  existencias. Un candado sobre un estante que ya se vació no bloquea nada
+ *  —no queda nada que sacar de ahí— y marcarlo sería ruido.
+ *
+ *  Jose lo pidió después de trabar MH 145 en B2A y no encontrar el candado en
+ *  ninguna parte del dashboard: estaba sólo en el cajón del estante y en el
+ *  formulario de salida, es decir, sólo donde ya era tarde. */
+function _stockLocks(s){
+  var out  = [];
+  var locs = (s && s.warehouseLocs) || {};
+  for (var r in locs){
+    if (!locs.hasOwnProperty(r) || !(locs[r] > 0)) continue;
+    var l = _findLock(s.matId, r);
+    if (l) out.push(l);
+  }
+  return out;
+}
+
+/** Lo que dice el candado, en las palabras de lo que de verdad impide. La regla
+ *  está en Code_v3_fixed.gs, sobre MATERIAL_LOCKS: EXIT y WASTE desde ese
+ *  estante siempre bloqueados; TRANSFER permitido, y si el candado trae lista
+ *  de destinos, sólo a esos. Una lista vacía NO significa "nada": significa
+ *  "muévelo donde quieras dentro de la bodega, pero no lo saques". */
+function _lockLines(ls){
+  return ls.map(function(l){
+    var quien = l.lockedBy ? ' (by ' + l.lockedBy + ')' : '';
+    var mover = (l.allowedDest && l.allowedDest.length)
+      ? '    Can only be moved to: ' + l.allowedDest.join(', ')
+      : '    Can be moved to any rack, but not taken out.';
+    return '🔒 Locked at ' + l.rack + ' — ' + (l.reason || 'no reason given') + quien +
+           '\n    No exits, no waste.' + '\n' + mover;
+  });
+}
+
 function rowClass(mt){
   var map = {ENTRY:'row-entry',EXIT:'row-exit',TRANSFER:'row-transfer',RETURN:'row-return',WASTE:'row-waste',ADJUST:'row-adjust'};
   return map[normMT(mt)] || '';
@@ -6058,13 +6247,25 @@ function renderStock(){
       ' onclick="event.stopPropagation()" onchange="toggleStockSelect(this)"' +
       (selDisabled ? ' title="No available stock to exit"' : ' title="Select for Exit"') + '>';
 
+    // El candado va DELANTE del texto a propósito: la celda recorta con puntos
+    // suspensivos, y un candado al final es un candado que desaparece justo en
+    // las filas con más estantes, que son las que más lo necesitan. El motivo no
+    // va en una burbuja propia sino en el MISMO title que ya tenía la celda —
+    // dos tooltips encima del mismo cuadrito es peor que uno.
+    var locTxt   = locSummary(s.warehouseLocs);
+    var locLocks = _stockLocks(s);
+    var lockMark = locLocks.length ? '<span class="sc-lock">🔒</span> ' : '';
+    var locTip   = locLocks.length
+      ? locTxt + '\n\n' + _lockLines(locLocks).join('\n')
+      : locTxt;
+
     // Cells are built by NAME and then emitted in the user's own order, so the
     // row can never drift out of step with the header it sits under.
     var cells = {
       category:     '<td class="sc-category">'+catBadge(s.category)+'</td>',
       name:         '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>',
       levels:       _levelsCell(s),
-      location:     '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locSummary(s.warehouseLocs))+'">'+_he(locSummary(s.warehouseLocs))+'</td>',
+      location:     '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locTip)+'">'+lockMark+_he(locTxt)+'</td>',
       status:       '<td class="sc-status">'+stockBadge(s)+'</td>',
       dateReceived: '<td class="sc-dateReceived">'+dateCell+'</td>',
       lastNote:     '<td class="sc-lastNote">'+noteCell+'</td>',
@@ -9846,12 +10047,18 @@ function submitMultiEntry(){
           } else {
             showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', 5000);
           }
-          /* Y AL FINAL, NO ANTES: los movimientos ya están guardados. Preguntar
-             por entregas de algo que todavía podía fallar sería pedir confirmar
-             una llegada que quizá no llegue a registrarse.
-             Va detrás del toast a propósito: primero "se guardó", que es lo que
-             la persona vino a hacer; después la pregunta de más. */
-          _offerAlsoArrived(materials, dateRec, po, deLaEntrega);
+          /* DOS COSAS DESPUÉS DE GUARDAR, Y EN ESTE ORDEN.
+             Las dos van al final y no antes: los movimientos ya están
+             guardados. Preguntar por entregas —o imprimir una etiqueta— de algo
+             que todavía podía fallar sería peor que no preguntar.
+             LAS ETIQUETAS PRIMERO, porque son la parte física: quien acaba de
+             registrar un camión tiene los bultos delante y necesita pegarles
+             algo AHORA. Lo de las entregas es papeleo y aguanta treinta
+             segundos. Y encadenadas, no las dos a la vez: dos ventanas
+             apiladas es el error que costó la v11.29. */
+          _openLabels(_labelsFromEntry(materials, payload), function(){
+            _offerAlsoArrived(materials, dateRec, po, deLaEntrega);
+          });
         }, 400);
       })
       .withFailureHandler(function(err){
@@ -16808,11 +17015,26 @@ function _incItemHtml(item, opts){
   var when = opts.showDate ? _he(_incDateLabel(item)) : '';
   var meta = [when, item.notes ? _he(item.notes) : ''].filter(Boolean).join(' · ');
 
+  // NOMBRE - SUPPLIER, y en la MISMA línea. Jose: "si el nombre es muy largo,
+  // se lo acorta con ... y se pone el supplier en la misma línea, no en la
+  // siguiente", y después: "el supplier también se acorta si es larguísimo".
+  //
+  // Sin supplier no hay guion. Un guion suelto al final de un nombre se lee
+  // como un dato que se perdió, y aquí no se perdió nada: esa entrega nunca
+  // tuvo proveedor escrito.
+  var prov = String(item.supplier || '').trim();
+  var sup  = prov
+    ? '<span class="inc-name-sup" title="' + _escAttr(prov) + '"> - ' + _he(prov) + '</span>'
+    : '';
+
   return '<div class="inc-item">' +
       '<div class="inc-item-cat">' + catBadge(item.category) + '</div>' +
       '<div class="inc-item-body">' +
         '<div class="inc-item-main">' +
-          '<div class="inc-item-name">' + _he(item.name) + doc + '</div>' +
+          '<div class="inc-item-name">' +
+            '<span class="inc-name-txt" title="' + _escAttr(item.name) + '">' + _he(item.name) + '</span>' +
+            sup + doc +
+          '</div>' +
           (meta ? '<div class="inc-item-meta">' + meta + '</div>' : '') +
         '</div>' +
         '<div class="inc-item-side">' +
@@ -17467,6 +17689,193 @@ function _thisWeeksDeliveries(todayStr){
 // The way back in. Until now the popup appeared once per page load and, once
 // closed, could only be brought back by reloading the whole app — which is
 // exactly what Jose ran into after marking the first delivery of the morning.
+/* ═══ ETIQUETAS DE 4"×6" ════════════════════════════════════════════════════
+ *
+ * Jose, 2026-09-11, cuando le pregunté qué era lo que más falta le hacía: "lo
+ * que me gustaría es pasarnos a la de crear e imprimir los labels al hacer los
+ * entries. Esa es la que me hace falta por ahora."
+ *
+ * Impresora Jadens JD-268BT, térmica, papel de 4"×6" (101.6 × 152.4 mm). En la
+ * etiqueta van cuatro cosas que él nombró —material, cantidad, locación y PO— y
+ * un hueco reservado para el QR o el código de barras.
+ *
+ * UNA ETIQUETA POR ESTANTE, NO POR MATERIAL. Si 44 unidades se repartieron
+ * entre C2A y B4A, son dos bultos en dos sitios y cada uno necesita la suya,
+ * con SU cantidad. Una etiqueta que dijera "44 · C2A, B4A" estaría mintiendo en
+ * los dos estantes a la vez.
+ */
+var _labelRows = [];      // lo que se está ofreciendo imprimir ahora mismo
+var _labelAfter = null;   // lo que hay que hacer al cerrar (ver submitMultiEntry)
+
+/** Las filas imprimibles de una entrada: una por (material × estante). */
+function _labelsFromEntry(materiales, compartido){
+  var out = [];
+  (materiales || []).forEach(function(mat){
+    (mat.locations || []).forEach(function(l){
+      if (!l || !(l.qty > 0)) return;
+      out.push({
+        name:     mat.name || '',
+        category: mat.category || compartido.category || '',
+        qty:      l.qty,
+        unit:     mat.unit || 'UNIT',
+        loc:      l.loc || '',
+        po:       mat.po       || compartido.po       || '',
+        supplier: mat.supplier || compartido.supplier || '',
+        project:  mat.project  || compartido.project  || '',
+        dateRec:  compartido.dateRec || '',
+        copies:   1       // Jose: "1 debe ser el default"
+      });
+    });
+  });
+  return out;
+}
+
+/** Una etiqueta, en HTML. La misma para la vista previa y para el papel: una
+ *  vista previa que se dibuja aparte es una vista previa de otra cosa. */
+function _labelHtml(r){
+  // Un bulto sin estante existe —el formulario lo admite— y la etiqueta tiene
+  // que decirlo en vez de dejar el recuadro vacío, que se lee como un fallo.
+  var loc = String(r.loc || '').trim();
+  var pie = [];
+  if (r.supplier) pie.push(_he(r.supplier));
+  if (r.project)  pie.push(_he(r.project));
+  return '<div class="lbl">' +
+      '<div class="lbl-top"><span>' + _he(r.category || '') + '</span>' +
+        '<span class="lbl-when">' + _he(r.dateRec || '') + '</span></div>' +
+      '<div class="lbl-name">' + _he(r.name) + '</div>' +
+      '<div class="lbl-pair">' +
+        '<div class="lbl-cell"><div class="lbl-cell-lbl">Qty</div>' +
+          '<div class="lbl-cell-val">' + _he(_qtyText(r.qty)) +
+          '<span style="font-size:4.5mm"> ' + _he(r.unit || 'UNIT') + '</span></div></div>' +
+        '<div class="lbl-cell"><div class="lbl-cell-lbl">Location</div>' +
+          '<div class="lbl-cell-val' + (loc ? '' : ' sm') + '">' +
+          _he(loc || 'not assigned') + '</div></div>' +
+      '</div>' +
+      '<div class="lbl-meta">' +
+        (r.po ? '<div>PO <b>' + _he(r.po) + '</b></div>' : '') +
+        (pie.length ? '<div class="lbl-dim">' + pie.join(' · ') + '</div>' : '') +
+      '</div>' +
+      '<div class="lbl-code">QR / barcode</div>' +
+    '</div>';
+}
+
+function _openLabels(rows, alCerrar){
+  _labelAfter = alCerrar || null;
+  _labelRows  = rows || [];
+  if (!_labelRows.length){ _labelsDone(); return; }
+
+  var lead = document.getElementById('labelsLead');
+  var list = document.getElementById('labelsList');
+  if (!lead || !list){ _labelsDone(); return; }
+  lead.textContent = _labelRows.length === 1
+    ? 'One label, 4"×6". Untick it if this one does not need one.'
+    : _labelRows.length + ' labels, 4"×6" — one per rack. Untick the ones that ' +
+      'do not need a label.';
+
+  list.innerHTML = _labelRows.map(function(r, i){
+    return '<label class="lbl-row">' +
+      '<input type="checkbox" checked data-lbl="' + i + '" onchange="_labelsRedraw()">' +
+      '<span class="lbl-row-body">' +
+        '<span class="lbl-row-name">' + _he(r.name) + '</span>' +
+        '<span class="lbl-row-sub">' + _he(_qtyText(r.qty)) + ' ' + _he(r.unit) +
+          ' · ' + _he(r.loc || 'no rack') +
+          (r.po ? ' · PO ' + _he(r.po) : '') + '</span>' +
+      '</span>' +
+      // step="1" porque media etiqueta no existe — son copias, no cantidad.
+      '<span class="lbl-row-n">×<input type="number" min="1" max="99" step="1" ' +
+        'value="' + (Number(r.copies) || 1) + '" ' +
+        'data-copies="' + i + '" onchange="_labelsRedraw()" onclick="event.preventDefault()"></span>' +
+    '</label>';
+  }).join('');
+
+  _labelsRedraw();
+  document.getElementById('labelsOverlay').classList.add('show');
+}
+
+/** Lo marcado, con sus copias. Una sola lectura del cuadro, usada por la vista
+ *  previa y por la impresión — así lo que se ve es exactamente lo que sale. */
+function _labelsChosen(){
+  var list = document.getElementById('labelsList');
+  if (!list) return [];
+  var copias = {};
+  list.querySelectorAll('input[data-copies]').forEach(function(inp){
+    var n = Math.max(1, Math.min(99, Math.round(Number(inp.value) || 1)));
+    copias[inp.getAttribute('data-copies')] = n;
+  });
+  var out = [];
+  list.querySelectorAll('input[data-lbl]').forEach(function(cb){
+    if (!cb.checked) return;
+    var i = cb.getAttribute('data-lbl');
+    var r = _labelRows[Number(i)];
+    if (!r) return;
+    for (var c = 0; c < (copias[i] || 1); c++) out.push(r);
+  });
+  return out;
+}
+
+function _labelsRedraw(){
+  var prev = document.getElementById('labelPreview');
+  var btn  = document.getElementById('labelsPrintBtn');
+  if (!prev) return;
+  var elegidas = _labelsChosen();
+  // Sólo las distintas en la vista previa: cuatro copias de la misma etiqueta
+  // se ven cuatro veces iguales y no dicen nada nuevo. El botón lleva el total.
+  var vistas = {}, unicas = [];
+  elegidas.forEach(function(r){
+    var k = r.name + '|' + r.loc + '|' + r.qty;
+    if (vistas[k]) return;
+    vistas[k] = 1; unicas.push(r);
+  });
+  prev.innerHTML = unicas.map(function(r){
+    return '<div class="lbl-wrap">' + _labelHtml(r) + '</div>';
+  }).join('');
+  if (btn){
+    btn.textContent = elegidas.length
+      ? '🖨 Print ' + elegidas.length + (elegidas.length === 1 ? ' label' : ' labels')
+      : '🖨 Print';
+    btn.disabled = !elegidas.length;
+  }
+}
+
+function _labelsAll(si){
+  var list = document.getElementById('labelsList');
+  if (!list) return;
+  list.querySelectorAll('input[data-lbl]').forEach(function(cb){ cb.checked = !!si; });
+  _labelsRedraw();
+}
+
+function _labelsPrint(){
+  var elegidas = _labelsChosen();
+  if (!elegidas.length) return;
+  var hoja = document.getElementById('labelSheet');
+  if (!hoja) return;
+  hoja.innerHTML = elegidas.map(_labelHtml).join('');
+  // El cuadro se cierra ANTES de imprimir: si sigue abierto, su sombra de fondo
+  // entra en la página. Y la hoja se vacía DESPUÉS, para que el navegador tenga
+  // qué imprimir mientras el diálogo del sistema está abierto.
+  _labelsClose();
+  setTimeout(function(){
+    try { window.print(); } catch (e) { showToast('Could not open the print dialog.', 'err'); }
+    setTimeout(function(){ hoja.innerHTML = ''; }, 1000);
+  }, 60);
+}
+
+function _labelsClose(){
+  var ov = document.getElementById('labelsOverlay');
+  if (ov) ov.classList.remove('show');
+  _labelRows = [];
+  _labelsDone();
+}
+
+/** Lo que venía detrás. Se llama UNA vez y se olvida: si el cuadro se abre y
+ *  se cierra dos veces, la pregunta de las entregas no puede salir dos veces. */
+function _labelsDone(){
+  if (!_labelAfter) return;
+  var f = _labelAfter;
+  _labelAfter = null;
+  setTimeout(f, 250);
+}
+
 /* ═══ "¿TAMBIÉN LLEGÓ ESTO?" ════════════════════════════════════════════════
  *
  * Jose, 2026-09-11: marcó UNA entrega como llegada, y cuando se abrió el

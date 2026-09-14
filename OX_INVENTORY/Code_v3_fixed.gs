@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.78';
+var APP_VERSION = '11.83';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.78';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9232dba1';
+var APP_BUILD = '0b4d214b';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -573,7 +573,7 @@ function saveSetupWizard(data) {
       writeConfigColumn_(cfg, 3, data.locations.map(function(l){ return l.name; }));
       writeConfigColumn_(cfg, 4, data.locations.map(function(l){ return l.type || 'RACK'; }));
     }
-    cfg.getRange(2, 8).setValue(sheetSafe_(String(data.adminEmail || actor).trim()));
+    cfg.getRange(2, 8).setValue(textCell_(String(data.adminEmail || actor).trim()));
   }
 
   // The owner becomes ADMIN. Written directly rather than through addUser(),
@@ -594,8 +594,8 @@ function saveSetupWizard(data) {
     if (!email || email.indexOf('@') === -1 || existing[email]) return;
     var role = String(u.role || 'WAREHOUSE').toUpperCase().trim();
     if (['ADMIN','WAREHOUSE','VIEWER'].indexOf(role) === -1) role = 'WAREHOUSE';
-    users.appendRow(['USR-' + (now.getTime() + i), sheetSafe_(email),
-                     sheetSafe_(String(u.name || '').trim()), role, actor, now, true]);
+    users.appendRow(['USR-' + (now.getTime() + i), textCell_(email),
+                     textCell_(String(u.name || '').trim()), role, actor, now, true]);
     existing[email] = true;
   });
 
@@ -1615,25 +1615,30 @@ function cleanDisplay_(str) {
   return String(str || '').toUpperCase().trim().replace(/\s+/g, ' ');
 }
 
-// Neutralize formula injection before ANY user-supplied text reaches a cell.
-// Sheets evaluates a cell whose text starts with = or + as a live formula, so a
-// value like "=IMPORTXML(...)" typed into a comment or material name would run
-// inside the customer's spreadsheet and can exfiltrate data or poison totals.
-// - and @ are included because the same strings get exported to CSV and Excel
-// evaluates all four. This matters most on the Gmail-scan path, where the text
-// originates in inbound mail from outside the company and is then written into
-// the very same fields.
+// AQUÍ HABÍA UN SEGUNDO GUARDIÁN, sheetSafe_, y se borró el 2026-09-14.
 //
-// A leading apostrophe is Sheets' "treat as literal text" marker: it is a cell
-// format flag, NOT part of the stored value, so getValues() still returns the
-// original string and existing comparisons — including addMovementsBatch_'s
-// write-verify read — behave exactly as before.
-function sheetSafe_(val) {
-  if (val === null || val === undefined) return '';
-  if (val instanceof Date || typeof val === 'number' || typeof val === 'boolean') return val;
-  var s = String(val);
-  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
-}
+// Nació antes que textCell_ y para otro problema: la INYECCIÓN DE FÓRMULAS. Un
+// texto que empieza por = o + lo evalúa Sheets como fórmula viva, así que un
+// "=IMPORTXML(...)" escrito en un comentario o en el nombre de un material
+// correría dentro de la hoja del cliente. Ponía la comilla sólo a esos cuatro
+// arranques: = + - @ (los cuatro, porque lo mismo se exporta a CSV y Excel
+// evalúa los cuatro; importa sobre todo en el camino del escaneo de Gmail,
+// donde el texto viene de correo de fuera de la empresa).
+//
+// POR QUÉ SE FUE. Hacía lo mismo que textCell_ pero SÓLO en esos cuatro casos,
+// y por eso dejaba pasar todo lo demás que Sheets también mastica: las fechas.
+// Teniendo los dos, cada sitio nuevo era una elección entre el guardián fuerte
+// y el débil, y la elección se hace una vez por sitio y para siempre. Cuarenta
+// y seis sitios habían elegido el débil.
+//
+// textCell_ cubre la inyección de fórmulas ENTERA: pone la comilla a TODAS las
+// cadenas, incluidas las cuatro de arriba. No se pierde nada borrando éste; se
+// pierde la posibilidad de volver a elegir mal.
+//
+// Lo que sí cambia, y es lo correcto: un PO tecleado como "12345" pasa a
+// guardarse como texto en vez de como el número 12345, así que se ve pegado a
+// la izquierda de la celda en vez de a la derecha. Un PO es una etiqueta, no
+// una cantidad — nadie suma dos POs.
 
 // ─── TEXT THAT STAYS TEXT ───────────────────────────────────────────────────
 // SHEETS PARSES WHAT IT IS GIVEN. setValues("07-6329") does not store those
@@ -2660,10 +2665,6 @@ var DATA_STAMP_KEY = 'WMS_DATA_STAMP';
  *   dismissSystemCard                    — "nuevas tarjetas", también
  *   updateConfig, mergeConfigValues,
  *   mergeLocations, saveLocationLayout   — catálogo: nombres, no existencias
- *   lockMaterial, unlockMaterial         — cambian permisos sobre el material,
- *                                          no cuánto hay. (Que el candado se
- *                                          vea al momento es una petición
- *                                          aparte, anotada en el backlog.)
  *   todo lo que empieza por get…         — no escriben nada
  *
  * LA REGLA CAMBIÓ EL 2026-09-11, y la que había estaba mal escrita. Decía: "si
@@ -2700,7 +2701,16 @@ var DATA_STAMP_ACTIONS = {
   // ventana de la semana.
   addIncoming:         true,
   updateIncoming:      true,
-  deleteIncoming:      true
+  deleteIncoming:      true,
+  // Los candados. Estuvieron fuera con esta razón escrita: "cambian permisos
+  // sobre el material, no cuánto hay". Esa razón era la regla vieja —la de
+  // AVAILABLE— aplicada a otra cosa, y con la regla nueva no se sostiene: el
+  // candado SE VE (en el cajón del estante, en el formulario de salida, y desde
+  // la v11.80 en la tabla del dashboard) y además CAMBIA LO QUE LA OTRA PERSONA
+  // PUEDE HACER. Que se entere en su siguiente carga es justo lo que no sirve:
+  // para cuando recargue ya intentó sacar el material y se comió el error.
+  lockMaterial:        true,
+  unlockMaterial:      true
 };
 
 function bumpDataStamp_() {
@@ -2972,16 +2982,16 @@ function addMovementsBatch_(ss, archive, movements, auth) {
 
       var row = new Array(AC_WIDTH);
       row[AC.TIMESTAMP]   = now;
-      row[AC.CATEGORY]    = sheetSafe_(cleanDisplay_(d.category));  // stored as typed (keeps , - /)
-      row[AC.NAME]        = sheetSafe_(cleanDisplay_(d.name));      // matId above still uses normalized form
-      row[AC.GC]          = sheetSafe_(String(d.gc || '').trim());
-      row[AC.PO]          = sheetSafe_(String(d.po || '').trim());
+      row[AC.CATEGORY]    = textCell_(cleanDisplay_(d.category));  // stored as typed (keeps , - /)
+      row[AC.NAME]        = textCell_(cleanDisplay_(d.name));      // matId above still uses normalized form
+      row[AC.GC]          = textCell_(String(d.gc || '').trim());
+      row[AC.PO]          = textCell_(String(d.po || '').trim());
       row[AC.QTY]         = qty;
-      row[AC.UNIT]        = sheetSafe_(String(d.unit || 'UNIT').toUpperCase());
+      row[AC.UNIT]        = textCell_(String(d.unit || 'UNIT').toUpperCase());
       row[AC.DATE_REC]    = d.dateRec || tzDate;
-      row[AC.SRC_LOC]     = sheetSafe_(src);
-      row[AC.SUPPLIER]    = sheetSafe_(String(d.supplier || '').trim());
-      row[AC.COMMENTS]    = sheetSafe_(String(d.comments || '').trim());
+      row[AC.SRC_LOC]     = textCell_(src);
+      row[AC.SUPPLIER]    = textCell_(String(d.supplier || '').trim());
+      row[AC.COMMENTS]    = textCell_(String(d.comments || '').trim());
       row[AC.STATUS]      = statusVal;
       // "Received By" — who physically took delivery. Left blank when unknown,
       // NEVER defaulted to the signed-in user: that silently asserted the person
@@ -2989,14 +2999,14 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       // enters a delivery on another person's behalf, and it is unfalsifiable
       // after the fact. Who entered it is already captured, separately and
       // truthfully, in USER_EMAIL below.
-      row[AC.RESPONSIBLE] = sheetSafe_(String(d.responsible || '').trim());
-      row[AC.PROJECT]     = sheetSafe_(proj);
-      row[AC.MAT_ID]      = sheetSafe_(matId);
+      row[AC.RESPONSIBLE] = textCell_(String(d.responsible || '').trim());
+      row[AC.PROJECT]     = textCell_(proj);
+      row[AC.MAT_ID]      = textCell_(matId);
       row[AC.DOC_LINKS]   = '';
       row[AC.USER_EMAIL]  = auth.email;
-      row[AC.DEST_LOC]    = sheetSafe_(dest);
+      row[AC.DEST_LOC]    = textCell_(dest);
       row[AC.MOVETYPE]    = mt;
-      row[AC.PM]          = sheetSafe_(String(d.pm || '').trim());
+      row[AC.PM]          = textCell_(String(d.pm || '').trim());
       row[AC.UNIT_COST]   = (unitCost  === null) ? '' : unitCost;
       row[AC.TOTAL_COST]  = (totalCost === null) ? '' : totalCost;
       // Given here, at the moment the row is built, and never again. An id
@@ -3663,12 +3673,14 @@ function saveMaterialPack(data, auth) {
     if (String(rows[i][PACK_COLS.CATEGORY] || '').trim().toUpperCase() === cat &&
         String(rows[i][PACK_COLS.NAME] || '').trim().toUpperCase() === name &&
         String(rows[i][PACK_COLS.PACK] || '').trim().toUpperCase() === pack.toUpperCase()) {
-      sheet.getRange(i + 2, 1, 1, 7).setValues([row]);
+      // PACKS guarda categoría y nombre de material, que es exactamente el
+      // texto que Sheets mastica. Iba sin ninguna protección — ni la débil.
+      sheet.getRange(i + 2, 1, 1, 7).setValues([textSafeRow_(row)]);
       auditLog_(ss, 'PACK_SAVE', auth.email, cat + ' / ' + name, pack, String(per));
       return { status: 'success', updated: true };
     }
   }
-  sheet.appendRow(row);
+  sheet.appendRow(textSafeRow_(row));
   auditLog_(ss, 'PACK_SAVE', auth.email, cat + ' / ' + name, pack, String(per));
   return { status: 'success', updated: false };
 }
@@ -4184,7 +4196,10 @@ function writeConfigSnapshot_(ss) {
   header.push(['PROPERTY', 'VALUE', 'WHAT IT IS']);
 
   var all = header.concat(rows.length ? rows : [['(nothing stored yet)', '', '']]);
-  sheet.getRange(1, 1, all.length, 3).setValues(all);
+  // Es un volcado de diagnóstico, pero lo que vuelca son VALORES de
+  // propiedades que nadie controla. Una fecha inventada en la hoja a la que
+  // se mira cuando algo va mal es la peor hoja donde tenerla.
+  sheet.getRange(1, 1, all.length, 3).setValues(all.map(textSafeRow_));
   sheet.getRange(1, 1, 1, 3).setFontWeight('bold');
   sheet.getRange(header.length, 1, 1, 3).setFontWeight('bold');
   sheet.getRange(1, 3, all.length, 1).setWrap(true).setFontColor('#6B7280');
@@ -5063,8 +5078,8 @@ function refreshDerivedSheets_(ss) {
   if (matIdFixes.length) {
     var archiveFixes = matIdFixes.filter(function(f){ return !f.isHistory; });
     var historyFixes = matIdFixes.filter(function(f){ return f.isHistory; });
-    archiveFixes.forEach(function(f){ archive.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
-    historyFixes.forEach(function(f){ history.getRange(f.rowNum, AC.MAT_ID + 1).setValue(f.correctMatId); });
+    archiveFixes.forEach(function(f){ archive.getRange(f.rowNum, AC.MAT_ID + 1).setValue(textCell_(f.correctMatId)); });
+    historyFixes.forEach(function(f){ history.getRange(f.rowNum, AC.MAT_ID + 1).setValue(textCell_(f.correctMatId)); });
     // The row numbers go in a shape the app can parse back out, so the
     // notification can offer to show you the actual rows rather than leaving
     // you to search the sheet for them.
@@ -5138,7 +5153,7 @@ function addReservation_(ss, data, auth) {
   if (current.availableQty < qty) throw new Error('Cannot reserve. Available: ' + current.availableQty);
 
   var id = 'RES-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
-  sheet.appendRow([id, sheetSafe_(cat), sheetSafe_(name), sheetSafe_(proj), qty, auth.email, new Date(), 'Active', '']);
+  sheet.appendRow([id, textCell_(cat), textCell_(name), textCell_(proj), qty, auth.email, new Date(), 'Active', '']);
 
   auditLog_(ss, 'ADD_RESERVATION', auth.email, id + ' | ' + name + ' x' + qty, '', '');
   return { status: 'success', reservationId: id };
@@ -5218,14 +5233,14 @@ function managePmDirectory(data, auth) {
         throw new Error('"' + name + '" is already in the PM directory.');
       }
     }
-    sheet.appendRow([sheetSafe_(name), sheetSafe_(email)]);
+    sheet.appendRow([textCell_(name), textCell_(email)]);
   } else if (data.op === 'rename') {
     var oldName = String(data.oldName || '').trim();
     if (!oldName) throw new Error('Current PM name is required.');
     var found = false;
     for (var j = 1; j < rows.length; j++) {
       if (String(rows[j][0] || '').trim().toUpperCase() === oldName.toUpperCase()) {
-        sheet.getRange(j + 1, 1, 1, 2).setValues([[sheetSafe_(name || oldName), sheetSafe_(email || rows[j][1])]]);
+        sheet.getRange(j + 1, 1, 1, 2).setValues([[textCell_(name || oldName), textCell_(email || rows[j][1])]]);
         found = true;
         break;
       }
@@ -5434,7 +5449,7 @@ function lockMaterial(data, auth) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
     if (String(rows[i][1] || '') === matId && normalizeString(rows[i][4] || '') === rackKey) {
-      sheet.getRange(i + 1, 6, 1, 4).setValues([[sheetSafe_(allowedDest.join(', ')), sheetSafe_(reason), auth.email, now]]);
+      sheet.getRange(i + 1, 6, 1, 4).setValues([[textCell_(allowedDest.join(', ')), textCell_(reason), auth.email, now]]);
       auditLog_(ss, 'UPDATE_LOCK', auth.email, data.name + ' @ ' + rack, '', reason);
       CacheService.getScriptCache().remove('materialLocksV1');
       return { status: 'success', lock: { id: String(rows[i][0]), matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
@@ -5442,7 +5457,7 @@ function lockMaterial(data, auth) {
   }
 
   var id = 'LOCK-' + new Date().getTime();
-  sheet.appendRow([id, sheetSafe_(matId), sheetSafe_(data.category), sheetSafe_(data.name), sheetSafe_(rack), sheetSafe_(allowedDest.join(', ')), sheetSafe_(reason), auth.email, now, 'Active', '', '']);
+  sheet.appendRow([id, textCell_(matId), textCell_(data.category), textCell_(data.name), textCell_(rack), textCell_(allowedDest.join(', ')), textCell_(reason), auth.email, now, 'Active', '', '']);
   auditLog_(ss, 'LOCK_MATERIAL', auth.email, data.name + ' @ ' + rack, '', reason);
   CacheService.getScriptCache().remove('materialLocksV1');
   return { status: 'success', lock: { id: id, matId: matId, category: data.category, name: data.name, rack: rack, allowedDest: allowedDest, reason: reason, lockedBy: auth.email, lockedAt: nowStr } };
@@ -5609,12 +5624,12 @@ function uploadRackPhoto(data, auth) {
   var found = false;
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0] || '').trim().toUpperCase() === loc) {
-      sheet.getRange(i + 1, 1, 1, 4).setValues([[sheetSafe_(loc), url, auth.email, now]]);
+      sheet.getRange(i + 1, 1, 1, 4).setValues([[textCell_(loc), url, auth.email, now]]);
       found = true;
       break;
     }
   }
-  if (!found) sheet.appendRow([sheetSafe_(loc), url, auth.email, now]);
+  if (!found) sheet.appendRow([textCell_(loc), url, auth.email, now]);
 
   auditLog_(ss, 'UPLOAD_RACK_PHOTO', auth.email, loc, '', url);
   CacheService.getScriptCache().remove('rackPhotosV1');
@@ -6061,18 +6076,18 @@ function updateTruck_(ss, data) {
   var values = cfg.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][8] || '') === data.truckName) {
-      cfg.getRange(i + 1, 10).setValue(sheetSafe_(data.assignedPerson || ''));
-      cfg.getRange(i + 1, 11).setValue(sheetSafe_(data.status || 'ACTIVE'));
+      cfg.getRange(i + 1, 10).setValue(textCell_(data.assignedPerson || ''));
+      cfg.getRange(i + 1, 11).setValue(textCell_(data.status || 'ACTIVE'));
       return { status: 'success' };
     }
   }
-  cfg.appendRow(['','','','','','','','',sheetSafe_(data.truckName), sheetSafe_(data.assignedPerson || ''), sheetSafe_(data.status || 'ACTIVE'),'','']);
+  cfg.appendRow(['','','','','','','','',textCell_(data.truckName), textCell_(data.assignedPerson || ''), textCell_(data.status || 'ACTIVE'),'','']);
   return { status: 'success', message: 'Truck added.' };
 }
 
 function addUser_(ss, data) {
   var cfg = ss.getSheetByName(SHEETS.CONFIG);
-  cfg.appendRow(['','','','','',sheetSafe_(data.email), sheetSafe_(data.role),'','','','','','']);
+  cfg.appendRow(['','','','','',textCell_(data.email), textCell_(data.role),'','','','','','']);
   return { status: 'success' };
 }
 
@@ -6097,7 +6112,7 @@ function updateMinStock_(ss, data) {
       return { status: 'success' };
     }
   }
-  cfg.appendRow(['','','','','','','','','','','',sheetSafe_(data.category), Number(data.qty) || 0]);
+  cfg.appendRow(['','','','','','','','','','','',textCell_(data.category), Number(data.qty) || 0]);
   return { status: 'success' };
 }
 
@@ -6129,7 +6144,7 @@ function updateMinStockBulk(data, auth) {
     if (rowByName[nm] !== undefined) {
       cfg.getRange(rowByName[nm], 13).setValue(qty);
     } else {
-      appended.push(['','','','','','','','','','','', sheetSafe_(nm), qty]);
+      appended.push(['','','','','','','','','','','', textCell_(nm), qty]);
     }
   });
   if (appended.length) {
@@ -6176,7 +6191,7 @@ function saveAvgCostUpdates_(ss, touched, avgCostMap) {
       // Cost — built with Array(14), not typed out by hand, because a
       // hand-counted run of empty strings is exactly the kind of thing that
       // is off by one and silent about it.
-      appended.push(new Array(14).fill('').concat([sheetSafe_(c.category), sheetSafe_(c.name), c.avg]));
+      appended.push(new Array(14).fill('').concat([textCell_(c.category), textCell_(c.name), c.avg]));
     }
   });
   if (appended.length) {
@@ -6552,7 +6567,12 @@ function writeMovIdColumn_(sheet, rows) {
   if (!sheet || rows.length < 2) return;
   ensureArchiveWidth_(sheet);
   var col = [];
-  for (var i = 1; i < rows.length; i++) col.push([rows[i] ? (rows[i][AC.MOV_ID] || '') : '']);
+  // Ida y vuelta: la columna sale de la hoja sin la comilla y se vuelve a
+  // escribir entera. Un id de movimiento no tiene forma de fecha hoy, pero la
+  // regla de este archivo es no ponerse a decidir qué cadena "parece" una fecha
+  // —eso es reescribir el parser de Sheets y equivocarse el primer día que no
+  // coincidan—. La comilla no cuesta nada.
+  for (var i = 1; i < rows.length; i++) col.push([textCell_(rows[i] ? (rows[i][AC.MOV_ID] || '') : '')]);
   sheet.getRange(2, AC.MOV_ID + 1, col.length, 1).setValues(col);
 }
 
@@ -6630,7 +6650,9 @@ function backfillMovementIds_(ss, auth) {
         renamed++;
       }
 
-      if (filled || renamed) sheet.getRange(2, AC.MOV_ID + 1, count, 1).setValues(ids);
+      // Misma ida y vuelta que writeMovIdColumn_: la columna entera vuelve a
+      // la hoja, así que vuelve con la comilla puesta.
+      if (filled || renamed) sheet.getRange(2, AC.MOV_ID + 1, count, 1).setValues(ids.map(function(r){ return [textCell_(r[0])]; }));
       out.filled  += filled;
       out.renamed += renamed;
       out.sheets.push({ sheet: sheetName, filled: filled, renamed: renamed, rows: count });
@@ -6656,7 +6678,7 @@ function backfillMovementIds_(ss, auth) {
 function auditLog_(ss, action, user, details, oldVal, newVal) {
   var sheet = ss.getSheetByName(SHEETS.AUDIT);
   if (!sheet) return;
-  sheet.appendRow([new Date(), action, user, sheetSafe_(details), sheetSafe_(oldVal), sheetSafe_(newVal)]);
+  sheet.appendRow([new Date(), action, user, textCell_(details), textCell_(oldVal), textCell_(newVal)]);
 }
 
 // ─── WHAT THE SYSTEM DID ON ITS OWN ──────────────────────────────────────────
@@ -6917,8 +6939,8 @@ function logError_(ss, severity, source, action, userEmail, message, context, re
   try {
     var sheet = ensureErrorLogSheet_(ss);
     sheet.appendRow([
-      new Date(), severity, sheetSafe_(userEmail || ''), source, sheetSafe_(action || ''),
-      sheetSafe_(String(message || '').substring(0, 500)), sheetSafe_(sanitizeErrorContext_(context)), requestId || ''
+      new Date(), severity, textCell_(userEmail || ''), source, textCell_(action || ''),
+      textCell_(String(message || '').substring(0, 500)), textCell_(sanitizeErrorContext_(context)), requestId || ''
     ]);
   } catch (e) {
     Logger.log('logError_ failed: ' + e.message);
@@ -8726,7 +8748,8 @@ function menuNormalizeStatus() {
     }
   }
 
-  if (fixed) archive.getRange(2, statusCol, lastRow - 1, 1).setValues(statusVals);
+  // Ida y vuelta sobre la columna Status. Ver rewriteArchiveColumn_.
+  if (fixed) archive.getRange(2, statusCol, lastRow - 1, 1).setValues(statusVals.map(function(r){ return [textCell_(r[0])]; }));
   auditLog_(ss, 'STATUS_NORMALIZED', 'Spreadsheet menu', fixed + ' row(s)', '', '');
 
   ui.alert('✓ Done.\n\n' + fixed + ' Status cell(s) corrected.' +
@@ -8961,7 +8984,7 @@ function addUser(data, auth) {
 
   var now = new Date();
   var id  = 'USR-' + now.getTime();
-  sheet.appendRow([id, sheetSafe_(email), sheetSafe_(name), sheetSafe_(role), auth.email, now, true]);
+  sheet.appendRow([id, textCell_(email), textCell_(name), textCell_(role), auth.email, now, true]);
   auditLog_(ss, 'ADD_USER', auth.email, email + ' as ' + role, '', '');
   return { status: 'success', id: id };
 }
@@ -8979,8 +9002,8 @@ function updateUser(data, auth) {
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][1] || '').toLowerCase().trim() === email) {
       var rowNum = i + 1;
-      if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(sheetSafe_(String(data.name).trim()));
-      if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(sheetSafe_(String(data.role).toUpperCase().trim()));
+      if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(textCell_(String(data.name).trim()));
+      if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(textCell_(String(data.role).toUpperCase().trim()));
       if (data.active !== undefined) sheet.getRange(rowNum, 7).setValue(!!data.active);
       auditLog_(ss, 'UPDATE_USER', auth.email, email + ' → ' + (data.role || 'no role change'), '', '');
       return { status: 'success' };
@@ -9087,7 +9110,11 @@ function mergeLocationsLocked_(data, auth, into, from) {
   // location would go on living in the history under its old name, and
   // refreshDerivedSheets_ reads the two concatenated — so the location would
   // reappear as a place stock still sits.
-  var storedInto = sheetSafe_(into);
+  // CRUDO a propósito: rewriteArchiveColumn_ es quien pone la comilla ahora,
+  // y ponerla aquí también dejaría DOS — la hoja se come una y guarda la otra
+  // DENTRO del valor. Se cita una vez, en el borde. Lo cazó
+  // test-text-stays-text.js el mismo día que se escribió el arreglo.
+  var storedInto = into;
   function keep(row, col) {
     var cur = String(row[col] || '').trim();
     return (cur && wanted[cur.toUpperCase()]) ? storedInto : null;
@@ -9458,7 +9485,8 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
   from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
 
   // 1. Rewrite both archives so history reads as one project.
-  var storedInto = sheetSafe_(into);
+  // Crudo: la comilla la pone rewriteArchiveColumn_. Ver mergeLocationsLocked_.
+  var storedInto = into;
   var rowsChanged = 0;
   [ss.getSheetByName(SHEETS.ARCHIVE), ensureArchiveHistorySheet_(ss)].forEach(function (sheet) {
     rowsChanged += rewriteArchiveColumn_(sheet, col, function (row) {
@@ -9534,8 +9562,28 @@ function rewriteArchiveColumn_(sheet, col, decide) {
   var out = [], changed = 0;
   for (var i = 0; i < rows.length; i++) {
     var nv = decide(rows[i]);
-    if (nv === null || nv === undefined) out.push([rows[i][col]]);
-    else { out.push([nv]); changed++; }
+    // textCell_ EN LAS DOS RAMAS, y la de abajo —la fila que NADIE tocó— es la
+    // que importa. Esto es una IDA Y VUELTA: lee la columna entera y la vuelve
+    // a escribir entera.
+    //
+    // La comilla que protege una celda es un formato, no parte del valor:
+    // getValues() devuelve "08-4885", nunca "'08-4885" (está escrito arriba, en
+    // textCell_). Así que la columna sale de la hoja SIN protección, y
+    // reescribirla tal cual se la da a Sheets otra vez para que la mastique. Un
+    // material llamado "08-4885" se convertía en fecha, y safeStr_ devuelve ''
+    // ante un Date: el material desaparecía del stock.
+    //
+    // Y no hacía falta tocar ESE material: bastaba renombrar cualquier otro de
+    // la misma columna, o fusionar dos, o cambiar una categoría, o aceptar un
+    // arreglo de "Check my data". Siete acciones normales pasan por aquí.
+    //
+    // Es la misma ida y vuelta de la papelera que Jose sufrió el 2026-09-09
+    // —"está dando un dato que no existe y borrando uno que sí"—, por la puerta
+    // de al lado. El comentario de textSafeRow_ enumera dónde se usa: guardar
+    // filas nuevas, editar una, copiarla a la papelera, restaurarla y la
+    // rotación nocturna. Las reescrituras POR COLUMNA no estaban en esa lista.
+    if (nv === null || nv === undefined) out.push([textCell_(rows[i][col])]);
+    else { out.push([textCell_(nv)]); changed++; }
   }
   if (changed) sheet.getRange(2, col + 1, last - 1, 1).setValues(out);
   return changed;
@@ -9559,7 +9607,11 @@ function renameIncomingCategory_(ss, oldVal, newValStored) {
   for (var i = 0; i < vals.length; i++) {
     if (String(vals[i][0] || '').trim().toUpperCase() === want) { vals[i][0] = newValStored; changed++; }
   }
-  if (changed) sheet.getRange(2, 3, last - 1, 1).setValues(vals);
+  // La misma ida y vuelta que rewriteArchiveColumn_, sobre INCOMING_V3: lee la
+  // columna de categorías entera y la reescribe entera, así que las filas que
+  // nadie tocó también pierden la comilla al pasar. Ver la explicación larga
+  // allí.
+  if (changed) sheet.getRange(2, 3, last - 1, 1).setValues(vals.map(function(v){ return [textCell_(v[0])]; }));
   return changed;
 }
 
@@ -9647,7 +9699,7 @@ function updateConfig(data, auth) {
     for (var i = 1; i < rows.length; i++) {
       if (!rows[i][col]) { targetRow = i + 1; break; }
     }
-    cfg.getRange(targetRow, col + 1).setValue(sheetSafe_(nv));
+    cfg.getRange(targetRow, col + 1).setValue(textCell_(nv));
 
   } else if (data.op === 'rename') {
     if (!val) throw new Error('Current value required for rename.');
@@ -9662,7 +9714,7 @@ function updateConfig(data, auth) {
     // matching each other. Found by renaming a real category for the first
     // time, in production, which is exactly where a mismatch like this
     // finally shows up.
-    var nvStored = sheetSafe_(nv.toUpperCase());
+    var nvStored = textCell_(nv.toUpperCase());
     for (var i = 1; i < rows.length; i++) {
       if (String(rows[i][col] || '').trim().toUpperCase() === val.toUpperCase()) {
         cfg.getRange(i + 1, col + 1).setValue(nvStored);
@@ -9690,8 +9742,12 @@ function updateConfig(data, auth) {
         // one category would have silently split into two materials: the
         // recent rows under the new name, the old ones under the old. Nobody
         // had hit it yet only because no installation has filled up.
-        var n  = renameCategoryColumn_(ss.getSheetByName(SHEETS.ARCHIVE), val, nvStored);
-        n     += renameCategoryColumn_(ensureArchiveHistorySheet_(ss), val, nvStored);
+        // nvStored (con comilla) es para la celda de CONFIG, que se escribe
+        // directa. A los reescritores de columna va el valor CRUDO: ellos
+        // citan, y citar dos veces guarda una comilla dentro del dato.
+        var nvCrudo = nv.toUpperCase();
+        var n  = renameCategoryColumn_(ss.getSheetByName(SHEETS.ARCHIVE), val, nvCrudo);
+        n     += renameCategoryColumn_(ensureArchiveHistorySheet_(ss), val, nvCrudo);
 
         // And the expected deliveries, which were being left behind.
         //
@@ -9705,7 +9761,7 @@ function updateConfig(data, auth) {
         // Deliveries are not stock, so this changes no number. It is here
         // because a rename has to reach every place the old word is stored, and
         // this was the one place it did not.
-        renameIncomingCategory_(ss, val, nvStored);
+        renameIncomingCategory_(ss, val, nv.toUpperCase());
 
         // LIVE_STOCK / SITE_STOCK / WASTED_STOCK are a cache of the archive,
         // and every screen in the app reads the cache, not the archive. Without
@@ -9846,7 +9902,7 @@ function manageMaterialLocked_(data, auth) {
     var oldNm = nm;
     var newNm = String(data.newName || '').trim();
     if (!newNm) throw new Error('New name required.');
-    var hit = matches(cat, oldNm), storedNm = sheetSafe_(newNm);
+    var hit = matches(cat, oldNm), storedNm = newNm;   // crudo: cita rewriteArchiveColumn_
     var count = rewriteBoth(AC.NAME, function (row) { return hit(row) ? storedNm : null; });
     if (count) refreshDerivedSheets_(ss);
     auditLog_(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm, newNm + ' (' + count + ' rows)');
@@ -9855,7 +9911,7 @@ function manageMaterialLocked_(data, auth) {
   } else if (op === 'changeCategory') {
     var newCat = String(data.newCategory || '').trim().toUpperCase();
     if (!newCat) throw new Error('New category required.');
-    var hitC = matches(cat, nm), storedCat = sheetSafe_(newCat);
+    var hitC = matches(cat, nm), storedCat = newCat;   // crudo: cita rewriteArchiveColumn_
     var countC = rewriteBoth(AC.CATEGORY, function (row) { return hitC(row) ? storedCat : null; });
     if (countC) refreshDerivedSheets_(ss);
     auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + countC + ' rows)');
@@ -9866,7 +9922,7 @@ function manageMaterialLocked_(data, auth) {
     var srcNm  = nm;
     var tgtNm  = String(data.targetName || '').trim();
     if (!tgtNm) throw new Error('Target name required.');
-    var hitM = matches(cat, srcNm), storedTgt = sheetSafe_(tgtNm);
+    var hitM = matches(cat, srcNm), storedTgt = tgtNm; // crudo: cita rewriteArchiveColumn_
     var countM = rewriteBoth(AC.NAME, function (row) { return hitM(row) ? storedTgt : null; });
     if (countM) refreshDerivedSheets_(ss);
     auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + countM + ' rows)');
@@ -10662,7 +10718,7 @@ function dqFillGapLocked_(ss, auth, data) {
       '. Run the check again.');
   }
 
-  var stored = sheetSafe_(value);
+  var stored = value;   // crudo: la comilla la pone rewriteArchiveColumn_
   var filled = 0;
   [ss.getSheetByName(SHEETS.ARCHIVE), ss.getSheetByName(SHEETS.ARCHIVE_HISTORY)].forEach(function (sheet) {
     if (!sheet) return;
@@ -10930,7 +10986,7 @@ function modifyMovementLocked_(data, auth) {
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
-      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : sheetSafe_(newStr);
+      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : textCell_(newStr);
     }
   });
 
