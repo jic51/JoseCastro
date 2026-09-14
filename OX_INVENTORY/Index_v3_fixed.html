@@ -3704,7 +3704,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.83';
+var APP_VERSION = '11.84';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3716,7 +3716,7 @@ var APP_VERSION = '11.83';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0b4d214b';
+var APP_BUILD = '220197a7';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6688,7 +6688,7 @@ function _loadOlderHistoryClicked() {
     })
     .withFailureHandler(function(e) {
       _btnLabel(btn, '📜 Load Older History');
-      showToast('⚠ Error: ' + (e.message||e), 'err');
+      showToast('⚠ Error: ' + _stripTags(e), 'err');
     })
     .processMovement('loadOlderHistory', _h({}));
 }
@@ -8650,7 +8650,7 @@ async function submitMovement(){
   // threw before reaching the spinner/button-state line.
   console.error('submitMovement error:', e);
   _reportClientError('submitMovement', e && e.message ? e.message : String(e), e && e.stack);
-  showToast('⚠ Error: ' + (e && e.message ? e.message : e), 'err', 6000);
+  showToast('⚠ Error: ' + _stripTags(e), 'err', 6000);
   var btnErr = document.getElementById('moveSubmit');
   if (btnErr) { btnErr.textContent = 'Save to System'; btnErr.disabled = false; }
   _setModalBusy('moveOverlay', false);
@@ -10085,7 +10085,13 @@ function submitMultiEntry(){
           });
           return;
         }
-        showToast('Error: ' + msg, 'err', 6000);
+        // _stripTags, igual que la salida. Era la única de las dos que
+        // enseñaba el texto crudo: la entrada decía 'Error: ' + msg y la
+        // salida ya pasaba por aquí. Hoy ninguna acción de este camino lanza
+        // un error marcado, así que no se veía —pero la asimetría es la
+        // trampa, no el síntoma: el día que el servidor marque un error de
+        // entrada, el usuario leería SYSTEM_BUSY| en su pantalla.
+        showToast('Error: ' + _stripTags(err), 'err', 6000);
       })
       .processMovement('addMultiEntry', _h(payload));
   }
@@ -10281,7 +10287,7 @@ function _saveArchiveCutoff() {
   var months = sel.value;
   google.script.run
     .withSuccessHandler(function() { showToast('✓ Archive cutoff updated to ' + months + ' months.', 'ok'); })
-    .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err'); })
+    .withFailureHandler(function(e) { showToast('⚠ Error: ' + _stripTags(e), 'err'); })
     .processMovement('updateConfig', _h({ type: 'archiveCutoffMonths', value: months }));
 }
 
@@ -10298,7 +10304,7 @@ function _rebuildStockNow() {
     })
     .withFailureHandler(function(e){
       _btnLabel(btn, '🔧 Rebuild Stock Totals Now');
-      showToast('⚠ Error: ' + (e.message||e), 'err', 6000);
+      showToast('⚠ Error: ' + _stripTags(e), 'err', 6000);
     })
     .processMovement('adminAction', _h({ action: 'reconcile' }));
 }
@@ -12962,7 +12968,7 @@ function _pmDirAdd() {
       _renderPmDirectoryTab();
       showToast('✓ PM added.', 'ok');
     })
-    .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err', 6000); })
+    .withFailureHandler(function(e) { showToast('⚠ Error: ' + _stripTags(e), 'err', 6000); })
     .processMovement('managePmDirectory', _h({ op: 'add', name: name, email: email }));
 }
 
@@ -12979,7 +12985,7 @@ function _pmDirDelete(name) {
           _renderPmDirectoryTab();
           showToast('PM removed.', 'ok');
         })
-        .withFailureHandler(function(e) { showToast('⚠ Error: ' + (e.message||e), 'err', 6000); })
+        .withFailureHandler(function(e) { showToast('⚠ Error: ' + _stripTags(e), 'err', 6000); })
         .processMovement('managePmDirectory', _h({ op: 'delete', name: name }));
     }
   });
@@ -16101,7 +16107,7 @@ function _handleRackPhotoFileChange(){
       })
       .withFailureHandler(function(err){
         dismissToast(uploadToastId);
-        showToast('Error uploading photo: ' + (err.message || err), 'err', 6000);
+        showToast('Error uploading photo: ' + _stripTags(err), 'err', 6000);
       })
       .processMovement('uploadRackPhoto', _h({ location: rack, fileData: b64, fileMimeType: mime }));
   });
@@ -16153,7 +16159,7 @@ function submitLockMaterial(){
     })
     .withFailureHandler(function(err){
       _btnLabel(btn, '🔒 Lock Material');
-      showToast('Error: ' + (err.message || err), 'err', 6000);
+      showToast('Error: ' + _stripTags(err), 'err', 6000);
     })
     .processMovement('lockMaterial', _h(payload));
 }
@@ -16552,7 +16558,7 @@ function saveMonitorSettings() {
     google.script.run
       .withSuccessHandler(function(){ /* silent — already applied locally */ })
       .withFailureHandler(function(err){
-        showToast('Error saving min-stock thresholds: ' + (err.message || err), 'err', 6000);
+        showToast('Error saving min-stock thresholds: ' + _stripTags(err), 'err', 6000);
       })
       .processMovement('updateMinStockBulk', _h({ updates: minUpdates }));
   }
@@ -16956,7 +16962,7 @@ function saveIncomingItem() {
       })
       .withFailureHandler(function(err){
         _btnReset(btn);
-        showToast('Error: ' + err.message, 'err', 5000);
+        showToast('Error: ' + _stripTags(err), 'err', 5000);
       })
       .processMovement(action, _h(payload));
   }
@@ -17148,7 +17154,7 @@ function _doDeleteIncomingItem(id){
       // That is the state that was asked for, so report it as done.
       if (msg.indexOf('Incoming item not found') !== -1){ _incomingDeleted(btn); return; }
       _btnReset(btn);
-      showToast('Error: ' + msg, 'err', 5000);
+      showToast('Error: ' + _stripTags(err), 'err', 5000);
     })
     .processMovement('deleteIncoming', _h({ id: id }));
 }
