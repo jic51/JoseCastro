@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.86';
+var APP_VERSION = '11.87';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.86';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '6d21e934';
+var APP_BUILD = 'ff040f84';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -11068,7 +11068,21 @@ function modifyMovementLocked_(data, auth) {
     if (oldStr !== newStr) {
       origVals[f.label] = oldStr;
       changes.push(f.label + ': "' + oldStr + '" → "' + newStr + '"');
-      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : textCell_(newStr);
+      // CRUDO. La comilla la pone UNA VEZ el textSafeRow_ de la escritura, más
+      // abajo. Citar aquí también deja DOS: Sheets se come una y guarda la otra
+      // DENTRO del valor.
+      //
+      // ASÍ SE VIO, y lo encontró Jose el 2026-09-15 con cuatro capturas:
+      // editó un movimiento cambiándole SÓLO el nombre y el historial pasó a
+      // decir 'JOSE I. Sólo el nombre porque sólo los campos que CAMBIAN pasan
+      // por esta línea; los demás conservan el valor que se leyó de la hoja,
+      // que ya venía limpio. Crear una entrada no lo hacía —eso iba por otro
+      // camino, arreglado en la v11.86—, y por eso parecía arreglado.
+      //
+      // Y aquí hacía más daño que en el archivo: unas líneas más abajo, si
+      // cambió la categoría o el nombre, el MatID se RECOMPONE a partir de
+      // rowVals — con la comilla dentro.
+      rowVals[f.col] = (key === 'qty') ? (parseFloat(newStr) || 0) : newStr;
     }
   });
 
