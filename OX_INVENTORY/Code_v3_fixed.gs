@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.84';
+var APP_VERSION = '11.85';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.84';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '220197a7';
+var APP_BUILD = '91157b7f';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -6091,12 +6091,37 @@ function addUser_(ss, data) {
   return { status: 'success' };
 }
 
+// BORRABA LA FILA ENTERA DE CONFIG, Y EN CONFIG CADA COLUMNA ES UNA LISTA.
+//
+// Encontrado el 2026-09-14 barriendo concurrencia. Esto hacía
+// cfg.deleteRow(i + 1) — y en la hoja CONFIG la columna A son proyectos, la B
+// categorías, la C proveedores, la D locaciones, la I camiones, la L el
+// min-stock. Un usuario vive en las columnas F y G de alguna fila, y borrar esa
+// fila se lleva por delante lo que compartiera renglón.
+//
+// Y la secuencia que lo junta todo es normal, no rebuscada: addUser_ añade una
+// fila con sólo F y G; luego updateConfig, al añadir una categoría, RELLENA EL
+// PRIMER HUECO de su columna —que puede ser esa misma fila—; y quitar al
+// usuario borraría la categoría con él.
+//
+// NUNCA LE PASÓ A NADIE, y hay que decirlo: ningún botón de la app llama a este
+// camino. La app gestiona usuarios en USERS_V3, donde quitar a alguien sólo
+// pone Active = false. Los usuarios de CONFIG son el respaldo HEREDADO que
+// getUserRole lee cuando USERS_V3 no contesta — se leen, no se escriben.
+//
+// Se arregla en vez de borrarse porque borrar el camino muerto es una decisión
+// aparte, con sus propias consecuencias, y no se mete de pasajero en un cambio
+// de concurrencia.
+//
+// Ahora hace lo mismo que la versión viva: vacía las dos celdas del usuario y
+// deja la fila donde está. Nada se desplaza, nada más se pierde.
 function removeUser_(ss, data) {
   var cfg    = ss.getSheetByName(SHEETS.CONFIG);
   var values = cfg.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][5] || '').toLowerCase() === data.email.toLowerCase()) {
-      cfg.deleteRow(i + 1);
+      // Columnas F y G — el correo y el rol. Y sólo ésas.
+      cfg.getRange(i + 1, 6, 1, 2).setValues([['', '']]);
       return { status: 'success' };
     }
   }
@@ -10181,55 +10206,88 @@ function incomingStatus_(v) {
   return 'Pending';
 }
 
+// ── LAS TRES ENTREGAS ESPERADAS VAN DENTRO DEL CANDADO ──────────────────────
+//
+// Encontrado el 2026-09-14 barriendo "¿quién gana cuando dos escriben a la
+// vez?". deleteIncoming borra la fila por su NÚMERO —deleteRow(i + 1), y todo
+// lo de abajo sube una— y updateIncoming escribe por el suyo. Ninguna de las
+// dos tomaba el candado, así que:
+//
+//   1. A abre la entrega #5. El servidor la lee y la encuentra en la fila 6.
+//   2. B borra la entrega #2. Todo sube una fila.
+//   3. A guarda: escribe en la fila 6, que ahora es OTRA entrega.
+//
+// La edición de A cae encima de una entrega que nadie estaba tocando. Las dos
+// acciones son de ADMIN y Jose trabaja con dos cuentas abiertas.
+//
+// ES LA MISMA LECCIÓN DEL 2026-09-07, la que él confirmó en vivo con los
+// movimientos: "un número de fila es lo que hacía esto peligroso". Allí se
+// arregló borrando POR ID. Aquí no se conectó nunca — el mismo patrón de
+// siempre: escrito para un camino, conectado a uno solo.
+//
+// LA AUTENTICACIÓN SE QUEDA FUERA DEL CANDADO a propósito: resolver el rol lee
+// USERS_V3, y sostener el candado del script mientras tanto haría esperar a
+// todo el mundo por algo que no escribe nada.
+//
+// EL COSTE, que hay que decirlo: el candado de Apps Script es UNO para todo el
+// script, así que una edición de entrega puede quedarse esperando a que termine
+// un guardado de movimiento. Por eso este cambio viene con el reintento puesto
+// en las dos pantallas que las llaman (saveIncomingItem y _doDeleteIncomingItem
+// en Index_v3_fixed.html): sin él, esto habría cambiado una carrera silenciosa
+// por un error visible, que no es un arreglo.
 function addIncoming(data) {
   var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ensureIncomingSheet_(ss);
-  var id    = 'INC-' + new Date().getTime();
-  var mode    = incomingDateMode_(data.dateMode);
-  var estDate = incomingDateCell_(mode === 'unknown' ? '' : data.estDate);
-  var estEnd  = incomingDateCell_(mode === 'window'  ? data.estDateEnd : '');
-  var docLink = uploadIncomingDoc_(data.docFile, data.name, data.po);
-  /* textSafeRow_, NO sheetSafe_. Jose, 2026-09-11, con cuatro capturas: escribió
-   * el PO "08-4885" en una entrega esperada, guardó, volvió a abrirla y el
-   * campo estaba VACÍO.
-   *
-   * sheetSafe_ sólo protege lo que empieza por = + - @, o sea las fórmulas.
-   * "08-4885" empieza por un cero, así que pasaba sin comilla, y Sheets lo leía
-   * como "mes 08, año 4885" y guardaba una fecha. Al leerlo de vuelta,
-   * safeStr_ ve un Date y devuelve '' — las dos mitades del fallo que Jose ya
-   * describió en septiembre: "está dando un dato que no existe y borrando uno
-   * que sí".
-   *
-   * ES EL MISMO FALLO DE LA v11.63, EN UN SITIO DONDE NO SE CABLEÓ. Allí se
-   * arreglaron el archivo, la papelera, el histórico y CONFIG; addIncoming y
-   * updateIncoming se quedaron fuera, y son justo las dos donde una persona
-   * teclea un PO a mano. Tercera vez que muerde el mismo patrón en este
-   * archivo: escrito para un camino, conectado a uno solo.
-   *
-   * textCell_ además sustituye a sheetSafe_ sin perder nada: una comilla
-   * delante hace la celda literal, así que también neutraliza las fórmulas. */
-  sheet.appendRow(textSafeRow_([
-    id,
-    estDate,
-    String(data.category || '').toUpperCase().trim(),
-    String(data.name     || '').trim(),
-    Number(data.qty      || 0),
-    String(data.unit     || 'UNIT'),
-    String(data.supplier || ''),
-    String(data.po       || ''),
-    String(data.notes    || ''),
-    incomingStatus_(data.status),
-    auth.email,
-    new Date(),
-    String(data.pm       || ''),
-    docLink,
-    mode,
-    estEnd,
-    String(data.dateNote || '')
-  ]));
-  return { status: 'success', id: id, docLink: docLink };
+  // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
+  // del candado. Ver la nota de arriba.
+  return withStockLock_(function(){
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ensureIncomingSheet_(ss);
+    var id    = 'INC-' + new Date().getTime();
+    var mode    = incomingDateMode_(data.dateMode);
+    var estDate = incomingDateCell_(mode === 'unknown' ? '' : data.estDate);
+    var estEnd  = incomingDateCell_(mode === 'window'  ? data.estDateEnd : '');
+    var docLink = uploadIncomingDoc_(data.docFile, data.name, data.po);
+    /* textSafeRow_, NO sheetSafe_. Jose, 2026-09-11, con cuatro capturas: escribió
+     * el PO "08-4885" en una entrega esperada, guardó, volvió a abrirla y el
+     * campo estaba VACÍO.
+     *
+     * sheetSafe_ sólo protege lo que empieza por = + - @, o sea las fórmulas.
+     * "08-4885" empieza por un cero, así que pasaba sin comilla, y Sheets lo leía
+     * como "mes 08, año 4885" y guardaba una fecha. Al leerlo de vuelta,
+     * safeStr_ ve un Date y devuelve '' — las dos mitades del fallo que Jose ya
+     * describió en septiembre: "está dando un dato que no existe y borrando uno
+     * que sí".
+     *
+     * ES EL MISMO FALLO DE LA v11.63, EN UN SITIO DONDE NO SE CABLEÓ. Allí se
+     * arreglaron el archivo, la papelera, el histórico y CONFIG; addIncoming y
+     * updateIncoming se quedaron fuera, y son justo las dos donde una persona
+     * teclea un PO a mano. Tercera vez que muerde el mismo patrón en este
+     * archivo: escrito para un camino, conectado a uno solo.
+     *
+     * textCell_ además sustituye a sheetSafe_ sin perder nada: una comilla
+     * delante hace la celda literal, así que también neutraliza las fórmulas. */
+    sheet.appendRow(textSafeRow_([
+      id,
+      estDate,
+      String(data.category || '').toUpperCase().trim(),
+      String(data.name     || '').trim(),
+      Number(data.qty      || 0),
+      String(data.unit     || 'UNIT'),
+      String(data.supplier || ''),
+      String(data.po       || ''),
+      String(data.notes    || ''),
+      incomingStatus_(data.status),
+      auth.email,
+      new Date(),
+      String(data.pm       || ''),
+      docLink,
+      mode,
+      estEnd,
+      String(data.dateNote || '')
+    ]));
+    return { status: 'success', id: id, docLink: docLink };
+  });
 }
 
 // Uploads an attached PDF/photo for an incoming item; returns the Drive URL ('' if none).
@@ -10246,60 +10304,68 @@ function uploadIncomingDoc_(docFile, name, po) {
 function updateIncoming(data) {
   var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet  = ensureIncomingSheet_(ss);   // guarantees the Doc Link column exists
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(data.id)) {
-      var mode    = incomingDateMode_(data.dateMode);
-      var estDate = mode === 'unknown' ? ''
-                  : (data.estDate ? incomingDateCell_(data.estDate) : values[i][1]);
-      var estEnd  = incomingDateCell_(mode === 'window' ? data.estDateEnd : '');
-      // New file replaces the old link; otherwise keep whatever was there (col N, idx 13)
-      var docLink = data.docFile && data.docFile.fileData
-        ? uploadIncomingDoc_(data.docFile, data.name, data.po)
-        : (values[i][13] || '');
-      // textSafeRow_ por el mismo motivo que en addIncoming: sin él, un PO con
-      // forma de fecha —"08-4885"— se guarda como fecha y vuelve vacío.
-      sheet.getRange(i + 1, 1, 1, 17).setValues([textSafeRow_([
-        data.id,
-        estDate,
-        String(data.category || '').toUpperCase().trim(),
-        String(data.name     || '').trim(),
-        Number(data.qty      || 0),
-        String(data.unit     || 'UNIT'),
-        String(data.supplier || ''),
-        String(data.po       || ''),
-        String(data.notes    || ''),
-        incomingStatus_(data.status),
-        values[i][10],          // preserve addedBy
-        values[i][11],          // preserve addedAt
-        String(data.pm || ''),  // PM — Project Manager
-        docLink,
-        mode,
-        estEnd,
-        String(data.dateNote || '')
-      ])]);
-      return { status: 'success', docLink: docLink };
+  // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
+  // del candado. Ver la nota de arriba.
+  return withStockLock_(function(){
+    var ss     = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet  = ensureIncomingSheet_(ss);   // guarantees the Doc Link column exists
+    var values = sheet.getDataRange().getValues();
+    for (var i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === String(data.id)) {
+        var mode    = incomingDateMode_(data.dateMode);
+        var estDate = mode === 'unknown' ? ''
+                    : (data.estDate ? incomingDateCell_(data.estDate) : values[i][1]);
+        var estEnd  = incomingDateCell_(mode === 'window' ? data.estDateEnd : '');
+        // New file replaces the old link; otherwise keep whatever was there (col N, idx 13)
+        var docLink = data.docFile && data.docFile.fileData
+          ? uploadIncomingDoc_(data.docFile, data.name, data.po)
+          : (values[i][13] || '');
+        // textSafeRow_ por el mismo motivo que en addIncoming: sin él, un PO con
+        // forma de fecha —"08-4885"— se guarda como fecha y vuelve vacío.
+        sheet.getRange(i + 1, 1, 1, 17).setValues([textSafeRow_([
+          data.id,
+          estDate,
+          String(data.category || '').toUpperCase().trim(),
+          String(data.name     || '').trim(),
+          Number(data.qty      || 0),
+          String(data.unit     || 'UNIT'),
+          String(data.supplier || ''),
+          String(data.po       || ''),
+          String(data.notes    || ''),
+          incomingStatus_(data.status),
+          values[i][10],          // preserve addedBy
+          values[i][11],          // preserve addedAt
+          String(data.pm || ''),  // PM — Project Manager
+          docLink,
+          mode,
+          estEnd,
+          String(data.dateNote || '')
+        ])]);
+        return { status: 'success', docLink: docLink };
+      }
     }
-  }
-  throw new Error('Incoming item not found: ' + data.id);
+    throw new Error('Incoming item not found: ' + data.id);
+  });
 }
 
 function deleteIncoming(id, sessionToken) {
   var auth = getUserRole(sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet  = ss.getSheetByName('INCOMING_V3');
-  if (!sheet) throw new Error('INCOMING_V3 sheet not found.');
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
-      return { status: 'success' };
+  // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
+  // del candado. Ver la nota de arriba.
+  return withStockLock_(function(){
+    var ss     = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet  = ss.getSheetByName('INCOMING_V3');
+    if (!sheet) throw new Error('INCOMING_V3 sheet not found.');
+    var values = sheet.getDataRange().getValues();
+    for (var i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === String(id)) {
+        sheet.deleteRow(i + 1);
+        return { status: 'success' };
+      }
     }
-  }
-  throw new Error('Incoming item not found: ' + id);
+    throw new Error('Incoming item not found: ' + id);
+  });
 }
 
 // ═══ DATA QUALITY SWEEP ══════════════════════════════════════════════════════

@@ -3704,7 +3704,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.84';
+var APP_VERSION = '11.85';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3716,7 +3716,7 @@ var APP_VERSION = '11.84';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '220197a7';
+var APP_BUILD = '91157b7f';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -16931,6 +16931,13 @@ function saveIncomingItem() {
   var arrived   = payload.status === 'Arrived';
   var wantEntry = arrived && !!(document.getElementById('incMakeEntry') || {}).checked;
 
+  // Las tres acciones de entregas esperadas toman el candado del script desde
+  // la v11.85, así que ahora pueden contestar "system busy" si coinciden con un
+  // guardado de movimiento. El reintento es la otra mitad de ese cambio: sin
+  // él, el candado sólo habría cambiado una carrera silenciosa por un error
+  // visible, y eso no es un arreglo.
+  var _busyState = { tries: 0 };
+
   function _send(){
     var action = id ? 'updateIncoming' : 'addIncoming';
     _btnBusy(btn, 'Saving…');
@@ -16961,6 +16968,11 @@ function saveIncomingItem() {
         loadDataFromGoogle(false);
       })
       .withFailureHandler(function(err){
+        // ANTES de devolver el botón: mientras espera turno no debe poder
+        // volver a pulsarse. Mismo orden que en las dos pantallas de
+        // movimientos, por la misma razón.
+        if (_busyRetry(err, { btn: btn, state: _busyState,
+                              retry: function(){ _send(); } })) return;
         _btnReset(btn);
         showToast('Error: ' + _stripTags(err), 'err', 5000);
       })
@@ -17146,17 +17158,35 @@ function _doDeleteIncomingItem(id){
   var btn = document.getElementById('btnDeleteIncoming');
   if (btn && btn.disabled) return;   // already in flight
   _btnBusy(btn, 'Deleting…');
-  google.script.run
-    .withSuccessHandler(function(){ _incomingDeleted(btn); })
-    .withFailureHandler(function(err){
-      var msg = (err && err.message) ? String(err.message) : String(err || '');
-      // The row is gone — a second press, or somebody else deleted it first.
-      // That is the state that was asked for, so report it as done.
-      if (msg.indexOf('Incoming item not found') !== -1){ _incomingDeleted(btn); return; }
-      _btnReset(btn);
-      showToast('Error: ' + _stripTags(err), 'err', 5000);
-    })
-    .processMovement('deleteIncoming', _h({ id: id }));
+
+  // El reintento envía DE NUEVO, no vuelve a entrar por aquí.
+  //
+  // El primer intento de este cambio le pasaba a _busyRetry un retry que
+  // llamaba a _doDeleteIncomingItem(id) otra vez — y eso no reintentaba nada:
+  // _busyRetry deja el botón ocupado a propósito mientras espera, así que la
+  // reentrada se habría dado la vuelta en la línea de arriba (btn.disabled) y
+  // el borrado se habría perdido en silencio, que es peor que el error que se
+  // estaba tratando de evitar.
+  var estado = { tries: 0 };
+
+  function enviar(){
+    google.script.run
+      .withSuccessHandler(function(){ _incomingDeleted(btn); })
+      .withFailureHandler(function(err){
+        // ANTES de devolver el botón, igual que al guardar: mientras espera
+        // turno no debe poder volver a pulsarse.
+        if (_busyRetry(err, { btn: btn, state: estado, retry: enviar })) return;
+        var msg = (err && err.message) ? String(err.message) : String(err || '');
+        // The row is gone — a second press, or somebody else deleted it first.
+        // That is the state that was asked for, so report it as done.
+        if (msg.indexOf('Incoming item not found') !== -1){ _incomingDeleted(btn); return; }
+        _btnReset(btn);
+        showToast('Error: ' + _stripTags(err), 'err', 5000);
+      })
+      .processMovement('deleteIncoming', _h({ id: id }));
+  }
+
+  enviar();
 }
 function _incomingDeleted(btn){
   _btnDone(btn, true, function(){
