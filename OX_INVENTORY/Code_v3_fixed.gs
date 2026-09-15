@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.88';
+var APP_VERSION = '11.89';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.88';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'eb141cd6';
+var APP_BUILD = '9c1a66fe';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1776,7 +1776,18 @@ function getInitialData(sessionToken) {
     // Fast path: read pre-aggregated LIVE_STOCK/SITE_STOCK/WASTED_STOCK instead of
     // re-scanning every movement in JS on every login. Falls back to the full scan
     // if the derived sheets haven't been populated yet (e.g. brand-new spreadsheet).
-    var stock = buildStockFromDerivedSheets_(ss);
+    // LA RED DE SEGURIDAD DEL REFRESCO APLAZADO. Si una tanda se quedó a medias
+    // —el navegador se cerró, el refresco final falló—, las hojas derivadas
+    // están atrás. Se ponen al día AQUÍ, antes de leerlas, porque éste es el
+    // único momento en que alguien va a mirar los números. Ver refreshOrDefer_.
+    //
+    // CON CANDADO, y si no se consigue NO SE CONFÍA en las derivadas: se cae al
+    // barrido completo de abajo, que es más lento y siempre correcto. Preferir
+    // lento a inventado.
+    var derivadasAlDia = true;
+    if (refreshPending_()) derivadasAlDia = refreshDerivedSheetsSafely_(ss);
+
+    var stock = derivadasAlDia ? buildStockFromDerivedSheets_(ss) : null;
     if (stock) {
       applyReservationsAndFinalize_(stock, reservations);
     } else {
@@ -2422,6 +2433,16 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'updateDocument')        return updateDocument_(ss, archive, data, auth);
   if (action === 'addReservation')        return addReservation_(ss, data, auth);
   if (action === 'cancelReservation')     return cancelReservation_(ss, data, auth);
+  // EL CIERRE DE LA TANDA. El navegador la manda cuando su cola se vacía, y es
+  // el único refresco de toda la tanda. Si nunca llega —se cerró la ventana, se
+  // cayó la red—, la marca se queda puesta y el siguiente getInitialData lo
+  // hace. Ver refreshOrDefer_.
+  if (action === 'refreshNow') {
+    // Con candado: éste corre por su cuenta, fuera de cualquier acción. Si no
+    // lo consigue, la marca se queda puesta y el siguiente getInitialData lo
+    // hará — que es exactamente para lo que está la marca.
+    return { status: 'success', refreshed: refreshDerivedSheetsSafely_(ss) };
+  }
   if (action === 'addIncoming')           return addIncoming(data);
   if (action === 'updateIncoming')        return updateIncoming(data);
   if (action === 'deleteIncoming')        return deleteIncoming(data.id, data._sessionToken);
@@ -2644,6 +2665,91 @@ function shortStockTag_(cat, name, rack, there, total, asked) {
 }
 
 var DATA_STAMP_KEY = 'WMS_DATA_STAMP';
+
+// ── UN REFRESCO POR TANDA, NO UNO POR OPERACIÓN ─────────────────────────────
+//
+// Jose, 2026-09-15: "todo se actualiza, no con la velocidad que me gustaría".
+// Y tiene un número detrás. refreshDerivedSheets_ reconstruye LIVE_STOCK,
+// SITE_STOCK y WASTED_STOCK, y eso son unos nueve viajes a Google —medidos en
+// SU hoja el 2026-09-10: 3,7 segundos—. Borrar diez filas seguidas los pagaba
+// DIEZ VECES: unos cuarenta segundos para un trabajo que necesita uno.
+//
+// El navegador ya agrupaba SU recarga (ver _reloadWhenIdle). Lo que no se
+// agrupaba era el trabajo del SERVIDOR.
+//
+// POR QUÉ ESTO SE PUEDE APLAZAR SIN RIESGO, que es la pregunta que había que
+// contestar antes de escribirlo: las hojas derivadas son para MOSTRAR. Validar
+// un movimiento —¿queda material?, ¿alcanza en ese estante?— se hace contra
+// buildStockSnapshot_, que lee EL ARCHIVO, no las derivadas. Así que dejarlas
+// atrás un momento puede hacer que los números se vean con retraso; NO puede
+// dejar sacar material que ya no está.
+//
+// Y LA RED DE SEGURIDAD ES LA PARTE QUE IMPORTA. Si el navegador se cierra a
+// mitad de la tanda, o el refresco final falla, la marca se queda puesta y el
+// PRIMER getInitialData que la vea refresca antes de contestar. Nadie llega a
+// ver números viejos: el coste se le cobra a quien de verdad necesita los datos,
+// una vez, en vez de N veces a quien estaba borrando filas.
+var REFRESH_PENDING_KEY = 'WMS_REFRESH_PENDING';
+
+function refreshOrDefer_(ss, data) {
+  if (data && data._skipRefresh) {
+    try {
+      PropertiesService.getScriptProperties().setProperty(REFRESH_PENDING_KEY, '1');
+    } catch (e) {
+      // Si no se pudo dejar la marca, NO se aplaza: refrescar de más cuesta
+      // segundos; no refrescar cuando nadie va a hacerlo cuesta números falsos.
+      Logger.log('refreshOrDefer_: no se pudo marcar, refrescando ahora: ' + e.message);
+      refreshDerivedSheets_(ss);
+    }
+    return;
+  }
+  refreshDerivedSheets_(ss);
+  _clearRefreshPending_();
+}
+
+function _clearRefreshPending_() {
+  try { PropertiesService.getScriptProperties().deleteProperty(REFRESH_PENDING_KEY); }
+  catch (e) {}
+}
+
+/**
+ * Refrescar DESDE FUERA de una acción, tomando el candado.
+ *
+ * LO CAZÓ test-concurrency, y tenía razón: hasta la v11.89 todo refresco
+ * ocurría DENTRO del candado de la acción que lo pedía. Al aplazarlo, el
+ * refresco de cierre pasa a ocurrir por su cuenta — y eso sin candado no es
+ * inofensivo.
+ *
+ * refreshDerivedSheets_ hace clearContents() y luego setValues(). Dos a la vez
+ * se pisan así: A limpia, B limpia, A escribe cien filas, B escribe noventa y
+ * ocho — y las dos últimas de A se quedan colgando debajo de las de B. Eso no
+ * es un número viejo: es un número que nadie escribió.
+ *
+ * Devuelve false si no consiguió el candado. Quien llama NO debe fiarse
+ * entonces de las hojas derivadas: para eso getInitialData se cae al barrido
+ * completo, que es más lento y siempre correcto.
+ */
+function refreshDerivedSheetsSafely_(ss) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    refreshDerivedSheets_(ss);
+    _clearRefreshPending_();
+    return true;
+  } catch (e) {
+    Logger.log('refreshDerivedSheetsSafely_: ' + e.message);
+    return false;
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/** ¿Quedó una tanda a medias? Lo usa getInitialData antes de leer las derivadas. */
+function refreshPending_() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty(REFRESH_PENDING_KEY) === '1';
+  } catch (e) { return false; }
+}
 
 /* LAS ACCIONES QUE MUEVEN EL SELLO. Es una lista corta a propósito, y lo que
  * NO está en ella importa tanto como lo que está.
@@ -9199,7 +9305,7 @@ function mergeLocationsLocked_(data, auth, into, from) {
     writeConfigColumn_(cfg, 4, types);
   }
 
-  refreshDerivedSheets_(ss);
+  refreshOrDefer_(ss, data);
   auditLog_(ss, 'MERGE_LOCATIONS', auth.email, from.join(' + ') + ' → ' + into, String(rowsChanged) + ' cells', '');
   return { status: 'success', rowsChanged: rowsChanged, into: into };
 }
@@ -9556,7 +9662,7 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
     writeConfigColumn_(cfg, cfgCol, keep);
   }
 
-  refreshDerivedSheets_(ss);
+  refreshOrDefer_(ss, data);
   auditLog_(ss, 'MERGE_CONFIG', auth.email,
     type + ': ' + from.join(' + ') + ' → ' + into, String(rowsChanged) + ' rows', '');
 
@@ -9817,7 +9923,7 @@ function updateConfig(data, auth) {
         // Inside the lock on purpose: the rewrite above and the rebuild are one
         // operation, and a save landing between them would be replayed against
         // a half-renamed archive.
-        if (n) refreshDerivedSheets_(ss);
+        if (n) refreshOrDefer_(ss, data);
       });
     }
 
@@ -9945,7 +10051,7 @@ function manageMaterialLocked_(data, auth) {
     if (!newNm) throw new Error('New name required.');
     var hit = matches(cat, oldNm), storedNm = newNm;   // crudo: cita rewriteArchiveColumn_
     var count = rewriteBoth(AC.NAME, function (row) { return hit(row) ? storedNm : null; });
-    if (count) refreshDerivedSheets_(ss);
+    if (count) refreshOrDefer_(ss, data);
     auditLog_(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm, newNm + ' (' + count + ' rows)');
     return { status: 'success', updated: count };
 
@@ -9954,7 +10060,7 @@ function manageMaterialLocked_(data, auth) {
     if (!newCat) throw new Error('New category required.');
     var hitC = matches(cat, nm), storedCat = newCat;   // crudo: cita rewriteArchiveColumn_
     var countC = rewriteBoth(AC.CATEGORY, function (row) { return hitC(row) ? storedCat : null; });
-    if (countC) refreshDerivedSheets_(ss);
+    if (countC) refreshOrDefer_(ss, data);
     auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + countC + ' rows)');
     return { status: 'success', updated: countC };
 
@@ -9965,7 +10071,7 @@ function manageMaterialLocked_(data, auth) {
     if (!tgtNm) throw new Error('Target name required.');
     var hitM = matches(cat, srcNm), storedTgt = tgtNm; // crudo: cita rewriteArchiveColumn_
     var countM = rewriteBoth(AC.NAME, function (row) { return hitM(row) ? storedTgt : null; });
-    if (countM) refreshDerivedSheets_(ss);
+    if (countM) refreshOrDefer_(ss, data);
     auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + countM + ' rows)');
     return { status: 'success', merged: countM };
 
@@ -10018,7 +10124,7 @@ function manageMaterialLocked_(data, auth) {
     // LIVE_STOCK/SITE_STOCK/WASTED_STOCK are aggregates built from the archive —
     // deleting a row without recomputing them leaves stale totals behind forever
     // (the deleted movement's effect stays baked in even though the row is gone).
-    refreshDerivedSheets_(ss);
+    refreshOrDefer_(ss, data);
     return { status: 'success', movId: movId, trashed: true };
 
   } else if (op === 'restoreMovement') {
@@ -10050,7 +10156,7 @@ function manageMaterialLocked_(data, auth) {
 
     auditLog_(ss, 'RESTORE_ROW', auth.email, String(restored[AC.CATEGORY]), String(restored[AC.NAME]),
               rid + ' → ' + backTo);
-    refreshDerivedSheets_(ss);
+    refreshOrDefer_(ss, data);
     return { status: 'success', movId: rid };
 
   } else if (op === 'emptyTrash') {
@@ -10822,7 +10928,7 @@ function dqFillGapLocked_(ss, auth, data) {
 
   // Only the project column feeds anything the stock engine reads, but a
   // refresh after either is cheap next to being wrong.
-  if (filled) refreshDerivedSheets_(ss);
+  if (filled) refreshOrDefer_(ss, data);
   auditLog_(ss, 'DATA_FIX', auth.email,
     field + ' → "' + value + '" on ' + parts[0] + ' / ' + parts[1],
     String(filled) + ' rows', '');
@@ -11115,7 +11221,7 @@ function modifyMovementLocked_(data, auth) {
   // Same class of bug as manageMaterial's deleteRow: qty/category/location edits
   // change what LIVE_STOCK/SITE_STOCK/WASTED_STOCK should total to — without this,
   // the derived sheets keep reflecting the pre-edit numbers indefinitely.
-  refreshDerivedSheets_(ss);
+  refreshOrDefer_(ss, data);
 
   // Audit log
   auditLog_(ss, 'MODIFY_MOVEMENT', auth.email,

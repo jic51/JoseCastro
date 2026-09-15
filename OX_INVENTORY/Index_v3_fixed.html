@@ -3715,7 +3715,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.88';
+var APP_VERSION = '11.89';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3727,7 +3727,7 @@ var APP_VERSION = '11.88';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'eb141cd6';
+var APP_BUILD = '9c1a66fe';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8324,8 +8324,38 @@ function _reloadWhenIdle(){
   }, 700);
 }
 
+/* UN REFRESCO DEL SERVIDOR POR TANDA, NO UNO POR OPERACIÓN.
+ *
+ * Jose, 2026-09-15: "todo se actualiza, no con la velocidad que me gustaría".
+ * La recarga del NAVEGADOR ya se agrupaba (ver _reloadWhenIdle, arriba). Lo que
+ * no se agrupaba era el trabajo del SERVIDOR: cada operación reconstruía
+ * LIVE_STOCK, SITE_STOCK y WASTED_STOCK por su cuenta, y eso son unos nueve
+ * viajes a Google —3,7 segundos medidos en su hoja—. Borrar diez filas los
+ * pagaba diez veces.
+ *
+ * Ahora, mientras queda trabajo detrás en la cola, cada operación le dice al
+ * servidor que NO refresque todavía; cuando la cola se vacía se pide UN
+ * refresco. Ver refreshOrDefer_ en Code_v3_fixed.gs, que explica por qué esto
+ * no puede dejar sacar material que ya no está: validar lee el ARCHIVO, no las
+ * hojas derivadas.
+ */
+var _refrescoAplazado = false;
+
 function _wqPump(){
-  if (_wqBusy || !_wq.length) return;
+  if (_wqBusy || !_wq.length) {
+    // La cola se vació. Si por el camino se aplazó algún refresco, se pide el
+    // único de toda la tanda.
+    if (!_wqBusy && !_wq.length && _refrescoAplazado) {
+      _refrescoAplazado = false;
+      google.script.run
+        // Falle o no, se recarga: si el refresco no llegó, el servidor tiene la
+        // marca puesta y el propio getInitialData lo arreglará al contestar.
+        .withSuccessHandler(function(){ _reloadWhenIdle(); })
+        .withFailureHandler(function(){ _reloadWhenIdle(); })
+        .processMovement('refreshNow', _h({}));
+    }
+    return;
+  }
   _wqBusy = true;
   var job = _wq.shift();
   job(function(){ _wqBusy = false; _wqPump(); });
@@ -8345,6 +8375,22 @@ function _acWrite(o){
     var tries = 0;
 
     function attempt(){
+      // ¿Viene más trabajo detrás? Entonces el servidor no refresca todavía.
+      // Se mira EN CADA INTENTO y no al encolar: entre el encolado y el envío
+      // la cola pudo vaciarse, y entonces ésta es la última y sí tiene que
+      // refrescar. Si se marcara al encolar, la última de la tanda diría "ya
+      // vendrá otro" y no vendría nadie.
+      var carga = (o.args && o.args.length > 1) ? o.args[1] : null;
+      if (carga && typeof carga === 'object'){
+        if (_wq.length){ carga._skipRefresh = true; _refrescoAplazado = true; }
+        else {
+          // La última de la tanda refresca ella misma, así que el refreshNow de
+          // después SOBRA: sería un noveno viaje a Google para rehacer lo que
+          // se acaba de hacer. Se apaga la marca aquí.
+          delete carga._skipRefresh;
+          _refrescoAplazado = false;
+        }
+      }
       var run = google.script.run
         .withSuccessHandler(function(res){
           done();
