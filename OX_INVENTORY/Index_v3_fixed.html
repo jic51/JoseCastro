@@ -1286,7 +1286,18 @@
                    display:flex;align-items:baseline;min-width:0;flex-wrap:nowrap}
     .inc-name-txt,.inc-name-sup{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .inc-name-txt{flex:1 1 auto;min-width:0}
-    .inc-name-sup{flex:0 0 auto;max-width:55%;color:var(--muted)}
+    /* El proveedor es una INSIGNIA, como la categoría, pero de UN SOLO COLOR
+       para todos. Jose: la categoría se colorea porque el color significa qué
+       tipo de material es; el proveedor no tiene tipos, así que darle colores
+       distintos inventaría un significado que no existe. Oscuro con letra
+       blanca para que se separe del gris del resto sin competir con la
+       categoría, que es la que manda en la tarjeta.
+       Sin guion delante: la forma de insignia ya dice que es otra cosa, y el
+       guion era una separación que sobraba en cuanto hay caja. */
+    .inc-name-sup{flex:0 0 auto;max-width:55%;margin-left:.4rem;
+                  background:var(--navy);color:#fff;
+                  padding:.1rem .45rem;border-radius:20px;
+                  font-size:.7rem;font-weight:600;line-height:1.5}
     /* El clip nunca encoge: es un objetivo de toque, no texto. */
     .inc-item-name > a{flex:none}
     .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:.1rem;overflow-wrap:anywhere}
@@ -3704,7 +3715,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.85';
+var APP_VERSION = '11.86';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3716,7 +3727,7 @@ var APP_VERSION = '11.85';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '91157b7f';
+var APP_BUILD = '6d21e934';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -5924,9 +5935,85 @@ function clearStockSelection(){
 // Opens the EXIT modal pre-loaded with every selected material as its own line,
 // racks auto-filled — same engine as the "↗ Auto-fill Racks" button, just applied
 // to each selection instead of typed one at a time.
+/* Lo que de un material NO se puede sacar, y por qué.
+ *
+ * Devuelve '' cuando sí se puede. Un material está bloqueado ENTERO sólo si
+ * TODOS los estantes donde hoy tiene existencias están trabados: con uno libre
+ * la salida sigue teniendo sentido y el formulario sirve. */
+function _exitBloqueado(s){
+  var locs = (s && s.warehouseLocs) || {};
+  var conStock = [], trabados = [], motivos = [];
+  for (var r in locs){
+    if (!locs.hasOwnProperty(r) || !(locs[r] > 0)) continue;
+    conStock.push(r);
+    var l = _findLock(s.matId, r);
+    if (l){
+      trabados.push(r);
+      var quien = l.lockedBy ? ' (' + l.lockedBy + ')' : '';
+      motivos.push(r + ' — ' + (l.reason || 'no reason given') + quien);
+    }
+  }
+  if (!conStock.length || trabados.length < conStock.length) return '';
+  return motivos.join('\n');
+}
+
+/* LA VENTANA NO SE ABRE PARA DECIR QUE NO.
+ *
+ * Jose, 2026-09-15, con dos capturas: marcó 44 NORTH —trabado en C3B—, pulsó
+ * "Exit Selected", y la app abrió el formulario entero de salida para luego
+ * decirle "locked" en letra pequeña al lado de la cantidad. Sus palabras: "la
+ * ventana no debería abrirse sólo para decir que no se puede".
+ *
+ * Tenía razón, y no es sólo estética: abrir un formulario es una invitación a
+ * rellenarlo. Enseñarlo cuando la respuesta ya es no hace perder el tiempo dos
+ * veces — al llenarlo y al descubrirlo. */
 function exitSelectedStock(){
   var mats = _selectedStockRows();
   if (!mats.length) return;
+
+  var bloqueados = [], libres = [];
+  mats.forEach(function(s){
+    var motivo = _exitBloqueado(s);
+    if (motivo) bloqueados.push({ s: s, motivo: motivo });
+    else libres.push(s);
+  });
+
+  if (bloqueados.length){
+    var lista = bloqueados.map(function(b){
+      return b.s.name + '\n    ' + b.motivo.split('\n').join('\n    ');
+    }).join('\n\n');
+
+    if (!libres.length){
+      // Nada que sacar: el aviso es la respuesta entera, sin formulario y sin
+      // un "Cancel" que no cancela nada.
+      _showConfirm({
+        icon: '🔒',
+        title: bloqueados.length === 1 ? 'This material is locked'
+                                       : 'These materials are locked',
+        message: 'Nothing can be taken out.\n\n' + lista +
+                 '\n\nAn admin can unlock it from the Warehouse Map.',
+        confirmText: 'Got it',
+        soloAviso: true
+      });
+      return;
+    }
+
+    // Algunos sí se pueden. Se dice cuáles no y se deja seguir con el resto —
+    // abrir el formulario con los trabados dentro sólo los llevaría a un error
+    // al guardar.
+    _showConfirm({
+      icon: '🔒',
+      title: 'Some are locked',
+      message: lista + '\n\nThey will be left out. Continue with the other ' +
+               libres.length + '?',
+      confirmText: 'Continue',
+      onConfirm: function(){
+        openMoveModal('EXIT');
+        _fillExitLinesFrom(libres);
+      }
+    });
+    return;
+  }
 
   openMoveModal('EXIT'); // synchronous — modal + multi-exit section are ready after this returns
   _fillExitLinesFrom(mats);
@@ -17042,7 +17129,7 @@ function _incItemHtml(item, opts){
   // tuvo proveedor escrito.
   var prov = String(item.supplier || '').trim();
   var sup  = prov
-    ? '<span class="inc-name-sup" title="' + _escAttr(prov) + '"> - ' + _he(prov) + '</span>'
+    ? '<span class="inc-name-sup" title="' + _escAttr(prov) + '">' + _he(prov) + '</span>'
     : '';
 
   return '<div class="inc-item">' +
@@ -20169,6 +20256,11 @@ function _showConfirm(opts) {
   var okBtn = document.getElementById('confirmOkBtn');
   okBtn.textContent  = opts.confirmText || 'OK';
   okBtn.className    = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+  // Un aviso que no ofrece nada no lleva "Cancel": cancelar QUÉ, si no se ha
+  // propuesto nada. Con soloAviso el botón de la izquierda desaparece y el de
+  // la derecha dice lo único que se puede hacer, que es enterarse.
+  var cancelBtn = document.getElementById('confirmCancelBtn');
+  if (cancelBtn) cancelBtn.hidden = !!opts.soloAviso;
   document.getElementById('confirmOverlay').classList.add('show');
 }
 function _confirmOk() {

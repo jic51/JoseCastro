@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.85';
+var APP_VERSION = '11.86';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.85';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '91157b7f';
+var APP_BUILD = '6d21e934';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2980,18 +2980,34 @@ function addMovementsBatch_(ss, archive, movements, auth) {
         totalCost = round2_(unitCost * qty);
       }
 
+      // CRUDO, TODO. La comilla la pone UNA VEZ el textSafeRow_ de la escritura,
+      // unas líneas más abajo. Citar aquí también deja DOS: Sheets se come una
+      // y guarda la otra DENTRO del valor.
+      //
+      // ASÍ SE ROMPIÓ, y es mío. Hasta la v11.80 estas trece líneas usaban
+      // sheetSafe_, que sólo ponía comilla a lo que empezaba por = + - @, o sea
+      // casi nunca: la doble cita existía y no se veía. Al cambiar sheetSafe_
+      // por textCell_ en la v11.81 —que cita SIEMPRE— pasó a verse en todas.
+      // Jose lo encontró en su historial: 'WINDOW, 'JOSE JOSE, 'UNIT, '16598.
+      //
+      // Y no era sólo feo: el matId se compone de categoría y nombre, así que
+      // "'WINDOW|||'JOSE JOSE" no es el mismo material que "WINDOW|||JOSE JOSE".
+      // Las existencias se habrían partido en dos.
+      //
+      // Al convertirlas las llamé "redundantes pero inofensivas". Eran
+      // redundantes con sheetSafe_; con textCell_ no.
       var row = new Array(AC_WIDTH);
       row[AC.TIMESTAMP]   = now;
-      row[AC.CATEGORY]    = textCell_(cleanDisplay_(d.category));  // stored as typed (keeps , - /)
-      row[AC.NAME]        = textCell_(cleanDisplay_(d.name));      // matId above still uses normalized form
-      row[AC.GC]          = textCell_(String(d.gc || '').trim());
-      row[AC.PO]          = textCell_(String(d.po || '').trim());
+      row[AC.CATEGORY]    = cleanDisplay_(d.category);  // stored as typed (keeps , - /)
+      row[AC.NAME]        = cleanDisplay_(d.name);      // matId above still uses normalized form
+      row[AC.GC]          = String(d.gc || '').trim();
+      row[AC.PO]          = String(d.po || '').trim();
       row[AC.QTY]         = qty;
-      row[AC.UNIT]        = textCell_(String(d.unit || 'UNIT').toUpperCase());
+      row[AC.UNIT]        = String(d.unit || 'UNIT').toUpperCase();
       row[AC.DATE_REC]    = d.dateRec || tzDate;
-      row[AC.SRC_LOC]     = textCell_(src);
-      row[AC.SUPPLIER]    = textCell_(String(d.supplier || '').trim());
-      row[AC.COMMENTS]    = textCell_(String(d.comments || '').trim());
+      row[AC.SRC_LOC]     = src;
+      row[AC.SUPPLIER]    = String(d.supplier || '').trim();
+      row[AC.COMMENTS]    = String(d.comments || '').trim();
       row[AC.STATUS]      = statusVal;
       // "Received By" — who physically took delivery. Left blank when unknown,
       // NEVER defaulted to the signed-in user: that silently asserted the person
@@ -2999,14 +3015,14 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       // enters a delivery on another person's behalf, and it is unfalsifiable
       // after the fact. Who entered it is already captured, separately and
       // truthfully, in USER_EMAIL below.
-      row[AC.RESPONSIBLE] = textCell_(String(d.responsible || '').trim());
-      row[AC.PROJECT]     = textCell_(proj);
-      row[AC.MAT_ID]      = textCell_(matId);
+      row[AC.RESPONSIBLE] = String(d.responsible || '').trim();
+      row[AC.PROJECT]     = proj;
+      row[AC.MAT_ID]      = matId;
       row[AC.DOC_LINKS]   = '';
       row[AC.USER_EMAIL]  = auth.email;
-      row[AC.DEST_LOC]    = textCell_(dest);
+      row[AC.DEST_LOC]    = dest;
       row[AC.MOVETYPE]    = mt;
-      row[AC.PM]          = textCell_(String(d.pm || '').trim());
+      row[AC.PM]          = String(d.pm || '').trim();
       row[AC.UNIT_COST]   = (unitCost  === null) ? '' : unitCost;
       row[AC.TOTAL_COST]  = (totalCost === null) ? '' : totalCost;
       // Given here, at the moment the row is built, and never again. An id
