@@ -3787,7 +3787,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.95';
+var APP_VERSION = '11.96';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3799,7 +3799,7 @@ var APP_VERSION = '11.95';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '355d21c0';
+var APP_BUILD = '1f46b00f';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7166,7 +7166,10 @@ var _delGen = 0;
 function _delEnqueue(job){ _delQueue.push(job); _delPump(); }
 
 function _delPump(){
-  if (_delRunning || !_delQueue.length) return;
+  // Vacía: puede que a esta cola le toque cerrar la tanda. El guardián de
+  // _cierreDeTanda comprueba también la otra, así que llamarlo de más no hace
+  // nada.
+  if (_delRunning || !_delQueue.length){ _cierreDeTanda(); return; }
   _delRunning = true;
   var job = _delQueue.shift();
   job(function(){ _delRunning = false; _delPump(); });
@@ -7212,6 +7215,18 @@ function _doDeleteMovementRow(rowIdx){
     var state = { tries: 0 };
 
     function attempt(){
+      /* LA MARCA SE PONE AQUÍ, EN CADA INTENTO, no al encolar.
+       *
+       * Hasta la v11.96 este camino no la ponía en absoluto: el aplazamiento de
+       * la v11.89 vivía dentro de _acWrite, y los borrados van por su propia
+       * cola desde la v11.58. Trece borrados pagaban trece reconstrucciones del
+       * almacén — doce segundos cada uno, cronometrados sobre el video de Jose.
+       *
+       * En cada intento y no una vez: si el servidor contestó "ocupado" y esto
+       * se reintenta treinta segundos después, la cola pudo vaciarse entre
+       * medias y entonces éste ya es el último. */
+      var carga = { op: 'deleteRow', movId: mov.movId || '', rowIdx: rowIdx };
+      _marcarAplazable(carga);
       google.script.run
         .withSuccessHandler(function(){
           _delGen++;   // una foto pedida antes de esto ya no vale
@@ -7230,10 +7245,15 @@ function _doDeleteMovementRow(rowIdx){
           // sobre la tabla. Ahora una sola línea que cuenta — ver _progStart.
           _progStep(true);
           done();
-          // La recarga silenciosa va DESPUÉS de soltar la cola, y sólo cuando
-          // no queda ninguno esperando: traerse el almacén entero entre un
-          // borrado y el siguiente es justo lo que hacía la ráfaga lenta.
-          if (!_delQueue.length && !_delRunning) loadDataFromGoogle(true, true);
+          /* La recarga silenciosa va DESPUÉS de soltar la cola, y sólo cuando no
+             queda NADA esperando en ninguna de las dos: traerse el almacén
+             entero entre un borrado y el siguiente es justo lo que hacía la
+             ráfaga lenta.
+
+             Y por _reloadWhenIdle, no directo: si la tanda aplazó el refresco,
+             el cierre lo pide y la foto buena llega después. Pedirla aquí a
+             secas traería las hojas derivadas a medias. */
+          if (!_hayMasEscrituras() && !_delRunning && !_wqBusy) _reloadWhenIdle();
         })
         .withFailureHandler(function(err){
           // Ocupado no es un fallo: es un turno. Se espera y se vuelve, sin
@@ -7281,11 +7301,8 @@ function _doDeleteMovementRow(rowIdx){
           _progStep(false);
           done();
         })
-        .processMovement('manageMaterial', _h({
-          op: 'deleteRow',
-          movId: mov.movId || '',
-          rowIdx: rowIdx            // sólo para el registro; el servidor borra por movId
-        }));
+        // rowIdx va sólo para el registro; el servidor borra por movId.
+        .processMovement('manageMaterial', _h(carga));
     }
 
     attempt();
@@ -8510,9 +8527,14 @@ function _reloadWhenIdle(){
   if (_reloadTimer) clearTimeout(_reloadTimer);
   _reloadTimer = setTimeout(function(){
     _reloadTimer = null;
-    // Todavía hay trabajo en la cola: recargar ahora daría una foto a medias
-    // y habría que repetirla igual. Se vuelve a esperar.
-    if (_wq.length || _wqBusy) { _reloadWhenIdle(); return; }
+    /* Todavía hay trabajo en alguna cola: recargar ahora daría una foto a
+       medias y habría que repetirla igual. Se vuelve a esperar.
+
+       LAS DOS COLAS desde la v11.96. Miraba sólo la de escrituras, y los
+       borrados van por la suya — así que una tanda de borrados podía recargar
+       con la mitad sin hacer, traerse filas que estaban a punto de irse, y
+       dejarlas en pantalla hasta la siguiente vuelta. */
+    if (_wq.length || _wqBusy || _delQueue.length || _delRunning) { _reloadWhenIdle(); return; }
     loadDataFromGoogle(true, true);   // skipCache, silencioso
   }, 700);
 }
@@ -8534,21 +8556,71 @@ function _reloadWhenIdle(){
  */
 var _refrescoAplazado = false;
 
-function _wqPump(){
-  if (_wqBusy || !_wq.length) {
-    // La cola se vació. Si por el camino se aplazó algún refresco, se pide el
-    // único de toda la tanda.
-    if (!_wqBusy && !_wq.length && _refrescoAplazado) {
-      _refrescoAplazado = false;
-      google.script.run
-        // Falle o no, se recarga: si el refresco no llegó, el servidor tiene la
-        // marca puesta y el propio getInitialData lo arreglará al contestar.
-        .withSuccessHandler(function(){ _reloadWhenIdle(); })
-        .withFailureHandler(function(){ _reloadWhenIdle(); })
-        .processMovement('refreshNow', _h({}));
-    }
-    return;
+/* HAY DOS COLAS, Y LA v11.89 SÓLO MIRABA UNA. ÉSE ERA EL FALLO.
+ *
+ * Jose grabó el 2026-09-16 borrando trece movimientos con dos cuentas abiertas.
+ * La línea de progreso, cronometrada sobre su propio video:
+ *
+ *     3 de 13 …… 1:20
+ *     6 de 13 …… 2:00
+ *    10 de 13 …… 2:40
+ *
+ * Doce segundos por borrado. La v11.89 tenía que haber dejado la tanda entera
+ * en DOS reconstrucciones, y estaba pagando trece.
+ *
+ * La causa: el aplazamiento vivía dentro de _acWrite, que es la cola de
+ * ESCRITURAS (_wq). Los borrados tienen su propia cola desde la v11.58
+ * (_delQueue) y llaman a google.script.run directamente, sin pasar por ahí. O
+ * sea que la optimización existía y los borrados no la tocaban — y borrar es
+ * justo lo que se hace en tandas grandes.
+ *
+ * "¿Queda trabajo detrás?" tiene que mirar LAS DOS. Una sola cola respondería
+ * que no mientras la otra está llena, y entonces una operación refrescaría en
+ * medio de la tanda (el gasto que se quería evitar) o —peor— la última
+ * aplazaría creyendo que viene alguien detrás y no vendría nadie.
+ */
+function _hayMasEscrituras(){
+  return _wq.length > 0 || _delQueue.length > 0;
+}
+
+/* EL CIERRE DE LA TANDA, uno para las dos colas.
+ *
+ * Sólo cuando las DOS están vacías y no queda nada en el aire. Si lo llamara
+ * cada cola por su cuenta, borrar mientras se guarda pediría el refresco con la
+ * otra a medias, y habría que volver a pedirlo.
+ */
+function _cierreDeTanda(){
+  if (_wqBusy || _wq.length || _delRunning || _delQueue.length) return;
+  if (!_refrescoAplazado) return;
+  _refrescoAplazado = false;
+  google.script.run
+    // Falle o no, se recarga: si el refresco no llegó, el servidor tiene la
+    // marca puesta y el propio getInitialData lo arreglará al contestar.
+    .withSuccessHandler(function(){ _reloadWhenIdle(); })
+    .withFailureHandler(function(){ _reloadWhenIdle(); })
+    .processMovement('refreshNow', _h({}));
+}
+
+/* La marca que viaja con la carga: "no refresques todavía, viene más".
+ *
+ * Se decide EN EL MOMENTO DE ENVIAR y no al encolar — entre una cosa y otra la
+ * cola pudo vaciarse, y entonces ésta es la última y sí tiene que refrescar. Al
+ * revés, la última de la tanda diría "ya vendrá otro" y no vendría nadie: los
+ * números se quedarían viejos hasta que alguien recargara a mano.
+ */
+function _marcarAplazable(carga){
+  if (!carga || typeof carga !== 'object') return;
+  if (_hayMasEscrituras()){
+    carga._skipRefresh = true;
+    _refrescoAplazado  = true;
+  } else {
+    delete carga._skipRefresh;
+    _refrescoAplazado = false;
   }
+}
+
+function _wqPump(){
+  if (_wqBusy || !_wq.length) { _cierreDeTanda(); return; }
   _wqBusy = true;
   var job = _wq.shift();
   job(function(){ _wqBusy = false; _wqPump(); });
@@ -8573,17 +8645,8 @@ function _acWrite(o){
       // la cola pudo vaciarse, y entonces ésta es la última y sí tiene que
       // refrescar. Si se marcara al encolar, la última de la tanda diría "ya
       // vendrá otro" y no vendría nadie.
-      var carga = (o.args && o.args.length > 1) ? o.args[1] : null;
-      if (carga && typeof carga === 'object'){
-        if (_wq.length){ carga._skipRefresh = true; _refrescoAplazado = true; }
-        else {
-          // La última de la tanda refresca ella misma, así que el refreshNow de
-          // después SOBRA: sería un noveno viaje a Google para rehacer lo que
-          // se acaba de hacer. Se apaga la marca aquí.
-          delete carga._skipRefresh;
-          _refrescoAplazado = false;
-        }
-      }
+      // Mira las DOS colas, no sólo ésta: ver _hayMasEscrituras.
+      _marcarAplazable((o.args && o.args.length > 1) ? o.args[1] : null);
       var run = google.script.run
         .withSuccessHandler(function(res){
           done();
