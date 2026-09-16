@@ -2155,10 +2155,20 @@
        saber mientras se espera: cuánto falta. Una línea que se actualiza dice
        más que trece que se apilan, y deja la tabla a la vista.
 
-       Abajo a la derecha y NO donde los toasts (arriba, en medio): esto no
-       interrumpe, acompaña. Lo que sí interrumpe —un borrado que falló— sigue
-       siendo un toast, porque hay que leerlo. */
-    #progWrap{position:fixed;right:1.25rem;bottom:1.25rem;z-index:9998;
+       Abajo y NO donde los toasts (arriba, en medio): esto no interrumpe,
+       acompaña. Lo que sí interrumpe —un borrado que falló— sigue siendo un
+       toast, porque hay que leerlo.
+
+       A LA IZQUIERDA, no a la derecha. Empezó a la derecha y Jose lo vio en
+       pantalla grande: ahí se sienta encima de las tarjetas. La izquierda de
+       abajo está vacía en todas las pantallas de la app —tabla, mapa, ajustes—
+       y el modal de Ajustes va centrado, así que tampoco lo tapa.
+
+       Y SE VA AL PULSARLO. Se queda seis segundos, que es lo que Jose pidió
+       ("debería permanecer más tiempo sin desaparecer"), y si alguna vez
+       estorba basta un clic. Un rato largo sin salida es peor que uno corto. */
+    #progWrap{position:fixed;left:1.25rem;bottom:1.25rem;z-index:9998;
+              cursor:pointer;
               display:none;align-items:center;gap:.6rem;
               background:var(--card);color:var(--text);
               border-radius:10px;padding:.7rem 1rem;
@@ -2583,7 +2593,8 @@
 <div id="toastContainer"></div>
 <!-- La línea de progreso. aria-live="polite" para que un lector de pantalla
      diga el avance sin cortar lo que esté leyendo. -->
-<div id="progWrap" role="status" aria-live="polite">
+<div id="progWrap" role="status" aria-live="polite" title="Click to dismiss"
+     onclick="_progHide()">
   <span id="progIcon" class="spin-hg">⏳</span>
   <span id="progMsg"></span>
   <span id="progCount"></span>
@@ -3756,7 +3767,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.90';
+var APP_VERSION = '11.91';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3768,7 +3779,7 @@ var APP_VERSION = '11.90';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '235d8381';
+var APP_BUILD = '49d78bcb';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -11213,13 +11224,21 @@ function _restoreMovement(btn){
   var movId = btn ? (btn.getAttribute('data-movid') || '') : '';
   if (!movId || _trashPending[movId]) return;   // pulsarlo dos veces no encola dos
   _trashPending[movId] = true;
+  // Uno a uno, porque no hay botón de "restaurar todos": cada clic suma a la
+  // misma tanda mientras siga viva, y el final dice el total. Jose: "como todos
+  // los movimientos van desapareciendo, al final debería decir cuántos fueron
+  // restaurados".
+  _progStart(1, 'Restoring movements', _progFinRestaurado);
   _btnBusy(btn, 'Restoring…');
   _acWrite({
     args: ['manageMaterial', _h({ op: 'restoreMovement', movId: movId })],
     btn:  btn,
     ok: function(){
       delete _trashPending[movId];
-      showToast('✓ Movement restored.', 'ok');
+      // Antes: un toast por movimiento. Restaurar cinco daba cinco avisos sobre
+      // la ventana de Ajustes que la persona está usando — y la fila ya se va
+      // sola, así que el aviso no contaba nada que no se viera.
+      _progStep(true);
       // AL INSTANTE Y EN LOCAL. El servidor YA lo hizo — esto es el manejador
       // de ÉXITO — así que volver a pedirle la lista para enterarnos de algo
       // que ya sabemos es lo que borraba el "Restoring…" de los demás.
@@ -11231,6 +11250,9 @@ function _restoreMovement(btn){
     fail: function(e, ocupado){
       delete _trashPending[movId];
       _btnReset(btn);
+      // El fallo SÍ sigue siendo un aviso, porque hay que leerlo. La línea sólo
+      // lo cuenta, para que el total del final no mienta.
+      _progStep(false);
       showToast(ocupado
         ? 'The system has been busy for a while — nothing was lost. Try again in a few seconds.'
         : '⚠ ' + _humanErr(e), ocupado ? 'warn' : 'err', 8000);
@@ -19737,7 +19759,34 @@ function _btnDone(btn, ok, then){
 var _prog      = null;   // la tanda que se está enseñando
 var _progHideT = null;
 
-function _progStart(n, label){
+/* CÓMO TERMINA CADA TIPO DE TANDA. Va aparte porque el final es lo único que
+   cambia de una acción a otra, y porque tiene que decir CUÁNTOS: Jose, sobre
+   restaurar, "como todos los movimientos van desapareciendo, al final debería
+   decir cuántos fueron restaurados". Una fila que se va sin dejar número deja a
+   quien miraba sin saber qué pasó. */
+function _progFinBorrado(hechos, fallados){
+  return fallados
+    ? (hechos + ' moved to the trash · ' + fallados + ' could not be deleted')
+    : (hechos === 1 ? 'Moved to the trash.'
+                    : hechos + ' movements moved to the trash.');
+}
+
+function _progFinRestaurado(hechos, fallados){
+  return fallados
+    ? (hechos + ' put back · ' + fallados + ' could not be restored')
+    : (hechos === 1 ? 'Movement put back.'
+                    : hechos + ' movements put back.');
+}
+
+/* n      — cuántos se acaban de pedir
+   label  — lo que se está haciendo, en presente ("Deleting movements")
+   fin    — cómo se cuenta el final; por defecto, el del borrado
+
+   El label hace también de identidad de la tanda: dos peticiones del MISMO
+   trabajo suman, y una de otro trabajo cierra la anterior y abre la suya. Sin
+   eso, borrar y luego restaurar compartirían contador y el final diría una
+   cosa de la otra. */
+function _progStart(n, label, fin){
   if (!n) return;
   var w = document.getElementById('progWrap');
   if (!w) return;
@@ -19745,11 +19794,23 @@ function _progStart(n, label){
 
   // Una segunda tanda encima de una que sigue viva SUMA, no reinicia: volver a
   // "0 de 3" con ocho ya hechos detrás sería mentir sobre lo que falta.
-  if (_prog && (_prog.done + _prog.failed) < _prog.total) _prog.total += n;
-  else _prog = { total: n, done: 0, failed: 0, label: label };
+  var viva = _prog && (_prog.done + _prog.failed) < _prog.total && _prog.label === label;
+  if (viva) _prog.total += n;
+  else _prog = { total: n, done: 0, failed: 0, label: label,
+                 fin: fin || _progFinBorrado };
 
   w.className = 'show';
   _progPaint();
+}
+
+/** Quitarla a mano. La línea se va sola, pero seis segundos delante de algo que
+ *  quieres leer son seis segundos, así que un clic la cierra. */
+function _progHide(){
+  var w = document.getElementById('progWrap');
+  if (!w) return;
+  if (_progHideT){ clearTimeout(_progHideT); _progHideT = null; }
+  w.className = '';
+  _prog = null;
 }
 
 function _progStep(ok){
@@ -19782,23 +19843,22 @@ function _progFinish(){
   var hechos = _prog.done, fallados = _prog.failed;
 
   if (icon){ icon.className = ''; icon.textContent = fallados ? '⚠️' : '✅'; }
-  if (msg){
-    // Si algo falló se dicen LOS DOS números. "11 moved" a secas dejaría creer
-    // que los trece salieron; el toast del fallo cuenta el porqué, esto cuenta
-    // cuántos.
-    msg.textContent = fallados
-      ? (hechos + ' moved to the trash · ' + fallados + ' could not be deleted')
-      : (hechos === 1 ? 'Moved to the trash.'
-                      : hechos + ' movements moved to the trash.');
-  }
+  // Si algo falló se dicen LOS DOS números. "11 moved" a secas dejaría creer
+  // que los trece salieron; el toast del fallo cuenta el porqué, esto cuenta
+  // cuántos. Cada tipo de tanda trae su propia frase — ver _progFinBorrado.
+  if (msg) msg.textContent = _prog.fin(hechos, fallados);
   if (cnt) cnt.textContent = '';
   w.className = 'show ' + (fallados ? 'warn' : 'done');
 
-  // Un final con fallos se queda más rato: hay algo que mirar.
+  /* CUÁNTO SE QUEDA. Jose: "debería permanecer más tiempo sin desaparecer".
+     Empezó en 2.6 s, que es tiempo de toast — y esto no es un toast: es el
+     resultado de un trabajo que tardó medio minuto, y la persona puede estar
+     mirando otra cosa cuando termina. Seis segundos, y diez si hubo fallos,
+     que ahí sí hay algo que leer. Un clic la cierra antes. */
   _progHideT = setTimeout(function(){
     w.className += ' fade-out';
     setTimeout(function(){ w.className = ''; _prog = null; _progHideT = null; }, 320);
-  }, fallados ? 7000 : 2600);
+  }, fallados ? 10000 : 6000);
 }
 
 function showToast(msg, type, duration) {
