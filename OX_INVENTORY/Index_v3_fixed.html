@@ -2144,6 +2144,40 @@
     .toast.fade-out{animation:toastOut .3s ease forwards}
     @keyframes toastIn {from{opacity:0;transform:translateY(-18px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes toastOut{from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-12px) scale(.95)}}
+    /* ── LA LÍNEA DE PROGRESO ───────────────────────────────────────────────
+       Jose, 2026-09-15: "en lugar de mostrar los toasts de cada eliminación,
+       ¿no sería mejor usar lo que Google usa en el Drive al cargar un archivo
+       (una ventana abajo donde se ve el progreso de todo lo que pasa, con un
+       check luego de realizarse)?"
+
+       Trece borrados daban trece avisos, uno encima de otro, sobre la tabla
+       que la persona está mirando. Y ninguno decía lo único que hace falta
+       saber mientras se espera: cuánto falta. Una línea que se actualiza dice
+       más que trece que se apilan, y deja la tabla a la vista.
+
+       Abajo a la derecha y NO donde los toasts (arriba, en medio): esto no
+       interrumpe, acompaña. Lo que sí interrumpe —un borrado que falló— sigue
+       siendo un toast, porque hay que leerlo. */
+    #progWrap{position:fixed;right:1.25rem;bottom:1.25rem;z-index:9998;
+              display:none;align-items:center;gap:.6rem;
+              background:var(--card);color:var(--text);
+              border-radius:10px;padding:.7rem 1rem;
+              box-shadow:0 8px 32px rgba(0,0,0,.25);
+              border-left:4px solid var(--accent);
+              font-size:.84rem;font-weight:500;
+              min-width:250px;max-width:380px;
+              animation:progIn .25s ease}
+    #progWrap.show{display:flex}
+    #progWrap.done{border-left-color:var(--green)}
+    #progWrap.warn{border-left-color:var(--yellow)}
+    #progWrap.fade-out{animation:progOut .3s ease forwards}
+    #progIcon{font-size:1rem;flex-shrink:0}
+    #progMsg{flex:1;line-height:1.35}
+    #progCount{color:var(--muted);font-size:.78rem;flex-shrink:0;
+               font-variant-numeric:tabular-nums}
+    @keyframes progIn {from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)}}
+    @keyframes progOut{from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(8px)}}
+    @media(max-width:640px){ #progWrap{left:1rem;right:1rem;min-width:0;max-width:none} }
     /* ── SKELETON LOADING ── */
     .skeleton{background:linear-gradient(90deg,var(--border) 25%,rgba(255,255,255,.3) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;height:14px}
     @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -2547,6 +2581,13 @@
 
 <!-- ══ TOAST CONTAINER ═══════════════════════════════════════════════════════ -->
 <div id="toastContainer"></div>
+<!-- La línea de progreso. aria-live="polite" para que un lector de pantalla
+     diga el avance sin cortar lo que esté leyendo. -->
+<div id="progWrap" role="status" aria-live="polite">
+  <span id="progIcon" class="spin-hg">⏳</span>
+  <span id="progMsg"></span>
+  <span id="progCount"></span>
+</div>
 
 <!-- ══ USERS MANAGEMENT MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="usersOverlay">
@@ -3715,7 +3756,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.89';
+var APP_VERSION = '11.90';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3727,7 +3768,7 @@ var APP_VERSION = '11.89';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '9c1a66fe';
+var APP_BUILD = '235d8381';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6701,20 +6742,28 @@ function renderMovements(){
       ? '<td><div style="display:flex;align-items:center;gap:2px">'+(m.archived?'<span style="font-size:.68rem;color:var(--muted)" title="Archived movement — read only">📜</span>':'<button class="btn-icon" data-rowact="edit" title="Edit record" onclick="openEditMovModal('+m.rowIdx+')" style="color:var(--accent)">✏️</button><button class="btn-icon" data-rowact="del" title="Delete record" onclick="deleteMovementRow('+m.rowIdx+')" style="color:var(--red);opacity:.7">🗑</button>')+'</div></td>'
       : '';
 
+    // A row waiting its turn in the delete queue says so. It is still there
+    // because it has NOT been deleted yet — dimming it is the truth, and it
+    // stops the same bin being pressed twice.
+    var esperando = !!(m.movId && _delPending[m.movId]);
+    var pendCls   = esperando ? ' row-deleting' : '';
+
     // La casilla de la fila. Un movimiento archivado no la lleva: no se puede
     // editar ni borrar, así que ofrecerlo sería ofrecer un callejón sin salida.
+    //
+    // Y una fila con el borrado ya en el aire tampoco se puede volver a marcar.
+    // El gris lo dice, pero decirlo no basta: si se puede marcar, se marca — y
+    // el segundo intento se encuentra con que ya no está y responde GONE|. Es
+    // el error que Jose registró el 2026-09-15 a las 3:09:50 sobre un
+    // movimiento que él mismo había borrado a las 3:08.
     var selCell = isAdmin
       ? '<td class="mov-sel-cell">' + (m.archived ? '' :
           '<input type="checkbox" class="mov-select-cb" data-movid="' + _escAttr(m.movId || '') +
           '" data-rowidx="' + m.rowIdx + '"' + (m.movId && _movSelection[m.movId] ? ' checked' : '') +
-          (m.movId ? '' : ' disabled title="This movement has no ID yet — run Settings → System → Movement IDs"') +
+          (esperando ? ' disabled title="This movement is being deleted"' :
+           m.movId ? '' : ' disabled title="This movement has no ID yet — run Settings → System → Movement IDs"') +
           ' onclick="event.stopPropagation()" onchange="toggleMovSelect(this)">') + '</td>'
       : '';
-
-    // A row waiting its turn in the delete queue says so. It is still there
-    // because it has NOT been deleted yet — dimming it is the truth, and it
-    // stops the same bin being pressed twice.
-    var pendCls = (m.movId && _delPending[m.movId]) ? ' row-deleting' : '';
     // data-mov: para poder encontrar ESTA fila y animar su salida sin repintar
     // la tabla. Va el movId y no el rowIdx a propósito — el rowIdx se mueve
     // cuando alguien borra una fila de más arriba, y animaríamos la equivocada.
@@ -6800,7 +6849,9 @@ function deleteMovementRow(rowIdx){
     message: what + ' will be removed from the warehouse history.\n\n' +
              'It goes to the trash, so you can put it back from Settings → System.',
     confirmText: 'Yes, Delete',
-    onConfirm: function(){ _doDeleteMovementRow(rowIdx); }
+    onConfirm: function(){
+      if (_doDeleteMovementRow(rowIdx)) _progStart(1, 'Deleting movement');
+    }
   });
 }
 
@@ -6946,10 +6997,19 @@ function deleteSelectedMovements(){
       // veinte reconstrucciones del almacén de golpe es justo lo que daba
       // "System busy". La selección se suelta ya: las filas se ven esperando
       // por su cuenta, y dejarlas marcadas invitaría a pulsar otra vez.
+      //
+      // Se cuenta lo que DE VERDAD se encoló, no lo que se seleccionó: una fila
+      // que ya tenía su borrado en el aire no encola otro, y contarla dejaría la
+      // línea de progreso esperando para siempre a una respuesta que no viene.
+      var pedidos = 0;
       sel.forEach(function(m){
         delete _movSelection[m.movId];
-        _doDeleteMovementRow(m.rowIdx);
+        if (_doDeleteMovementRow(m.rowIdx)) pedidos++;
       });
+      // Después del bucle, no dentro: las respuestas del servidor no pueden
+      // llegar hasta que este código suelte el hilo, así que el total ya está
+      // completo cuando cuente el primer ✓.
+      _progStart(pedidos, pedidos === 1 ? 'Deleting movement' : 'Deleting movements');
       _updateMovActionBar();
     }
   });
@@ -6984,6 +7044,44 @@ var _delQueue   = [];      // trabajos esperando turno
 var _delRunning = false;   // hay uno en el aire
 var _delPending = {};      // movId → true, para que la fila se vea esperando
 
+/* ── POR QUÉ NINGUNA RECARGA PUEDE PINTAR EN MEDIO DE UNA TANDA ─────────────
+ *
+ * Jose, 2026-09-15, borrando trece de golpe: "se eliminan todas las filas
+ * enseguida, pero luego de algunos segundos empiezan a salir los toasts de
+ * confirmación y REGRESAN TODAS LAS FILAS opacas a eliminarse una por una;
+ * también regresan algunas sin estar opacas y al tratar de eliminarlas otra
+ * vez me sale un error... si ya se desaparecieron al principio, ¿por qué
+ * aparecen otra vez?"
+ *
+ * Las dos cosas son el mismo fallo, y no es el borrado: es una FOTO VIEJA.
+ *
+ * Cada borrado mueve el sello de datos. El latido de ESTA MISMA ventana lo ve
+ * cambiado a los veinte segundos y pide una recarga silenciosa. Esa recarga se
+ * trae del servidor los doce que todavía no han salido de la cola — y los
+ * vuelve a pintar, uno por uno, delante de quien ya los vio irse.
+ *
+ * Y los que vuelven SIN estar en gris son la parte peligrosa. Una fila se pinta
+ * en gris mientras su borrado está en el aire; en cuanto el servidor confirma,
+ * la marca se quita. Si la foto se pidió antes de esa confirmación y llega
+ * después, la fila vuelve sin marca: se puede volver a seleccionar y volver a
+ * borrar. El segundo intento se encuentra con que ya no está, y responde GONE|.
+ * Ése es el registro exacto que Jose mandó — borrada a las 3:08, error a las
+ * 3:09:50, misma cuenta, mismo movimiento.
+ *
+ * EL NÚMERO DE ORDEN DE LA v11.53 NO CUBRE ESTO, y merece decirse porque
+ * parece que sí. Aquél descarta respuestas que llegan DESORDENADAS. Ésta no
+ * llegó desordenada: es la más nueva que hay, la única pedida. Lo viejo no es
+ * la respuesta, es el momento en que se sacó la foto. Así que la regla no es de
+ * orden, es de momento: mientras quede un borrado en el aire, ninguna recarga
+ * pinta. La que haga falta se pide UNA VEZ al final — que es justo lo que el
+ * último borrado de la cola ya hacía.
+ *
+ * _delGen sube con cada borrado que el servidor contesta, a favor o en contra.
+ * Una carga se lo lleva apuntado y se descarta si al volver ya no coincide:
+ * cubre el hueco entre "la cola se vació" y "la respuesta llegó".
+ */
+var _delGen = 0;
+
 function _delEnqueue(job){ _delQueue.push(job); _delPump(); }
 
 function _delPump(){
@@ -6993,12 +7091,16 @@ function _delPump(){
   job(function(){ _delRunning = false; _delPump(); });
 }
 
+/* Devuelve si de verdad encoló algo. Quien llama necesita saberlo para contar
+   la tanda: si dice "borrando 13" y dos no llegaron a encolarse, la línea de
+   progreso se queda en 11 de 13 para siempre, esperando a dos que nunca
+   contestan. */
 function _doDeleteMovementRow(rowIdx){
   var mov = _movByRowIdx(rowIdx);
-  if (!mov) return;
+  if (!mov) return false;
   // Pulsar dos veces la misma papelera no encola dos borrados. El segundo
   // recibiría "ya lo borró jose@…", que es verdad y no ayuda a nadie.
-  if (mov.movId && _delPending[mov.movId]) return;
+  if (mov.movId && _delPending[mov.movId]) return false;
   if (mov.movId) _delPending[mov.movId] = true;
 
   /* LA FILA SE VA AL PULSAR, NO CUANDO EL SERVIDOR CONTESTA.
@@ -7031,6 +7133,7 @@ function _doDeleteMovementRow(rowIdx){
     function attempt(){
       google.script.run
         .withSuccessHandler(function(){
+          _delGen++;   // una foto pedida antes de esto ya no vale
           if (mov.movId) delete _delPending[mov.movId];
           // La fila ya se fue al pulsar, hace unos cuatro segundos. Esto es el
           // seguro por si la animación no llegó a correr —pestaña en segundo
@@ -7042,7 +7145,9 @@ function _doDeleteMovementRow(rowIdx){
           var at = movements.indexOf(mov);
           if (at !== -1) { movements.splice(at, 1); renderAll(); }
           _sysCacheDrop('trash');
-          showToast('Movement deleted. It is in the trash.', 'ok');
+          // Antes: un toast por borrado. Trece borrados, trece avisos apilados
+          // sobre la tabla. Ahora una sola línea que cuenta — ver _progStart.
+          _progStep(true);
           done();
           // La recarga silenciosa va DESPUÉS de soltar la cola, y sólo cuando
           // no queda ninguno esperando: traerse el almacén entero entre un
@@ -7058,6 +7163,7 @@ function _doDeleteMovementRow(rowIdx){
             setTimeout(attempt, _busyDelay(state.tries));
             return;
           }
+          _delGen++;   // la fila vuelve a su sitio: la foto de antes tampoco vale
           if (mov.movId) delete _delPending[mov.movId];
 
           /* LA VUELTA ATRÁS, Y EL "NO" QUE NO LA MERECE.
@@ -7088,6 +7194,10 @@ function _doDeleteMovementRow(rowIdx){
                ' tries. Nothing was deleted — the row is back where it was.')
             : (_stripTags(err) + (siguePuesto ? ' — the row is back where it was.' : '')),
             'err', 8000);
+          // Cuenta como no hecho, y es la verdad aunque el motivo sea "ya no
+          // estaba": esta petición no borró nada. El porqué lo cuenta el toast
+          // de arriba; la línea sólo lleva la cuenta.
+          _progStep(false);
           done();
         })
         .processMovement('manageMaterial', _h({
@@ -7099,6 +7209,8 @@ function _doDeleteMovementRow(rowIdx){
 
     attempt();
   });
+
+  return true;   // encolado: quien llama puede contarlo en la tanda
 }
 
 // ── Project View ──────────────────────────────────────────────────────────────
@@ -18872,6 +18984,7 @@ var _loadBusy    = false;
 
 function loadDataFromGoogle(skipCache, quiet){
   var seq = ++_loadSeq;
+  var gen = _delGen;      // ver el bloque de _delGen, junto a la cola de borrados
   _loadBusy = true;
   lastLoadTime = null;
   if (!quiet) setConnStatus('loading');
@@ -18927,6 +19040,21 @@ function loadDataFromGoogle(skipCache, quiet){
       // encima del de ahora, y devolvería a la pantalla movimientos que ya
       // están borrados.
       if (seq < _loadApplied) return;
+
+      /* Y LA OTRA CARRERA, LA QUE EL NÚMERO DE ORDEN NO VE. Ésta llegó en su
+         turno; lo viejo es la FOTO, sacada antes de que la tanda de borrados
+         acabara. Pintarla devuelve a la pantalla filas que la persona ya vio
+         irse — y alguna de ellas sin la marca de "esperando", lista para que la
+         borren dos veces. Ver el bloque de _delGen, junto a la cola.
+
+         Se descarta, PERO SE APUNTA EL NÚMERO: nada más viejo que ésta puede
+         pintar tampoco. Y no hace falta pedir otra aquí — la cola pide una al
+         terminar el último borrado, y ésa sí lleva la foto buena. */
+      if (_delQueue.length || _delRunning || gen !== _delGen) {
+        _loadApplied = seq;
+        return;
+      }
+
       _loadApplied = seq;
       try {
         applyCompanyBranding(data.company);
@@ -19592,6 +19720,85 @@ function _btnDone(btn, ok, then){
   if (!ok){ _btnReset(btn); if (then) then(); return; }
   btn.innerHTML = '<span class="btn-tick">✓</span>';
   setTimeout(function(){ _btnReset(btn); if (then) then(); }, 700);
+}
+
+/* ── LA LÍNEA DE PROGRESO ───────────────────────────────────────────────────
+ * Jose, 2026-09-15: "podemos mostrar solo una línea con el ícono de cargando y
+ * un check verde cada vez que se finaliza algo".
+ *
+ * Un aviso por cosa hecha no es información, es ruido: para cuando salen los
+ * trece ya nadie los lee y la tabla lleva medio minuto tapada. Esto enseña lo
+ * que de verdad se quiere saber mientras se espera —voy por 4 de 13— y termina
+ * en un check que se va solo.
+ *
+ * LO QUE NO PASA POR AQUÍ: un borrado que falla. Eso sigue siendo un toast,
+ * porque hay que leerlo y decide qué hacer después. La línea sólo lo cuenta.
+ */
+var _prog      = null;   // la tanda que se está enseñando
+var _progHideT = null;
+
+function _progStart(n, label){
+  if (!n) return;
+  var w = document.getElementById('progWrap');
+  if (!w) return;
+  if (_progHideT){ clearTimeout(_progHideT); _progHideT = null; }
+
+  // Una segunda tanda encima de una que sigue viva SUMA, no reinicia: volver a
+  // "0 de 3" con ocho ya hechos detrás sería mentir sobre lo que falta.
+  if (_prog && (_prog.done + _prog.failed) < _prog.total) _prog.total += n;
+  else _prog = { total: n, done: 0, failed: 0, label: label };
+
+  w.className = 'show';
+  _progPaint();
+}
+
+function _progStep(ok){
+  if (!_prog) return;
+  if (ok) _prog.done++; else _prog.failed++;
+  if ((_prog.done + _prog.failed) >= _prog.total) _progFinish();
+  else _progPaint();
+}
+
+function _progPaint(){
+  var w = document.getElementById('progWrap');
+  if (!w || !_prog) return;
+  var icon = document.getElementById('progIcon');
+  var msg  = document.getElementById('progMsg');
+  var cnt  = document.getElementById('progCount');
+  if (icon){ icon.className = 'spin-hg'; icon.textContent = '⏳'; }
+  if (msg)  msg.textContent = _prog.label + '…';
+  // El contador sólo cuando hay algo que contar. "1 of 1" no le dice nada a
+  // nadie y ocupa el sitio de la frase.
+  if (cnt)  cnt.textContent = _prog.total > 1
+    ? ((_prog.done + _prog.failed) + ' of ' + _prog.total) : '';
+}
+
+function _progFinish(){
+  var w = document.getElementById('progWrap');
+  if (!w || !_prog) return;
+  var icon = document.getElementById('progIcon');
+  var msg  = document.getElementById('progMsg');
+  var cnt  = document.getElementById('progCount');
+  var hechos = _prog.done, fallados = _prog.failed;
+
+  if (icon){ icon.className = ''; icon.textContent = fallados ? '⚠️' : '✅'; }
+  if (msg){
+    // Si algo falló se dicen LOS DOS números. "11 moved" a secas dejaría creer
+    // que los trece salieron; el toast del fallo cuenta el porqué, esto cuenta
+    // cuántos.
+    msg.textContent = fallados
+      ? (hechos + ' moved to the trash · ' + fallados + ' could not be deleted')
+      : (hechos === 1 ? 'Moved to the trash.'
+                      : hechos + ' movements moved to the trash.');
+  }
+  if (cnt) cnt.textContent = '';
+  w.className = 'show ' + (fallados ? 'warn' : 'done');
+
+  // Un final con fallos se queda más rato: hay algo que mirar.
+  _progHideT = setTimeout(function(){
+    w.className += ' fade-out';
+    setTimeout(function(){ w.className = ''; _prog = null; _progHideT = null; }, 320);
+  }, fallados ? 7000 : 2600);
 }
 
 function showToast(msg, type, duration) {
@@ -20730,7 +20937,12 @@ function _pulseOk(res){
   // Y no se amontonan cargas: si ya hay una en camino, el sello sigue distinto
   // y el próximo latido lo verá igual. Pedir tres veces lo mismo sólo gasta
   // cuota y hace más probable la carrera que esto evita.
-  if ((cambio || veniaCaido) && !_loadBusy) {
+  // Y NO SE PIDE NADA MIENTRAS SE ESTÁ BORRANDO. El sello que este latido ve
+  // cambiado lo movió esta misma ventana, borrando; la recarga que pediría se
+  // descartaría al llegar (ver _delGen) y sólo habría gastado una llamada. El
+  // sello no se apunta al descartarla, así que en cuanto la tanda acabe el
+  // siguiente latido lo vuelve a ver distinto y hace lo que toca.
+  if ((cambio || veniaCaido) && !_loadBusy && !_delQueue.length && !_delRunning) {
     // El modo silencioso de la v11.47: lo de antes se queda en pantalla hasta
     // que llega lo nuevo. Sin esto, ver el trabajo de otro desarmaría el
     // tablero cada vez que otra persona guarda algo, que sería peor que no
