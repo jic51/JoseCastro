@@ -1904,15 +1904,30 @@
     #acPerson{position:fixed;left:-9999px;top:-9999px;
       background:var(--card);color:var(--text);border:1px solid var(--border);
       border-radius:10px;padding:.6rem .7rem;box-shadow:0 8px 24px rgba(0,0,0,.18);
-      width:max-content;max-width:min(300px,90vw);text-align:left;
+      /* SIEMPRE DEL MISMO TAMAÑO. Jose, 2026-09-16, con video: "quiero que el
+         pop-up sea del mismo tamaño no importa el nombre y el correo... se
+         mueve o aparece en un lugar diferente y de un largo diferente
+         dependiendo del correo".
+
+         Era width:max-content: la tarjeta medía lo que midiera el correo.
+         jose@ox-glass.com daba una, joseisrael5101@gmail.com otra más ancha —
+         y como al ensancharse tiene que apartarse para no salirse de la
+         ventana, TAMBIÉN cambiaba de sitio. Una sola causa para las dos
+         quejas.
+
+         Ancho fijo, y el nombre y el correo en UNA línea con puntos
+         suspensivos: si se les deja partirse en dos, cambia el alto y vuelve
+         a no ser del mismo tamaño. Lo que no cabe se lee en el title, y el
+         botón de Email no necesita leerlo para funcionar. */
+      width:min(300px,90vw);text-align:left;
       opacity:0;visibility:hidden;
       transition:opacity .13s ease,transform .13s ease;transform:translateY(-4px);
       z-index:2147483000}
     #acPerson.ready{visibility:visible}
     #acPerson.show{opacity:1;transform:translateY(0)}
+    .ap-name,.ap-mail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .ap-name{font-size:.86rem;font-weight:700;line-height:1.3}
-    .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:.1rem;
-      overflow-wrap:anywhere}
+    .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:.1rem}
     .ap-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem}
     .ap-btn{display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;
       font-size:.72rem;font-weight:600;color:var(--accent);
@@ -3772,7 +3787,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.94';
+var APP_VERSION = '11.95';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3784,7 +3799,7 @@ var APP_VERSION = '11.94';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '12e4a97e';
+var APP_BUILD = '355d21c0';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -5741,7 +5756,28 @@ function rowClass(mt){
 // ── Tab Lazy-Render system ────────────────────────────────────────────────────
 var _TAB_RENDERS = {
   dashboard: function(){ renderStats(); renderStock(); drawInventoryCharts(); },
-  movements: function(){ _movPage = 1; renderMovements(); },
+  /* NO SE VUELVE A LA PÁGINA 1 AQUÍ, Y ÉSE ERA EL FALLO.
+   *
+   * Jose, 2026-09-16: "al estar seleccionando más movimientos se borraron
+   * todos los checks, eso es raro".
+   *
+   * Raro no: reproducible. Este mapa lo llama renderAll, y renderAll lo llama
+   * CADA RECARGA SILENCIOSA — o sea, cada vez que el latido ve que la otra
+   * cuenta guardó algo, que trabajando con dos cuentas es cada veinte
+   * segundos. La tabla se plegaba a la primera página, las filas marcadas de
+   * la página 2 en adelante dejaban de estar pintadas, y las casillas
+   * desaparecían de la vista.
+   *
+   * Y LA MITAD PELIGROSA: la selección NO se perdía. _selectedMovements
+   * recorre la lista entera, no lo pintado, así que el botón Delete seguía
+   * armado sobre filas que ya no se veían. Marcar ocho, ver cero, y que
+   * borrar se lleve ocho es peor que perder la selección.
+   *
+   * Volver a la página 1 tiene sentido cuando LO QUE MIRAS cambia — entrar a
+   * la pestaña, cambiar un filtro— y ésos ya lo hacen por su cuenta. Que
+   * lleguen datos nuevos no es eso.
+   */
+  movements: function(){ renderMovements(); },
   projects:  function(){ refreshProjectDropdown(); renderProjectView(); },
   warehouse: function(){ renderWarehouseMap(); },
   incoming:  function(){ renderIncoming(); }
@@ -5764,6 +5800,10 @@ function showTab(tab, btnId){
   // los modos — así que la selección era lo único de la pantalla que sobrevivía
   // a irse de ella.
   _clearMovSelection();
+  // Y se empieza por arriba. Es la otra mitad de la misma regla de Jose —
+  // "si cambio de página, el check debe desaparecer"— y el sitio donde la
+  // vuelta a la página 1 sí significa algo: acabas de llegar.
+  _movPage = 1;
   document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(tab).classList.add('active');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.remove('active'); });
@@ -6816,8 +6856,32 @@ function renderMovements(){
   // to be attached again each time.
   if (_colEdit.mov) _wireColEdit('mov');
 
-  // La selección sobrevive al repintado, y la barra de acciones se pone al día
-  // con lo que de verdad hay marcado — no con lo que había antes de filtrar.
+  /* LO MARCADO ES LO QUE SE VE. SIEMPRE.
+   *
+   * La selección sobrevive al repintado —se guarda por ID, no por número de
+   * fila— pero no puede sobrevivir a que la fila deje de estar en pantalla. Si
+   * sobrevive, Delete queda armado sobre algo que nadie está mirando, y ése es
+   * el estado en el que se borra lo que no se quería.
+   *
+   * Pasa de verdad, y de dos maneras: la tabla se pliega a menos páginas, o la
+   * otra cuenta borró la fila mientras tú la tenías marcada. En los dos casos
+   * la respuesta correcta es la misma — lo que no está pintado no está
+   * seleccionado.
+   *
+   * Va DESPUÉS de escribir la tabla, no antes: lo que se mira son las casillas
+   * que acaban de pintarse.
+   */
+  var pintadas = {};
+  tc.querySelectorAll('.mov-select-cb').forEach(function(cb){
+    var id = cb.getAttribute('data-movid');
+    if (id) pintadas[id] = 1;
+  });
+  Object.keys(_movSelection).forEach(function(id){
+    if (!pintadas[id]) delete _movSelection[id];
+  });
+
+  // Y la barra de acciones se pone al día con lo que de verdad hay marcado —
+  // no con lo que había antes de filtrar.
   _syncMovSelectAll();
   _updateMovActionBar();
 
@@ -14076,8 +14140,11 @@ function _personShow(el){
   // innerHTML con TODO escapado a mano: el nombre y el correo salen de una hoja
   // que edita una persona.
   p.innerHTML =
-    (nombre ? '<div class="ap-name">' + _he(nombre) + '</div>' : '') +
-    '<div class="ap-mail">' + _he(mail) + '</div>' +
+    // title en los dos: la tarjeta es de ancho fijo desde la v11.95, así que un
+    // nombre o un correo largos se cortan con puntos suspensivos. Cortar sin
+    // dejar forma de leerlo entero sería esconder el dato, no ordenarlo.
+    (nombre ? '<div class="ap-name" title="' + _escAttr(nombre) + '">' + _he(nombre) + '</div>' : '') +
+    '<div class="ap-mail" title="' + _escAttr(mail) + '">' + _he(mail) + '</div>' +
     '<div class="ap-acts">' +
       /* GMAIL, NO EL mailto DEL SISTEMA.
          Jose, 2026-09-15: pulsó ✉ Email y Windows le preguntó con qué app
