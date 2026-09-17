@@ -3852,7 +3852,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.98';
+var APP_VERSION = '11.99';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3864,7 +3864,7 @@ var APP_VERSION = '11.98';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'd347f2d5';
+var APP_BUILD = '2b5b9408';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -15336,11 +15336,24 @@ function _paintDeck(){
   // something already done, the other is waiting on an answer, and the thing
   // waiting on you belongs on top.
   // Más tarde en el DOM = más arriba en la pila.
+  //
+  // Escribir innerHTML pone scrollTop en 0 — arriba, la tarjeta más vieja. Esto
+  // corre en CADA refresco de fondo, así que un mazo abierto que alguien está
+  // leyendo daría un salto al principio cada vez que se guarda un movimiento en
+  // otra pestaña. Se guarda la posición y se repone.
+  //
+  // Sólo si está ABIERTO. Cerrado no se toca: la pila colapsada usa márgenes
+  // negativos, así que el navegador ve desborde donde no lo hay y cualquier
+  // scrollTop la arrastraría (ver _deckTopado). De bajar al fondo ya se encarga
+  // _deckAnclarFondo en la apertura, que es cuando hay un fondo real.
+  var scrollPrevio  = deck.scrollTop;
+  var estabaAbierto = deck.classList.contains('open');
   deck.innerHTML = _sysDeckHtml + _cfgDeckHtml + _todoDeckHtml;
   if (!deck.innerHTML){
     deck.classList.remove('open', 'stack-2', 'stack-3');
     return;
   }
+  if (estabaAbierto) deck.scrollTop = scrollPrevio;
 
   var cards = deck.querySelectorAll('.deck-card');
 
@@ -15370,7 +15383,20 @@ function _paintDeck(){
 
   // The badge counts the WHOLE pile, including the cards held back from the
   // DOM, and rides on whichever card is actually on top.
-  var total = _cfgDeckTotal + _sysDeckTotal;
+  //
+  // LAS TRES CLASES, no dos. El mazo se arma arriba con
+  // `_sysDeckHtml + _cfgDeckHtml + _todoDeckHtml`, así que el contador tiene que
+  // sumar las tres mismas. Faltaba `_todoDeckTotal` — las tarjetas naranjas de
+  // "llegó y no se registró la entrada" — desde que se agregaron: se actualizó
+  // el contador de la campana y se olvidó éste. El resultado era que la
+  // insignia decía 4 con 6 tarjetas dentro, y que la campana y el mazo se
+  // contradecían entre sí en la misma pantalla (Jose lo cazó en video).
+  //
+  // Si algún día aparece una CUARTA clase de tarjeta, esta suma y la de
+  // `_syncCfgBell` son las dos líneas que hay que tocar juntas; el test
+  // test-mazo-contador.js las compara entre sí precisamente para que no vuelva
+  // a pasar.
+  var total = _cfgDeckTotal + _sysDeckTotal + _todoDeckTotal;
   var top = deck.lastElementChild;
   if (top && total > 1){
     var badge = document.createElement('span');
@@ -15689,16 +15715,90 @@ function _cfgWake(){
 var _deckHover = false, _deckPinned = false, _deckLeaveTimer = null;
 var _DECK_LEAVE_MS = 280;
 
+// ── El mazo abre POR ABAJO ────────────────────────────────────────────────────
+// La tarjeta más nueva es la ÚLTIMA del DOM (ver _paintDeck: "más tarde en el
+// DOM = más arriba en la pila"), y el mazo está anclado a la esquina inferior,
+// así que la más nueva es la de abajo. Desde la v11.98 el mazo tiene tope de
+// altura y barra propia — .deck{max-height:calc(66.6vh - 22px);overflow-y:auto}
+// — que es lo que evita el muro naranja que llegaba al techo de la pantalla.
+//
+// Efecto secundario que Jose cazó en video: un contenedor con scroll abre en
+// scrollTop 0, o sea ARRIBA, o sea enseñando la tarjeta MÁS VIEJA. Se abre el
+// mazo para ver lo último que pasó y lo último que pasó es justo lo que queda
+// fuera de cuadro.
+//
+// Un solo `scrollTop = scrollHeight` al abrir NO alcanza, y esto es lo que hace
+// que valga la pena el bucle: el abanico se despliega con transición
+// (--deck-in: .62s) y escalonado (--deck-step: 55ms por tarjeta), así que la
+// altura real sigue creciendo casi un segundo después del clic. Empujar una
+// sola vez deja el scroll en el fondo de la pila CERRADA, que está a mitad de
+// camino del fondo de la abierta.
+//
+// Así que se ancla cuadro a cuadro mientras dura el despliegue y se suelta sola
+// al terminar. Y se suelta ANTES si la persona toca la rueda: poder subir a
+// leer las viejas es exactamente para lo que existe la barra, y un mazo que te
+// arrastra de vuelta abajo mientras lees sería peor que uno que abre arriba.
+var _DECK_FAN_MS  = 620;   // --deck-in
+var _DECK_STEP_MS = 55;    // --deck-step
+var _deckPinRaf = null, _deckPinHasta = 0;
+
+// ¿DESBORDA DE VERDAD? No basta con `scrollHeight > clientHeight`, y esto es lo
+// único de este bloque que no es obvio.
+//
+// El mazo cerrado apila con márgenes NEGATIVOS —.deck:not(.open) .deck-card
+// {margin-top:calc(6px - var(--card-h))}— y una tarjeta que se va se lleva otro
+// margen negativo encima (.deck-card.leaving). Es decir: la CAJA mide mucho
+// menos que lo que su contenido pinta, siempre, por diseño. Medido en el
+// andamio de test-topbar-deck con una tarjeta saliendo: clientHeight 38,
+// scrollHeight 143. Para el navegador eso es desborde, y un scrollTop ahí
+// arrastra la pila entera 105px hacia arriba — la esquina saltaba de y=878 a
+// y=773 en el primer cuadro.
+//
+// El scroll de este mazo existe por UNA sola razón: el tope de altura que se
+// puso en la v11.98 para que el muro naranja no llegara al techo. Así que la
+// pregunta correcta no es "¿sobra contenido?" sino "¿está la caja TOPADA?". Si
+// la pila es más baja que el tope, no hay nada a donde bajar y no se toca nada.
+function _deckTopado(deck, tope){
+  if (!isFinite(tope)) return false;
+  return deck.clientHeight >= tope - 1 && deck.scrollHeight > deck.clientHeight + 1;
+}
+
+function _deckSoltarFondo(){
+  if (_deckPinRaf){ cancelAnimationFrame(_deckPinRaf); _deckPinRaf = null; }
+  _deckPinHasta = 0;
+}
+
+function _deckAnclarFondo(deck){
+  _deckSoltarFondo();
+  var n = deck.querySelectorAll('.deck-card').length;
+  var tope = parseFloat((window.getComputedStyle(deck) || {}).maxHeight);
+  _deckPinHasta = Date.now() + _DECK_FAN_MS + n * _DECK_STEP_MS + 120;
+  (function paso(){
+    if (Date.now() > _deckPinHasta){ _deckSoltarFondo(); return; }
+    // Los primeros cuadros el abanico todavía cabe entero y esto no hace nada,
+    // que es lo correcto: sólo cuando el despliegue llega al tope hay un fondo
+    // al que bajar.
+    if (_deckTopado(deck, tope)) deck.scrollTop = deck.scrollHeight;
+    _deckPinRaf = requestAnimationFrame(paso);
+  })();
+}
+
 function _deckApply(){
   var deck = document.getElementById('cornerDeck');
   if (!deck) return;
   var open = _deckHover || _deckPinned;
+  var estaba = deck.classList.contains('open');
   deck.classList.toggle('open', open);
   // The page behind must hold still while somebody is reading the pile — but
   // NOT dim. A modal darkens because it wants your whole attention; this only
   // wants the words under the pointer to stop sliding away. The page scrollbar
   // is already hidden, so locking it shifts no layout.
   document.documentElement.classList.toggle('deck-open', open);
+  // Solo en el FLANCO de apertura. _deckApply se llama también al cerrar y en
+  // cada repintado; volver a anclar mientras alguien ya está leyendo sería el
+  // tirón que este bloque existe para evitar.
+  if (open && !estaba) _deckAnclarFondo(deck);
+  if (!open) _deckSoltarFondo();
   if (open) _cfgWake(); else _cfgScheduleDim(_CFG_REDIM_MS);
 }
 
@@ -15723,6 +15823,12 @@ function _deckTogglePin(){
   if (!deck) return;
   deck.addEventListener('mouseenter', _deckEnter);
   deck.addEventListener('mouseleave', _deckLeave);
+  // Tocar la rueda (o arrastrar con el dedo) suelta el anclaje al fondo: a
+  // partir de ahí el scroll es de la persona, no del mazo. Van aquí, una sola
+  // vez, y no dentro de _deckAnclarFondo — engancharlos en cada apertura los
+  // iría acumulando sobre el mismo nodo abre tras abre.
+  deck.addEventListener('wheel', _deckSoltarFondo, { passive: true });
+  deck.addEventListener('touchmove', _deckSoltarFondo, { passive: true });
   // Touch has no hover at all, so a tap has to do the whole job.
   deck.addEventListener('click', function(e){
     if (e.target.closest('[data-sys-x],[data-sys-open],button')) return;  // real controls win
