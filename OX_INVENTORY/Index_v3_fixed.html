@@ -3852,7 +3852,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.99';
+var APP_VERSION = '12.00';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3864,7 +3864,7 @@ var APP_VERSION = '11.99';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2b5b9408';
+var APP_BUILD = '0fc76964';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14432,14 +14432,33 @@ function submitAttachment() {
     return;
   }
 
+  var fila = parseInt(document.getElementById('aRowIdx').value);
+
   _btnBusy(btn, 'Saving…');
   _setModalBusy('attachOverlay', true);
   google.script.run
-    .withSuccessHandler(function() {
+    .withSuccessHandler(function(res) {
+      // La columna DOC, al día en el acto. Ver "PINTAR EN CUANTO EL SERVIDOR
+      // DICE SÍ", junto a _incAplicarLocal.
+      //
+      // El texto viene del servidor porque el navegador no puede componerlo: sí
+      // sabe qué enlaces sobreviven —los manda él en keepLinks— pero no la URL
+      // de Drive del archivo que acaba de subir. Ver updateDocument_.
+      //
+      // `null` significa "no se tocó la celda" y '' significa "se quitaron
+      // todos", así que la comprobación es contra null, no contra falsy: un ''
+      // tratado como "no hay dato" dejaría los recortes en pantalla justo
+      // cuando se acaban de borrar.
+      if (res && res.docLinks != null && typeof movements !== 'undefined' && movements){
+        for (var i = 0; i < movements.length; i++){
+          if (movements[i].rowIdx === fila){ movements[i].docLinks = res.docLinks; break; }
+        }
+        renderAll();
+      }
       _setModalBusy('attachOverlay', false);
       _btnDone(btn, true, function(){ closeModal('attachOverlay'); });
       showToast('Documents updated ✓', 'ok', TOAST_QUICK);
-      loadDataFromGoogle(false);
+      _reloadWhenIdle();
     })
     .withFailureHandler(function(err) {
       showToast('Save failed: ' + (err.message || err), 'err', 6000);
@@ -14447,7 +14466,7 @@ function submitAttachment() {
       _setModalBusy('attachOverlay', false);
     })
     .processMovement('updateDocument', _h({
-      rowIdx:    parseInt(document.getElementById('aRowIdx').value),
+      rowIdx:    fila,
       expectedCategory: _attachOrigCategory,
       expectedName:     _attachOrigName,
       keepLinks: keepLinks,
@@ -17609,6 +17628,96 @@ function _entryFromIncoming(item, todoId){
   showToast('Everything the delivery already knew is filled in — say which rack it went to.', 'info', 6000);
 }
 
+/* ═══ PINTAR EN CUANTO EL SERVIDOR DICE SÍ ═══════════════════════════════════
+ *
+ * Jose, 2026-09-17, con video y cronómetro sobre "Mark arrived":
+ *
+ *   segundo  8–14  el botón en "Saving…"
+ *   segundo    15  la ventana se cierra — EL SERVIDOR YA CONFIRMÓ
+ *   segundo    16  sale el toast
+ *   segundo 17–25  el popup sigue diciendo "Pending"
+ *   segundo    26  por fin dice "Arrived"
+ *
+ * Once segundos entre "el servidor dijo sí" y "la pantalla lo dice". Jose:
+ * "SI YA SE VALIDÓ EN EL SERVIDOR, LA APP NO DEBE ESPERAR NADA MÁS PARA DAR EL
+ * FEEDBACK VISUAL."
+ *
+ * Eran DOS fallos, y el segundo es el que se come los once segundos:
+ *
+ *   1. El manejador de éxito no tocaba `incoming`. La pantalla repintaba el
+ *      estado viejo porque el dato viejo era el único que había.
+ *
+ *   2. Recargaba con loadDataFromGoogle(false), y ese `false` significa USA EL
+ *      CACHÉ. O sea: repintaba el dato viejo OTRA VEZ, y sólo se corregía al
+ *      terminar un getInitialData completo — que lee todas las hojas.
+ *
+ * El molde de cómo se hace bien ya estaba en la app, en _alsoArrivedSave y en
+ * submitLockMaterial: parchar la copia local y repintar en el mismo instante en
+ * que el servidor confirma, y dejar la recarga como confirmación silenciosa.
+ * Esto es ese molde, escrito una vez, para los tres caminos que le faltaban.
+ *
+ * NO es optimismo: no se pinta nada antes de tener el sí del servidor. Se pinta
+ * EN el sí, que es donde siempre debió pintarse.
+ */
+
+/* Update-or-insert de una entrega esperada en la copia del navegador.
+ *
+ * EL ORDEN IMPORTA y es lo único no obvio de aquí: getIncoming ordena por fecha
+ * estimada y manda las que no tienen fecha al final ('9999-12-31'). Pegar la
+ * entrega nueva al final de la lista la dejaría en el sitio equivocado hasta
+ * que llegara la recarga — o sea, cambiaría un retraso por un salto, que es
+ * peor. Se ordena igual que el servidor.
+ *
+ * Los campos que la hoja conserva —addedBy, addedAt— se conservan aquí también;
+ * y estDate vacío con modo distinto de 'unknown' mantiene la fecha que había,
+ * exactamente como hace updateIncoming en el servidor. Si las dos mitades no
+ * coinciden, la recarga "corrige" algo que estaba bien y se ve el parpadeo.
+ */
+function _incAplicarLocal(payload, res){
+  if (typeof incoming === 'undefined' || !incoming || !payload) return;
+  var id = payload.id || (res && res.id) || '';
+  if (!id) return;              // sin id no hay nada que casar; la recarga lo traerá
+
+  var previo = null;
+  for (var i = 0; i < incoming.length; i++){
+    if (String(incoming[i].id) === String(id)){ previo = incoming[i]; break; }
+  }
+
+  var modo = payload.dateMode || 'exact';
+  var fila = {
+    id:         String(id),
+    estDate:    modo === 'unknown' ? ''
+              : (payload.estDate || (previo ? previo.estDate : '')),
+    category:   String(payload.category || '').toUpperCase().trim(),
+    name:       String(payload.name || '').trim(),
+    qty:        Number(payload.qty || 0),
+    unit:       String(payload.unit || 'UNIT'),
+    supplier:   String(payload.supplier || ''),
+    po:         String(payload.po || ''),
+    notes:      String(payload.notes || ''),
+    status:     String(payload.status || 'Pending'),
+    addedBy:    previo ? previo.addedBy : ((typeof userEmail === 'string' && userEmail) || ''),
+    addedAt:    previo ? previo.addedAt : new Date().toISOString(),
+    pm:         String(payload.pm || ''),
+    docLink:    (res && typeof res.docLink === 'string' && res.docLink) ||
+                (previo ? previo.docLink : ''),
+    dateMode:   modo,
+    estDateEnd: modo === 'window' ? (payload.estDateEnd || '') : '',
+    dateNote:   String(payload.dateNote || '')
+  };
+
+  if (previo){
+    for (var k in fila){ if (Object.prototype.hasOwnProperty.call(fila, k)) previo[k] = fila[k]; }
+  } else {
+    incoming.push(fila);
+  }
+  incoming.sort(function(a, b){
+    var ka = a.estDate || '9999-12-31';
+    var kb = b.estDate || '9999-12-31';
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+}
+
 function saveIncomingItem() {
   var id       = document.getElementById('incId').value;
   var dateMode = document.getElementById('incDateMode').value || 'exact';
@@ -17663,7 +17772,14 @@ function saveIncomingItem() {
     var action = id ? 'updateIncoming' : 'addIncoming';
     _btnBusy(btn, 'Saving…');
     google.script.run
-      .withSuccessHandler(function(){
+      .withSuccessHandler(function(res){
+        // LO PRIMERO, antes de la animación del botón y antes de cerrar la
+        // ventana: el servidor ya dijo sí, así que la pantalla ya puede decir la
+        // verdad. Metido aquí y no dentro del callback de _btnDone porque ese
+        // callback espera a que termine el ✓ del botón — medio segundo de nada,
+        // pero medio segundo de mentira.
+        _incAplicarLocal(payload, res);
+        renderAll();
         _btnDone(btn, true, function(){
           closeModal('incomingOverlay');
           // LA TARJETA SE CREA SIEMPRE QUE LA ENTREGA PASA A ARRIVED, marque o
@@ -17686,7 +17802,11 @@ function saveIncomingItem() {
             if (wantEntry) _entryFromIncoming(payload, todoId);
           }
         });
-        loadDataFromGoogle(false);
+        // La recarga pasa a ser CONFIRMACIÓN, no la fuente de la verdad: ya no
+        // hay nada que esperar de ella. Y silenciosa y sin caché —_reloadWhenIdle
+        // usa (true, true)—, porque el `false` de antes repintaba el dato viejo
+        // por segunda vez y era el grueso de los once segundos.
+        _reloadWhenIdle();
       })
       .withFailureHandler(function(err){
         // ANTES de devolver el botón: mientras espera turno no debe poder
@@ -21558,6 +21678,43 @@ function saveEditMov() {
     btn:  btn,
     what: 'Could not save',
     ok: function(res) {
+      // LA FILA EDITADA, al día en el acto. Ver "PINTAR EN CUANTO EL SERVIDOR
+      // DICE SÍ", junto a _incAplicarLocal.
+      //
+      // Se normaliza IGUAL que el servidor —mayúsculas en categoría y estantes,
+      // cleanDisplay_ en el nombre (mayúsculas + trim + espacios colapsados)—
+      // porque si las dos mitades no coinciden, la recarga "corrige" algo que
+      // ya estaba bien y se ve un parpadeo donde antes había un retraso. Un
+      // parpadeo es peor: el retraso al menos no miente dos veces.
+      //
+      // LO QUE ESTO NO ARREGLA, y hay que decirlo: si el cambio fue de CANTIDAD,
+      // los totales del dashboard siguen esperando la recarga. El navegador no
+      // puede recalcularlos — el stock sale de las hojas derivadas del servidor,
+      // no de sumar movimientos aquí. La fila que la persona acaba de editar
+      // cambia al instante; el total del material tarda lo que tarde el viaje.
+      if (typeof movements !== 'undefined' && movements){
+        var limpio = function(v){ return String(v || '').toUpperCase().trim().replace(/\s+/g, ' '); };
+        for (var i = 0; i < movements.length; i++){
+          if (movements[i].rowIdx !== payload.rowIdx) continue;
+          var m = movements[i];
+          m.category    = String(payload.category || '').trim().toUpperCase();
+          m.name        = limpio(payload.name);
+          m.qty         = Math.abs(Number(payload.qty) || 0);
+          m.unit        = payload.unit || '';
+          m.dateRec     = payload.dateRec || '';
+          m.responsible = payload.responsible || '';
+          m.sourceLoc   = String(payload.sourceLoc || '').trim().toUpperCase();
+          m.destLoc     = String(payload.destLoc || '').trim().toUpperCase();
+          m.project     = payload.project || '';
+          m.gc          = payload.gc || '';
+          m.supplier    = payload.supplier || '';
+          m.po          = payload.po || '';
+          m.pm          = payload.pm || '';
+          m.comments    = payload.comments || '';
+          break;
+        }
+        renderAll();
+      }
       _setModalBusy('editMovOverlay', false);
       closeModal('editMovOverlay');
       // EL CHECK SE VA AQUÍ. Jose: "una vez que se selecciona un movimiento, se

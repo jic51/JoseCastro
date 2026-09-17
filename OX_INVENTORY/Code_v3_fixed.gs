@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.99';
+var APP_VERSION = '12.00';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.99';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2b5b9408';
+var APP_BUILD = '0fc76964';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -5697,8 +5697,19 @@ function updateDocument_(ss, archive, data, auth) {
   if (hasDocGroups) links = uploadDocGroups_(data.docGroups, matName);          // named, multi-photo groups → PDF
   else if (hasFiles) links = uploadFiles_(data.files, matName, 'row-' + data.rowIdx); // legacy single-file
 
+  // SE DEVUELVE EL TEXTO FINAL, y no es un extra: es lo único que le permite al
+  // navegador pintar el cambio en el acto.
+  //
+  // Jose, 2026-09-17, con video: adjuntaba un documento, salía el "Documents
+  // updated ✓", y la columna DOC seguía igual unos segundos. El navegador no
+  // podía arreglarlo solo — sabe qué enlaces SOBREVIVEN (los manda él en
+  // keepLinks) pero no la URL de Drive del archivo que acaba de subir, que se
+  // crea aquí dentro. Sin este dato lo único que le quedaba era esperar una
+  // recarga entera.
+  //
+  // No cuesta nada: el texto ya estaba calculado para escribirlo en la celda.
+  var finalText = null;
   if (data.rowIdx && (links || hasKeepLinks)) {
-    var finalText;
     if (hasKeepLinks) {
       finalText = data.keepLinks.concat(links ? [links] : []).join('\n');
     } else {
@@ -5709,7 +5720,10 @@ function updateDocument_(ss, archive, data, auth) {
     if (finalText) docLinksCell.setRichTextValue(richTextForDocLinks_(finalText));
     else docLinksCell.setValue(''); // all documents removed, nothing to replace with
   }
-  return { status: 'success' };
+  // null cuando NO se tocó la celda; '' cuando se quitaron todos. Son cosas
+  // distintas y el navegador tiene que poder diferenciarlas: '' vacía la
+  // columna, null la deja como estaba.
+  return { status: 'success', docLinks: finalText };
 }
 
 // Legacy single-file upload (kept for backward compatibility with older clients / attach modal)
