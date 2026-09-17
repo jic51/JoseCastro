@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '11.96';
+var APP_VERSION = '11.97';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '11.96';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '1f46b00f';
+var APP_BUILD = 'deadcb5c';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1738,6 +1738,40 @@ function getInitialData(sessionToken) {
                serverVersion: APP_VERSION, company: publicCompany_() };
     }
 
+    /* EL SELLO SE LEE AQUÍ, ANTES QUE LOS DATOS. NUNCA DESPUÉS.
+     *
+     * Jose, 2026-09-16, después de borrar trece movimientos con dos cuentas
+     * abiertas: "el último movimiento que se elimina de una cuenta nunca se
+     * actualiza en la otra cuenta, NUNCA" — y lo comprobó durante ocho minutos
+     * de grabación más el rato de comprimirla, descargarla y escribir.
+     *
+     * No era lento. Era permanente, y la causa es el ORDEN de dos lecturas.
+     *
+     * Este sello se leía al final, dentro del objeto que se devuelve — o sea,
+     * después de haber leído el archivo entero. Si un borrado se confirmaba
+     * entre las dos lecturas, el navegador se guardaba:
+     *
+     *     la lista de movimientos de ANTES del borrado
+     *     el sello de DESPUÉS
+     *
+     * Y a partir de ahí el latido compara su sello con el del servidor, salen
+     * IGUALES, y concluye que no ha cambiado nada. No vuelve a pedir datos
+     * nunca. La fila borrada se queda en pantalla para siempre.
+     *
+     * POR QUÉ JUSTO EL ÚLTIMO DE LA TANDA: a los doce primeros los arregla la
+     * recarga que dispara el sello del siguiente. El decimotercero no tiene
+     * ninguno detrás. Y desde la v11.96 es además el más lento de todos —es el
+     * único que reconstruye las hojas derivadas, porque ya no viene nadie
+     * detrás—, así que su ventana es la más ancha. La v11.96 no creó esto: lo
+     * dejó a la vista al quitar el ruido que lo tapaba.
+     *
+     * LEYÉNDOLO PRIMERO, EL FALLO CAMBIA DE LADO. Ahora un borrado a mitad de
+     * camino deja sello VIEJO con datos NUEVOS: el siguiente latido ve el
+     * sello distinto y pide una recarga de más. Se desperdicia un viaje. Al
+     * revés se desperdicia la verdad, y no se recupera sola.
+     */
+    var selloAlEmpezar = dataStamp_();
+
     var ss       = SpreadsheetApp.getActiveSpreadsheet();
     var archive  = ss.getSheetByName(SHEETS.ARCHIVE);
     var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
@@ -1918,7 +1952,11 @@ function getInitialData(sessionToken) {
       // La referencia contra la que el latido compara. Sin esto, el primer
       // latido tras cargar vería un sello "distinto" del que no tiene, y todo
       // el mundo se refrescaría una vez de más nada más entrar.
-      dataStamp:          dataStamp_(),
+      // LEÍDO AL EMPEZAR, no aquí. Ver el bloque de selloAlEmpezar arriba: si
+      // se lee en este punto, un borrado que entre mientras se leía el archivo
+      // deja al navegador con datos viejos y sello nuevo — y entonces el latido
+      // no vuelve a pedir nada nunca.
+      dataStamp:          selloAlEmpezar,
       rolePerms:          rolePerms_(),
       warehouseRoleLabel: warehouseRoleLabel_(),
       userName:           auth.name || '',
