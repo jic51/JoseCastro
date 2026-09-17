@@ -1471,6 +1471,23 @@
     .role-badge-warehouse{background:#DBEAFE;color:#1D4ED8;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
     .role-badge-viewer{background:#F3F4F6;color:#6B7280;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
     .user-inactive{opacity:.45}
+    /* DOS DATOS EN UNA COLUMNA, como Date/Type y Category/Name en la tabla de
+       movimientos. Jose: "así tenemos menos cosas ocupando tanto espacio". El
+       de arriba es el que se busca con la vista —el nombre, el rol— y el de
+       abajo el que se consulta cuando ya encontraste la fila. */
+    .usr-two{display:flex;flex-direction:column;gap:.1rem;min-width:0}
+    .usr-top{font-size:.84rem;font-weight:600;line-height:1.25;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* El correo se parte si hace falta: es lo único de esta tabla que puede ser
+       larguísimo, y cortarlo con puntos suspensivos escondería justo la parte
+       que distingue a dos personas de la misma empresa. */
+    .usr-sub{font-size:.72rem;color:var(--muted);line-height:1.3;
+             overflow-wrap:anywhere}
+    .usr-bar{margin-bottom:.75rem}
+    /* La casilla de uno mismo no se puede marcar, y tiene que NOTARSE que no
+       es un descuido. Sin esto, marcas tres contigo dentro y la acción
+       funciona a medias. */
+    .usr-select-cb:disabled{opacity:.3;cursor:not-allowed}
     .user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem}
     @media(max-width:520px){.user-form-grid{grid-template-columns:1fr}}
     /* ── SIMILAR-MATERIAL HINT ── */
@@ -1519,7 +1536,24 @@
        would not read as a deck. Newest is last in the DOM so it paints on top
        without fighting z-index. Padding on the container leaves room for the
        rotated corners and the badge to sit OUTSIDE the top card. */
-    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px}
+    /* DOS TERCIOS DE LA VENTANA, NO MÁS. Jose, sobre el muro de tarjetas
+       naranjas: en pantalla grande la pila crecía hasta donde quisiera y
+       tapaba lo que estabas mirando. Ahora tiene un techo — el tercio de
+       arriba se queda libre pase lo que pase — y si hay más tarjetas de las
+       que caben, la pila se desplaza dentro de su propio hueco en vez de
+       comerse la pantalla.
+
+       El 22px de abajo va restado porque el tope es sobre la VENTANA, no sobre
+       el hueco: sin restarlo, dos tercios más el margen pasan de dos tercios.
+
+       overflow-y:auto y no hidden: esconder una tarjeta que existe es peor que
+       cualquier problema de sitio. scrollbar-width:none porque el resto de la
+       app ya oculta las suyas (ver html{scrollbar-width:none}) y una barra
+       gris aquí partiría el borde redondeado de las tarjetas. */
+    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px;
+          max-height:calc(66.6vh - 22px);overflow-y:auto;overflow-x:visible;
+          scrollbar-width:none}
+    .deck::-webkit-scrollbar{display:none}
     .deck:empty{display:none}
     /* Reading the pile should not mean the page slides around underneath it.
        Scroll only — no backdrop, no dimming: this is a corner of the screen
@@ -2628,9 +2662,59 @@
       <button class="modal-x" onclick="closeModal('usersOverlay')" title="Close">✕</button>
     </div>
 
-    <!-- Add / Edit form -->
-    <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
-      <p style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.65rem" id="userFormTitle">➕ Add New User</p>
+    <!-- LA BARRA, CON LA MISMA FORMA QUE MOVEMENTS & HISTORY.
+         Jose: "quiero quitar el cuadro de add user de arriba y solo dejarlo como
+         un botón que al dar clic abre el cuadro donde se escriben los datos,
+         también el botón editar y desactivar solo se activan cuando
+         seleccionamos algún usuario". Es el patrón que ya tiene la tabla de
+         movimientos, y tenerlo en los dos sitios es una razón en sí misma:
+         una sola forma de hacer las cosas en toda la app.
+
+         APAGADOS, NO ESCONDIDOS, igual que allí: un botón que aparece es un
+         botón que mueve la página. -->
+    <div class="col-bar usr-bar">
+      <button class="btn btn-primary btn-sm" onclick="openUserForm()">➕ Add User</button>
+      <span class="mov-act-sep">
+        <button class="btn btn-ghost btn-sm" id="btnUsrEdit" onclick="editSelectedUser()" disabled>✏️ Edit</button>
+        <button class="btn btn-ghost btn-sm" id="btnUsrActive" onclick="toggleSelectedUsers()" disabled>🚫 Deactivate</button>
+        <span id="usrSelCount" class="mov-sel-count"></span>
+      </span>
+    </div>
+
+    <!-- Users table. CUATRO COLUMNAS, NO SIETE.
+         Jose: "poner cosas como nombre y correo uno sobre otro y rol y added
+         uno sobre otro, added by y status pueden estar luego pero más cerca,
+         así tenemos menos cosas ocupando tanto espacio". Es lo mismo que ya se
+         hizo con Date/Type y Category/Name en la tabla de movimientos. -->
+    <div class="table-wrapper" style="max-height:45vh">
+      <table class="users-table">
+        <thead><tr>
+          <th class="mov-sel-cell"><input type="checkbox" id="usrSelAll" onchange="toggleUsrSelectAll(this)" title="Select all"></th>
+          <th>User</th><th>Role / Added</th><th>Added By</th><th>Status</th>
+        </tr></thead>
+        <tbody id="usersTableBody">
+          <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">
+      Deactivating a user stops them signing in but keeps the audit trail — nothing they
+      recorded is lost. Tick them and press Reactivate to let them back in.
+    </p>
+  </div>
+</div>
+
+<!-- Add / Edit form — en su propia ventana desde la v11.98.
+     HERMANA de usersOverlay, no hija: un .overlay anidado dentro de un .modal
+     hereda su contexto de apilamiento, y entonces el formulario queda DEBAJO de
+     la lista que lo abrió. Todas las demás ventanas de la app viven en este
+     nivel; ésta también. -->
+<div class="overlay" id="userFormOverlay">
+  <div class="modal">
+      <div class="mhdr">
+        <h3 id="userFormTitle">➕ Add New User</h3>
+        <button class="modal-x" onclick="closeModal('userFormOverlay')" title="Close">✕</button>
+      </div>
       <div class="user-form-grid">
         <div class="field" style="margin:0">
           <label>Email *</label>
@@ -2648,31 +2732,12 @@
             <option value="ADMIN">ADMIN — Full access</option>
           </select>
         </div>
-        <div class="field" style="margin:0;display:flex;align-items:flex-end;gap:.5rem">
-          <button class="btn btn-primary" onclick="saveUser()" id="btnSaveUser" style="flex:1">Save User</button>
-          <button class="btn btn-ghost" onclick="resetUserForm()" id="btnCancelUserEdit" style="display:none">Cancel</button>
-        </div>
       </div>
       <div id="userFormMsg" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.35rem .6rem;border-radius:6px"></div>
-    </div>
-
-    <!-- Users table -->
-    <div id="rowModeSlot_usr"></div>
-    <div class="table-wrapper" style="max-height:45vh" data-rowscope="usr">
-      <table class="users-table">
-        <thead><tr>
-          <th>Email</th><th>Name</th><th>Role</th>
-          <th>Added By</th><th>Added</th><th>Status</th><th></th>
-        </tr></thead>
-        <tbody id="usersTableBody">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p style="font-size:.72rem;color:var(--muted);margin-top:.6rem">
-      Removing a user deactivates them (they can no longer log in) but keeps the audit trail.
-      To re-activate, edit the row directly in the USERS_V3 sheet.
-    </p>
+      <div class="modal-actions" style="margin-top:1.1rem">
+        <button class="btn btn-ghost" onclick="closeModal('userFormOverlay')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUser()" id="btnSaveUser">Save User</button>
+      </div>
   </div>
 </div>
 
@@ -3787,7 +3852,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '11.97';
+var APP_VERSION = '11.98';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3799,7 +3864,7 @@ var APP_VERSION = '11.97';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'deadcb5c';
+var APP_BUILD = 'd347f2d5';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14305,10 +14370,9 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _perso
       openIncomingModal(el.getAttribute('data-id'));
     } else if (a === 'morning-arrived') {
       _markArrivedFromPopup(el.getAttribute('data-id'));
-    } else if (a === 'edit-user') {
-      editUser(el.getAttribute('data-email'));
-    } else if (a === 'deact-user') {
-      deactivateUser(el.getAttribute('data-email'));
+    // 'edit-user' y 'deact-user' se fueron en la v11.98: las acciones de la
+    // tabla de usuarios ya no viven en cada fila, viven en la barra de arriba
+    // y trabajan sobre lo marcado. Ver editSelectedUser y toggleSelectedUsers.
     } else if (a === 'stock-suggest') {
       _applyStockSuggest(el.getAttribute('data-name'));
     } else if (a === 'exit-suggest') {
@@ -16036,7 +16100,11 @@ function openRackDrawer(rackName) {
   var rackMap = _buildRackMap('', '');
   var items   = (rackMap[rackName] || []).sort(function(a,b){ return b.qty-a.qty; });
 
-  document.getElementById('rackDrawerTitle').textContent = '📦 ' + rackName;
+  // Al (re)abrir el cajón no hay ningún material seleccionado todavía, así que
+  // el título es el del estante. Vale también para el repintado que llega
+  // cuando otra persona mueve algo: si el material que estabas mirando ya no
+  // está, su nombre no puede seguir en la cabecera.
+  _rdwTitle('📦 ' + rackName);
 
   if (!items.length) {
     _rdwItems = [];
@@ -16088,6 +16156,26 @@ function openRackDrawer(rackName) {
 // see the comment in openRackDrawer for why a JS array instead of DOM attrs.
 var _rdwItems = [];
 
+/* EL TÍTULO DICE QUÉ MATERIAL ESTÁS TOCANDO.
+ *
+ * Jose: "sólo quiero que aparezca el nombre del material cuando se lo
+ * selecciona, o sea, cuando das clic en el material o lo tocas en el teléfono
+ * y aparecen las opciones".
+ *
+ * En el teléfono es donde importa: las opciones se abren, el dedo tapa la fila,
+ * y la cabecera es lo único que queda a la vista para saber sobre QUÉ vas a
+ * pulsar Exit o Waste. Al cerrar vuelve al estante, porque entonces la pregunta
+ * otra vez es "¿dónde estoy?" y no "¿qué toqué?".
+ */
+function _rdwTitle(txt){
+  var el = document.getElementById('rackDrawerTitle');
+  if (el) el.textContent = txt;
+}
+
+function _rdwTitleRack(){
+  _rdwTitle('📦 ' + (_openRackName || 'Rack'));
+}
+
 function _toggleRdwActions(idx){
   var el = document.getElementById('rdw-actions-' + idx);
   if (!el) return;
@@ -16100,6 +16188,13 @@ function _toggleRdwActions(idx){
     el.style.display = 'flex';
     var nameEl = document.querySelector('.rdw-name[data-idx="' + idx + '"]');
     if (nameEl) nameEl.classList.add('rdw-name-open');
+    var item = _rdwItems[idx];
+    // Sin el nombre no hay nada mejor que decir, así que se deja el estante:
+    // una cabecera vacía sería peor que la de siempre.
+    _rdwTitle(item && item.name ? '📦 ' + item.name : '📦 ' + (_openRackName || 'Rack'));
+  } else {
+    // Se cerró el que estaba abierto: vuelve a ser una pregunta de estante.
+    _rdwTitleRack();
   }
 }
 
@@ -18922,34 +19017,205 @@ function _roleBadge(role) {
   return '<span class="role-badge-' + cls + '">' + _he(_displayRole(role)) + '</span>';
 }
 
+/* ── SELECCIÓN DE USUARIOS ──────────────────────────────────────────────────
+   Misma forma que la selección de movimientos, y a propósito: dos pantallas
+   que hacen lo mismo deben hacerlo igual. Se guarda por CORREO, que es lo
+   único que no cambia de un usuario — el nombre y el rol sí. */
+var _usrSelection = {};
+
+/* TU PROPIA FILA NO SE PUEDE MARCAR, y el servidor opina lo mismo: removeUser
+   se niega en redondo ("You cannot remove your own account"). Que la casilla
+   esté apagada no es un adorno — es la misma regla dicha antes de pulsar. */
+function _usrPickable(u){ return !!u && u.email !== userEmail; }
+
+function _selectedUsers(){
+  return (_usersData || []).filter(function(u){
+    return _usrPickable(u) && _usrSelection[u.email];
+  });
+}
+
+function toggleUsrSelect(cb){
+  var email = cb.getAttribute('data-email');
+  if (!email) return;
+  if (cb.checked) _usrSelection[email] = true; else delete _usrSelection[email];
+  _syncUsrSelectAll();
+  _updateUsrActionBar();
+}
+
+function toggleUsrSelectAll(cb){
+  document.querySelectorAll('#usersTableBody .usr-select-cb').forEach(function(x){
+    if (x.disabled) return;
+    var email = x.getAttribute('data-email');
+    if (!email) return;
+    x.checked = cb.checked;
+    if (cb.checked) _usrSelection[email] = true; else delete _usrSelection[email];
+  });
+  _updateUsrActionBar();
+}
+
+function _syncUsrSelectAll(){
+  var all = document.getElementById('usrSelAll');
+  if (!all) return;
+  var boxes = [];
+  document.querySelectorAll('#usersTableBody .usr-select-cb').forEach(function(x){
+    if (!x.disabled) boxes.push(x);
+  });
+  var marcadas = boxes.filter(function(x){ return x.checked; }).length;
+  all.checked       = boxes.length > 0 && marcadas === boxes.length;
+  all.indeterminate = marcadas > 0 && marcadas < boxes.length;
+  all.disabled      = boxes.length === 0;
+}
+
+/* EL BOTÓN DICE LO QUE VA A HACER, y con una mezcla no dice nada.
+ *
+ * Hoy un usuario desactivado sólo mostraba la palabra "inactive" y el pie de la
+ * ventana mandaba a editar la hoja de cálculo a mano para devolverle el acceso.
+ * El servidor ya sabía hacerlo —updateUser acepta `active`— así que lo único
+ * que faltaba era el botón.
+ *
+ * Con activos e inactivos marcados a la vez se APAGA en vez de elegir por su
+ * cuenta: "Deactivate" sobre alguien que ya está fuera no significa nada, y
+ * hacer las dos cosas a la vez con un solo botón es pedir un accidente.
+ */
+function _updateUsrActionBar(){
+  var sel  = _selectedUsers();
+  var n    = sel.length;
+  var edit = document.getElementById('btnUsrEdit');
+  var act  = document.getElementById('btnUsrActive');
+  var cnt  = document.getElementById('usrSelCount');
+
+  if (edit){
+    // Uno solo: un formulario no puede decir la verdad sobre dos a la vez.
+    edit.disabled = n !== 1;
+    edit.title = n === 1 ? 'Edit ' + sel[0].email
+               : n === 0 ? 'Tick a user first'
+               : 'Pick just one to edit';
+  }
+
+  if (act){
+    var activos   = sel.filter(function(u){ return u.active; }).length;
+    var inactivos = n - activos;
+    var reactivar = n > 0 && activos === 0;
+    act.textContent = reactivar ? '↩ Reactivate' : '🚫 Deactivate';
+    act.disabled    = (n === 0) || (activos > 0 && inactivos > 0);
+    act.title = n === 0 ? 'Tick a user first'
+              : (activos > 0 && inactivos > 0)
+                ? 'Some are active and some are not — pick one kind at a time'
+              : reactivar ? 'Let ' + n + ' user' + (n === 1 ? '' : 's') + ' sign in again'
+              : 'Stop ' + n + ' user' + (n === 1 ? '' : 's') + ' signing in';
+  }
+
+  if (cnt) cnt.textContent = n ? (n + ' selected') : '';
+}
+
 function _renderUsersTable() {
-  var slot = document.getElementById('rowModeSlot_usr');
-  if (slot && !slot.firstChild) slot.innerHTML = _rowModeBarHtml('usr');
-  _mountRowMode('usr');
   var tbody = document.getElementById('usersTableBody');
   if (!_usersData.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem">No users registered yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem">No users registered yet.</td></tr>';
+    _usrSelection = {};
+    _syncUsrSelectAll();
+    _updateUsrActionBar();
     return;
   }
   tbody.innerHTML = _usersData.map(function(u) {
-    var isSelf = u.email === userEmail;
+    var isSelf  = u.email === userEmail;
+    var marcado = !isSelf && !!_usrSelection[u.email];
     return '<tr class="' + (u.active ? '' : 'user-inactive') + '">' +
-      '<td style="font-size:.8rem;word-break:break-all">' + _he(u.email) + (isSelf ? ' <span class="badge badge-blue" style="font-size:.6rem">you</span>' : '') + '</td>' +
-      '<td style="font-size:.82rem">' + _he(u.name || '—') + '</td>' +
-      '<td>' + _roleBadge(u.role) + '</td>' +
-      '<td style="font-size:.75rem;color:var(--muted)">' + _he(u.addedBy || '—') + '</td>' +
-      '<td style="font-size:.75rem;color:var(--muted);white-space:nowrap">' + (u.addedAt || '—') + '</td>' +
-      '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
-      '<td style="white-space:nowrap">' +
-        (!isSelf
-          ? '<button class="btn-icon" data-rowact="edit" data-action="edit-user" data-email="' + _he(u.email) + '" title="Edit">✏️</button> ' +
-            (u.active
-              ? '<button class="btn-icon" data-rowact="del" data-action="deact-user" data-email="' + _he(u.email) + '" title="Deactivate">🚫</button>'
-              : '<span style="color:var(--muted);font-size:.72rem">inactive</span>')
-          : '<span style="color:var(--muted);font-size:.72rem">—</span>') +
+      '<td class="mov-sel-cell">' +
+        '<input type="checkbox" class="usr-select-cb" data-email="' + _escAttr(u.email) + '"' +
+        (marcado ? ' checked' : '') +
+        (isSelf ? ' disabled title="This is you — you cannot edit or deactivate your own account"' : '') +
+        ' onchange="toggleUsrSelect(this)">' +
       '</td>' +
+      // Nombre arriba, correo abajo: el nombre es lo que se busca con la vista.
+      '<td><div class="usr-two">' +
+        '<span class="usr-top">' + _he(u.name || '—') +
+          (isSelf ? ' <span class="badge badge-blue" style="font-size:.6rem">you</span>' : '') + '</span>' +
+        '<span class="usr-sub">' + _he(u.email) + '</span>' +
+      '</div></td>' +
+      '<td><div class="usr-two">' +
+        '<span>' + _roleBadge(u.role) + '</span>' +
+        '<span class="usr-sub">' + (u.addedAt || '—') + '</span>' +
+      '</div></td>' +
+      '<td class="usr-sub">' + _he(u.addedBy || '—') + '</td>' +
+      '<td><span class="badge ' + (u.active ? 'badge-green' : 'badge-gray') + '">' + (u.active ? 'Active' : 'Inactive') + '</span></td>' +
     '</tr>';
   }).join('');
+
+  /* LO MARCADO ES LO QUE SE VE, la misma regla que la tabla de movimientos
+     aprendió en la v11.95: un usuario que ya no está en la lista no puede
+     quedarse marcado, o los botones quedan armados sobre alguien que nadie
+     está mirando. */
+  var pintados = {};
+  document.querySelectorAll('#usersTableBody .usr-select-cb').forEach(function(cb){
+    var e = cb.getAttribute('data-email');
+    if (e && !cb.disabled) pintados[e] = 1;
+  });
+  Object.keys(_usrSelection).forEach(function(e){
+    if (!pintados[e]) delete _usrSelection[e];
+  });
+
+  _syncUsrSelectAll();
+  _updateUsrActionBar();
+}
+
+/** Abre el formulario en blanco. El botón ➕ de la barra. */
+function openUserForm(){
+  resetUserForm();
+  document.getElementById('userFormOverlay').classList.add('show');
+  setTimeout(function(){ var e = document.getElementById('uEmail'); if (e) e.focus(); }, 60);
+}
+
+function editSelectedUser(){
+  var sel = _selectedUsers();
+  if (sel.length !== 1) return;
+  editUser(sel[0].email);
+}
+
+/* Desactivar o reactivar los marcados. Cuál de las dos lo dice el botón, y el
+   botón ya se apagó si la selección era una mezcla — aquí sólo se ejecuta. */
+function toggleSelectedUsers(){
+  var sel = _selectedUsers();
+  if (!sel.length) return;
+  var reactivar = sel.every(function(u){ return !u.active; });
+  if (!reactivar && !sel.every(function(u){ return u.active; })) return;   // mezcla: no debería llegar
+
+  var quienes = sel.map(function(u){ return u.email; });
+  _showConfirm({
+    icon: reactivar ? '↩' : '🔒',
+    danger: !reactivar,
+    title: reactivar
+      ? (sel.length === 1 ? 'Let this user back in?' : 'Let ' + sel.length + ' users back in?')
+      : (sel.length === 1 ? 'Deactivate this user?'  : 'Deactivate ' + sel.length + ' users?'),
+    message: quienes.join('\n') + '\n\n' + (reactivar
+      ? 'They will be able to sign in again with the role they had.'
+      : 'They will no longer be able to sign in. Nothing they recorded is lost, and you can let them back in from here.'),
+    confirmText: reactivar ? 'Reactivate' : 'Deactivate',
+    onConfirm: function(){
+      // Uno a uno por la cola de escrituras, igual que todo lo demás que
+      // escribe: son llamadas al servidor y no tienen por qué salir de golpe.
+      _progStart(sel.length, reactivar ? 'Reactivating users' : 'Deactivating users',
+        reactivar ? _progFinReactivados : _progFinDesactivados);
+      sel.forEach(function(u){
+        _acWrite({
+          // Reactivar va por updateUser, que ya aceptaba `active` desde
+          // siempre: lo único que faltaba era quién se lo pidiera.
+          args: reactivar
+            ? ['updateUser', _h({ email: u.email, active: true })]
+            : ['removeUser', _h({ email: u.email })],
+          what: (reactivar ? 'reactivating ' : 'deactivating ') + u.email,
+          prog: true,
+          ok: function(){
+            _usersData.forEach(function(x){ if (x.email === u.email) x.active = reactivar; });
+            _sysCachePut('users', _usersData, true);
+            _renderUsersTable();
+          }
+        });
+      });
+      _usrSelection = {};
+      _renderUsersTable();
+    }
+  });
 }
 
 function editUser(email) {
@@ -18961,8 +19227,10 @@ function editUser(email) {
   document.getElementById('uName').value  = u.name  || '';
   document.getElementById('uRole').value  = u.role  || 'WAREHOUSE';
   document.getElementById('userFormTitle').textContent = '✏️ Editing: ' + u.email;
-  document.getElementById('btnCancelUserEdit').style.display = '';
-  document.getElementById('uEmail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // El formulario vive en su propia ventana desde la v11.98, así que hay que
+  // abrirla — antes estaba siempre puesta y bastaba con rellenarla.
+  document.getElementById('userFormOverlay').classList.add('show');
+  setTimeout(function(){ var e = document.getElementById('uName'); if (e) e.focus(); }, 60);
 }
 
 function resetUserForm() {
@@ -18972,7 +19240,6 @@ function resetUserForm() {
   document.getElementById('uName').value     = '';
   document.getElementById('uRole').value     = 'WAREHOUSE';
   document.getElementById('userFormTitle').textContent  = '➕ Add New User';
-  document.getElementById('btnCancelUserEdit').style.display = 'none';
   _userFormMsg('', '');
 }
 
@@ -19010,6 +19277,7 @@ function saveUser() {
       else _usersData.push({ email: email, name: name, role: role, active: true,
                              addedBy: userEmail, addedAt: _isoDate(new Date()) });
       resetUserForm();
+      closeModal('userFormOverlay');
       _sysCachePut('users', _usersData, true);   // ya está al día, no hay que ir a buscarla
       _renderUsersTable();
     })
@@ -19020,25 +19288,11 @@ function saveUser() {
     .processMovement(action, _h(payload));
 }
 
-function deactivateUser(email) {
-  _showConfirm({
-    icon: '🔒', danger: true,
-    title: 'Deactivate User?',
-    message: email + '\n\nThey will no longer be able to log in.\nYou can re-activate them from the USERS_V3 sheet.',
-    confirmText: 'Deactivate',
-    onConfirm: function(){
-      google.script.run
-        .withSuccessHandler(function() {
-          _usersData.forEach(function(u){ if (u.email === email) u.active = false; });
-          _sysCachePut('users', _usersData, true);
-          _renderUsersTable();
-          showToast(email + ' can no longer sign in.', 'ok');
-        })
-        .withFailureHandler(function(err) { showToast(err.message || err, 'err', 5000); })
-        .processMovement('removeUser', _h({ email: email }));
-    }
-  });
-}
+/* deactivateUser(email) SE FUE EN LA v11.98, y merece una línea porque el
+   botón que la llamaba también. Desactivar ya no es una acción de fila: se
+   marcan los usuarios y la barra hace lo que toque — desactivar o reactivar,
+   que antes no se podía sin abrir la hoja de cálculo a mano. Ver
+   toggleSelectedUsers. */
 
 // ── Access Denied Screen ──────────────────────────────────────────────────────
 // ── Identity Picker (for non-org users when GAS can't detect email) ──────────
@@ -20081,6 +20335,20 @@ function _progFinListas(hechos, fallados){
   return fallados
     ? (hechos + ' added · ' + fallados + ' failed')
     : (hechos === 1 ? 'Added to your lists.' : hechos + ' added to your lists.');
+}
+
+function _progFinDesactivados(hechos, fallados){
+  return fallados
+    ? (hechos + ' deactivated · ' + fallados + ' failed')
+    : (hechos === 1 ? 'That user can no longer sign in.'
+                    : hechos + ' users can no longer sign in.');
+}
+
+function _progFinReactivados(hechos, fallados){
+  return fallados
+    ? (hechos + ' reactivated · ' + fallados + ' failed')
+    : (hechos === 1 ? 'That user can sign in again.'
+                    : hechos + ' users can sign in again.');
 }
 
 function _progFinLlegadas(hechos, fallados){
