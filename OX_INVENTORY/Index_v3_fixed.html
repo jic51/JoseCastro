@@ -626,6 +626,14 @@
     #transferRowsContainer .transfer-row .btn-remove-loc{transition-property:background,color}
     .mat-line-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem}
     .mat-line-lbl-sm{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
+    /* La casilla de "quiero etiqueta" en la cabecera de cada material. Discreta
+       a propósito: es una opción, no un campo obligatorio, y en la cabecera van
+       ya el total y el botón de quitar. */
+    .mat-lbl-want{display:inline-flex;align-items:center;gap:.25rem;font-size:.7rem;
+      font-weight:700;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+    .mat-lbl-want input{width:.85rem;height:.85rem;cursor:pointer;margin:0}
+    .mat-lbl-want:hover{color:var(--accent)}
+    .mat-lbl-want input:checked + span{color:var(--accent)}
     .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
     /* Price-change alert on ENTRY's Unit Cost — "this supplier charged 18%
@@ -2448,15 +2456,62 @@
        la etiqueta, y la cantidad es lo segundo que se busca. */
     .lbl-name{font-size:8.5mm;font-weight:800;line-height:1.1;margin-top:3mm;
       overflow-wrap:anywhere;max-height:29mm;overflow:hidden}
-    /* Cantidad y locación, del mismo tamaño y lado a lado: son las dos
-       preguntas que se hacen con el bulto en la mano — cuánto hay, y a dónde
-       vuelve. */
-    .lbl-pair{display:flex;gap:5mm;margin-top:5mm}
-    .lbl-cell{flex:1;min-width:0;border:.4mm solid #000;border-radius:2mm;padding:3mm}
-    .lbl-cell-lbl{font-size:3mm;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-    .lbl-cell-val{font-size:10mm;font-weight:800;line-height:1.05;margin-top:1mm;
-      overflow-wrap:anywhere}
-    .lbl-cell-val.sm{font-size:7mm}
+    /* ── LOCACIÓN ARRIBA, CANTIDAD DEBAJO, CADA UNA A ANCHO COMPLETO ────────
+       Jose, 2026-09-21, con una captura donde "WINDOW WAREHOUSE" salía partido
+       en tres líneas: *"podemos poner el cuadro de la locación sobre el cuadro
+       de la cantidad y hacer el cuadrado un rectángulo… las locaciones con
+       nombres largos sí se leen bien."*
+
+       POR QUÉ ESTABAN MAL LADO A LADO, y es medible: los dos recuadros eran
+       `flex:1`, media etiqueta cada uno, y su contenido no se parece en nada —
+       una cantidad son 1 a 4 caracteres (54, 5, 142) y una locación de 2 a 16
+       (B1B, P4C, WINDOW WAREHOUSE). Repartir el ancho a partes iguales
+       GARANTIZA que uno desperdicie el 80% de su caja mientras al otro no le
+       cabe.
+
+       LA LOCACIÓN VA PRIMERA porque con el bulto en la mano la pregunta es "¿a
+       dónde va esto?". La cantidad es la comprobación, no la búsqueda.
+
+       Y CADA UNA EN UNA SOLA LÍNEA —etiqueta a la izquierda, valor a la
+       derecha— en vez de etiqueta encima y valor debajo. Dos filas de una línea
+       ocupan casi lo mismo que la pareja de dos líneas de antes, así que no se
+       pierde alto: el nombre ya se lleva 29mm y el hueco del código 34. */
+    .lbl-pair{display:flex;flex-direction:column;gap:3mm;margin-top:5mm}
+    /* EL RÓTULO ENCIMA, NO AL LADO — y esto salió de medirlo, no de mirarlo.
+       Con "LOCATION" a la izquierda, al valor le quedaban 230px de los 384 del
+       papel, y "WINDOW WAREHOUSE" sólo entraba en una línea bajando a 20px.
+       Con el rótulo encima el valor dispone del ancho entero y entra a 26, que
+       se lee bastante mejor.
+       Cuesta unos 4mm de alto por recuadro, y hay sitio: la pareja tiene unos
+       53mm disponibles entre el nombre y el hueco del código, y así ocupa 41. */
+    .lbl-cell{min-width:0;border:.4mm solid #000;border-radius:2mm;padding:2.5mm 3.5mm}
+    .lbl-cell-lbl{display:block;font-size:3mm;font-weight:700;letter-spacing:.08em;
+      text-transform:uppercase}
+    .lbl-cell-val{display:block;font-size:10mm;font-weight:800;line-height:1.05;
+      margin-top:.5mm;min-width:0;overflow-wrap:anywhere}
+    /* EL TAMAÑO DE LAS CORTAS NO SE TOCA. Jose: *"no le cambies el tamaño."*
+       B1B, P4C y A4A siguen a 10mm exactos, que es lo que se lee desde tres
+       metros y lo que él no quiere perder.
+
+       Lo que baja es SÓLO lo que no cabe. Con el ancho completo entran unos 12
+       caracteres a 10mm; de ahí en adelante se escalona, y "WINDOW WAREHOUSE"
+       en una línea a 6mm se lee mucho mejor que en tres a 10mm — que es lo que
+       hacía antes. La clase la elige _labelValClass por LONGITUD; antes existía
+       una sola (.sm) y se ponía únicamente cuando la locación estaba VACÍA,
+       nunca por largo. Eso era el fallo de la captura. */
+    /* LOS ESCALONES SALEN DE UNA MEDIDA, no de un ojo, y hubo que medir dos
+       veces. Con el valor a 310px de ancho, "WINDOW WAREHOUSE" (16 caracteres)
+       cae en dos líneas a 30px y entra en una a 26. De ahí el 6,5mm. Con el
+       rótulo al lado —como estaba primero— el valor sólo tenía 230px y hacía
+       falta bajar a 20px para lo mismo: por eso el rótulo acabó encima. */
+    .lbl-cell-val.v-md{font-size:6.5mm}
+    .lbl-cell-val.v-sm{font-size:5mm}
+    .lbl-cell-val.v-xs{font-size:4mm;line-height:1.2}
+    .lbl-cell-val .lbl-unit{font-size:4.5mm;font-weight:700}
+    /* "of 5" en la etiqueta partida. Más pequeño que la cantidad y en gris: la
+       cifra grande sigue siendo lo que se lee de lejos, y esto es la letra
+       pequeña que dice de qué es parte. */
+    .lbl-cell-val .lbl-of{font-size:4mm;font-weight:700;color:#444}
     .lbl-meta{margin-top:5mm;font-size:4.2mm;line-height:1.45;overflow-wrap:anywhere}
     .lbl-meta b{font-weight:800}
     .lbl-meta .lbl-dim{color:#444;font-size:3.8mm}
@@ -2503,6 +2558,12 @@
     .lbl-row-body{flex:1;min-width:0}
     .lbl-row-name{font-size:.82rem;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
     .lbl-row-sub{font-size:.72rem;color:var(--muted);line-height:1.35}
+    /* "Una por unidad". Va DEBAJO del renglón del bulto y sangrada, porque
+       pertenece a esa fila y no es una fila más: sin la sangría, en una lista de
+       diez materiales parecen veinte cosas que marcar. */
+    .lbl-row-split{display:flex;align-items:center;gap:.35rem;margin-top:.3rem;
+      font-size:.7rem;color:var(--accent);font-weight:600;cursor:pointer}
+    .lbl-row-split input{width:.85rem;height:.85rem;flex-shrink:0;cursor:pointer}
     .lbl-row-n{flex:none;display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted)}
     .lbl-row-n input{width:3.4rem;padding:.25rem .35rem;font-size:.8rem;
       border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)}
@@ -2894,6 +2955,14 @@
         <span class="mov-act-sep" id="movActBar" style="display:none">
           <button class="btn btn-ghost btn-sm" id="btnMovEdit" onclick="editSelectedMovement()" disabled>✏️ Edit</button>
           <button class="btn btn-ghost btn-sm" id="btnMovDel"  onclick="deleteSelectedMovements()" disabled>🗑 Delete</button>
+          <!-- IMPRIMIR ETIQUETAS DESPUÉS, no sólo al guardar. Jose: "debemos
+               poner alguna forma de que el usuario seleccione un material o
+               movimiento y la app imprima el label que él quiera." Hasta ahora
+               la única puerta era el momento de guardar la entrada; si la
+               cerrabas, no había segunda oportunidad. Va aquí, en la barra que
+               ya existe y ya sabe actuar sobre varias filas — no en una
+               pantalla nueva. -->
+          <button class="btn btn-ghost btn-sm" id="btnMovLabels" onclick="printSelectedLabels()" disabled>🏷 Labels</button>
           <span id="movSelCount" class="mov-sel-count"></span>
         </span>
         <!-- Save y Reset A LA DERECHA DEL TODO, empujados por el hueco. Sólo
@@ -3896,7 +3965,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.03';
+var APP_VERSION = '12.04';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3908,7 +3977,7 @@ var APP_VERSION = '12.03';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2ce1c8d5';
+var APP_BUILD = '5fc1ea70';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7288,7 +7357,53 @@ function _updateMovActionBar(){
                : n > 1   ? 'Edit works on one movement at a time'
                          : 'Edit this movement';
   }
+  var lbl = document.getElementById('btnMovLabels');
+  if (lbl){
+    lbl.disabled = n === 0;
+    lbl.title = n === 0 ? 'Tick a row first'
+                        : 'Print a label for ' + n + ' movement' + (n === 1 ? '' : 's');
+  }
   if (cnt) cnt.textContent = n ? (n + ' selected') : '';
+}
+
+/** Las filas imprimibles de unos movimientos ya guardados.
+ *
+ *  Un movimiento guardado ya tiene UN estante —el de destino si entró, el de
+ *  origen si salió— así que no hay que repartirlo como en una entrada nueva:
+ *  es una etiqueta por movimiento.
+ *
+ *  Y la fecha es la del movimiento, no la de hoy: se está reimprimiendo la
+ *  etiqueta de algo que llegó el martes, y ponerle la de hoy la convertiría en
+ *  una etiqueta que miente sobre cuándo entró. */
+function _labelsFromMovements(movs){
+  return (movs || []).map(function(m){
+    var entra = m.moveType === 'ENTRY' || m.moveType === 'RETURN';
+    return {
+      name:     m.name || '',
+      category: m.category || '',
+      qty:      Math.abs(Number(m.qty) || 0),
+      unit:     m.unit || 'UNIT',
+      loc:      (entra ? m.destLoc : m.sourceLoc) || m.destLoc || m.sourceLoc || '',
+      po:       m.po || '',
+      supplier: m.supplier || '',
+      project:  m.project || '',
+      dateRec:  m.dateRec || '',
+      copies:   1
+    };
+  }).filter(function(r){ return r.name && r.qty > 0; });
+}
+
+function printSelectedLabels(){
+  var sel = _selectedMovements();
+  if (!sel.length) return;
+  var filas = _labelsFromMovements(sel);
+  if (!filas.length){
+    showToast('Those movements have no quantity to put on a label.', 'warn');
+    return;
+  }
+  // Sin `alCerrar`: esto no viene detrás de un guardado, así que al cerrar el
+  // cuadro no hay ninguna pregunta pendiente que lanzar.
+  _openLabels(filas, null);
 }
 
 function editSelectedMovement(){
@@ -9587,6 +9702,21 @@ function _matLineTpl(n){
     '<div class="mat-line-hdr">' +
       '<span class="mat-line-lbl">Material ' + n + '</span>' +
       '<div style="display:flex;gap:6px;align-items:center">' +
+        /* DECIR AQUÍ CUÁL LLEVA ETIQUETA. Jose: *"mi idea es poner un checkbox
+         * al crear el entry para los que quiera labels, así ya la app sabe
+         * cuáles quiero."*
+         *
+         * Nace SIN MARCAR, y eso es lo que le ahorra trabajo: con diez
+         * materiales y dos que necesitan etiqueta, marcar dos es mejor que
+         * desmarcar ocho en el cuadro de después.
+         *
+         * PERO SI NADIE LA TOCA, EL CUADRO SE COMPORTA COMO SIEMPRE — todas
+         * marcadas. Quien ignore esta casilla no puede perder una función que
+         * ya tenía; lo que hace esta casilla es ESTRECHAR la selección, no
+         * crearla. Ver _labelsFromEntry. */
+        '<label class="mat-lbl-want" title="Print a 4&quot;×6&quot; label for this material">' +
+          '<input type="checkbox" id="mat-label-' + n + '"><span>🏷 Label</span>' +
+        '</label>' +
         '<span id="mat-total-' + n + '" style="font-size:.78rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:2px 10px;border-radius:10px">0 units</span>' +
         '<button type="button" class="mat-line-remove" onclick="removeMatLine(' + n + ')" title="Remove this material">×</button>' +
       '</div>' +
@@ -10587,7 +10717,11 @@ function submitMultiEntry(){
       valid = false; return;
     }
 
-    var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty };
+    var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty,
+                     // Sólo para el cuadro de etiquetas; NO viaja al servidor.
+                     // Ver el `_h(payload)` de más abajo: lo que se manda es
+                     // payload, y esto vive en el array local.
+                     wantsLabel: !!(document.getElementById('mat-label-' + n) || {}).checked };
     // Per-material always, unlike Supplier/PO/etc below — cost belongs to the
     // material being bought, never to the "same info for all" grouping, and
     // the field doesn't exist in the DOM at all for someone without
@@ -18848,11 +18982,22 @@ var _labelAfter = null;   // lo que hay que hacer al cerrar (ver submitMultiEntr
 
 /** Las filas imprimibles de una entrada: una por (material × estante). */
 function _labelsFromEntry(materiales, compartido){
+  /* LA CASILLA DEL FORMULARIO ESTRECHA, NO CREA.
+   *
+   * Si alguien marcó "🏷 Label" en alguna línea, el cuadro se abre con ESAS
+   * marcadas y las demás no — que es lo que ahorra trabajo cuando se entran
+   * diez materiales y sólo dos necesitan etiqueta.
+   *
+   * Si NADIE la tocó, todas vienen marcadas, como siempre. Quien ignore la
+   * casilla nueva no puede perder una función que ya tenía; y un cuadro que se
+   * abre con todo desmarcado y el botón apagado parece roto. */
+  var alguienEligio = (materiales || []).some(function(m){ return m.wantsLabel; });
   var out = [];
   (materiales || []).forEach(function(mat){
     (mat.locations || []).forEach(function(l){
       if (!l || !(l.qty > 0)) return;
       out.push({
+        marcada:  alguienEligio ? !!mat.wantsLabel : true,
         name:     mat.name || '',
         category: mat.category || compartido.category || '',
         qty:      l.qty,
@@ -18869,26 +19014,60 @@ function _labelsFromEntry(materiales, compartido){
   return out;
 }
 
+/** La clase de tamaño de un valor, POR LONGITUD.
+ *
+ *  Antes había una sola (.sm) y se ponía únicamente cuando la locación estaba
+ *  VACÍA — nunca por lo largo que fuera. Por eso "WINDOW WAREHOUSE" se dibujaba
+ *  al tamaño pensado para "B1B" y partía en tres líneas.
+ *
+ *  Los cortes salen del ancho útil del papel: 101,6mm menos 12mm de márgenes y
+ *  7mm del rótulo de la izquierda dejan unos 76mm, y a 10mm de letra en negrita
+ *  caben unos 12 caracteres. De ahí los escalones. Lo que NO se toca es el
+ *  tamaño de los cortos: Jose fue explícito — "no le cambies el tamaño" — y son
+ *  los que se leen de lejos. */
+function _labelValClass(v){
+  var n = String(v || '').length;
+  if (n <= 12) return '';          // B1B, P4C, A4A, WAREHOUSE  — 10mm, sin tocar
+  if (n <= 17) return ' v-md';     // WINDOW WAREHOUSE          — 6,5mm, una línea
+  if (n <= 26) return ' v-sm';
+  return ' v-xs';
+}
+
 /** Una etiqueta, en HTML. La misma para la vista previa y para el papel: una
  *  vista previa que se dibuja aparte es una vista previa de otra cosa. */
 function _labelHtml(r){
   // Un bulto sin estante existe —el formulario lo admite— y la etiqueta tiene
   // que decirlo en vez de dejar el recuadro vacío, que se lee como un fallo.
-  var loc = String(r.loc || '').trim();
+  var loc = String(r.loc || '').trim() || 'not assigned';
   var pie = [];
   if (r.supplier) pie.push(_he(r.supplier));
   if (r.project)  pie.push(_he(r.project));
+
+  /* "1 of 5" — LA ETIQUETA PARTIDA DICE QUE LO ESTÁ.
+   *
+   * Jose: *"hay 5 door screens que voy a poner en un mismo lugar, pero quiero
+   * imprimir un label para cada una, entonces debe tener 1 en la cantidad."*
+   *
+   * Y eso cambia lo que PROMETE el número. Sin partir, la cantidad de una
+   * etiqueta significa "cuánto hay de esto en este estante"; partida significa
+   * "cuánto hay en este bulto". Las dos son útiles y no son la misma, así que
+   * la partida tiene que decirlo — si no, alguien suma cinco etiquetas de 1 y
+   * cree que hay 5 unidades donde hay 5 bultos de 1. */
+  var deCuantos = (r.ofTotal && r.ofTotal > 1)
+    ? '<span class="lbl-of"> of ' + _he(r.ofTotal) + '</span>' : '';
+
   return '<div class="lbl">' +
       '<div class="lbl-top"><span>' + _he(r.category || '') + '</span>' +
         '<span class="lbl-when">' + _he(r.dateRec || '') + '</span></div>' +
       '<div class="lbl-name">' + _he(r.name) + '</div>' +
       '<div class="lbl-pair">' +
-        '<div class="lbl-cell"><div class="lbl-cell-lbl">Qty</div>' +
-          '<div class="lbl-cell-val">' + _he(_qtyText(r.qty)) +
-          '<span style="font-size:4.5mm"> ' + _he(r.unit || 'UNIT') + '</span></div></div>' +
-        '<div class="lbl-cell"><div class="lbl-cell-lbl">Location</div>' +
-          '<div class="lbl-cell-val' + (loc ? '' : ' sm') + '">' +
-          _he(loc || 'not assigned') + '</div></div>' +
+        '<div class="lbl-cell"><span class="lbl-cell-lbl">Location</span>' +
+          '<span class="lbl-cell-val' + _labelValClass(loc) + '">' +
+          _he(loc) + '</span></div>' +
+        '<div class="lbl-cell"><span class="lbl-cell-lbl">Qty</span>' +
+          '<span class="lbl-cell-val">' + _he(_qtyText(r.qty)) +
+          '<span class="lbl-unit"> ' + _he(r.unit || 'UNIT') + '</span>' +
+          deCuantos + '</span></div>' +
       '</div>' +
       '<div class="lbl-meta">' +
         (r.po ? '<div>PO <b>' + _he(r.po) + '</b></div>' : '') +
@@ -18912,13 +19091,41 @@ function _openLabels(rows, alCerrar){
       'do not need a label.';
 
   list.innerHTML = _labelRows.map(function(r, i){
+    /* "UNA POR UNIDAD" — la petición de las cinco puertas.
+     *
+     * Jose: *"hay 5 door screens que voy a poner en un mismo lugar, pero quiero
+     * imprimir un label para cada una, entonces debe tener 1 en la cantidad,
+     * pero como el ingreso lo hice con 5 unidades, entonces los labels no salen
+     * como quiero."*
+     *
+     * El ×N de al lado son COPIAS de la misma etiqueta —cinco papeles que dicen
+     * "5 UNIT"— y eso es otra cosa. Esto parte el bulto: cinco etiquetas que
+     * dicen "1 UNIT · 1 of 5".
+     *
+     * Sólo se ofrece cuando hay más de una unidad. Con una, partir no significa
+     * nada, y una casilla que no hace nada es una casilla que enseña a no
+     * leerlas. Y en cantidades fraccionarias tampoco: media puerta no es un
+     * bulto. */
+    var parteVale = Number(r.qty) > 1 && Number(r.qty) === Math.round(Number(r.qty));
+    // `marcada` viene de la casilla del formulario de entrada. Las filas que
+    // llegan por otro camino —reimprimir desde Movements— no la traen, y
+    // entonces vienen marcadas, que es lo correcto: ahí se eligió fila por fila
+    // antes de abrir el cuadro.
+    var marcada = (r.marcada === undefined) ? true : !!r.marcada;
     return '<label class="lbl-row">' +
-      '<input type="checkbox" checked data-lbl="' + i + '" onchange="_labelsRedraw()">' +
+      '<input type="checkbox"' + (marcada ? ' checked' : '') +
+        ' data-lbl="' + i + '" onchange="_labelsRedraw()">' +
       '<span class="lbl-row-body">' +
         '<span class="lbl-row-name">' + _he(r.name) + '</span>' +
         '<span class="lbl-row-sub">' + _he(_qtyText(r.qty)) + ' ' + _he(r.unit) +
           ' · ' + _he(r.loc || 'no rack') +
           (r.po ? ' · PO ' + _he(r.po) : '') + '</span>' +
+        (parteVale
+          ? '<span class="lbl-row-split"><input type="checkbox" data-split="' + i + '" ' +
+              'onchange="_labelsRedraw()" onclick="event.stopPropagation()">' +
+              '<span>one label per unit — ' + _he(_qtyText(r.qty)) + ' labels of 1</span>' +
+            '</span>'
+          : '') +
       '</span>' +
       // step="1" porque media etiqueta no existe — son copias, no cantidad.
       '<span class="lbl-row-n">×<input type="number" min="1" max="99" step="1" ' +
@@ -18941,13 +19148,38 @@ function _labelsChosen(){
     var n = Math.max(1, Math.min(99, Math.round(Number(inp.value) || 1)));
     copias[inp.getAttribute('data-copies')] = n;
   });
+  // Qué filas están partidas en una etiqueta por unidad.
+  var partidas = {};
+  list.querySelectorAll('input[data-split]').forEach(function(inp){
+    if (inp.checked) partidas[inp.getAttribute('data-split')] = true;
+  });
+
   var out = [];
   list.querySelectorAll('input[data-lbl]').forEach(function(cb){
     if (!cb.checked) return;
     var i = cb.getAttribute('data-lbl');
     var r = _labelRows[Number(i)];
     if (!r) return;
-    for (var c = 0; c < (copias[i] || 1); c++) out.push(r);
+    /* Partir NO es multiplicar copias: son etiquetas DISTINTAS —"1 of 5", "2 of
+     * 5"— y por eso se construyen una a una en vez de repetir la misma. El ×N
+     * sigue significando lo de siempre y se aplica encima: cinco bultos, dos
+     * copias de cada uno, diez papeles. */
+    var piezas;
+    if (partidas[i]) {
+      var n = Math.round(Number(r.qty)) || 1;
+      piezas = [];
+      for (var k = 1; k <= n; k++) {
+        var uno = {};
+        for (var campo in r) { if (r.hasOwnProperty(campo)) uno[campo] = r[campo]; }
+        uno.qty = 1; uno.ofTotal = n; uno.pieza = k;
+        piezas.push(uno);
+      }
+    } else {
+      piezas = [r];
+    }
+    for (var c = 0; c < (copias[i] || 1); c++) {
+      for (var j = 0; j < piezas.length; j++) out.push(piezas[j]);
+    }
   });
   return out;
 }
@@ -18961,7 +19193,10 @@ function _labelsRedraw(){
   // se ven cuatro veces iguales y no dicen nada nuevo. El botón lleva el total.
   var vistas = {}, unicas = [];
   elegidas.forEach(function(r){
-    var k = r.name + '|' + r.loc + '|' + r.qty;
+    // La pieza entra en la clave: "1 of 5" y "2 of 5" NO son la misma etiqueta,
+    // y esconder las cuatro últimas dejaría la vista previa mintiendo sobre lo
+    // que va a salir de la impresora.
+    var k = r.name + '|' + r.loc + '|' + r.qty + '|' + (r.pieza || '');
     if (vistas[k]) return;
     vistas[k] = 1; unicas.push(r);
   });
