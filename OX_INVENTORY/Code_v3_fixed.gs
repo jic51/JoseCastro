@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.00';
+var APP_VERSION = '12.02';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.00';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0fc76964';
+var APP_BUILD = '2b472be6';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1774,7 +1774,6 @@ function getInitialData(sessionToken) {
 
     var ss       = SpreadsheetApp.getActiveSpreadsheet();
     var archive  = ss.getSheetByName(SHEETS.ARCHIVE);
-    var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
     var config   = loadConfig();
     // The CONFIG sheet also holds the legacy user list and the admin email. The
     // frontend never reads either one, so strip them instead of shipping the
@@ -1793,19 +1792,13 @@ function getInitialData(sessionToken) {
       }
     }
 
-    var reservations = [];
-    if (resSheet) {
-      var rData = resSheet.getDataRange().getValues();
-      for (var k = 1; k < rData.length; k++) {
-        var r = rData[k];
-        if (!r[0]) continue;
-        reservations.push({
-          id: String(r[0]), category: String(r[1]||''), name: String(r[2]||''),
-          project: String(r[3]||''), qty: Number(r[4]||0), by: String(r[5]||''),
-          date: String(r[6]||''), status: String(r[7]||'Active'), release: String(r[8]||'')
-        });
-      }
-    }
+    // LO APARTADO SALE DE MATERIAL_LOCKS, no de la hoja RESERVATIONS. Ver el
+    // bloque de applyReservationsAndFinalize_: la hoja RESERVATIONS nunca tuvo
+    // quien la llenara desde la app, y ésta es la lista que sí tiene ventana.
+    //
+    // La hoja vieja NO se borra ni se toca. Si algún cliente escribió filas a
+    // mano ahí, siguen suyas; simplemente dejan de contar para el disponible.
+    var locksMap = getActiveLocksMap_(ss);
 
     // Fast path: read pre-aggregated LIVE_STOCK/SITE_STOCK/WASTED_STOCK instead of
     // re-scanning every movement in JS on every login. Falls back to the full scan
@@ -1823,9 +1816,9 @@ function getInitialData(sessionToken) {
 
     var stock = derivadasAlDia ? buildStockFromDerivedSheets_(ss) : null;
     if (stock) {
-      applyReservationsAndFinalize_(stock, reservations);
+      applyReservationsAndFinalize_(stock, locksMap);
     } else {
-      stock = calculateStock(movements, reservations);
+      stock = calculateStock(movements, locksMap);
     }
 
     // Register this user's presence and return active users list
@@ -1947,7 +1940,6 @@ function getInitialData(sessionToken) {
       movements:          movements,
       stock:              stock,
       config:             config,
-      reservations:       reservations,
       userRole:           auth.role,
       // La referencia contra la que el latido compara. Sin esto, el primer
       // latido tras cargar vería un sello "distinto" del que no tiene, y todo
@@ -2046,7 +2038,7 @@ function parseArchiveRow(row, rowIdx) {
 //    RETURN   → comes back from site.         siteQty--, warehouseQty++, added to DEST_LOC
 //    WASTE    → consumed/damaged.             warehouseQty--, wastedQty++
 //
-function calculateStock(movements, reservations) {
+function calculateStock(movements, locksMap) {
   var stock = {};
 
   for (var i = 0; i < movements.length; i++) {
@@ -2151,24 +2143,69 @@ function calculateStock(movements, reservations) {
     }
   }
 
-  applyReservationsAndFinalize_(stock, reservations);
+  applyReservationsAndFinalize_(stock, locksMap);
   return stock;
+}
+
+/* ═══ UN APARTADO APARTA UN ESTANTE, NO UNA CIFRA ════════════════════════════
+ *
+ * Jose, 2026-09-19: *"no quiero que se llame bloqueo ni quiero que el usuario
+ * vea que dice bloquear algo, debe decir reservar, que es casi lo mismo"*, y
+ * antes: *"actualmente no hay una diferencia entre bloquear y reservar"*.
+ *
+ * LO QUE HABÍA, y por qué había que elegir uno de los dos:
+ *
+ *   LAS RESERVAS (hoja RESERVATIONS) llevaban cantidad y proyecto, y eran
+ *   CÓDIGO MUERTO: `addReservation` y `cancelReservation` existían en el
+ *   servidor y NO TENÍAN UN SOLO LLAMADOR en la interfaz. La hoja sólo se podía
+ *   llenar a mano en el Sheet. Por eso el `Reserved` del tablero decía 0
+ *   siempre — no era un fallo de cuenta, es que no había nada que contar.
+ *
+ *   LOS CANDADOS (hoja MATERIAL_LOCKS) no llevan cantidad —apartan lo que haya
+ *   de ese material en ese estante— pero son reales: tienen ventana, se ponen y
+ *   se quitan, y `enforceMaterialLock_` los hace cumplir de verdad.
+ *
+ * Así que el mecanismo que se queda es el del candado y el nombre que se queda
+ * es "reservar". El usuario no vuelve a leer la palabra "lock" en ninguna
+ * pantalla.
+ *
+ * POR DENTRO SIGUE LLAMÁNDOSE LOCK, a propósito. La hoja MATERIAL_LOCKS ya
+ * existe en la instalación de cada cliente con sus datos dentro; renombrarla
+ * sería una migración de datos a cambio de nada que el usuario vea. Lo que se
+ * renombra es lo que se lee en pantalla. Si esto confunde a alguien dentro de
+ * un año, que lea este bloque: **lock (interno) = reserva (lo que ve la gente)**.
+ *
+ * LO QUE ESTO ENCIENDE SOLO, y es la mitad buena: la validación de salida ya
+ * existía y estaba inerte. En addMovementsBatch_ hay un
+ * `avail = snap.wh - reserved` que rechaza una EXIT que se coma lo apartado —
+ * sólo que `reserved` era siempre 0 porque la hoja estaba vacía. Al alimentarlo
+ * con los apartados empieza a funcionar sin tocar esa línea, y el mensaje de
+ * error ya dice por qué ("Warehouse: 54, Reserved: 44").
+ */
+
+/** Cuántas unidades de un material están apartadas: la suma de lo que hay en
+ *  los estantes apartados. No hay cifra que guardar — el apartado es del
+ *  estante, así que la cantidad SE DERIVA del stock y nunca puede quedar
+ *  desincronizada de él. Un número guardado aparte sí podría. */
+function reservedQtyFromRacks_(locksMap, matId, locs) {
+  if (!locksMap || !locs) return 0;
+  var total = 0;
+  for (var rack in locs) {
+    if (!locs.hasOwnProperty(rack)) continue;
+    if (locksMap[matId + '|||' + normalizeString(rack)]) {
+      total += Math.max(0, Number(locs[rack]) || 0);
+    }
+  }
+  return total;
 }
 
 // Shared by calculateStock() (full-scan path) and buildStockFromDerivedSheets_()
 // (fast path, reads LIVE_STOCK/SITE_STOCK/WASTED_STOCK instead of re-scanning
 // every movement ever made) — both produce the same stock shape up to this point,
 // so reservations + clamping + availableQty only need to be written once.
-function applyReservationsAndFinalize_(stock, reservations) {
-  // Apply active reservations
-  if (reservations) {
-    for (var r = 0; r < reservations.length; r++) {
-      var res  = reservations[r];
-      if (res.status !== 'Active') continue;
-      var rKey = getMaterialId(res.category, res.name);
-      if (stock[rKey]) stock[rKey].reservedQty += res.qty;
-    }
-  }
+//
+// `locksMap` es el de getActiveLocksMap_: 'MATID|||ESTANTE' → {…}.
+function applyReservationsAndFinalize_(stock, locksMap) {
 
   // Finalize every SKU
   for (var k in stock) {
@@ -2184,6 +2221,11 @@ function applyReservationsAndFinalize_(stock, reservations) {
     item.warehouseQty = Math.max(0, item.warehouseQty);
     item.siteQty      = Math.max(0, item.siteQty);
     item.wastedQty     = Math.max(0, item.wastedQty || 0);
+    // DESPUÉS de limpiar los estantes vacíos y ANTES de availableQty. Lo
+    // apartado se cuenta sobre los estantes que QUEDAN: contar uno que acaba de
+    // vaciarse apartaría unidades que ya no están y dejaría el disponible por
+    // debajo de la realidad, que en un almacén significa un camión que no sale.
+    item.reservedQty  = reservedQtyFromRacks_(locksMap, k, item.warehouseLocs);
     item.availableQty = Math.max(0, item.warehouseQty - item.reservedQty);
     item.totalQty      = item.warehouseQty + item.siteQty;
 
@@ -2469,8 +2511,6 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
   if (action === 'addMultiExit')          return addMultiExit(ss, archive, data, auth);
   if (action === 'updateDocument')        return updateDocument_(ss, archive, data, auth);
-  if (action === 'addReservation')        return addReservation_(ss, data, auth);
-  if (action === 'cancelReservation')     return cancelReservation_(ss, data, auth);
   // EL CIERRE DE LA TANDA. El navegador la manda cuando su cola se vacía, y es
   // el único refresco de toda la tanda. Si nunca llega —se cerró la ventana, se
   // cayó la red—, la marca se queda puesta y el siguiente getInitialData lo
@@ -2906,17 +2946,6 @@ function addMovementsBatch_(ss, archive, movements, auth) {
     var takenIds = {};
     var idFixes  = dedupeMovementIds_(archiveValues, takenIds);
 
-    // ── ONE read of reservations → reserved qty per matId ────────────────────
-    var reservedByMat = {};
-    var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
-    if (resSheet) {
-      var rData = resSheet.getDataRange().getValues();
-      for (var r = 1; r < rData.length; r++) {
-        if (String(rData[r][7] || '').toUpperCase() !== 'ACTIVE') continue;
-        var rKey = getMaterialId(normalizeString(rData[r][1] || ''), normalizeString(rData[r][2] || ''));
-        reservedByMat[rKey] = (reservedByMat[rKey] || 0) + Number(rData[r][4] || 0);
-      }
-    }
 
     // ── In-memory stock snapshot for ALL materials (mutated as we validate) ───
     var snapshot = buildStockSnapshot_(archiveValues);
@@ -3022,7 +3051,11 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       }
 
       var snap     = snapshot[matId] || (snapshot[matId] = { wh: 0, site: 0, locs: {} });
-      var reserved = reservedByMat[matId] || 0;
+      // Lo apartado se calcula sobre snap.locs, que es la foto VIVA que este
+      // lote va mutando fila a fila. Una cifra leída antes del bucle se
+      // quedaría vieja en cuanto la primera salida del lote vaciara un estante
+      // apartado — y este número decide si la siguiente salida se permite.
+      var reserved = reservedQtyFromRacks_(locksMap, matId, snap.locs);
 
       // Material lock check — authoritative, cannot be bypassed from the frontend.
       enforceMaterialLock_(locksMap, mt, matId, srcKey, destKey);
@@ -3294,7 +3327,8 @@ function addMovementsBatch_(ss, archive, movements, auth) {
     var availableByMat = {};
     for (var m2 in snapshot) {
       if (snapshot.hasOwnProperty(m2)) {
-        availableByMat[m2] = Math.max(0, snapshot[m2].wh - (reservedByMat[m2] || 0));
+        availableByMat[m2] = Math.max(0, snapshot[m2].wh -
+                                reservedQtyFromRacks_(locksMap, m2, snapshot[m2].locs));
       }
     }
 
@@ -3680,21 +3714,11 @@ function getCurrentStockForItem(ss, matId) {
 
   for (var k in locs) { if (locs.hasOwnProperty(k) && locs[k] < 0) locs[k] = 0; }
 
-  // Count active reservations
-  var reserved = 0;
-  var resSheet = ss.getSheetByName(SHEETS.RESERVATIONS);
-  if (resSheet) {
-    var rData = resSheet.getDataRange().getValues();
-    for (var j = 1; j < rData.length; j++) {
-      var rKey = getMaterialId(
-        normalizeString(rData[j][1] || ''),
-        normalizeString(rData[j][2] || '')
-      );
-      if (rKey === matId && String(rData[j][7] || '').toUpperCase() === 'ACTIVE') {
-        reserved += Number(rData[j][4] || 0);
-      }
-    }
-  }
+  // Lo apartado: la suma de los estantes de este material que están reservados.
+  // Sale de MATERIAL_LOCKS como en todos los demás sitios — tres lectores
+  // distintos de la hoja RESERVATIONS es justamente como se consigue que tres
+  // pantallas enseñen tres números.
+  var reserved = reservedQtyFromRacks_(getActiveLocksMap_(ss), matId, locs);
 
   return {
     warehouseQty:  Math.max(0, wh),
@@ -5297,43 +5321,26 @@ function refreshDerivedSheets_(ss) {
   if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 5).setValues(wasteRows.map(textSafeRow_));
 }
 
-// ─── RESERVATIONS ────────────────────────────────────────────────────────────
-function addReservation_(ss, data, auth) {
-  var sheet = ss.getSheetByName(SHEETS.RESERVATIONS);
-  if (!sheet) throw new Error('Reservations sheet not found.');
-
-  var cat   = String(data.category || '').toUpperCase().trim();
-  var name  = String(data.name     || '').trim();
-  var proj  = String(data.project  || '').trim();
-  var qty   = Number(data.qty      || 0);
-  if (!cat || !name || qty <= 0) throw new Error('Invalid reservation data.');
-
-  var matId   = getMaterialId(cat, name);
-  var current = getCurrentStockForItem(ss, matId);
-  if (current.availableQty < qty) throw new Error('Cannot reserve. Available: ' + current.availableQty);
-
-  var id = 'RES-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
-  sheet.appendRow([id, textCell_(cat), textCell_(name), textCell_(proj), qty, auth.email, new Date(), 'Active', '']);
-
-  auditLog_(ss, 'ADD_RESERVATION', auth.email, id + ' | ' + name + ' x' + qty, '', '');
-  return { status: 'success', reservationId: id };
-}
-
-function cancelReservation_(ss, data, auth) {
-  var sheet = ss.getSheetByName(SHEETS.RESERVATIONS);
-  if (!sheet) throw new Error('Reservations sheet not found.');
-  var id     = data.reservationId;
-  var values = sheet.getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][0]) === id) {
-      sheet.getRange(i + 1, 8).setValue('Cancelled');
-      sheet.getRange(i + 1, 9).setValue(new Date());
-      auditLog_(ss, 'CANCEL_RESERVATION', auth.email, id, '', '');
-      return { status: 'success' };
-    }
-  }
-  throw new Error('Reservation not found.');
-}
+// ─── RESERVAS ────────────────────────────────────────────────────────────────
+// addReservation_ y cancelReservation_ VIVIERON AQUÍ y se borraron el
+// 2026-09-20. No eran una función a medias: eran dos endpoints SIN UN SOLO
+// LLAMADOR en la interfaz. La única forma de crear una reserva era escribir a
+// mano en la hoja RESERVATIONS, así que el `Reserved` del tablero decía 0
+// siempre y nadie podía probar nada de esto.
+//
+// Ya estaba anotado como decisión pendiente desde la prueba de concurrencia del
+// 2026-09-04: "queda pendiente DECIDIR si las reservas van a existir de cara al
+// usuario; si no, el arreglo correcto puede ser quitar el endpoint en vez de
+// blindarlo". Jose decidió: "actualmente no hay una diferencia entre bloquear y
+// reservar" y "debe decir reservar".
+//
+// Lo que se queda es el mecanismo de abajo, que sí funciona, con el nombre de
+// arriba. Borrar el endpoint muerto no es limpieza cosmética: cada función
+// pública de Apps Script es una puerta que google.script.run puede llamar, y
+// una puerta que nadie usa es una puerta que nadie vigila.
+//
+// La hoja RESERVATIONS no se borra. Si algún cliente escribió filas a mano ahí,
+// siguen siendo suyas.
 
 // ─── MATERIAL LOCKS ──────────────────────────────────────────────────────────
 // Locks a specific (material, rack) pair — NOT the whole rack, NOT the whole
@@ -5566,12 +5573,12 @@ function enforceMaterialLock_(locksMap, mt, matId, srcKey, destKey) {
   // this function returns early when there is no source — which is right:
   // finding MORE than the record said takes nothing away from anybody.
   if (mt === 'EXIT' || mt === 'WASTE' || mt === 'ADJUST') {
-    throw new Error('LOCKED: This material is locked at ' + srcKey + ' — ' + lock.reason +
-      ' (by ' + lock.lockedBy + '). Cannot ' + mt + '. Ask an admin to unlock it first.');
+    throw new Error('RESERVED: This material is reserved at ' + srcKey + ' — ' + lock.reason +
+      ' (by ' + lock.lockedBy + '). Cannot ' + mt + '. Ask an admin to release it first.');
   }
   if (mt === 'TRANSFER' && lock.allowedDest.length) {
     if (!destKey || lock.allowedDest.indexOf(destKey) === -1) {
-      throw new Error('LOCKED: Material at ' + srcKey + ' can only be transferred to: ' +
+      throw new Error('RESERVED: Material at ' + srcKey + ' can only be transferred to: ' +
         lock.allowedDest.join(', ') + ' — ' + lock.reason);
     }
   }
@@ -5587,7 +5594,7 @@ function lockMaterial(data, auth) {
   var reason = String(data.reason || '').trim();
   if (!cat || !name) throw new Error('Category and name are required.');
   if (!rack) throw new Error('Rack is required.');
-  if (!reason) throw new Error('A reason is required to lock a material.');
+  if (!reason) throw new Error('A reason is required to reserve a material.');
 
   var matId = getMaterialId(cat, name);
   // normalizeString-form throughout — must match getActiveLocksMap_'s enforcement
@@ -5627,7 +5634,7 @@ function unlockMaterial(data, auth) {
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('MATERIAL_LOCKS');
-  if (!sheet) throw new Error('No locks exist.');
+  if (!sheet) throw new Error('No reservations exist.');
   var rows = sheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(data.id) && String(rows[i][9] || '').toUpperCase() === 'ACTIVE') {
@@ -7073,11 +7080,18 @@ function ensureErrorLogSheet_(ss) {
 // admin viewer, while still being captured for pattern-spotting (e.g. one rack
 // repeatedly hitting INSUFFICIENT stock might mean a data problem, not user error).
 var _KNOWN_VALIDATION_PREFIXES = [
-  'INSUFFICIENT', 'LOCKED', 'DUPLICATE_MOVEMENT', 'Not authenticated',
+  'INSUFFICIENT', 'DUPLICATE_MOVEMENT', 'Not authenticated',
   'Access denied', 'Read-only access', 'Admin only', 'Archive sheet not found',
   'Unknown action', 'Category and Name are required', 'Quantity must be',
-  'A reason is required', 'Rack is required', 'Cannot reserve',
-  'Reservation not found', 'Lock not found', 'WASTE movements require'
+  'A reason is required', 'Rack is required',
+  // 'RESERVED' —no 'LOCKED'— desde que la función se llama reservar de cara al
+  // usuario. ESTA LISTA DECIDE SI UN MENSAJE SE REGISTRA COMO "la app rechazó
+  // algo correctamente" O COMO "la app se rompió", así que renombrar el mensaje
+  // sin renombrarlo aquí convertía cada reserva respetada en un error de
+  // sistema en el registro. Lo cazó test-reservas al contar las palabras
+  // visibles, no al revisarlo a ojo.
+  'RESERVED', 'No reservations exist',
+  'WASTE movements require'
 ];
 // Messages that are the app CORRECTLY refusing something, rather than the app
 // breaking. Matched anywhere in the text, not just as a prefix, because many of
@@ -9614,8 +9628,8 @@ function locationBlockReason_(use, name) {
   var u = use[String(name || '').trim().toUpperCase()];
   if (!u) return '';
   if (u.qty > 0) return 'it still holds ' + u.qty + ' unit(s)';
-  if (u.locked)  return 'a material is locked to it';
-  if (u.allowed) return 'a lock names it as an allowed destination';
+  if (u.locked)  return 'a material is reserved there';
+  if (u.allowed) return 'a reservation names it as an allowed destination';
   return '';
 }
 

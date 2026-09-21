@@ -275,6 +275,44 @@
     .map-letter-col{flex:0 0 auto;width:300px;max-width:100%}
     .map-letter-hdr{font-size:1.2rem;font-weight:800;color:var(--navy);padding:.4rem .25rem .15rem;border-bottom:2px solid var(--accent);margin-bottom:.5rem;letter-spacing:.02em}
     .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem .25rem .1rem;margin-top:.6rem;border-bottom:1px dashed var(--border)}
+
+    /* ── LA TIRA DE RESERVAS ──────────────────────────────────────────────────
+       Va encima del plano y se lee de un vistazo, así que es una REJILLA de
+       cuatro columnas y no un flex: el estante, el material, la cantidad y el
+       motivo tienen que quedar alineados entre filas, porque lo que se hace con
+       esta lista es compararla consigo misma ("¿qué más está apartado?").
+       Un flex dejaría cada fila con sus columnas en un sitio distinto.
+
+       El motivo es lo único que se recorta: es texto de una persona y puede ser
+       largo; los otros tres son datos y se leen enteros o no sirven. */
+    .resv-strip{border:1px solid var(--yellow);border-radius:10px;background:var(--yellow-bg);
+      padding:.6rem .75rem;margin-bottom:.9rem}
+    .resv-strip-hdr{font-size:.78rem;font-weight:700;color:var(--text);
+      display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;margin-bottom:.45rem}
+    .resv-hint{font-weight:400;font-size:.72rem;color:var(--muted)}
+    .resv-rows{display:flex;flex-direction:column;gap:.25rem}
+    .resv-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1.4fr);
+      gap:.6rem;align-items:baseline;width:100%;text-align:left;cursor:pointer;
+      background:var(--card);border:1px solid var(--border);border-radius:7px;
+      padding:.35rem .55rem;font-family:inherit;font-size:.76rem;color:var(--text)}
+    .resv-row:hover{border-color:var(--yellow);background:var(--yellow-bg)}
+    .resv-rack{font-weight:700;color:var(--accent);white-space:nowrap}
+    .resv-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .resv-qty{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .resv-why{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* La reserva que no retiene nada. Se APAGA en vez de gritar: sigue siendo
+       una reserva de verdad —el material no puede salir— sólo que ahora mismo
+       no hay nada que retener. Un rojo de alarma la pondría por encima de las
+       que sí están reteniendo material, que son las que importan. */
+    .resv-row.resv-vacia{opacity:.72;border-style:dashed}
+    .resv-vacia .resv-qty{color:var(--muted)}
+    .resv-alerta{color:var(--orange);font-weight:600}
+    /* En pantalla estrecha la rejilla de cuatro no cabe sin recortarlo todo a
+       nada, así que se parte en dos renglones y el motivo pasa entero debajo. */
+    @media (max-width:640px){
+      .resv-row{grid-template-columns:auto minmax(0,1fr) auto}
+      .resv-why{grid-column:1 / -1;white-space:normal}
+    }
     /* Each row is a grid of N equal columns → A1A A1B A1C always stay on ONE line. */
     .map-rack-row{display:grid;gap:.45rem;margin-bottom:.45rem}
     .map-rack-row > .rack-card{min-width:0}
@@ -2048,6 +2086,13 @@
     .loc-list.drop-target{background:rgba(59,125,216,.10);outline:2px dashed var(--accent);outline-offset:-4px}
     .loc-item{display:flex;align-items:center;gap:.35rem;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.3rem .55rem;font-size:.78rem;color:var(--text);cursor:grab}
     .loc-item.dragging{opacity:.4}
+    /* La marca de reservado en la lista de ubicaciones. Amarillo, el mismo que
+       usa el trozo "Reserved" de la barra de stock y la tira del mapa: un
+       estado que se dice de tres colores distintos en tres pantallas es un
+       estado que hay que aprenderse tres veces. */
+    .loc-resv{flex-shrink:0;font-size:.7rem;font-weight:700;background:var(--yellow-bg);
+      color:var(--text);border-radius:6px;padding:1px 6px;cursor:help;
+      font-variant-numeric:tabular-nums}
     .loc-grip{color:var(--muted);font-size:.85rem;line-height:1}
     .loc-empty{color:var(--muted);font-size:.75rem;padding:.35rem .5rem;font-style:italic}
     .loc-group-archived{opacity:.85}
@@ -3761,11 +3806,11 @@
 <div class="overlay" id="lockMatOverlay">
   <div class="modal modal-sm">
     <div class="mhdr">
-      <h3>🔒 Lock Material</h3>
+      <h3>🔒 Reserve Material</h3>
       <button class="modal-x" onclick="closeModal('lockMatOverlay')" title="Close">✕</button>
     </div>
     <p style="font-size:.8rem;color:var(--muted);margin:.1rem 0 1rem">
-      <strong id="lockMatSubject"></strong> at <strong id="lockMatRack"></strong> won't be able to EXIT or WASTE while locked. TRANSFER is still allowed.
+      <strong id="lockMatSubject"></strong> at <strong id="lockMatRack"></strong> won't be able to EXIT or WASTE while reserved. TRANSFER is still allowed.
     </p>
     <input type="hidden" id="lockMatId">
     <input type="hidden" id="lockMatCat">
@@ -3781,7 +3826,7 @@
     </div>
     <div style="display:flex;gap:.75rem;margin-top:1.25rem;justify-content:flex-end">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('lockMatOverlay')">Cancel</button>
-      <button class="btn btn-danger btn-sm" id="lockMatSubmit" onclick="submitLockMaterial()">🔒 Lock Material</button>
+      <button class="btn btn-danger btn-sm" id="lockMatSubmit" onclick="submitLockMaterial()">🔒 Reserve</button>
     </div>
   </div>
 </div>
@@ -3841,7 +3886,6 @@
 var movements   = [];
 var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, siteQty, ...} }
 var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
-var reservations = [];
 var currentMoveType = 'ENTRY';
 // Movements kept its column visibility here until v9.41 — a map of eight
 // checkbox flags. Nothing writes it any more; it is read once per browser so a
@@ -3852,7 +3896,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.00';
+var APP_VERSION = '12.02';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3864,7 +3908,7 @@ var APP_VERSION = '12.00';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0fc76964';
+var APP_BUILD = '2b472be6';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4011,6 +4055,96 @@ function _rebuildLocksIndex(){
   materialLocks.forEach(function(l){ _locksByKey[l.matId + '|||' + _normKey(l.rack)] = l; });
 }
 function _findLock(matId, rack){ return _locksByKey[matId + '|||' + _normKey(rack)] || null; }
+
+/* ═══ LAS RESERVAS, EN UN SOLO SITIO ═════════════════════════════════════════
+ *
+ * Jose, 2026-09-19: *"debe haber un lugar donde se vean todas las reservas de
+ * la bodega… quiero que haya un lugar en el mapa, un lugar en settings
+ * (locations) y un lugar en el stock dashboard, no quiero una pestaña más."*
+ *
+ * Tres pantallas, y por eso ESTO es una función y no tres. Lo que se comparte
+ * es EL CÁLCULO, no el dibujo: cada sitio enseña lo que ahí tiene sentido —el
+ * tablero un total, el mapa qué estantes, Settings qué ubicaciones— pero
+ * ninguno vuelve a contar por su cuenta. Tres contadores son como se consigue
+ * que tres pantallas den tres números, que es exactamente lo que acaba de pasar
+ * con la insignia del mazo y la campana.
+ *
+ * LA CANTIDAD NO SE GUARDA: se deriva del estante. Una reserva aparta lo que
+ * haya de ese material en ese estante, así que la cifra sale de
+ * `warehouseLocs[rack]` y no puede quedar desincronizada del stock. Es la misma
+ * cuenta que `reservedQtyFromRacks_` hace en el servidor — si las dos contaran
+ * distinto, el tablero y el mapa se contradirían.
+ */
+function _reservasActivas(){
+  var out = [];
+  (materialLocks || []).forEach(function(l){
+    if (String(l.status || 'Active').toLowerCase() !== 'active') return;
+    var s   = stockData[l.matId] || null;
+    var qty = s ? Math.max(0, Number((s.warehouseLocs || {})[l.rack]) || 0) : 0;
+    /* UNA RESERVA PUEDE NO RETENER NADA, y la app lo sabe: hay que decirlo.
+     *
+     * Jose, 2026-09-21: *"hay un material llamado EVELYN A QUINONEZ que no
+     * tiene cantidad pero sí aparece como reservado, pero no hay un lugar donde
+     * esté."* Tenía razón: la reserva estaba activa en la hoja desde el 5 de
+     * septiembre, el estante B no tenía ese material, y el material no tenía ni
+     * una sola fila de stock ni un solo movimiento.
+     *
+     * No es un fallo de cuenta — la reserva aparta lo que haya en el estante, y
+     * ahí no había nada, así que 0 es la respuesta correcta. Lo que estaba mal
+     * era CALLARLO: una fila con un hueco parece un dato perdido.
+     *
+     * Y es información que se puede usar: una reserva que no retiene nada es
+     * una reserva que alguien debería soltar. Los dos motivos se distinguen
+     * porque lo que hay que hacer es distinto — si el material se movió de
+     * estante, la reserva se quedó atrás; si no existe en ninguna parte, se
+     * borraron sus movimientos o nunca los tuvo. */
+    var vacia = '';
+    if (qty === 0) {
+      vacia = !s ? 'sin-material' : 'sin-stock-aqui';
+    }
+    out.push({
+      id: l.id, matId: l.matId, category: l.category, name: l.name,
+      rack: l.rack, qty: qty, unit: (s && s.unit) || 'UNIT',
+      reason: l.reason || '', by: l.lockedBy || '', at: l.lockedAt || '',
+      allowedDest: l.allowedDest || [],
+      vacia: vacia,
+      // El total del material, para poder decir "ya no está en B, está en C3C".
+      totalDelMaterial: s ? Math.max(0, Number(s.warehouseQty) || 0) : 0,
+      otrosEstantes: s ? Object.keys(s.warehouseLocs || {}).filter(function(r){
+        return _normKey(r) !== _normKey(l.rack) &&
+               Math.max(0, Number(s.warehouseLocs[r]) || 0) > 0;
+      }) : []
+    });
+  });
+  // Por estante, que es como se recorre un almacén: quien mira esta lista está
+  // decidiendo a dónde caminar, no leyendo un catálogo de materiales.
+  out.sort(function(a, b){
+    if (a.rack !== b.rack) return a.rack < b.rack ? -1 : 1;
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  });
+  return out;
+}
+
+/** El resumen que necesitan el tablero y el mapa: cuántas, cuántas unidades y
+ *  en cuántos estantes. Sale de _reservasActivas para que no haya dos cuentas. */
+function _reservasResumen(){
+  var lista = _reservasActivas(), unidades = 0, estantes = {}, vacias = 0;
+  lista.forEach(function(r){
+    unidades += r.qty;
+    estantes[r.rack] = 1;
+    if (r.vacia) vacias++;
+  });
+  return { lista: lista, n: lista.length, unidades: unidades,
+           estantes: Object.keys(estantes).length, vacias: vacias };
+}
+
+/** Cuántas reservas hay en una ubicación concreta. Lo usa Settings → Locations,
+ *  que razona por ubicación y no por material. */
+function _reservasDeEstante(rack){
+  var k = _normKey(rack);
+  return _reservasActivas().filter(function(r){ return _normKey(r.rack) === k; });
+}
+
 var _popupShownThisLoad = false; // true once popup fires; resets on real page load (F5)
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -5807,7 +5941,7 @@ function _lockLines(ls){
     var mover = (l.allowedDest && l.allowedDest.length)
       ? '    Can only be moved to: ' + l.allowedDest.join(', ')
       : '    Can be moved to any rack, but not taken out.';
-    return '🔒 Locked at ' + l.rack + ' — ' + (l.reason || 'no reason given') + quien +
+    return '🔒 Reserved at ' + l.rack + ' — ' + (l.reason || 'no reason given') + quien +
            '\n    No exits, no waste.' + '\n' + mover;
   });
 }
@@ -5987,6 +6121,11 @@ function renderStats(){
     document.getElementById('stockDetailPanel').classList.remove('open');
   }
 
+  // Una sola llamada para la tarjeta de abajo: _reservasResumen recorre las
+  // reservas y el stock, y pedirla dos veces en la misma cadena de texto
+  // sería recorrerlo todo dos veces por repintado.
+  var resumen = _reservasResumen();
+
   document.getElementById('statsRow').innerHTML =
     '<div class="stat">'+_statLabel('SKUs Tracked','Every distinct category + material combination the system has ever seen — including ones with zero stock right now. The line below shows how many currently have stock.')+'<div class="val">'+items.length+'</div><div class="sub">'+inStock+' with stock</div></div>'+
     (_canSeeCosts() && pricedCount > 0 ?
@@ -5994,6 +6133,30 @@ function renderStats(){
         Math.round(invValue).toLocaleString()+'</div><div class="sub">'+pricedCount+' of '+items.length+' SKUs priced</div></div>' : '')+
     '<div class="stat" style="border-left-color:var(--green)">'+_statLabel('In Warehouse','Total units currently sitting in any rack or location, added up across every material.')+'<div class="val">'+totalWh.toLocaleString()+'</div><div class="sub">units across all racks</div></div>'+
     '<div class="stat" style="border-left-color:var(--red)">'+_statLabel('Dispatched','Total units currently sent out to a project or site and not yet back in the warehouse.')+'<div class="val">'+totalSite.toLocaleString()+'</div><div class="sub">units sent to site</div></div>'+
+    // LAS RESERVAS, SITIO 1 DE 3 (tablero). La tarjeta sólo aparece cuando hay
+    // alguna: una tarjeta que dice 0 todos los días es una tarjeta que se deja
+    // de leer, y el sitio del tablero es caro. El detalle —qué material, en qué
+    // estante y por qué— va en la ayuda, que es donde ya vive el detalle de las
+    // otras seis tarjetas; el mapa enseña lo mismo sobre el plano.
+    (resumen.n ?
+      '<div class="stat" style="border-left-color:var(--accent)">'+
+        _statLabel('Reserved', 'Material held for a reason — it cannot be taken out of the ' +
+          'warehouse until somebody releases it. A reservation holds whatever is in that ' +
+          'rack, so the number moves with the stock.\n\n' +
+          resumen.lista.map(function(r){
+            return '· ' + r.qty + ' ' + r.unit + ' — ' + r.name + ' at ' + r.rack +
+                   (r.vacia ? ' — HOLDS NOTHING, can be released'
+                            : (r.reason ? ' — ' + r.reason : '')) +
+                   (r.by ? ' (' + r.by + ')' : '');
+          }).join('\n') +
+          (resumen.vacias ? '\n\n' + resumen.vacias + ' of them hold nothing: the material ' +
+                            'left the rack, or it has no stock recorded at all. Releasing ' +
+                            'them changes no numbers — it just tidies the list.' : '') +
+          '\n\nSee them on the Warehouse Map.')+
+        '<div class="val">'+resumen.unidades.toLocaleString()+'</div>'+
+        '<div class="sub">'+resumen.n+' reservation'+(resumen.n===1?'':'s')+
+          ' · '+resumen.estantes+' rack'+(resumen.estantes===1?'':'s')+'</div>'+
+      '</div>' : '')+
     '<div class="stat" style="border-left-color:var(--orange)">'+_statLabel('Active Projects','Number of distinct projects that have at least one movement recorded against them.')+'<div class="val">'+activeProjects+'</div><div class="sub">in system</div></div>'+
     '<div class="stat" style="border-left-color:var(--yellow)">'+_statLabel('Zero Stock','Materials with nothing left in the warehouse and nothing at any site. "Below min" counts materials that still have some stock but less than the minimum you set in the Low-Stock Monitor.')+'<div class="val" style="color:'+(zeroItems.length>0?'var(--red)':'var(--green)')+'">'+zeroItems.length+'</div><div class="sub">'+(belowMin.length?' · '+belowMin.length+' below min':'need restocking')+'</div></div>'+
     (totalWasted>0?'<div class="stat" style="border-left-color:#6B7280">'+_statLabel('Total Wasted','Total units ever recorded as WASTE, all-time — this never resets.')+'<div class="val" style="color:var(--red)">'+totalWasted.toLocaleString()+'</div><div class="sub">units recorded as waste</div></div>':'')+
@@ -6151,10 +6314,10 @@ function exitSelectedStock(){
       // un "Cancel" que no cancela nada.
       _showConfirm({
         icon: '🔒',
-        title: bloqueados.length === 1 ? 'This material is locked'
-                                       : 'These materials are locked',
+        title: bloqueados.length === 1 ? 'This material is reserved'
+                                       : 'These materials are reserved',
         message: 'Nothing can be taken out.\n\n' + lista +
-                 '\n\nAn admin can unlock it from the Warehouse Map.',
+                 '\n\nAn admin can release it from the Warehouse Map.',
         confirmText: 'Got it',
         soloAviso: true
       });
@@ -6166,7 +6329,7 @@ function exitSelectedStock(){
     // al guardar.
     _showConfirm({
       icon: '🔒',
-      title: 'Some are locked',
+      title: 'Some are reserved',
       message: lista + '\n\nThey will be left out. Continue with the other ' +
                libres.length + '?',
       confirmText: 'Continue',
@@ -6293,13 +6456,22 @@ function _levelsOf(s){
 /* Por qué está reservado, con las palabras de quien lo reservó. Jose:
  * "al hacer hover podemos mostrar datos o detalles… como el detalle de por qué
  * se reservó". Los datos ya viajan al navegador; sólo había que enseñarlos. */
+/* LEE `materialLocks`, NO `reservations`. La lista vieja llegaba de una hoja que
+ * nada podía llenar desde la app, así que este hover no enseñó nunca nada.
+ *
+ * Y LA CANTIDAD NO SE GUARDA EN NINGÚN SITIO: se deriva del estante, porque una
+ * reserva aparta lo que haya ahí. Es la misma cuenta que reservedQtyFromRacks_
+ * hace en el servidor, y tiene que serlo — si las dos mitades contaran distinto,
+ * el hover contradiría a la barra que está justo al lado. */
 function _lvReasons(s){
   var out = [];
-  (reservations || []).forEach(function(r){
-    if (String(r.status || 'Active').toLowerCase() !== 'active') return;
-    if (nt(r.category) !== nt(s.category) || nt(r.name) !== nt(s.name)) return;
-    var quien = r.by ? (' · ' + r.by) : '';
-    out.push('  ' + r.qty + ' for ' + (r.project || 'a job') + quien);
+  (materialLocks || []).forEach(function(l){
+    if (String(l.status || 'Active').toLowerCase() !== 'active') return;
+    if (nt(l.category) !== nt(s.category) || nt(l.name) !== nt(s.name)) return;
+    var enEse = Math.max(0, Number((s.warehouseLocs || {})[l.rack]) || 0);
+    var quien = l.lockedBy ? (' · ' + l.lockedBy) : '';
+    out.push('  ' + enEse + ' at ' + l.rack + ' — ' +
+             (l.reason || 'no reason given') + quien);
   });
   return out;
 }
@@ -10098,7 +10270,7 @@ function syncExitRackAvail(n){
     // A locked material can't EXIT from this rack — the backend rejects it anyway,
     // this is just an early, visible warning before the user even tries to submit.
     var lock = _findLock(key, rack);
-    if (lock){ chip.className='el-avail warn'; chip.textContent='🔒 locked — ' + lock.reason; return; }
+    if (lock){ chip.className='el-avail warn'; chip.textContent='🔒 reserved — ' + lock.reason; return; }
     if (qty > avail){ chip.className='el-avail warn'; chip.textContent='⚠ only '+avail; }
     else { chip.className='el-avail ok'; chip.textContent='✓ '+avail+' avail'; chip.dataset.avail = avail; }
   });
@@ -12658,8 +12830,8 @@ function _locWhyKept(name, use){
   var u = use[String(name || '').trim().toUpperCase()];
   if (!u) return '';
   if (u.qty > 0) return 'Has ' + u.qty + ' in stock';
-  if (u.locked)  return 'A material is locked to it';
-  if (u.allowed) return 'A lock allows moving material here';
+  if (u.locked)  return 'A material is reserved there';
+  if (u.allowed) return 'A reservation allows moving material here';
   return '';
 }
 
@@ -12690,6 +12862,25 @@ function _renderLocGroup(type, use){
             return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
               '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to merge">' +
               '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span>' +
+              // LAS RESERVAS, SITIO 3 DE 3 (Settings → Locations). Aquí se
+              // razona POR UBICACIÓN —qué hay en este estante, se puede borrar,
+              // se puede archivar— así que lo que hace falta saber es si ESTE
+              // estante tiene algo apartado, no la lista entera de la bodega.
+              // Eso ya está arriba, en el mapa y en el tablero.
+              //
+              // Y es la respuesta a una pregunta que esta pantalla ya hacía a
+              // medias: el botón de borrar desaparece cuando "a material is
+              // reserved there", pero hasta ahora no decía CUÁL ni POR QUÉ.
+              (function(){
+                var rs = _reservasDeEstante(l.name);
+                if (!rs.length) return '';
+                var u = rs.reduce(function(a2, r){ return a2 + r.qty; }, 0);
+                return '<span class="loc-resv" title="' + _escAttr(rs.map(function(r){
+                         return r.qty + ' ' + r.unit + ' ' + r.name +
+                                (r.reason ? ' — ' + r.reason : '') +
+                                (r.by ? ' (' + r.by + ')' : '');
+                       }).join('\n')) + '">🔒 ' + u + '</span>';
+              })() +
               '<button class="loc-arch-btn" data-rowact="del" title="' +
                 _escAttr(isArchived ? 'Restore'
                                     : (why ? why + ' — archive it instead of deleting' : 'Archive')) + '" ' +
@@ -14044,8 +14235,29 @@ function _applyMatChangeLocally(p){
 // removing that feature took a helper used 26 times across the app with it. A
 // missing function is not a syntax error, so every check passed and the app
 // simply stopped part-way through its first render.
-function _he(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function _escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+/* EL CERO ES UN NÚMERO, NO UNA AUSENCIA.
+ *
+ * Esto era `String(s||'')`, y con eso `_he(0)` devolvía CADENA VACÍA — porque 0
+ * es falsy en JavaScript. Jose lo encontró el 2026-09-21 en la tira de reservas
+ * del mapa: una fila que decía "EVELYN A QUINONEZ ___ UNIT", con el hueco donde
+ * tenía que ir la cantidad. La cantidad era 0 y el escapador se la comió.
+ *
+ * No era sólo ahí. Toda la app pasa cantidades por aquí —el cajón del estante,
+ * las tarjetas de llegada, el "% used" del indicador de espacio— y en todas,
+ * un cero se dibujaba como un hueco. Un hueco parece un dato que se perdió; un
+ * 0 es una respuesta.
+ *
+ * Sólo lo que NO EXISTE se vuelve cadena vacía: null y undefined. Un 0, un
+ * false o un NaN se escriben, porque alguien los mandó a propósito. */
+function _he(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// Mismo arreglo y por lo mismo que _he: un 0 en un atributo es un 0.
+function _escAttr(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
 
 // The "i" badge used everywhere a field used to carry a paragraph of always-
 // visible help text: same explanation, shown on hover/focus instead of taking
@@ -16214,7 +16426,57 @@ function renderWarehouseMap(){
     html += sectionBody(names);
   });
 
-  container.innerHTML = '<div class="wh-map">' + html + '</div>';
+  // LAS RESERVAS, SITIO 2 DE 3 (el mapa). Va ARRIBA del plano, no dentro de un
+  // estante: la pregunta que trae aquí a alguien es "¿qué hay apartado en la
+  // bodega?", y contestarla obligando a abrir estante por estante es no
+  // contestarla. Cada línea lleva a su estante — el mapa ya sabe abrir el cajón.
+  //
+  // Y sólo aparece si hay alguna. Una tira que dice "0 reservations" todos los
+  // días le roba sitio al plano, que es a lo que se viene.
+  container.innerHTML = _reservasTiraHtml() + '<div class="wh-map">' + html + '</div>';
+}
+
+/** La tira de reservas del mapa. Los datos salen de _reservasActivas, igual que
+ *  el total del tablero — una cuenta, tres pantallas. */
+function _reservasTiraHtml(){
+  var res = _reservasResumen();
+  if (!res.n) return '';
+  var filas = res.lista.map(function(r){
+    // La fila que no retiene nada se dice con palabras, no con un hueco. Y el
+    // motivo va en el sitio del motivo: lo que la persona escribió al apartar
+    // sigue estando, porque es lo que le dice si todavía tiene sentido.
+    var aviso = r.vacia === 'sin-material'
+      ? 'holds nothing — no stock recorded for this material anywhere'
+      : r.vacia === 'sin-stock-aqui'
+        ? ('holds nothing — the material is no longer at ' + r.rack +
+           (r.otrosEstantes.length ? ' (it is at ' + r.otrosEstantes.join(', ') + ')' : ''))
+        : '';
+    return '<button class="resv-row' + (r.vacia ? ' resv-vacia' : '') + '" ' +
+             'data-action="open-rack" data-rack="' + _escAttr(r.rack) + '" ' +
+             'title="' + _escAttr((r.reason || 'no reason given') +
+                                  (r.by ? ' — ' + r.by : '') +
+                                  (r.at ? ' · ' + r.at : '') +
+                                  (aviso ? '\n\n' + aviso + '. Release it if it is no longer needed.' : '')) + '">' +
+             '<span class="resv-rack">' + _he(r.rack) + '</span>' +
+             '<span class="resv-name">' + _he(r.name) + '</span>' +
+             '<span class="resv-qty">' + _he(r.qty) + ' ' + _he(r.unit) + '</span>' +
+             '<span class="resv-why">' +
+               (aviso ? '<span class="resv-alerta">⚠ ' + _he(aviso) + '</span>'
+                      : _he(r.reason || '—')) +
+             '</span>' +
+           '</button>';
+  }).join('');
+  return '<div class="resv-strip">' +
+           '<div class="resv-strip-hdr">🔒 Reserved — ' + res.unidades.toLocaleString() +
+             ' unit' + (res.unidades === 1 ? '' : 's') + ' held across ' + res.estantes +
+             ' rack' + (res.estantes === 1 ? '' : 's') +
+             '<span class="resv-hint">nothing here can leave the warehouse until it is released' +
+               (res.vacias ? ' · ' + res.vacias + ' hold' + (res.vacias === 1 ? 's' : '') +
+                             ' nothing and can be released' : '') +
+             '</span>' +
+           '</div>' +
+           '<div class="resv-rows">' + filas + '</div>' +
+         '</div>';
 }
 
 // ── Rack Detail Drawer ────────────────────────────────────────────────────────
@@ -16251,9 +16513,9 @@ function openRackDrawer(rackName) {
         var lockBtn = '';
         if (lock) {
           lockBtn = '<span class="rdw-lock-badge" title="🔒 '+_he(lock.reason)+' (by '+_he(lock.lockedBy)+')">🔒</span>' +
-            (isAdmin ? '<button class="rdw-lock-btn" data-action="unlock-material" data-lock-id="'+_he(lock.id)+'" data-lock-name="'+_he(item.name)+'" title="Unlock">Unlock</button>' : '');
+            (isAdmin ? '<button class="rdw-lock-btn" data-action="unlock-material" data-lock-id="'+_he(lock.id)+'" data-lock-name="'+_he(item.name)+'" title="Release">Release</button>' : '');
         } else if (isAdmin) {
-          lockBtn = '<button class="rdw-lock-btn" data-action="open-lock-modal" data-matid="'+_he(item.matId)+'" data-cat="'+_he(item.category)+'" data-name="'+_he(item.name)+'" data-rack="'+_he(rackName)+'" title="Lock this material at this rack">🔒 Lock</button>';
+          lockBtn = '<button class="rdw-lock-btn" data-action="open-lock-modal" data-matid="'+_he(item.matId)+'" data-cat="'+_he(item.category)+'" data-name="'+_he(item.name)+'" data-rack="'+_he(rackName)+'" title="Reserve this material at this rack">🔒 Reserve</button>';
         }
         return '<div class="rdw-item-wrap">'+
           '<div class="rdw-item">'+
@@ -16866,7 +17128,7 @@ function openLockModal(matId, cat, name, rack){
 
 function submitLockMaterial(){
   var reason = (document.getElementById('lockReason').value || '').trim();
-  if (!reason) { showToast('A reason is required to lock a material.', 'warn'); return; }
+  if (!reason) { showToast('A reason is required to reserve a material.', 'warn'); return; }
 
   var payload = {
     category:            document.getElementById('lockMatCat').value,
@@ -16877,11 +17139,11 @@ function submitLockMaterial(){
   };
 
   var btn = document.getElementById('lockMatSubmit');
-  _btnBusy(btn, 'Locking…');
+  _btnBusy(btn, 'Reserving…');
 
   google.script.run
     .withSuccessHandler(function(res){
-      _btnLabel(btn, '🔒 Lock Material');
+      _btnLabel(btn, '🔒 Reserve');
       closeModal('lockMatOverlay');
       // Apply locally + re-index immediately — don't wait on a full async reload,
       // which would leave the just-reopened drawer showing stale (unlocked) state.
@@ -16890,13 +17152,13 @@ function submitLockMaterial(){
         materialLocks.push(res.lock);
         _rebuildLocksIndex();
       }
-      showToast('🔒 ' + payload.name + ' locked at ' + payload.rack, 'ok');
+      showToast('🔒 ' + payload.name + ' reserved at ' + payload.rack, 'ok');
       if (_openRackName) openRackDrawer(_openRackName);
       renderStock();
       renderWarehouseMap();
     })
     .withFailureHandler(function(err){
-      _btnLabel(btn, '🔒 Lock Material');
+      _btnLabel(btn, '🔒 Reserve');
       showToast('Error: ' + _stripTags(err), 'err', 6000);
     })
     .processMovement('lockMaterial', _h(payload));
@@ -16926,7 +17188,7 @@ function unlockMaterialConfirm(lockId, name){
   var lineas = [];
 
   if (lock && lock.lockedBy){
-    lineas.push('Locked by ' + lock.lockedBy +
+    lineas.push('Reserved by ' + lock.lockedBy +
       (lock.lockedAt ? ' on ' + lock.lockedAt : '') + '.');
   }
   if (lock && String(lock.reason || '').trim()){
@@ -16944,12 +17206,12 @@ function unlockMaterialConfirm(lockId, name){
   }
 
   lineas.push('');
-  lineas.push('Unlocking it makes it exit-able and unrestricted again at this rack.');
+  lineas.push('Releasing it makes it exit-able and unrestricted again at this rack.');
 
   _showConfirm({
-    icon: '🔓', title: 'Unlock ' + name + '?',
+    icon: '🔓', title: 'Release ' + name + '?',
     message: lineas.join('\n'),
-    confirmText: 'Unlock', danger: false,
+    confirmText: 'Release', danger: false,
     onConfirm: function(){ _doUnlockMaterial(lockId); }
   });
 }
@@ -16968,10 +17230,10 @@ function _doUnlockMaterial(lockId){
       // es justo lo que faltaba: antes este caso iba por el manejador de FALLO,
       // que sólo enseñaba un error, y por eso el candado se quedaba pintado.
       if (res && res.alreadyGone) {
-        showToast('🔓 Already unlocked — someone else got there first. ' +
+        showToast('🔓 Already released — someone else got there first. ' +
                   'Nothing left to do.', 'info', 5000);
       } else {
-        showToast('🔓 Unlocked' +
+        showToast('🔓 Released' +
           (lock && lock.name ? ' — ' + lock.name + (lock.rack ? ' at ' + lock.rack : '') : '') +
           '.', 'ok');
       }
@@ -19922,7 +20184,6 @@ function _applyData(data) {
   movements          = data.movements          || [];
   stockData          = data.stock              || {};
   config             = data.config             || config;
-  reservations       = data.reservations       || [];
   userRole           = data.userRole           || 'WAREHOUSE';
   if (data.rolePerms) rolePerms = data.rolePerms;
   if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;
