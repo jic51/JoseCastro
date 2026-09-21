@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.02';
+var APP_VERSION = '12.03';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.02';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '2b472be6';
+var APP_BUILD = '2ce1c8d5';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -4982,42 +4982,107 @@ function runDailyReport_() {
   var salieron = movs.filter(function (m) { return OUT[m.moveType]; });
   var internos = movs.filter(function (m) { return !IN[m.moveType] && !OUT[m.moveType]; });
 
+  // EL DIRECTORIO, LEÍDO UNA VEZ. Es correo → nombre, y es el MISMO que usa la
+  // columna User de Movements desde la v11.73. Se pasa a la plantilla en vez de
+  // que cada fila lo busque: son tres tablas y una lectura de hoja.
+  var nombres = userDirectory_(ss);
+
   var subject = cs.name
-    ? (cs.name + ' — movimientos del ' + hoy)
-    : ('Movimientos del ' + hoy);
-  if (!movs.length) subject += ' (sin movimientos)';
+    ? (cs.name + ' — movements for ' + hoy)
+    : ('Movements for ' + hoy);
+  if (!movs.length) subject += ' (no movements)';
 
   MailApp.sendEmail({
     to: to.join(','),
     subject: subject,
-    htmlBody: dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg)
+    htmlBody: dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg, nombres)
   });
   return 'sent';
 }
 
-function dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg) {
-  function tabla(titulo, lista, color) {
+/* EL CORREO DIARIO, EN INGLÉS Y CON LAS DOS PERSONAS SEPARADAS.
+ *
+ * Jose, 2026-09-21, sobre su propio reporte: *"¿qué significa quién?"* y *"el
+ * correo está todo en español, ¿es porque mi configuración de correo está en
+ * español o porque la app lo envía así?"*
+ *
+ * LO MANDABA ASÍ LA APP. Estaba escrito en duro aquí: el asunto, los tres
+ * títulos, las cinco cabeceras, el día sin movimientos y el pie. Nada que ver
+ * con su Gmail. Y su instrucción de siempre es que la app esté toda en inglés,
+ * así que esto llevaba meses incumpliéndola en el único sitio donde nadie
+ * miraba — un correo que sale solo a las ocho de la tarde.
+ *
+ * ── LA COLUMNA "QUIÉN" ERAN DOS PREGUNTAS ─────────────────────────────────
+ *
+ * Decía `m.responsible || m.userEmail`, o sea:
+ *
+ *   · normalmente el campo *Received By* del movimiento — la persona que
+ *     recibió el material o se lo llevó;
+ *   · y si ese campo estaba vacío, EL CORREO DE QUIEN REGISTRÓ EL MOVIMIENTO,
+ *     que es otra persona y otra pregunta.
+ *
+ * En la captura de Jose una fila decía "JOSE" y la otra "James Williams": el
+ * mismo encabezado, sin nada que garantizara que las dos estaban contestando lo
+ * mismo. Una columna que a veces contesta una cosa y a veces otra es peor que
+ * no tenerla, porque no se nota.
+ *
+ * Ahora son DOS columnas y cada una contesta una sola pregunta:
+ *
+ *   Received by / Taken by — el campo del movimiento, y SIN caer al correo. Si
+ *       está vacío se dice vacío, que es la verdad. El título cambia con la
+ *       tabla porque la pregunta cambia: quien RECIBE en lo que llega, quien SE
+ *       LLEVA en lo que sale.
+ *   User — quien lo registró en la app, con NOMBRE Y CORREO. El nombre sale de
+ *       userDirectory_, el mismo mapa que usa la columna User de Movements.
+ *
+ * ── Y EL NÚMERO DEL TÍTULO ────────────────────────────────────────────────
+ *
+ * Decía "Arrived (1)" y Jose tuvo que preguntar qué era. Era la cuenta de
+ * filas. Un número desnudo pegado a un título no dice qué cuenta, así que ahora
+ * lo dice: "1 movement" / "3 movements".
+ */
+function dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg, nombres) {
+  nombres = nombres || {};
+
+  /** Quien registró el movimiento: "Nombre · correo", o sólo el correo si no
+   *  está en el directorio. Nunca al revés — el correo es lo que identifica, el
+   *  nombre es lo que se lee. */
+  function quienRegistro(m) {
+    var mail = String(m.userEmail || '').trim();
+    if (!mail) return '—';
+    var nom = nombres[mail.toLowerCase()] || '';
+    return nom
+      ? '<b>' + escHtml_(nom) + '</b><br><span style="color:#888;font-size:11px">' +
+        escHtml_(mail) + '</span>'
+      : escHtml_(mail);
+  }
+
+  function tabla(titulo, etiquetaPersona, lista, color) {
     if (!lista.length) return '';
-    var total = 0;
     var filas = lista.map(function (m) {
-      total += Number(m.qty) || 0;
       var donde = m.moveType === 'ENTRY' || m.moveType === 'RETURN'
         ? (m.destLoc || '—') : (m.sourceLoc || '—');
+      // SIN `|| m.userEmail`. Ver el bloque de arriba: esa caída es lo que hacía
+      // que la columna contestara dos preguntas distintas según la fila.
+      var quien = String(m.responsible || '').trim();
       return '<tr>' +
         '<td>' + escHtml_(m.name || '—') + '</td>' +
         '<td style="color:#666">' + escHtml_(m.category || '') + '</td>' +
         '<td align="right"><b>' + (Number(m.qty) || 0) + '</b> ' +
           escHtml_(m.unit || '') + '</td>' +
         '<td>' + escHtml_(donde) + '</td>' +
-        '<td style="color:#666">' + escHtml_(m.responsible || m.userEmail || '') + '</td>' +
+        '<td style="color:#666">' + (quien ? escHtml_(quien) : '—') + '</td>' +
+        '<td style="color:#666">' + quienRegistro(m) + '</td>' +
       '</tr>';
     }).join('');
     return '<h3 style="margin:1.4rem 0 .4rem;color:' + color + '">' + titulo +
-             ' <span style="color:#666;font-weight:400">(' + lista.length + ')</span></h3>' +
+             ' <span style="color:#666;font-weight:400;font-size:13px">(' +
+             lista.length + ' movement' + (lista.length === 1 ? '' : 's') +
+             ')</span></h3>' +
            '<table cellpadding="6" style="border-collapse:collapse;font-size:13px;width:100%">' +
              '<tr style="background:#f5f5f5;text-align:left">' +
-               '<th>Material</th><th>Categoría</th><th align="right">Cantidad</th>' +
-               '<th>Ubicación</th><th>Quién</th></tr>' + filas +
+               '<th>Material</th><th>Category</th><th align="right">Qty</th>' +
+               '<th>Location</th><th>' + etiquetaPersona + '</th><th>User</th></tr>' + filas +
            '</table>';
   }
 
@@ -5027,23 +5092,23 @@ function dailyReportHtml_(hoy, cs, llegaron, salieron, internos, cfg) {
     // primer correo vacío parece un error del sistema y el segundo se archiva
     // sin leer.
     cuerpo =
-      '<p style="font-size:15px">Hoy no se registró ningún movimiento en la bodega.</p>' +
-      '<p style="color:#666;font-size:13px">Este aviso se manda también los días ' +
-        'sin movimiento, a propósito: así un día tranquilo no se confunde con un ' +
-        'reporte que no llegó.</p>';
+      '<p style="font-size:15px">No movements were recorded in the warehouse today.</p>' +
+      '<p style="color:#666;font-size:13px">This report is sent on quiet days too, ' +
+        'on purpose: that way a day with nothing in it cannot be mistaken for a ' +
+        'report that never arrived.</p>';
   } else {
-    cuerpo = tabla('Llegó a la bodega', llegaron, '#046C4E') +
-             tabla('Salió de la bodega', salieron, '#B42318') +
-             tabla('Se movió dentro de la bodega', internos, '#1E52A0');
+    cuerpo = tabla('Arrived at the warehouse', 'Received by', llegaron, '#046C4E') +
+             tabla('Left the warehouse',       'Taken by',    salieron, '#B42318') +
+             tabla('Moved inside the warehouse', 'Handled by', internos, '#1E52A0');
   }
 
   return '<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:720px">' +
-    '<h2 style="margin:0 0 .2rem">' + escHtml_(cs.name || 'Bodega') + '</h2>' +
-    '<p style="margin:0 0 1rem;color:#666">Movimientos del ' + escHtml_(hoy) + '</p>' +
+    '<h2 style="margin:0 0 .2rem">' + escHtml_(cs.name || 'Warehouse') + '</h2>' +
+    '<p style="margin:0 0 1rem;color:#666">Movements for ' + escHtml_(hoy) + '</p>' +
     cuerpo +
     '<p style="margin-top:1.6rem;font-size:12px;color:#666;border-top:1px solid #e5e7eb;' +
-      'padding-top:.8rem">Reporte automático de ' + escHtml_(PRODUCT_NAME) + '. ' +
-      'Un administrador puede cambiar la hora o apagarlo desde Ajustes.</p></div>';
+      'padding-top:.8rem">Automatic report from ' + escHtml_(PRODUCT_NAME) + '. ' +
+      'An admin can change the time or turn it off in Settings.</p></div>';
 }
 
 /** Lo que la pantalla de Ajustes lee. */
