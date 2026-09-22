@@ -22,7 +22,58 @@
        that a table or a list continues past the fold. */
     html{scrollbar-width:none}
     html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
+    /* ══ LA TABLA DE CAPAS ═══════════════════════════════════════════════════
+       QUIÉN VA ENCIMA DE QUIÉN, EN UN SOLO SITIO Y EN ORDEN.
+
+       Jose, 2026-09-21, con dos capturas: *"al abrir el menú del usuario éste
+       se abre DETRÁS de las tarjetas. Creo yo que este menú debe tener
+       prioridad, ya que sólo se abre si damos clic en el avatar y eso significa
+       que queremos hacer algo ahí."*
+
+       Tenía razón, y el porqué no se ve leyendo los números. `.acct-menu`
+       declara `z-index:600` y las tarjetas `399`, así que sobre el papel gana
+       el menú. Medido en el navegador, gana el mazo. La razón es que UN
+       z-index SÓLO COMPITE DENTRO DE SU PROPIO CONTEXTO DE APILADO: el menú
+       vive dentro de `.topbar`, que es `position:sticky` con `z-index:100`, y
+       eso abre un contexto. Hacia fuera el menú no vale 600 — vale lo que
+       valga la barra, 100. Y 100 < 399.
+
+       POR ESO ESTO ES UNA TABLA Y NO UN NÚMERO MÁS. Con veinticuatro
+       `z-index` sueltos por el archivo, cada vez que algo salía tapado se
+       subía su número hasta que se veía; así se llega a un 600 que no puede
+       hacer nada y a que nadie sepa el orden real. Aquí el orden se lee de
+       arriba abajo, y cambiarlo es mover una línea, no descubrir un número.
+
+       REGLA PARA AÑADIR UNA CAPA: se añade AQUÍ, con su nombre y su sitio en
+       el orden, y la regla de CSS usa la variable. Un `z-index:` literal en
+       una capa flotante es un número que nadie podrá ordenar después.
+       `tools/test-capas.js` cuenta los que quedan fuera y no deja que suban. */
     :root{
+      --z-topbar:100;          /* la barra de arriba, pegada */
+      --z-nudge:390;           /* el aviso de "te saltaste un paso" */
+      --z-deck:399;            /* el mazo de tarjetas de la esquina */
+      /* La barra SÓLO mientras el menú del avatar está abierto. Sube por
+         encima del mazo y se queda por debajo del cajón y de las ventanas:
+         abrir el menú da prioridad sobre lo que se pinta solo, nunca sobre una
+         ventana que alguien abrió. Es la prioridad condicional que pidió Jose
+         —"sólo se abre si damos clic"—, no una barra que tapa siempre. */
+      --z-topbar-acct:450;
+      --z-bell:420;            /* el panel de la campana */
+      --z-drawer-back:499;     /* el fondo oscuro del cajón del estante */
+      --z-drawer:500;          /* el cajón del estante */
+      --z-morning:540;         /* el popup de la mañana */
+      --z-overlay:550;         /* las ventanas de la app */
+      --z-confirm:1100;        /* confirmar / avisar, va sobre una ventana */
+      --z-lightbox:1200;       /* ver un documento a pantalla completa */
+      --z-suggest:1300;        /* la caja de sugerencias, sobre su ventana */
+      --z-fullscreen:2000;     /* el asistente de instalación y la portada */
+      --z-progress:9998;       /* la línea de progreso */
+      --z-toast:9999;          /* los avisos de arriba */
+      /* La burbuja de ayuda es la única que va sobre todo, y tiene su propia
+         explicación medida donde se define: vive en el <body> para poder
+         salir de cualquier recorte. */
+      --z-tip:2147483000;
+
       --navy:#1B2A4A;--steel:#2C3E6B;--accent:#3B7DD8;--accent2:#2563EB;
       --bg:#F0F2F5;--card:#FFFFFF;--text:#1a1a2e;--muted:#6B7280;
       --green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;
@@ -44,7 +95,7 @@
        on a wide window and dropped below it on a narrower one — and the whole
        page shifted as it went. Now the tabs have a line of their own that they
        never leave; they just move toward the middle as the window grows. */
-    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:0;z-index:100;border-bottom:3px solid var(--accent)}
+    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:0;z-index:var(--z-topbar);border-bottom:3px solid var(--accent)}
     .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     /* Row two is the tabs and the account cluster TOGETHER, so the circle is
        always beside the tabs rather than stranded on the line above them. The
@@ -300,9 +351,16 @@
     .resv-strip-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
     /* La cabecera ES el botón de abrir y cerrar: toda ella, no un triangulito de
        diez píxeles. Quien quiere ver la lista apunta al renglón que la nombra. */
-    .resv-toggle{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;
+    /* flex:0 1 auto y no flex:1 — la ⓘ tiene que quedar PEGADA al texto, no
+       empujada al otro extremo de la fila. Lo que empuja al botón de limpiar
+       hacia la derecha es el margen automático de la ⓘ, no el ancho del
+       botón. */
+    .resv-toggle{flex:0 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;
       gap:.5rem;background:none;border:0;padding:.1rem 0;margin:0;cursor:pointer;
       font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text);text-align:left}
+    .resv-info{margin-right:auto}
+    /* Lo único accionable de la cabecera, y por eso es lo único con color. */
+    .resv-hint-ojo{font-weight:600;font-size:.72rem;color:var(--orange)}
     .resv-toggle:hover .resv-caret{color:var(--accent)}
     .resv-caret{display:inline-block;flex-shrink:0;width:.8rem;color:var(--muted);
       transition:transform .18s ease}
@@ -396,7 +454,7 @@
        covering almost the whole screen — capped at two-thirds of the
        viewport instead, same as the "not on your lists" bell panel. Still
        400px max on anything wider than a phone, unchanged from before. */
-    .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,66.667vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:500;transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
+    .rack-drawer{position:fixed;right:0;top:0;bottom:0;width:min(400px,66.667vw);background:var(--card);box-shadow:-6px 0 28px rgba(0,0,0,.18);z-index:var(--z-drawer);transform:translateX(110%);transition:transform .25s ease;display:flex;flex-direction:column}
     .rack-drawer.open{transform:translateX(0)}
     .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
@@ -415,7 +473,7 @@
     .rdw-lock-badge{flex-shrink:0;font-size:.9rem;cursor:default}
     .rdw-lock-btn{flex-shrink:0;font-size:.68rem;font-weight:700;background:var(--border);color:var(--text);border:none;border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap;transition:.15s}
     .rdw-lock-btn:hover{background:var(--red);color:#fff}
-    .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:499;background:rgba(0,0,0,.3)}
+    .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:var(--z-drawer-back);background:rgba(0,0,0,.3)}
     .rack-drawer-overlay.open{display:block}
     /* ── ALERTS ── */
     .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
@@ -427,7 +485,7 @@
        because several elements used literal light colours while the tokens
        around them flipped. Rather than audit every rule for both themes on a
        screen seen once, it commits to one look. */
-    .wiz-overlay{display:none;position:fixed;inset:0;background:#F1F5F9;z-index:2000;overflow-y:auto;padding:2rem 1rem;color:#111827}
+    .wiz-overlay{display:none;position:fixed;inset:0;background:#F1F5F9;z-index:var(--z-fullscreen);overflow-y:auto;padding:2rem 1rem;color:#111827}
     .wiz-overlay.show{display:block}
     .wiz-box{background:#fff;border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,.18);max-width:640px;margin:0 auto;padding:2rem}
     .wiz-steps{display:flex;gap:6px;margin-bottom:1.5rem}
@@ -463,7 +521,7 @@
     .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
     .wiz-progress-label{font-size:.78rem;color:#6B7280;margin-top:.45rem;text-align:center}
     /* Nudge shown after setup when an optional step was skipped */
-    .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:390;background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
+    .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:var(--z-nudge);background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
     /* Coming back is not the same as arriving. A reminder that pops into place
        reads as an alarm; this one walks in from off the left edge, invisible,
        and colours up as it travels to where it was sitting. Slow on purpose. */
@@ -477,7 +535,7 @@
     .setup-nudge:hover .nudge-act{display:flex}
     .setup-nudge button{border:none;border-radius:6px;padding:.3rem .6rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit}
     @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:1.25rem}.wiz-gen{grid-template-columns:1fr}}
-    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:550;align-items:center;justify-content:center;padding:15px}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:var(--z-overlay);align-items:center;justify-content:center;padding:15px}
     .ri-photo-thumb{position:relative;width:52px;height:52px;flex-shrink:0}
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
     .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:.65rem;cursor:pointer;line-height:1;padding:0}
@@ -499,11 +557,46 @@
        leaves the list exactly where it was. */
     html.modal-open{overflow:hidden}
     .app-inert{pointer-events:none}
-    /* height (not max-height): the box is ALWAYS this size, tied only to the
-       viewport — never shrinks for a short form, never grows for a long one.
-       Short content just leaves empty space at the bottom; long content scrolls
-       inside via overflow-y. Every .modal instance shares this one fixed size. */
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);height:min(82vh,700px);overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    /* ── LA REGLA DE JOSE, 2026-09-22 ───────────────────────────────────────
+       *"Toda ventana debe aparecer completa si la pantalla se lo permite, pero
+        completa significa que se vea todo el contenido. Si una ventana tiene
+        poco contenido (como Add User), entonces la ventana sólo debe tener el
+        tamaño necesario para mostrar el contenido, no ocupar toda la pantalla
+        porque sí."*
+
+       AQUÍ DECÍA `height` Y ERA A PROPÓSITO. El comentario anterior lo
+       defendía así: *"la caja es SIEMPRE de este tamaño, atada sólo a la
+       pantalla — nunca encoge para un formulario corto ni crece para uno
+       largo. El contenido corto deja espacio vacío abajo."* La idea era que
+       todas las ventanas midieran igual, y como idea se sostiene.
+
+       Lo que no se sostiene es el resultado, y Jose lo vio en dos sitios
+       distintos antes de dar con la causa: *"la ventana del Add User es muy
+       grande, no debe ser tan grande si lo que tiene dentro no es tanto"*
+       (2026-09-17) y *"la ventana de Edit es muy pequeña incluso cuando la
+       pantalla es grande, lo que hace que siempre haya una scroll bar
+       vertical"* (2026-09-22). Son la misma línea: con `height` fijo, las
+       VEINTE ventanas de la app miden el 82% de la pantalla — la que lleva
+       cuatro campos deja medio metro de vacío, y la que lleva veinte scrollea
+       igual porque el tope no depende de lo que haya dentro.
+
+       `max-height` es la regla entera en una palabra: crece con su contenido
+       hasta donde la pantalla aguanta, y ni un píxel más.
+
+       Y EL TOPE PASA A SER SÓLO LA PANTALLA, sin los 700px que lo acompañaban.
+       Ese número era el segundo techo y contradecía la primera mitad de la
+       regla —*"debe aparecer completa SI LA PANTALLA SE LO PERMITE"*—: el
+       formulario de Edit mide 762px, así que con un tope de 700 no se vería
+       entero ni en un monitor de dos metros. Medido: con 82vh en una pantalla
+       de 1200px de alto caben 984px, y ese formulario entra completo, que es
+       justo lo que Jose pidió. El 82% se queda porque una ventana tan alta como
+       la pantalla no deja ver que hay algo detrás ni dónde pulsar para cerrarla.
+
+       `overflow-y` sigue estando para lo que de verdad no quepa —en una pantalla
+       baja—, y `scrollbar-gutter:stable` también: reserva el carril para que un
+       formulario que crece, al añadir otro material, no dé un salto lateral
+       cuando aparezca la barra. */
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:82vh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
     /* Standardized size tiers (scale with viewport via min(), never grow past
        that from content) — every popup uses one of these three instead of an
        ad-hoc per-modal pixel value. Content still picks the tier that fits it
@@ -850,8 +943,30 @@
        stretches to match whatever ancestor happens to be position:relative
        (that used to make it balloon huge in some places, thin in others).
        Caps to 40vw so it can't overflow a narrow/mobile viewport either. */
-    .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;overflow-x:hidden;z-index:1300;background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+    .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;overflow-x:hidden;z-index:var(--z-suggest);background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
     .inc-suggest-hdr{padding:.3rem .7rem;font-size:.68rem;font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
+    /* ── EL CUADRO DE POSIBLE DUPLICADO ──────────────────────────────────────
+       Dos columnas y una fila por campo, porque comparar dos entregas es leer
+       de lado a lado. Dos tarjetas sueltas —que es lo primero que uno dibuja—
+       obligan a saltar arriba y abajo para casar cada dato con el suyo. */
+    .dup-tabla{width:100%;border-collapse:collapse;font-size:.82rem}
+    .dup-tabla th{text-align:left;padding:.45rem .6rem;font-size:.7rem;font-weight:700;
+      text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border)}
+    .dup-tabla th.dup-col-vieja{color:var(--muted)}
+    .dup-tabla th.dup-col-nueva{color:var(--accent)}
+    .dup-tabla td{padding:.4rem .6rem;border-bottom:1px solid var(--border);
+      vertical-align:top;overflow-wrap:anywhere}
+    .dup-tabla td.dup-campo{color:var(--muted);font-size:.68rem;font-weight:700;
+      text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;width:1%}
+    /* Lo que DIFIERE se marca, no lo que coincide. Marcar las coincidencias
+       pintaría de color casi toda la tabla justo cuando es un duplicado, que es
+       cuando hace falta que las pocas diferencias salten. */
+    .dup-tabla tr.dup-dif td{background:var(--yellow-bg)}
+    .dup-tabla tr.dup-dif td.dup-nuevo{font-weight:700}
+    .dup-vacio{color:var(--muted)}
+    .dup-acciones{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem;justify-content:flex-end}
+    .dup-acciones button{flex:0 1 auto}
+    @media (max-width:560px){ .dup-acciones button{flex:1 1 100%} }
     .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:.2rem .5rem;transition:background .12s}
     .inc-suggest-item:last-child{border-bottom:none}
     .inc-suggest-item:hover{background:#EFF6FF}
@@ -859,7 +974,7 @@
     .inc-suggest-item>span:not(.inc-tag):not(.inc-meta){flex:1 1 100px;min-width:0;overflow-wrap:break-word;word-break:break-word}
     .inc-suggest-item .inc-meta{font-size:.72rem;color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
     /* ── CONFIRM DIALOG ── */
-    .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:1rem}
+    .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:1rem}
     .cconfirm-overlay.show{display:flex}
     .cconfirm-dialog{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:420px;overflow:hidden;animation:cconfirm-in .18s ease}
     @keyframes cconfirm-in{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
@@ -981,6 +1096,36 @@
     .acct-btn.open{box-shadow:0 0 0 4px rgba(255,255,255,.16)}
     .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.26);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
     .acct-menu.open{display:block}
+    /* ── EL MENÚ DEL AVATAR, ABIERTO: LAS TRES COSAS QUE PIDIÓ JOSE ─────────
+     *
+     *   "Este menú debe tener prioridad y posicionarse sobre todo lo demás, ya
+     *    que sólo se abre si damos clic en el avatar y eso significa que
+     *    queremos hacer algo ahí. Entonces al abrir el menú del usuario y hacer
+     *    hover y tenerlo abierto, las tarjetas de atrás no deben abrirse y
+     *    tampoco la app atrás debe moverse o hacer scroll (actualmente lo
+     *    hace)."
+     *
+     * Son tres, y las tres cuelgan de la misma clase en <html>, puesta al abrir
+     * y quitada al cerrar. Una sola llave para un solo estado: si una se
+     * apagara por su cuenta quedaría el menú delante con el mazo abriéndose
+     * debajo, que es medio arreglo.
+     *
+     * 1. LA PRIORIDAD SE LE DA A LA BARRA, NO AL MENÚ. El menú ya declara 600 y
+     *    no le sirve de nada: vive dentro de `.topbar`, que abre su propio
+     *    contexto de apilado, así que hacia fuera vale lo que valga la barra.
+     *    Subir ese 600 a 6000 no habría cambiado nada — y es lo primero que uno
+     *    intenta. Lo que hay que subir es la barra, y sólo mientras el menú
+     *    está abierto: ver --z-topbar-acct en la tabla de capas.
+     * 2. EL FONDO NO SE MUEVE: la misma receta que `html.modal-open`, en <html>
+     *    y no en <body>, por la razón que está escrita allí.
+     * 3. LAS TARJETAS DE ATRÁS NO REACCIONAN. `pointer-events:none`, no un
+     *    apagado en JS: el mazo se abre al pasar el ratón por encima, y
+     *    quitarle el ratón es exactamente lo que se quiere decir. De paso
+     *    tampoco se pueden pulsar, que es lo correcto — están detrás de algo
+     *    que alguien abrió a propósito. */
+    html.acct-open .topbar{z-index:var(--z-topbar-acct)}
+    html.acct-open{overflow:hidden}
+    html.acct-open .deck{pointer-events:none}
     @keyframes acct-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
     .acct-head{padding:1.15rem 1rem .9rem;text-align:center;border-bottom:1px solid var(--border);position:relative}
     /* La marca dentro del menú de la cuenta, en la esquina que Jose marcó.
@@ -1074,7 +1219,7 @@
     .sd-col-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
     [data-theme="dark"] .sd-col + .sd-col{border-color:var(--border)}
     /* ── MEDIA PREVIEW LIGHTBOX ── */
-    .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:1200;align-items:center;justify-content:center;padding:2rem 1rem}
+    .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:var(--z-lightbox);align-items:center;justify-content:center;padding:2rem 1rem}
     .media-preview-overlay.show{display:flex}
     .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
     .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;background:var(--navy);color:#fff;flex-shrink:0}
@@ -1139,10 +1284,76 @@
     /* Las dos celdas de dos líneas de Movements. La de arriba es por la que se
        encuentra la fila; la de abajo se lee después, y por eso va más pequeña y
        en gris — salvo el nombre del material, que es lo que la gente busca. */
-    td.mc-when, td.mc-what{white-space:nowrap;vertical-align:top}
+    td.mc-when, td.mc-what{vertical-align:top}
+    td.mc-when{white-space:nowrap}
     .mc-sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
-    .mc-main{font-weight:700;margin-top:.15rem;white-space:normal;
-      max-width:22ch;overflow-wrap:anywhere}
+    /* Sin `max-width:22ch`: ahora el ancho lo pone la COLUMNA, no la celda. Un
+       tope en ch dentro de una columna de ancho fijo son dos topes discutiendo,
+       y gana el más pequeño de los dos sin que nadie lo haya decidido. */
+    .mc-main{font-weight:700;margin-top:.15rem;white-space:normal;overflow-wrap:anywhere}
+
+    /* ══ LOS ANCHOS DE LA TABLA DE MOVIMIENTOS ═══════════════════════════════
+       Jose, 2026-09-22, con dos vídeos: *"quiero quitar todos los saltos que da
+       la pantalla y dejar cada cosa en su propio lugar sin que tengan que
+       moverse todas. Cuando cambio de categoría, todas las columnas se mueven
+       horizontalmente, porque no tienen su espacio fijo sino que están
+       condicionadas a la cantidad de caracteres y tamaño de letra."*
+
+       Su diagnóstico es exacto. Una `<table>` normal reparte el ancho según lo
+       que haya DENTRO, así que la misma columna cambia de sitio según qué filas
+       estén filtradas. Medido sobre sus propios fotogramas, la columna Project
+       empezaba en x=476 con un filtro, en x=1318 con otro y en x=415 con un
+       tercero: casi 900px de diferencia por mirar otra categoría. No se puede
+       aprender dónde mirar en una tabla así.
+
+       `table-layout:fixed` es lo que corta la relación entre el contenido y el
+       ancho. A partir de ahí, el reparto es una decisión y no un accidente:
+
+         · CADA COLUMNA LLEVA SU ANCHO, en píxeles, colgado de su propia clase
+           (`mc-<key>`) y no de su posición. Eso importa porque las columnas se
+           pueden reordenar y esconder: un ancho por posición se rompería en
+           cuanto alguien tocara "⚙ Columns".
+         · UNA SOLA COLUMNA SIN ANCHO — `mc-what`, el material. En reparto fijo,
+           la que no declara ancho se queda con TODO lo que sobre, así que es la
+           única que se mueve al esconder o enseñar otra. El nombre del material
+           es lo que más varía de largo y lo que más se lee: es la que tiene que
+           llevarse el hueco.
+         · `min-width` EN LA TABLA, no en las celdas: en reparto fijo un
+           `min-width` de celda no se respeta. Es lo que garantiza que el
+           material nunca se quede sin sitio en una pantalla estrecha; por
+           debajo de eso la tabla se desplaza de lado, que es lo que ya hacía.
+
+       LOS NÚMEROS SON MEDIDOS, no elegidos: se dibujó la tabla con datos del
+       almacén de Jose bajo siete filtros distintos y se tomó el ancho máximo que
+       alcanzaba cada columna. Ver tools/test-columnas.js, que vuelve a medir y
+       falla si alguna columna se mueve al cambiar de filtro. */
+    #tableContainer table{table-layout:fixed;width:100%;min-width:1300px}
+    /* 112 y 160 SON MEDIDOS, y los dos se corrigieron al alza porque la prueba
+       encontró que se salían: la insignia `⇄ TRANSFER` no cabía en 100px, y el
+       correo más largo del almacén de Jose —joseisrael5101@gmail.com— mide
+       135px, que con el relleno de la celda no entra en 140. */
+    #tableContainer th.mc-when{width:112px}
+    #tableContainer th.mc-qty{width:58px}
+    #tableContainer th.mc-unit{width:58px}
+    #tableContainer th.mc-po{width:86px}
+    #tableContainer th.mc-locFlow{width:150px}
+    #tableContainer th.mc-rawLoc{width:120px}
+    #tableContainer th.mc-gc{width:110px}
+    #tableContainer th.mc-project{width:140px}
+    #tableContainer th.mc-supplier{width:120px}
+    #tableContainer th.mc-resp{width:110px}
+    #tableContainer th.mc-comment{width:150px}
+    #tableContainer th.mc-pm{width:110px}
+    #tableContainer th.mc-sysDate{width:112px}
+    #tableContainer th.mc-user{width:160px}
+    #tableContainer th.mc-doc{width:76px}
+    /* Y lo que no cabe SE PARTE, no se recorta. Es la misma regla que Jose fijó
+       para la tira de reservas: el final de un nombre es donde están la letra y
+       el número que lo distinguen, así que esconderlo con puntos suspensivos es
+       perder justo el dato. El comentario es la excepción y ya lo era: es texto
+       de una persona, puede ser larguísimo, y tiene su ayuda al pasar el ratón. */
+    #tableContainer td{overflow-wrap:anywhere}
+    #tableContainer td.mc-comment{max-width:none}
     .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
     /* Mismo alto, mismo ancho, mismo sitio: sólo cambia el color. */
     .btn.col-open{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -1504,7 +1715,7 @@
        top bar (500) and below every window it can launch (550, 1100, 1200,
        2000). The shield needs no change — it was reading the stack correctly;
        the stack was wrong. */
-    .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:540;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+    .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:var(--z-morning);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
     .morning-overlay.show{opacity:1;pointer-events:all}
     .morning-popup{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:520px;width:95%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(24px);transition:transform .25s}
     .morning-overlay.show .morning-popup{transform:translateY(0)}
@@ -1661,7 +1872,7 @@
        cualquier problema de sitio. scrollbar-width:none porque el resto de la
        app ya oculta las suyas (ver html{scrollbar-width:none}) y una barra
        gris aquí partiría el borde redondeado de las tarjetas. */
-    .deck{position:fixed;right:22px;bottom:22px;z-index:399;display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px;
+    .deck{position:fixed;right:22px;bottom:22px;z-index:var(--z-deck);display:flex;flex-direction:column;align-items:flex-end;max-width:min(400px,calc(100vw - 44px));padding:16px 12px 0 14px;
           max-height:calc(66.6vh - 22px);overflow-y:auto;overflow-x:visible;
           scrollbar-width:none}
     .deck::-webkit-scrollbar{display:none}
@@ -1892,7 +2103,7 @@
     /* ── Phone/tablet: bell in the topbar instead of the hover deck ── */
     .cfg-bell{display:none;position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:38px;height:34px;font-size:1rem;cursor:pointer;align-items:center;justify-content:center}
     .cfg-bell-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--navy)}
-    .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);z-index:420;max-height:70vh;overflow-y:auto}
+    .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);z-index:var(--z-bell);max-height:70vh;overflow-y:auto}
     .cfg-bell-panel.show{display:block}
     .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
     .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer}
@@ -1909,7 +2120,7 @@
     }
     @media (max-width:640px){.deck{right:16px;max-width:calc(100vw - 32px)}.deck-card{--card-w:250px}.sys-card{--card-w:calc(100vw - 60px)}}
     /* Manual merge picker */
-    .app-splash{position:fixed;inset:0;z-index:2000;background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
+    .app-splash{position:fixed;inset:0;z-index:var(--z-fullscreen);background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
     .app-splash.gone{opacity:0;pointer-events:none}
     .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
     .splash-logo{max-width:min(310px,68vw);max-height:96px;object-fit:contain;
@@ -2021,7 +2232,7 @@
       /* Por encima de todo lo que la app dibuja: el overlay está en 550, el
          cajón en 500, y el aviso de versión en 99999. Una ayuda que se lee
          detrás de la ventana que explica no sirve de nada. */
-      z-index:2147483000}
+      z-index:var(--z-tip)}
     /* `ready` la hace medible sin enseñarla: _tipPlace necesita su tamaño real
        antes de colocarla, y medir algo con display:none devuelve ceros. */
     #acTip.ready{visibility:visible}
@@ -2067,7 +2278,7 @@
       width:min(300px,90vw);text-align:left;
       opacity:0;visibility:hidden;
       transition:opacity .13s ease,transform .13s ease;transform:translateY(-4px);
-      z-index:2147483000}
+      z-index:var(--z-tip)}
     #acPerson.ready{visibility:visible}
     #acPerson.show{opacity:1;transform:translateY(0)}
     .ap-name,.ap-mail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2303,7 +2514,7 @@
     [data-theme="dark"] .ai-field-row input,[data-theme="dark"] .ai-field-row select{background:#0F172A;color:var(--text)}
     /* Dark mode toggle button */
     /* ── TOAST NOTIFICATIONS ── */
-    #toastContainer{position:fixed;top:1.25rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none}
+    #toastContainer{position:fixed;top:1.25rem;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none}
     .toast{background:var(--card);border-radius:10px;padding:.75rem 1.25rem;font-size:.84rem;font-weight:500;display:flex;align-items:flex-start;gap:.55rem;box-shadow:0 8px 32px rgba(0,0,0,.25);border-top:4px solid #94A3B8;min-width:300px;max-width:520px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
     .toast.ok  {border-top-color:var(--green)}
     .toast.err {border-top-color:var(--red)}
@@ -2339,7 +2550,7 @@
        Y SE VA AL PULSARLO. Se queda seis segundos, que es lo que Jose pidió
        ("debería permanecer más tiempo sin desaparecer"), y si alguna vez
        estorba basta un clic. Un rato largo sin salida es peor que uno corto. */
-    #progWrap{position:fixed;left:1.25rem;bottom:1.25rem;z-index:9998;
+    #progWrap{position:fixed;left:1.25rem;bottom:1.25rem;z-index:var(--z-progress);
               cursor:pointer;
               display:none;align-items:center;gap:.6rem;
               background:var(--card);color:var(--text);
@@ -3104,6 +3315,14 @@
       <div class="card-header">
         <h2>📦 All Incoming — Sorted by Date</h2>
         <div class="toolbar">
+          <!-- EL MISMO MOLDE QUE MOVEMENTS, no uno nuevo. Jose pidió un buscador
+               aquí porque era la única lista grande de la app sin uno; llevar el
+               que ya existe vale más que inventar otro, porque también se
+               comporta igual (escribe y filtra, sin botón de buscar). Busca en
+               todo lo que una persona recuerda de una entrega: cómo se llamaba,
+               quién la traía, el número de orden, de quién era, y lo que se
+               anotó de ella. -->
+          <input type="text" id="incSearch" placeholder="Name, PO#, supplier, PM, notes..." style="min-width:230px">
           <select id="incStatusFilter" style="border:1px solid var(--border);border-radius:6px;padding:.35rem .6rem;font-size:.8rem">
             <option value="">All Status</option>
             <option value="Pending">Pending</option>
@@ -3283,6 +3502,46 @@
   </div>
 </div>
 
+<!-- ══ POSIBLE DUPLICADO ═════════════════════════════════════════════════════
+     Jose, 2026-09-21, dando la regla y el trato:
+
+       "Un duplicado es mismo nombre + mismo proveedor + fecha cercana + mismo
+        PO. EL PO ES LO QUE EN REALIDAD DICE SI ES EL MISMO O NO, ya que cada
+        empresa crea uno nuevo para una entrega nueva. Pero si no hay PO,
+        entonces el nombre con los demás datos trabajan bien. (…) Podemos
+        mostrar un pop-up de advertencia que diga POSIBLE DUPLICADO y mostrar el
+        que ya estaba con el que se está creando, y preguntar si se desea
+        proceder o revisar la información."
+
+     LA COMPARACIÓN ES LA REVISIÓN, y ahí es donde esto se aparta un paso de lo
+     que él dibujó. Un botón de "revisar" que lleva a otra pantalla añade un
+     clic y no añade información: los dos datos ya están delante. Así que este
+     cuadro ES la revisión —las dos entregas en columnas, campo a campo, con lo
+     que difiere marcado— y las salidas son las tres decisiones de verdad:
+     es la misma y hay que editar aquélla, son distintas y se crea igual, o no
+     hacer nada.
+
+     Y la primera es la que importa: la lección de la reserva huérfana de esta
+     misma semana es que un aviso que no ofrece el arreglo es medio arreglo.
+     Decir "posible duplicado" y dejar a la persona buscar la otra a mano sería
+     repetirla. -->
+<div class="overlay" id="incDupOverlay">
+  <div class="modal modal-lg">
+    <div class="mhdr">
+      <h3 id="incDupTitle">⚠ Possible duplicate</h3>
+      <button class="modal-x" onclick="closeModal('incDupOverlay')" title="Close">✕</button>
+    </div>
+    <p id="incDupLead" style="font-size:.84rem;color:var(--muted);line-height:1.5"></p>
+    <div class="table-wrapper" id="incDupBody"></div>
+    <p id="incDupMas" style="font-size:.78rem;color:var(--muted);margin-top:.5rem"></p>
+    <div class="dup-acciones">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('incDupOverlay')">Cancel</button>
+      <button class="btn btn-ghost btn-sm" id="incDupEditBtn" onclick="_incDupEditarLaQueExiste()">✏️ It's the same one — edit that one</button>
+      <button class="btn btn-primary btn-sm" onclick="_incDupCrearIgual()">They're different — add it anyway</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MONITOR SETTINGS MODAL ════════════════════════════════════════════════ -->
 <div class="overlay" id="monitorOverlay">
   <div class="modal modal-lg">
@@ -3410,8 +3669,16 @@
 </div>
 
 <!-- ══ EDIT MOVEMENT MODAL ════════════════════════════════════════════════════ -->
+<!-- modal-lg, LA MISMA CLASE QUE #moveOverlay, y eso es la mitad de la queja de
+     Jose del 2026-09-22: *"la ventana de Edit es muy pequeña incluso cuando la
+     pantalla es grande."* Lo era literalmente — .modal-md son 640px y la
+     ventana donde se CREÓ ese mismo movimiento usa .modal-lg, 760px. Los mismos
+     campos en 120px menos se apilan más alto, y por eso había que desplazar.
+     Dos formularios para el mismo objeto, con dos tamaños distintos.
+     Está previsto que esta ventana desaparezca y que Edit reabra la de Entry o
+     Exit (ver el backlog); mientras tanto, al menos miden lo mismo. -->
 <div class="overlay" id="editMovOverlay">
-  <div class="modal modal-md">
+  <div class="modal modal-lg">
     <div class="mhdr">
       <h3>✏️ Edit Movement</h3>
       <span id="editMovRowTag" style="font-size:.72rem;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--muted);flex-shrink:0"></span>
@@ -4030,7 +4297,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.05';
+var APP_VERSION = '12.11';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4042,7 +4309,7 @@ var APP_VERSION = '12.05';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '4993bba6';
+var APP_BUILD = '09961335';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4284,6 +4551,17 @@ var _popupShownThisLoad = false; // true once popup fires; resets on real page l
 // ── Utility ───────────────────────────────────────────────────────────────────
 function nz(v){ return v || ''; }
 function nt(v){ return (v || '').toUpperCase().trim(); }
+/* GEMELO EXACTO de cleanDisplay_ del servidor: mayúsculas, sin espacios a los
+ * lados y los de dentro colapsados a uno — y la puntuación intacta, que es lo
+ * que la distingue de normalizeString ("A-680, 80 SERIES" se guarda tal cual).
+ *
+ * Existe porque el navegador pinta la fila ANTES de que el servidor conteste.
+ * Si las dos no coincidieran letra por letra, lo recién guardado se vería un
+ * instante de una forma y cambiaría solo al recargar. */
+function _limpiarNombre(v){
+  return String(v === null || v === undefined ? '' : v)
+    .toUpperCase().trim().replace(/\s+/g, ' ');
+}
 // Mirrors the backend's normalizeString() EXACTLY — stockData keys are built
 // server-side with that transform (strips , . ' `, turns - into a space). Any
 // stockData[key] lookup rebuilt from displayed text (which may contain those
@@ -4734,7 +5012,12 @@ var COL_TABLES = {
     // La columna de acciones ya NO va y viene: aparecía y desaparecía con el
     // modo, y eso era justo lo que hacía saltar la tabla al pulsar un botón.
     // Ahora está siempre para quien puede usarla, y para nadie más.
-    tail: function(){ return _movCanAct() ? '<th></th>' : ''; },
+    // CON ANCHO. Sin él era la segunda columna elástica de la tabla, y en
+    // reparto fijo las que no declaran ancho se reparten el hueco A PARTES
+    // IGUALES: el nombre del material se quedaba con la mitad de lo que le
+    // tocaba (100px medidos, para nombres de veinte letras) por culpa de una
+    // columna que sólo lleva dos botones.
+    tail: function(){ return _movCanAct() ? '<th style="width:44px"></th>' : ''; },
     refresh: function(){ renderMovements(); }                             // rebuilds its own header
   }
 };
@@ -16663,6 +16946,14 @@ function toggleReservasTira(){
   if (rows) rows.hidden = !_resvAbierta;
   var btn = strip.querySelector('.resv-toggle');
   if (btn) btn.setAttribute('aria-expanded', _resvAbierta ? 'true' : 'false');
+  /* Y EL TEXTO, QUE ERA EL FALLO. Jose, 2026-09-22: *"'click to hide' está
+   * siempre fijo, aun cuando está escondido."* Cierto, y el motivo es que esta
+   * función cambia clases y el atributo `hidden` sobre el DOM que ya está
+   * pintado — nunca volvía a pasar por el sitio donde se decide ese verbo, que
+   * está en _reservasTiraHtml. O sea que la frase decía la verdad exactamente
+   * una vez: al cargar la página. */
+  var verbo = document.getElementById('resvHintToggle');
+  if (verbo) verbo.textContent = '· ' + (_resvAbierta ? 'click to hide' : 'click to show');
 }
 
 /* CUÁNTO OCUPA UNA LETRA, MEDIDO. 8,5px a .76rem en negrita y mayúsculas, que
@@ -16743,21 +17034,48 @@ function _reservasTiraHtml(){
         res.vacias + ' holding nothing</button>'
     : '';
 
+  /* LA CABECERA, REORDENADA POR JOSE EL 2026-09-22.
+   *
+   * Él la escribió así: *"sería bueno que diga: 🔒 Reserved — 441 units · 8
+   * reservations · held across 8 racks · 'i' (nothing here can leave the
+   * warehouse until it is released) · click to hide/show"*. Dos cosas suyas y
+   * dos mías encima:
+   *
+   *   · LOS NÚMEROS PRIMERO, seguidos, sin la frase larga en medio. Es lo que
+   *     se lee de un vistazo, y antes iba partido por una explicación.
+   *   · LA EXPLICACIÓN A UNA ⓘ. Esa frase se lee una vez en la vida y ocupaba
+   *     media cabecera todos los días. Se usa la ⓘ que la app ya tiene
+   *     (.info-ic .tip), no una letra suelta: inventar un icono nuevo para
+   *     esto sería añadir una convención donde ya había una.
+   *   · "click to hide/show" NO: una cosa O la otra, según cómo esté. Ver
+   *     toggleReservasTira, que es donde estaba el fallo que él encontró.
+   *   · Y "N hold nothing" SE QUEDA, aparte y en color: es lo único de esta
+   *     cabecera sobre lo que se puede actuar, y en su formato desaparecía. */
+  var noRetienen = res.vacias
+    ? '<span class="resv-hint-ojo">· ' + res.vacias + ' hold' +
+        (res.vacias === 1 ? 's' : '') + ' nothing</span>'
+    : '';
+
   return '<div class="resv-strip' + (_resvAbierta ? ' abierta' : '') + '">' +
            '<div class="resv-strip-hdr">' +
              '<button class="resv-toggle" data-action="toggle-resv" ' +
                'aria-expanded="' + (_resvAbierta ? 'true' : 'false') + '">' +
                '<span class="resv-caret">▸</span>' +
                '<span>🔒 Reserved — ' + res.unidades.toLocaleString() +
-                 ' unit' + (res.unidades === 1 ? '' : 's') + ' held across ' + res.estantes +
-                 ' rack' + (res.estantes === 1 ? '' : 's') + '</span>' +
-               '<span class="resv-hint">nothing here can leave the warehouse until it is ' +
-                 'released · ' + res.n + ' reservation' + (res.n === 1 ? '' : 's') +
-                 (res.vacias ? ' · ' + res.vacias + ' hold' + (res.vacias === 1 ? 's' : '') +
-                               ' nothing' : '') +
-                 ' · ' + (_resvAbierta ? 'click to hide' : 'click to see them') +
-               '</span>' +
-             '</button>' + limpiar +
+                 ' unit' + (res.unidades === 1 ? '' : 's') + ' · ' +
+                 res.n + ' reservation' + (res.n === 1 ? '' : 's') + ' · in ' +
+                 res.estantes + ' rack' + (res.estantes === 1 ? '' : 's') + '</span>' +
+               noRetienen +
+               // El id existe para poder cambiar SÓLO estas dos palabras al
+               // plegar y desplegar, sin repintar el mapa entero por un verbo.
+               '<span class="resv-hint" id="resvHintToggle">· ' +
+                 (_resvAbierta ? 'click to hide' : 'click to show') + '</span>' +
+             '</button>' +
+             // Fuera del botón a propósito: la ⓘ es enfocable, y un elemento
+             // enfocable dentro de un <button> no es HTML válido.
+             '<span class="info-ic tip resv-info" tabindex="0" data-tip="' +
+               _escAttr('Nothing here can leave the warehouse until it is released.') +
+             '">i</span>' + limpiar +
            '</div>' +
            '<div class="resv-rows"' + (_resvAbierta ? '' : ' hidden') + '>' + filas + '</div>' +
          '</div>';
@@ -17958,13 +18276,37 @@ function renderIncomingWeekGrid() {
   }).join('');
 }
 
+/** Los campos por los que busca la caja de Incoming. En su propia función para
+ *  que la búsqueda y lo que dice el marcador de posición no puedan separarse:
+ *  un buscador que mira en sitios que no anuncia parece roto cuando encuentra
+ *  algo raro, y parece roto también cuando no encuentra lo que sí tiene. */
+function _incCamposBuscables(it){
+  return [it.name, it.po, it.supplier, it.pm, it.notes, it.category];
+}
+
 function renderIncomingTable() {
   var container = document.getElementById('incomingTableContainer');
   if (!container) return;
   var sf = (document.getElementById('incStatusFilter') || {}).value || '';
-  var filtered = incoming.filter(function(i){ return !sf || i.status === sf; });
+  var q  = ((document.getElementById('incSearch') || {}).value || '').toLowerCase().trim();
+  var filtered = incoming.filter(function(i){
+    if (sf && i.status !== sf) return false;
+    if (!q) return true;
+    return _incCamposBuscables(i).some(function(f){
+      return String(f || '').toLowerCase().indexOf(q) !== -1;
+    });
+  });
   if (!filtered.length) {
-    container.innerHTML = '<p style="padding:1rem;color:var(--muted)">No incoming materials' + (sf ? ' with status "' + sf + '"' : '') + '.</p>';
+    // El vacío dice POR QUÉ está vacío. "No incoming materials" a secas, con un
+    // filtro puesto y una búsqueda escrita, se lee como que no hay nada — y lo
+    // que pasa es que no hay nada QUE CUMPLA LAS DOS COSAS.
+    var porque = [];
+    if (q)  porque.push('matching "' + _he(q) + '"');
+    if (sf) porque.push('with status "' + _he(sf) + '"');
+    container.innerHTML = '<p style="padding:1rem;color:var(--muted)">No incoming materials' +
+      (porque.length ? ' ' + porque.join(' ') : '') + '.' +
+      (porque.length ? ' <span style="opacity:.8">' + incoming.length +
+                       ' in the full list.</span>' : '') + '</p>';
     return;
   }
   var isAdmin = userRole === 'ADMIN';
@@ -18295,8 +18637,12 @@ function _incAplicarLocal(payload, res){
     id:         String(id),
     estDate:    modo === 'unknown' ? ''
               : (payload.estDate || (previo ? previo.estDate : '')),
-    category:   String(payload.category || '').toUpperCase().trim(),
-    name:       String(payload.name || '').trim(),
+    // EL MISMO cleanDisplay_ QUE EL SERVIDOR, escrito aquí porque esta fila se
+    // pinta antes de que el servidor conteste. Si el navegador normalizara de
+    // otra manera, la entrega aparecería un instante como se tecleó y cambiaría
+    // sola al recargar — que es exactamente el parpadeo que la v12.00 quitó.
+    category:   _limpiarNombre(payload.category),
+    name:       _limpiarNombre(payload.name),
     qty:        Number(payload.qty || 0),
     unit:       String(payload.unit || 'UNIT'),
     supplier:   String(payload.supplier || ''),
@@ -18325,13 +18671,212 @@ function _incAplicarLocal(payload, res){
   });
 }
 
+/* ══ POSIBLE DUPLICADO ══════════════════════════════════════════════════════
+ *
+ * LA REGLA ES DE JOSE, palabra por palabra, el 2026-09-21:
+ *
+ *   "Un duplicado es mismo nombre + mismo proveedor + fecha cercana + mismo PO.
+ *    EL PO ES LO QUE EN REALIDAD DICE SI ES EL MISMO O NO, ya que cada empresa
+ *    crea uno nuevo para una entrega nueva. Pero si no hay PO, entonces el
+ *    nombre con los demás datos trabajan bien. Debemos recordar que los
+ *    materiales pueden venir con el mismo nombre y misma cantidad de diferentes
+ *    proveedores, así que ahí no creo que debamos avisar de un duplicado."
+ *
+ * Eso son tres reglas distintas y conviene tenerlas separadas:
+ *
+ *   MISMO PO + MISMO NOMBRE  → casi seguro la misma entrega escrita dos veces.
+ *                              El PO es la identidad: lo emite el proveedor, y
+ *                              uno nuevo significa un pedido nuevo.
+ *   DOS PO Y DISTINTOS       → NO es duplicado, y no se avisa. Son dos pedidos.
+ *                              Ésta es la regla que evita el aviso molesto.
+ *   SIN PO QUE COMPARAR      → nombre + proveedor + fecha cercana. Probable,
+ *                              no seguro, y así se dice.
+ *
+ * Y la que Jose nombró aparte: mismo nombre con proveedor distinto son dos
+ * entregas de verdad. No se avisa.
+ *
+ * NADA DE ESTO FUNCIONA SIN LA NORMALIZACIÓN de esta misma versión: la
+ * comparación es sobre nt(), y hasta hoy una entrega podía guardarse "Yogu
+ * Yogu" y otra "YOGU YOGU". Por eso aquello iba primero. */
+
+// Siete días a cada lado. Una ventana más corta deja escapar la entrega que
+// alguien anotó con una semana de margen —que es lo normal cuando el proveedor
+// dice "la semana que viene"—; una más larga marcaría como duplicado dos
+// pedidos mensuales del mismo material al mismo proveedor, que también es
+// normal. Es una decisión, no un hallazgo: si resulta estrecha, se mueve.
+var _INC_DIAS_CERCA = 7;
+
+function _incDiasEntre(a, b){
+  if (!a || !b) return null;            // sin fecha no hay distancia que medir
+  var ms = Date.parse(String(a) + 'T00:00:00') - Date.parse(String(b) + 'T00:00:00');
+  if (isNaN(ms)) return null;
+  return Math.abs(Math.round(ms / 86400000));
+}
+
+/** ¿Están las dos entregas en fechas cercanas?
+ *
+ *  Si a alguna le falta la fecha, NO se descarta: "no lo sé" no es "no". La
+ *  entrega sin fecha es justamente la que alguien apunta dos veces, porque no
+ *  tiene un día con el que recordarla. El cuadro enseña las dos fechas, así que
+ *  quien mira ve por qué saltó. */
+function _incFechasCerca(a, b){
+  var d = _incDiasEntre(a && a.estDate, b && b.estDate);
+  return d === null ? true : d <= _INC_DIAS_CERCA;
+}
+
+/** Las entregas ya anotadas que podrían ser ésta. Devuelve las seguras y las
+ *  probables por separado, porque se dicen con palabras distintas. */
+function _incDuplicados(p){
+  var fuertes = [], suaves = [];
+  var nombre = nt(p.name), prov = nt(p.supplier), po = nt(p.po);
+  if (!nombre) return { fuertes: fuertes, suaves: suaves };
+
+  (typeof incoming !== 'undefined' && incoming ? incoming : []).forEach(function(it){
+    // Una entrega no es duplicado de sí misma al editarla.
+    if (p.id && String(it.id) === String(p.id)) return;
+    // Una cancelada ya no espera nada: volver a anotarla es lo correcto, no un
+    // duplicado. Avisar ahí sería avisar de haber hecho lo que tocaba.
+    if (String(it.status || '').toLowerCase() === 'cancelled') return;
+    if (nt(it.name) !== nombre) return;
+
+    var poViejo = nt(it.po);
+    if (po && poViejo){
+      // Los dos tienen PO: el PO manda, y manda en los dos sentidos.
+      if (po === poViejo) fuertes.push(it);
+      return;
+    }
+    // Sin PO que comparar: hace falta el proveedor Y una fecha cercana.
+    if (!prov || nt(it.supplier) !== prov) return;
+    if (!_incFechasCerca(p, it)) return;
+    suaves.push(it);
+  });
+  return { fuertes: fuertes, suaves: suaves };
+}
+
+// Lo que quedó pendiente mientras el cuadro está abierto: qué se iba a guardar,
+// contra cuál se comparó, y cómo seguir si la persona dice que son distintas.
+var _incDupPend = null;
+
+/** Las filas de la comparación. En su propia función porque es lo que hay que
+ *  poder leer de un vistazo para saber si el cuadro dice la verdad. */
+function _incDupFilas(p, it){
+  var cajaFecha = { estDate: p.estDate, dateMode: p.dateMode,
+                    estDateEnd: p.estDateEnd, dateNote: p.dateNote };
+  return [
+    ['Est. date', _incDateLabel(it),            _incDateLabel(cajaFecha)],
+    ['Status',    it.status || 'Pending',       p.status || 'Pending'],
+    ['Category',  it.category || '',            p.category || ''],
+    ['Name',      it.name || '',                p.name || ''],
+    ['Qty',       (Number(it.qty) > 0 ? _qtyText(it.qty) + ' ' + (it.unit || '') : ''),
+                  (Number(p.qty)  > 0 ? _qtyText(p.qty)  + ' ' + (p.unit  || '') : '')],
+    ['Supplier',  it.supplier || '',            p.supplier || ''],
+    ['PO #',      it.po || '',                  p.po || ''],
+    ['PM',        it.pm || '',                  p.pm || ''],
+    ['Notes',     it.notes || '',               p.notes || '']
+  ];
+}
+
+function _incDupPreguntar(p, dup, seguir){
+  // El PO manda: si hay una coincidencia de PO, es ÉSA la que se enseña, aunque
+  // haya otras. Enseñar la probable teniendo delante la casi segura sería
+  // esconder la mejor prueba.
+  var fuerte = dup.fuertes.length > 0;
+  var lista  = fuerte ? dup.fuertes : dup.suaves;
+  var it     = lista[0];
+  _incDupPend = { payload: p, existente: it, seguir: seguir };
+
+  document.getElementById('incDupTitle').textContent =
+    fuerte ? '⚠ This looks like the same delivery' : '⚠ Possible duplicate';
+
+  document.getElementById('incDupLead').textContent = fuerte
+    ? 'A delivery already on the list has the same material AND the same PO ' +
+      'number. A supplier issues a new PO for a new order, so the same PO twice ' +
+      'is almost always the same delivery written down twice.'
+    : 'A delivery already on the list has the same material from the same ' +
+      'supplier, around the same date, and neither has a PO number to tell them ' +
+      'apart. It may well be a second, real delivery — check below.';
+
+  var filas = _incDupFilas(p, it).map(function(f){
+    var viejo = String(f[1] || ''), nuevo = String(f[2] || '');
+    var difiere = nt(viejo) !== nt(nuevo);
+    var celda = function(v, clase){
+      return '<td' + (clase ? ' class="' + clase + '"' : '') + '>' +
+        (v ? _he(v) : '<span class="dup-vacio">—</span>') + '</td>';
+    };
+    return '<tr' + (difiere ? ' class="dup-dif"' : '') + '>' +
+      '<td class="dup-campo">' + _he(f[0]) + '</td>' +
+      celda(viejo) + celda(nuevo, 'dup-nuevo') +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('incDupBody').innerHTML =
+    '<table class="dup-tabla"><thead><tr>' +
+      '<th></th>' +
+      '<th class="dup-col-vieja">Already on the list</th>' +
+      '<th class="dup-col-nueva">' + (p.id ? 'After your changes' : 'You are adding') + '</th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table>';
+
+  // Si hay más de una, se dice. Un cuadro que enseña una de tres y no lo
+  // menciona deja a la persona resolviendo el problema equivocado.
+  var otras = lista.length - 1;
+  document.getElementById('incDupMas').textContent = otras > 0
+    ? otras + ' other delivery' + (otras === 1 ? '' : 'ies') +
+      ' on the list also matches. Use the search box to review them.'
+    : '';
+
+  // Editar la que existe sólo tiene sentido si quien mira puede editarla.
+  var bEdit = document.getElementById('incDupEditBtn');
+  if (bEdit) bEdit.style.display = (userRole === 'ADMIN') ? '' : 'none';
+
+  // El escudo de ventanas (_modalShield) se encarga solo: observa las clases
+  // `show` y congela lo de detrás, así que este cuadro encima del formulario de
+  // Incoming se apila bien sin hacer nada aquí.
+  document.getElementById('incDupOverlay').classList.add('show');
+}
+
+/** "Es la misma" — se abandona lo que se estaba creando y se abre aquélla.
+ *  No se crea una segunda entrega, que es el punto entero del aviso. */
+function _incDupEditarLaQueExiste(){
+  var pend = _incDupPend;
+  if (!pend || !pend.existente) return;
+  _incDupPend = null;
+  closeModal('incDupOverlay');
+  closeModal('incomingOverlay');
+  openIncomingModal(pend.existente.id);
+  showToast('Opened the delivery that was already on the list. ' +
+            'Nothing new was created.', 'info', 5000);
+}
+
+/** "Son distintas" — se sigue por donde se iba, sin regañar. El aviso era una
+ *  pregunta, y ya está contestada. */
+function _incDupCrearIgual(){
+  var pend = _incDupPend;
+  if (!pend) return;
+  _incDupPend = null;
+  closeModal('incDupOverlay');
+  pend.seguir();
+}
+
 function saveIncomingItem() {
   var id       = document.getElementById('incId').value;
   var dateMode = document.getElementById('incDateMode').value || 'exact';
   var estDate  = document.getElementById('incDate').value;
   var estEnd   = document.getElementById('incDateEnd').value;
   var dateNote = (document.getElementById('incDateNote').value || '').trim();
-  var name     = (document.getElementById('incName').value || '').trim();
+  /* NORMALIZADO AQUÍ, no sólo en el servidor, y por dos razones distintas.
+   *
+   * La de fondo: el servidor guarda cleanDisplay_(name), así que lo que la
+   * pantalla enseñe antes de guardar tiene que ser ESO y no lo que se tecleó.
+   * El cuadro de posible duplicado lo puso en evidencia — comparaba "DOOR
+   * SCREEN" (lo guardado) contra "door screen" (lo tecleado) y parecía una
+   * diferencia entre las dos entregas cuando no lo era. Una tabla de comparar
+   * que marca como distinto lo que se va a guardar igual miente sobre lo único
+   * que tiene que decir.
+   *
+   * Y la práctica: el mismo valor viaja al servidor, se pinta al instante en la
+   * lista y se compara contra las demás. Normalizarlo una vez, aquí, es lo que
+   * hace que los tres vean lo mismo. */
+  var name     = _limpiarNombre(document.getElementById('incName').value);
   if (dateMode !== 'unknown' && !estDate){
     showToast('Pick a date, or choose "Not known yet".', 'warn'); return;
   }
@@ -18352,7 +18897,7 @@ function saveIncomingItem() {
     estDateEnd: estEnd,
     dateNote:   dateNote,
     status:   document.getElementById('incStatus').value,
-    category: document.getElementById('incCategory').value,
+    category: _limpiarNombre(document.getElementById('incCategory').value),
     name:     name || '📎 See attached',
     qty:      Number(document.getElementById('incQty').value) || 0,
     unit:     document.getElementById('incUnit').value,
@@ -18427,15 +18972,34 @@ function saveIncomingItem() {
       .processMovement(action, _h(payload));
   }
 
-  if (hasFile){
-    _btnBusy(btn, 'Reading file…');
-    _readFileAsBase64(fileInput.files[0], function(b64, mime){
-      if (b64){ payload.docFile = { fileData: b64, fileMimeType: mime, fileName: fileInput.files[0].name }; }
+  function _arrancar(){
+    if (hasFile){
+      _btnBusy(btn, 'Reading file…');
+      _readFileAsBase64(fileInput.files[0], function(b64, mime){
+        if (b64){ payload.docFile = { fileData: b64, fileMimeType: mime, fileName: fileInput.files[0].name }; }
+        _send();
+      });
+    } else {
       _send();
-    });
-  } else {
-    _send();
+    }
   }
+
+  /* EL AVISO DE DUPLICADO VA AQUÍ: al guardar, y ANTES de leer el archivo.
+   *
+   * Al guardar y no mientras se teclea, a propósito. Un aviso que salta a media
+   * palabra interrumpe a quien todavía está escribiendo el nombre y no ha
+   * llegado al proveedor ni al PO — o sea, justo antes de tener los datos con
+   * los que se decide. Lo que acompaña mientras se escribe es la sugerencia del
+   * formulario de entrada, que es otra cosa.
+   *
+   * Y antes de leer el archivo porque leer un PDF adjunto tarda: preguntar
+   * primero evita hacer ese trabajo para algo que a lo mejor no se guarda. */
+  var dup = _incDuplicados(payload);
+  if (dup.fuertes.length || dup.suaves.length){
+    _incDupPreguntar(payload, dup, _arrancar);
+    return;
+  }
+  _arrancar();
 }
 
 // ── One expected delivery, drawn one way ─────────────────────────────────────
@@ -21624,6 +22188,11 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Incoming filter
   _safeOn('incStatusFilter','change', renderIncoming);
+  /* El buscador repinta SÓLO LA TABLA, no la semana de arriba. La caja vive
+   * dentro de la tarjeta de "All Incoming" y filtra lo que hay debajo de ella;
+   * vaciar de paso la vista de la semana —que es un calendario, no una lista—
+   * escondería días enteros por escribir tres letras. */
+  _safeOn('incSearch','input', _debounce(renderIncomingTable, 220));
 
   // Modals — close on outside click
   _safeOn('incomingOverlay','click', function(e){ closeIfOutside(e,'incomingOverlay'); });
@@ -21978,6 +22547,10 @@ function toggleAccountMenu(e){
   if (!menu) return;
   var open = menu.classList.toggle('open');
   if (btn) btn.classList.toggle('open', open);
+  // Una clase en <html> y las tres cosas de Jose caen juntas: la barra sube por
+  // encima del mazo, el fondo deja de moverse, y las tarjetas de atrás dejan de
+  // responder al ratón. Ver el bloque `html.acct-open` en el CSS.
+  document.documentElement.classList.toggle('acct-open', open);
   if (open){
     // Who else is online is only worth asking about while the menu is open.
     google.script.run
@@ -21992,6 +22565,11 @@ function closeAccountMenu(){
   var btn  = document.getElementById('acctBtn');
   if (menu) menu.classList.remove('open');
   if (btn)  btn.classList.remove('open');
+  // Se quita SIEMPRE, incluso si el menú ya estaba cerrado. Esta función es la
+  // que corre al pulsar fuera y al pulsar Escape, y dejarse la clase puesta
+  // significaría la página sin poder moverse y el mazo sin ratón, sin nada
+  // abierto que lo explique — el peor fallo posible de los tres.
+  document.documentElement.classList.remove('acct-open');
 }
 
 // Kept because older buttons still call it by this name.

@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.05';
+var APP_VERSION = '12.11';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.05';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '4993bba6';
+var APP_BUILD = '09961335';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -4792,7 +4792,31 @@ function runCheckin_() {
   var cfg     = loadConfig();
   var users   = ss.getSheetByName('USERS_V3');
   var userCount = users && users.getLastRow() > 1 ? users.getLastRow() - 1 : 0;
-  var url = String(savedWebAppUrl_() || '');
+  /* AQUÍ IBA LA URL DE LA APP DEL CLIENTE, Y SE QUITÓ EL 2026-09-22.
+   *
+   * No porque filtre nada —el correo va sólo a SUPPORT_EMAIL, o sea a Jose—,
+   * sino porque LA POLÍTICA DE PRIVACIDAD DECÍA OTRA COSA. Su sección 3, la
+   * que un cliente lee antes de confiarle su almacén, dice:
+   *
+   *   "Ese correo contiene exactamente cuatro cosas: el nombre de tu empresa,
+   *    el correo de tu administrador, cuántos usuarios hay registrados y
+   *    cuántos días han pasado desde la instalación. Nada más."
+   *
+   * Y mandaba cinco: esas cuatro y un enlace a su instalación. La promesa era
+   * más estrecha que el código, y de las dos formas de cuadrarlas —ensanchar la
+   * promesa o estrechar el código— se eligió estrechar el código, por dos
+   * razones. La primera es que "cuatro cosas, nada más" es un argumento de
+   * venta de verdad para quien teme por sus datos, y cambiarlo a cinco (una de
+   * ellas un enlace a su app) se lee peor de lo que es. La segunda es que la
+   * URL era comodidad, no capacidad: el correo del administrador ya viene en el
+   * mismo mensaje, así que para contactar con quien se quedó atascado no falta
+   * nada.
+   *
+   * LO QUE NO ERA: un fallo de este correo. Era la falta de un guardia que ate
+   * lo que el texto legal PROMETE con lo que el código MANDA. test-legal-sync
+   * compara las dos copias del texto entre sí —que no divergan— y test-checkin
+   * comprobaba cuándo se manda y cuántas veces, no qué lleva dentro. Ninguno
+   * podía ver esto. Ahora test-checkin cuenta los campos. */
 
   MailApp.sendEmail({
     to: support,
@@ -4806,7 +4830,6 @@ function runCheckin_() {
         '<tr><td style="color:#666">Users registered</td><td>' + userCount + '</td></tr>' +
         '<tr><td style="color:#666">Movements recorded</td><td>0</td></tr>' +
         '<tr><td style="color:#666">Days since setup</td><td>' + daysSince + '</td></tr>' +
-        (url ? '<tr><td style="color:#666">Their app</td><td><a href="' + escHtml_(url) + '">' + escHtml_(url) + '</a></td></tr>' : '') +
       '</table>' +
       '<p style="font-size:13px">This is the moment to reach out — a short call in the first two weeks is ' +
         'the biggest thing that predicts whether an install turns into a renewal.</p>' +
@@ -10568,11 +10591,23 @@ function addIncoming(data) {
      *
      * textCell_ además sustituye a sheetSafe_ sin perder nada: una comilla
      * delante hace la celda literal, así que también neutraliza las fórmulas. */
+    /* cleanDisplay_, LA MISMA QUE UN MOVIMIENTO. Jose, 2026-09-17: *"en el
+     * incoming no se regularizan los nombres como en un entry; en el entry, al
+     * escribir un nombre, éste se hace todo mayúscula. Deberíamos hacer lo
+     * mismo en los incomings."*
+     *
+     * Y no era cosa de gusto: un movimiento guarda `cleanDisplay_(d.name)` y
+     * una entrega esperada guardaba `String(data.name||'').trim()`. Otra vez el
+     * mismo patrón —conducta escrita para un camino y no cableada en el otro—,
+     * y esta vez con consecuencia: el aviso de duplicado y la sugerencia del
+     * formulario de entrada comparan por nombre, así que mientras una entrega
+     * guardara "Yogu Yogu" y otra "YOGU YOGU" no saltarían NUNCA en el caso que
+     * las justifica. La normalización tenía que ir primero. */
     sheet.appendRow(textSafeRow_([
       id,
       estDate,
-      String(data.category || '').toUpperCase().trim(),
-      String(data.name     || '').trim(),
+      cleanDisplay_(data.category),
+      cleanDisplay_(data.name),
       Number(data.qty      || 0),
       String(data.unit     || 'UNIT'),
       String(data.supplier || ''),
@@ -10623,11 +10658,15 @@ function updateIncoming(data) {
           : (values[i][13] || '');
         // textSafeRow_ por el mismo motivo que en addIncoming: sin él, un PO con
         // forma de fecha —"08-4885"— se guarda como fecha y vuelve vacío.
+        // cleanDisplay_ aquí también, y por eso mismo: si sólo normalizara al
+        // crear, editar una entrega la devolvería a como se tecleó. La mitad de
+        // los arreglos de este archivo son de conductas puestas en un camino y
+        // no en el otro; ésta es la misma conducta en sus dos caminos.
         sheet.getRange(i + 1, 1, 1, 17).setValues([textSafeRow_([
           data.id,
           estDate,
-          String(data.category || '').toUpperCase().trim(),
-          String(data.name     || '').trim(),
+          cleanDisplay_(data.category),
+          cleanDisplay_(data.name),
           Number(data.qty      || 0),
           String(data.unit     || 'UNIT'),
           String(data.supplier || ''),
