@@ -277,29 +277,84 @@
     .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem .25rem .1rem;margin-top:.6rem;border-bottom:1px dashed var(--border)}
 
     /* ── LA TIRA DE RESERVAS ──────────────────────────────────────────────────
-       Va encima del plano y se lee de un vistazo, así que es una REJILLA de
-       cuatro columnas y no un flex: el estante, el material, la cantidad y el
-       motivo tienen que quedar alineados entre filas, porque lo que se hace con
-       esta lista es compararla consigo misma ("¿qué más está apartado?").
-       Un flex dejaría cada fila con sus columnas en un sitio distinto.
+       Va encima del plano y se lee de un vistazo, así que es una REJILLA y no un
+       flex: el estante, el material, la cantidad y el motivo tienen que quedar
+       alineados entre filas, porque lo que se hace con esta lista es compararla
+       consigo misma ("¿qué más está apartado?").
 
-       El motivo es lo único que se recorta: es texto de una persona y puede ser
-       largo; los otros tres son datos y se leen enteros o no sirven. */
+       LAS COLUMNAS SON FIJAS EN PÍXELES, y ésa es la corrección de Jose el
+       2026-09-21: *"todo depende del tamaño de los nombres, cada cosa se mueve
+       si se ponen más letras; démosle un espacio horizontal fijo a cada uno."*
+       Tenía razón y la culpa era de `auto`: con `grid-template-columns:auto …`
+       la columna del estante medía lo que midiera el nombre de estante más
+       largo de la lista, así que AÑADIR UNA RESERVA MOVÍA TODAS LAS DEMÁS. Con
+       píxeles, la columna vale lo mismo tenga la tira una fila o cien.
+
+       Y lo que no cabe NO SE RECORTA: se encoge un paso o dos (fit-sm, fit-xs)
+       y, si aun así no entra, pasa a dos líneas. Es la misma escalera que la de
+       las etiquetas: primero achicar hasta un suelo que se lea, luego partir.
+       Cortar con puntos suspensivos escondía justo el final de los nombres
+       largos, que es donde están el A/B/C y el número que los distinguen. */
     .resv-strip{border:1px solid var(--yellow);border-radius:10px;background:var(--yellow-bg);
       padding:.6rem .75rem;margin-bottom:.9rem}
-    .resv-strip-hdr{font-size:.78rem;font-weight:700;color:var(--text);
-      display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;margin-bottom:.45rem}
+    .resv-strip-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+    /* La cabecera ES el botón de abrir y cerrar: toda ella, no un triangulito de
+       diez píxeles. Quien quiere ver la lista apunta al renglón que la nombra. */
+    .resv-toggle{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;
+      gap:.5rem;background:none;border:0;padding:.1rem 0;margin:0;cursor:pointer;
+      font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text);text-align:left}
+    .resv-toggle:hover .resv-caret{color:var(--accent)}
+    .resv-caret{display:inline-block;flex-shrink:0;width:.8rem;color:var(--muted);
+      transition:transform .18s ease}
+    .resv-strip.abierta .resv-caret{transform:rotate(90deg)}
     .resv-hint{font-weight:400;font-size:.72rem;color:var(--muted)}
-    .resv-rows{display:flex;flex-direction:column;gap:.25rem}
-    .resv-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1.4fr);
-      gap:.6rem;align-items:baseline;width:100%;text-align:left;cursor:pointer;
+    /* El botón de soltar las que no retienen nada. Va en la cabecera y no en
+       cada fila porque es una acción sobre el CONJUNTO. */
+    .resv-limpiar{flex-shrink:0;background:var(--card);border:1px solid var(--orange);
+      color:var(--orange);border-radius:6px;padding:.25rem .6rem;font-family:inherit;
+      font-size:.72rem;font-weight:700;cursor:pointer}
+    .resv-limpiar:hover{background:var(--orange);color:#fff}
+    .resv-rows{display:flex;flex-direction:column;gap:.25rem;margin-top:.45rem}
+    /* `hidden` LO PONE EL NAVEGADOR CON display:none, Y ESTA REGLA LO PISABA.
+       La hoja del navegador dice `[hidden]{display:none}`, que es un selector de
+       un atributo; `.resv-rows` es uno de clase y gana. Resultado: la tira salía
+       con el atributo `hidden` puesto y las filas a la vista igualmente. Lo
+       encontró la prueba de navegador midiendo la altura de la tira (236px, o
+       sea, la lista entera) — mirando sólo el HTML, `hidden` estaba ahí y todo
+       parecía correcto. */
+    .resv-rows[hidden]{display:none}
+    /* El envoltorio parte la fila en "lo que se lee" y "lo que se pulsa". Existe
+       para que el botón de soltar no viva DENTRO del botón de abrir el estante:
+       un botón dentro de otro no es HTML válido y el navegador lo desarma. */
+    .resv-row-wrap{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:.4rem;
+      align-items:stretch}
+    .resv-row-wrap.sin-accion{grid-template-columns:minmax(0,1fr)}
+    /* La columna del estante mide 120px POR MEDIDA, no por gusto: en esta
+       fuente y en negrita, DELIVERY SHELF ocupa 103px a tamaño normal y WINDOW
+       WAREHOUSE 115px al pequeño. Con los 96px que tenía al principio, el
+       estante de Jose de la captura —WINDOW WAREHOUSE— no cabía de ninguna
+       manera y salía cortado con puntos suspensivos, que es justo lo que él no
+       quería. Lo encontró la prueba de navegador, no el ojo. */
+    .resv-row{display:grid;grid-template-columns:120px minmax(0,1.5fr) 104px minmax(0,2fr);
+      gap:.6rem;align-items:center;width:100%;text-align:left;cursor:pointer;
       background:var(--card);border:1px solid var(--border);border-radius:7px;
       padding:.35rem .55rem;font-family:inherit;font-size:.76rem;color:var(--text)}
     .resv-row:hover{border-color:var(--yellow);background:var(--yellow-bg)}
-    .resv-rack{font-weight:700;color:var(--accent);white-space:nowrap}
-    .resv-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .resv-qty{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
-    .resv-why{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* NINGUNA CELDA SE RECORTA. Todas pueden partirse, y todas se paran a las
+       dos líneas. Recortar con puntos suspensivos escondía el final de los
+       nombres largos, que es donde está el A/B/C que los distingue. La escalera
+       de tamaño es lo que hace que casi ninguna NECESITE partirse. */
+    .resv-row > span{min-width:0;overflow:hidden;line-height:1.25;
+      display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;
+      overflow-wrap:anywhere}
+    .resv-rack{font-weight:700;color:var(--accent)}
+    .resv-name{font-weight:600}
+    .resv-qty{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+    .resv-why{color:var(--muted)}
+    /* El suelo es .64rem — medido, no elegido: por debajo de ~10px un nombre en
+       mayúsculas deja de leerse de un vistazo, que es para lo que sirve la tira. */
+    .resv-row .fit-sm{font-size:.70rem}
+    .resv-row .fit-xs{font-size:.64rem}
     /* La reserva que no retiene nada. Se APAGA en vez de gritar: sigue siendo
        una reserva de verdad —el material no puede salir— sólo que ahora mismo
        no hay nada que retener. Un rojo de alarma la pondría por encima de las
@@ -307,11 +362,21 @@
     .resv-row.resv-vacia{opacity:.72;border-style:dashed}
     .resv-vacia .resv-qty{color:var(--muted)}
     .resv-alerta{color:var(--orange);font-weight:600}
-    /* En pantalla estrecha la rejilla de cuatro no cabe sin recortarlo todo a
-       nada, así que se parte en dos renglones y el motivo pasa entero debajo. */
+    /* SOLTAR, EN LA FILA. Jose, 2026-09-21: *"¿por qué no lo puedo borrar?"* —
+       porque el único botón para soltar vivía dentro del cajón del estante, en
+       la fila del material, y una reserva que no retiene nada NO TIENE FILA
+       ahí. La advertencia decía qué pasaba y no daba forma de arreglarlo. */
+    .resv-soltar{background:var(--card);border:1px solid var(--border);border-radius:7px;
+      color:var(--muted);font-family:inherit;font-size:.7rem;font-weight:700;
+      cursor:pointer;padding:.2rem;white-space:nowrap}
+    .resv-soltar:hover{border-color:var(--orange);color:var(--orange);background:var(--yellow-bg)}
+    /* En pantalla estrecha la rejilla de cuatro no cabe sin achicarlo todo hasta
+       lo ilegible, así que se parte en dos renglones: los datos arriba y el
+       motivo entero debajo, ya sin límite de líneas. */
     @media (max-width:640px){
-      .resv-row{grid-template-columns:auto minmax(0,1fr) auto}
-      .resv-why{grid-column:1 / -1;white-space:normal}
+      .resv-row{grid-template-columns:86px minmax(0,1fr) 84px}
+      .resv-why{grid-column:1 / -1}
+      .resv-row > span{-webkit-line-clamp:3;line-clamp:3}
     }
     /* Each row is a grid of N equal columns → A1A A1B A1C always stay on ONE line. */
     .map-rack-row{display:grid;gap:.45rem;margin-bottom:.45rem}
@@ -3965,7 +4030,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.04';
+var APP_VERSION = '12.05';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -3977,7 +4042,7 @@ var APP_VERSION = '12.04';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '5fc1ea70';
+var APP_BUILD = '4993bba6';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14733,6 +14798,10 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _perso
       openLockModal(el.getAttribute('data-matid'), el.getAttribute('data-cat'), el.getAttribute('data-name'), el.getAttribute('data-rack'));
     } else if (a === 'unlock-material') {
       unlockMaterialConfirm(el.getAttribute('data-lock-id'), el.getAttribute('data-lock-name'));
+    } else if (a === 'toggle-resv') {
+      toggleReservasTira();
+    } else if (a === 'release-empty') {
+      releaseEmptyReservationsConfirm();
     } else if (a === 'toggle-rdw') {
       _toggleRdwActions(parseInt(el.getAttribute('data-idx'), 10));
     } else if (a === 'rdw-move') {
@@ -16570,11 +16639,64 @@ function renderWarehouseMap(){
   container.innerHTML = _reservasTiraHtml() + '<div class="wh-map">' + html + '</div>';
 }
 
+/* PLEGADA POR DEFECTO, y abierta si quien la usa la dejó abierta.
+ *
+ * Jose, 2026-09-21: *"si existen 100 materiales reservados habrá una lista de
+ * 100 cosas, será bien larga; debemos hacerlo expandible como el Low Stock del
+ * dashboard, que sólo se expande al hacer clic."*
+ *
+ * La cabecera ya dice lo que se lee de un vistazo —cuántas unidades, en cuántos
+ * estantes, cuántas no retienen nada—; la lista es para ACTUAR, y eso se pide.
+ * La elección se guarda porque no es una preferencia de esta pantalla sino de
+ * cómo trabaja esa persona: quien la quiere abierta la quiere abierta mañana. */
+var _RESV_KEY = 'acopio_resv_abierta';
+var _resvAbierta = (function(){
+  try { return localStorage.getItem(_RESV_KEY) === '1'; } catch(e){ return false; }
+})();
+function toggleReservasTira(){
+  _resvAbierta = !_resvAbierta;
+  try { localStorage.setItem(_RESV_KEY, _resvAbierta ? '1' : '0'); } catch(e){}
+  var strip = document.querySelector('.resv-strip');
+  if (!strip) return;
+  strip.classList.toggle('abierta', _resvAbierta);
+  var rows = strip.querySelector('.resv-rows');
+  if (rows) rows.hidden = !_resvAbierta;
+  var btn = strip.querySelector('.resv-toggle');
+  if (btn) btn.setAttribute('aria-expanded', _resvAbierta ? 'true' : 'false');
+}
+
+/* CUÁNTO OCUPA UNA LETRA, MEDIDO. 8,5px a .76rem en negrita y mayúsculas, que
+ * es como se escriben aquí los estantes y los materiales. Sale de medir en el
+ * navegador los nombres reales del almacén de Jose —WINDOW WAREHOUSE 136px/16
+ * letras, MIRRORS/SHOWERS BACK WALL 200px/25, DELIVERY SHELF 103px/14— y
+ * quedarse con el peor de ellos, no con la media: el umbral tiene que aguantar
+ * el nombre más ancho, no el corriente.
+ *
+ * Se cuenta por letras y no por píxeles porque el ancho real sólo se sabe
+ * DESPUÉS de pintar, y para entonces ya se eligió el tamaño. */
+var _RESV_PX_LETRA = 8.5;
+
+/** Qué tamaño le toca a este texto en una columna de `anchoPx` píxeles.
+ *
+ *  Una escalera de dos peldaños, y nada más: si al pequeño tampoco cabe, no se
+ *  recorta —se parte en dos líneas, que lo hace el CSS por su cuenta—. Ésa es
+ *  la regla que pidió Jose: *"que se encojan hasta un punto que sí se pueda
+ *  leer, pero si es mucha letra entonces se hace doble línea."* */
+function _resvFit(v, anchoPx){
+  var n = String(v === null || v === undefined ? '' : v).length;
+  if (!n) return '';
+  if (n * _RESV_PX_LETRA <= anchoPx) return '';
+  // .70rem sobre .76rem — el mismo texto ocupa un 92% de lo que ocupaba.
+  if (n * _RESV_PX_LETRA * 0.92 <= anchoPx) return 'fit-sm';
+  return 'fit-xs';
+}
+
 /** La tira de reservas del mapa. Los datos salen de _reservasActivas, igual que
  *  el total del tablero — una cuenta, tres pantallas. */
 function _reservasTiraHtml(){
   var res = _reservasResumen();
   if (!res.n) return '';
+  var esAdmin = userRole === 'ADMIN';
   var filas = res.lista.map(function(r){
     // La fila que no retiene nada se dice con palabras, no con un hueco. Y el
     // motivo va en el sitio del motivo: lo que la persona escribió al apartar
@@ -16585,32 +16707,121 @@ function _reservasTiraHtml(){
         ? ('holds nothing — the material is no longer at ' + r.rack +
            (r.otrosEstantes.length ? ' (it is at ' + r.otrosEstantes.join(', ') + ')' : ''))
         : '';
-    return '<button class="resv-row' + (r.vacia ? ' resv-vacia' : '') + '" ' +
-             'data-action="open-rack" data-rack="' + _escAttr(r.rack) + '" ' +
-             'title="' + _escAttr((r.reason || 'no reason given') +
-                                  (r.by ? ' — ' + r.by : '') +
-                                  (r.at ? ' · ' + r.at : '') +
-                                  (aviso ? '\n\n' + aviso + '. Release it if it is no longer needed.' : '')) + '">' +
-             '<span class="resv-rack">' + _he(r.rack) + '</span>' +
-             '<span class="resv-name">' + _he(r.name) + '</span>' +
-             '<span class="resv-qty">' + _he(r.qty) + ' ' + _he(r.unit) + '</span>' +
-             '<span class="resv-why">' +
-               (aviso ? '<span class="resv-alerta">⚠ ' + _he(aviso) + '</span>'
-                      : _he(r.reason || '—')) +
-             '</span>' +
-           '</button>';
+    var porque = aviso || r.reason || '—';
+    var qty    = _qtyText(r.qty) + ' ' + r.unit;
+    return '<div class="resv-row-wrap' + (esAdmin ? '' : ' sin-accion') + '">' +
+             '<button class="resv-row' + (r.vacia ? ' resv-vacia' : '') + '" ' +
+               'data-action="open-rack" data-rack="' + _escAttr(r.rack) + '" ' +
+               'title="' + _escAttr((r.reason || 'no reason given') +
+                                    (r.by ? ' — ' + r.by : '') +
+                                    (r.at ? ' · ' + r.at : '') +
+                                    (aviso ? '\n\n' + aviso + '.' : '')) + '">' +
+               // Los anchos son los de la rejilla de arriba. Los dos fijos son
+               // exactos; los dos flexibles son el ancho que toman en una
+               // pantalla de escritorio, que es donde el tamaño importa —en una
+               // estrecha lo que salva la fila es partirla, no encogerla.
+               '<span class="resv-rack ' + _resvFit(r.rack, 120) + '">' + _he(r.rack) + '</span>' +
+               '<span class="resv-name ' + _resvFit(r.name, 190) + '">' + _he(r.name) + '</span>' +
+               '<span class="resv-qty ' + _resvFit(qty, 104) + '">' + _he(qty) + '</span>' +
+               '<span class="resv-why ' + _resvFit(porque, 250) + '">' +
+                 (aviso ? '<span class="resv-alerta">⚠ ' + _he(aviso) + '</span>' : _he(porque)) +
+               '</span>' +
+             '</button>' +
+             (esAdmin
+               ? '<button class="resv-soltar" data-action="unlock-material" ' +
+                   'data-lock-id="' + _escAttr(r.id) + '" ' +
+                   'data-lock-name="' + _escAttr(r.name) + '" ' +
+                   'title="Release this reservation">Release</button>'
+               : '') +
+           '</div>';
   }).join('');
-  return '<div class="resv-strip">' +
-           '<div class="resv-strip-hdr">🔒 Reserved — ' + res.unidades.toLocaleString() +
-             ' unit' + (res.unidades === 1 ? '' : 's') + ' held across ' + res.estantes +
-             ' rack' + (res.estantes === 1 ? '' : 's') +
-             '<span class="resv-hint">nothing here can leave the warehouse until it is released' +
-               (res.vacias ? ' · ' + res.vacias + ' hold' + (res.vacias === 1 ? 's' : '') +
-                             ' nothing and can be released' : '') +
-             '</span>' +
+
+  // El botón de limpiar sólo aparece cuando hay algo que limpiar, y dice cuántas
+  // son: "Release 3" es una cuenta que se puede comprobar antes de pulsar.
+  var limpiar = (esAdmin && res.vacias)
+    ? '<button class="resv-limpiar" data-action="release-empty">🧹 Release the ' +
+        res.vacias + ' holding nothing</button>'
+    : '';
+
+  return '<div class="resv-strip' + (_resvAbierta ? ' abierta' : '') + '">' +
+           '<div class="resv-strip-hdr">' +
+             '<button class="resv-toggle" data-action="toggle-resv" ' +
+               'aria-expanded="' + (_resvAbierta ? 'true' : 'false') + '">' +
+               '<span class="resv-caret">▸</span>' +
+               '<span>🔒 Reserved — ' + res.unidades.toLocaleString() +
+                 ' unit' + (res.unidades === 1 ? '' : 's') + ' held across ' + res.estantes +
+                 ' rack' + (res.estantes === 1 ? '' : 's') + '</span>' +
+               '<span class="resv-hint">nothing here can leave the warehouse until it is ' +
+                 'released · ' + res.n + ' reservation' + (res.n === 1 ? '' : 's') +
+                 (res.vacias ? ' · ' + res.vacias + ' hold' + (res.vacias === 1 ? 's' : '') +
+                               ' nothing' : '') +
+                 ' · ' + (_resvAbierta ? 'click to hide' : 'click to see them') +
+               '</span>' +
+             '</button>' + limpiar +
            '</div>' +
-           '<div class="resv-rows">' + filas + '</div>' +
+           '<div class="resv-rows"' + (_resvAbierta ? '' : ' hidden') + '>' + filas + '</div>' +
          '</div>';
+}
+
+/** Soltar de golpe todas las que no retienen nada.
+ *
+ *  Jose preguntó qué sentido tiene AVISAR de una reserva que no retiene nada si
+ *  luego no se puede hacer nada con ella. Ninguno: un aviso sin botón es medio
+ *  arreglo. Éste es el botón.
+ *
+ *  Y se nombran una por una en la confirmación, no "3 reservations". Soltar es
+ *  irreversible —hay que volver a apartar a mano, con su motivo— así que lo que
+ *  se va a soltar se lee antes de soltarlo. */
+function releaseEmptyReservationsConfirm(){
+  var vacias = _reservasActivas().filter(function(r){ return r.vacia; });
+  if (!vacias.length){
+    showToast('Every reservation is holding material right now.', 'info');
+    return;
+  }
+  var lineas = vacias.slice(0, 12).map(function(r){
+    return '· ' + r.name + ' @ ' + r.rack +
+           (r.vacia === 'sin-material' ? '  (no stock anywhere)'
+                                       : '  (moved out of ' + r.rack + ')');
+  });
+  if (vacias.length > 12) lineas.push('· …and ' + (vacias.length - 12) + ' more');
+
+  _showConfirm({
+    icon: '🧹',
+    title: 'Release ' + vacias.length + ' reservation' + (vacias.length === 1 ? '' : 's') +
+           ' holding nothing?',
+    message: lineas.join('\n') + '\n\n' +
+             'These hold no material, so releasing them changes no quantity ' +
+             'anywhere — it only takes them off this list. To hold the material ' +
+             'again you would have to reserve it again, with a reason.',
+    confirmText: 'Release ' + vacias.length,
+    danger: false,
+    onConfirm: function(){
+      _doUnlockMany(vacias.map(function(r){ return r.id; }));
+    }
+  });
+}
+
+function _doUnlockMany(ids){
+  google.script.run
+    .withSuccessHandler(function(res){
+      var quitar = {};
+      ids.forEach(function(id){ quitar[id] = true; });
+      materialLocks = materialLocks.filter(function(l){ return !quitar[l.id]; });
+      _rebuildLocksIndex();
+      var n = (res && res.released) || 0;
+      // Que alguien se haya adelantado no es un fallo de quien pulsó: el mundo
+      // acabó como pedía. Se cuenta, no se disculpa. Misma regla que en
+      // unlockMaterial, y la misma razón.
+      showToast('🔓 Released ' + n + ' reservation' + (n === 1 ? '' : 's') +
+        (res && res.alreadyGone
+          ? ' — ' + res.alreadyGone + ' had already been released by someone else.'
+          : '.'), 'ok', 5000);
+      if (_openRackName) openRackDrawer(_openRackName);
+      renderStock();
+      renderWarehouseMap();
+    })
+    .withFailureHandler(function(err){ showToast('Error: ' + _stripTags(err), 'err', 6000); })
+    .processMovement('unlockMaterials', _h({ ids: ids }));
 }
 
 // ── Rack Detail Drawer ────────────────────────────────────────────────────────

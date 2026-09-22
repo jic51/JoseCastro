@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.04';
+var APP_VERSION = '12.05';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.04';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '5fc1ea70';
+var APP_BUILD = '4993bba6';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -2535,6 +2535,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'uploadRackPhoto')       return uploadRackPhoto(data, auth);
   if (action === 'lockMaterial')          return lockMaterial(data, auth);
   if (action === 'unlockMaterial')        return unlockMaterial(data, auth);
+  if (action === 'unlockMaterials')       return unlockMaterials(data, auth);
   if (action === 'updateMinStockBulk')    return updateMinStockBulk(data, auth);
   if (action === 'parseImportFile')       return parseImportFile(data);
   if (action === 'commitImport')          return commitImport(data, auth);
@@ -2894,7 +2895,11 @@ var DATA_STAMP_ACTIONS = {
   // PUEDE HACER. Que se entere en su siguiente carga es justo lo que no sirve:
   // para cuando recargue ya intentó sacar el material y se comió el error.
   lockMaterial:        true,
-  unlockMaterial:      true
+  unlockMaterial:      true,
+  // Soltar diez de golpe cambia lo mismo que soltar una, diez veces. Si no
+  // estuviera aquí, la persona de al lado seguiría viendo diez candados que ya
+  // no existen hasta su siguiente carga.
+  unlockMaterials:     true
 };
 
 function bumpDataStamp_() {
@@ -5731,6 +5736,49 @@ function unlockMaterial(data, auth) {
   // `alreadyGone` es para poder decirlo con otras palabras, no para decidir
   // nada distinto.
   return { status: 'success', alreadyGone: true };
+}
+
+/** Soltar VARIAS reservas de una pasada.
+ *
+ *  Jose, 2026-09-21, mirando la reserva de EVELYN A QUINONEZ que no retiene
+ *  nada: *"¿y cuándo tenga 10 cosas así? Debemos darle una forma de arreglarlo
+ *  al usuario."* Soltarlas de una en una son diez viajes al servidor y diez
+ *  lecturas de la misma hoja; esto es una lectura y una pasada.
+ *
+ *  NO ES UNA REGLA NUEVA, es el mismo trabajo de unlockMaterial repetido:
+ *  mismo permiso de ADMIN, misma marca 'Removed' con quién y cuándo, y una
+ *  línea de auditoría POR RESERVA — no una que diga "soltó diez". Cuando
+ *  alguien pregunte dentro de seis meses por qué se soltó ésta en concreto, la
+ *  respuesta tiene que estar en su propia línea.
+ *
+ *  Y como allí: que una ya no esté activa NO ES UN ERROR. Lo que se pedía era
+ *  que no retuviera nada, y no retiene nada. Se cuentan aparte para poder
+ *  decirlo con otras palabras, no para decidir nada distinto. */
+function unlockMaterials(data, auth) {
+  auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
+  var ids = Array.isArray(data.ids) ? data.ids.map(String).filter(Boolean) : [];
+  if (!ids.length) throw new Error('No reservations were selected.');
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('MATERIAL_LOCKS');
+  if (!sheet) return { status: 'success', released: 0, alreadyGone: ids.length };
+
+  var pedidas = {};
+  ids.forEach(function(id){ pedidas[id] = true; });
+
+  var rows = sheet.getDataRange().getValues();
+  var ahora = new Date(), soltadas = 0;
+  for (var i = 1; i < rows.length; i++) {
+    if (!pedidas[String(rows[i][0])]) continue;
+    if (String(rows[i][9] || '').toUpperCase() !== 'ACTIVE') continue;
+    sheet.getRange(i + 1, 10, 1, 3).setValues([['Removed', auth.email, ahora]]);
+    auditLog_(ss, 'UNLOCK_MATERIAL', auth.email,
+              String(rows[i][3]) + ' @ ' + String(rows[i][4]), '', '');
+    soltadas++;
+  }
+  if (soltadas) CacheService.getScriptCache().remove('materialLocksV1');
+  return { status: 'success', released: soltadas,
+           alreadyGone: ids.length - soltadas };
 }
 
 // ─── DOCUMENT UPLOAD ─────────────────────────────────────────────────────────
