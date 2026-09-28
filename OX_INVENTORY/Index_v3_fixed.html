@@ -1326,27 +1326,36 @@
        LOS NÚMEROS SON MEDIDOS, no elegidos: se dibujó la tabla con datos del
        almacén de Jose bajo siete filtros distintos y se tomó el ancho máximo que
        alcanzaba cada columna. Ver tools/test-columnas.js, que vuelve a medir y
-       falla si alguna columna se mueve al cambiar de filtro. */
-    #tableContainer table{table-layout:fixed;width:100%;min-width:1300px}
-    /* 112 y 160 SON MEDIDOS, y los dos se corrigieron al alza porque la prueba
-       encontró que se salían: la insignia `⇄ TRANSFER` no cabía en 100px, y el
-       correo más largo del almacén de Jose —joseisrael5101@gmail.com— mide
-       135px, que con el relleno de la celda no entra en 140. */
-    #tableContainer th.mc-when{width:112px}
-    #tableContainer th.mc-qty{width:58px}
-    #tableContainer th.mc-unit{width:58px}
-    #tableContainer th.mc-po{width:86px}
-    #tableContainer th.mc-locFlow{width:150px}
-    #tableContainer th.mc-rawLoc{width:120px}
-    #tableContainer th.mc-gc{width:110px}
-    #tableContainer th.mc-project{width:140px}
-    #tableContainer th.mc-supplier{width:120px}
-    #tableContainer th.mc-resp{width:110px}
-    #tableContainer th.mc-comment{width:150px}
-    #tableContainer th.mc-pm{width:110px}
-    #tableContainer th.mc-sysDate{width:112px}
-    #tableContainer th.mc-user{width:160px}
-    #tableContainer th.mc-doc{width:76px}
+       falla si alguna columna se mueve al cambiar de filtro.
+
+       ── EL MÍNIMO DE LA TABLA SE CALCULA, NO SE ESCRIBE (v12.12) ────────────
+
+       Aquí había `min-width:1300px` —un número escrito a mano— y los anchos de
+       cada columna estaban en este bloque de CSS. Las dos cosas eran un fallo,
+       y Jose lo encontró en producción tres días después: en su copia de OX
+       tenía ENSEÑADA la columna Supplier, y con ella la suma de los anchos
+       declarados daba 1296px contra un mínimo de 1300. Al material —la única
+       columna elástica— le quedaban **CUATRO PÍXELES**, así que el nombre se
+       dibujaba UNA LETRA POR RENGLÓN y las filas pasaban de 83px a 428px.
+
+       Un número fijo no puede saber cuántas columnas hay a la vista, y eso lo
+       decide cada persona con el ojo de "⚙ Columns". Así que ahora:
+
+         · LOS ANCHOS VIVEN EN `MOV_COLS`, al lado de la columna a la que
+           pertenecen, y se emiten en el `<th>`. Un solo sitio. Antes estaban
+           aquí y la lista de columnas estaba en el JavaScript, así que añadir
+           una columna en un sitio y olvidar el otro daba exactamente este
+           fallo, en silencio.
+         · EL MÍNIMO DE LA TABLA SE RECALCULA EN CADA DIBUJADO:
+
+               mínimo = suma de los anchos que SE VEN + _MOV_MIN_WHAT
+
+       Con eso el material nunca baja de su mínimo: ni enseñando las dieciséis
+       columnas, ni con el editor abierto, ni en la ventana de un teléfono.
+       Cuando no cabe, la tabla se desplaza de lado — que es lo correcto:
+       dieciséis columnas no caben en 960px, y una barra horizontal es mejor que
+       un texto que no se puede leer. */
+    #tableContainer table{table-layout:fixed;width:100%}
     /* Y lo que no cabe SE PARTE, no se recorta. Es la misma regla que Jose fijó
        para la tira de reservas: el final de un nombre es donde están la letra y
        el número que lo distinguen, así que esconderlo con puntos suspensivos es
@@ -2196,6 +2205,13 @@
     th.col-edit.col-dragging{opacity:.4}
     th.col-edit.col-drop{outline:2px dashed var(--accent);outline-offset:-3px}
     th.col-edit.col-off{opacity:.45}
+    /* LAS BLOQUEADAS SE VEN COMO UN BLOQUE, no como parte de lo que se reordena.
+       Sin esto se dibujaban idénticas a las demás, con asa incluida, así que
+       parecían arrastrables — y de hecho LO ERAN, porque `lock` sólo impedía
+       esconderlas. Ahora ni se mueven ni lo aparentan: fondo más oscuro, sin
+       asa, y el cursor de siempre en vez del de agarrar. */
+    th.col-edit.col-fija{cursor:default;background:rgba(0,0,0,.28)}
+    th.col-edit.col-fija .col-rename{cursor:text}
     .col-drag{opacity:.6;margin-right:.25rem;cursor:grab}
     .col-rename{width:118px;padding:.2rem .35rem;border:1px solid rgba(255,255,255,.35);border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-size:.72rem;font-family:inherit;font-weight:700}
     .col-rename:focus{outline:none;border-color:#fff;background:rgba(255,255,255,.2)}
@@ -4297,7 +4313,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.11';
+var APP_VERSION = '12.13';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4309,7 +4325,7 @@ var APP_VERSION = '12.11';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '09961335';
+var APP_BUILD = '423e62dc';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4944,24 +4960,70 @@ var STOCK_COLS = [
 //
 // Las dos siguen siendo `lock:true`: no se pueden esconder. Un movimiento sin
 // tipo ni fecha, o sin nombre, no es una fila que sirva para nada.
+/* `w` es el ancho en píxeles, y está AQUÍ y no en el CSS a propósito: es dato de
+ * la columna, como su nombre o su candado. Mientras vivió en un bloque de CSS
+ * aparte, nada obligaba a que las dos listas dijeran lo mismo, y de ahí salió el
+ * fallo de la v12.11 —el mínimo de la tabla era un número escrito a mano que no
+ * sabía cuántas columnas había a la vista—. Ahora la suma se calcula de aquí.
+ *
+ * `what` es la ÚNICA sin `w`: es la elástica, se queda con lo que sobre, y su
+ * suelo es `_MOV_MIN_WHAT`.
+ *
+ * LOS NÚMEROS SON MEDIDOS, no elegidos. 112 y 160 se corrigieron al alza porque
+ * la prueba encontró que se salían: la insignia `⇄ TRANSFER` no cabía en 100px,
+ * y el correo más largo del almacén de Jose mide 135px, que con el relleno de la
+ * celda no entra en 140. */
 var MOV_COLS = [
-  { key:'when',     def:'Type / Date',     lock:true  },
-  { key:'what',     def:'Category / Name', lock:true  },
-  { key:'qty',      def:'Qty',         lock:true  },
-  { key:'unit',     def:'Unit',        lock:false },
-  { key:'po',       def:'PO#',         lock:false },
-  { key:'locFlow',  def:'Src→Dest',    lock:false },
-  { key:'rawLoc',   def:'Raw Loc',     lock:false },
-  { key:'gc',       def:'GC',          lock:false },
-  { key:'project',  def:'Project',     lock:false },
-  { key:'supplier', def:'Supplier',    lock:false },
-  { key:'resp',     def:'Received By', lock:false },
-  { key:'comment',  def:'Comments',    lock:false },
-  { key:'pm',       def:'PM',          lock:false },
-  { key:'sysDate',  def:'Sys Date',    lock:false },
-  { key:'user',     def:'User',        lock:false },
-  { key:'doc',      def:'Doc',         lock:false }
+  { key:'when',     def:'Type / Date',     lock:true,  w:112 },
+  { key:'what',     def:'Category / Name', lock:true          },  // la elástica
+  { key:'qty',      def:'Qty',         lock:true,  w:58  },
+  { key:'unit',     def:'Unit',        lock:false, w:58  },
+  { key:'po',       def:'PO#',         lock:false, w:86  },
+  { key:'locFlow',  def:'Src→Dest',    lock:false, w:150 },
+  { key:'rawLoc',   def:'Raw Loc',     lock:false, w:120 },
+  { key:'gc',       def:'GC',          lock:false, w:110 },
+  { key:'project',  def:'Project',     lock:false, w:140 },
+  { key:'supplier', def:'Supplier',    lock:false, w:120 },
+  { key:'resp',     def:'Received By', lock:false, w:110 },
+  { key:'comment',  def:'Comments',    lock:false, w:150 },
+  { key:'pm',       def:'PM',          lock:false, w:110 },
+  { key:'sysDate',  def:'Sys Date',    lock:false, w:112 },
+  { key:'user',     def:'User',        lock:false, w:160 },
+  { key:'doc',      def:'Doc',         lock:false, w:76  }
 ];
+
+/* EL SUELO DEL MATERIAL, Y ESTÁ MEDIDO.
+ *
+ * 187px es lo que mide la insignia de categoría más larga del almacén de Jose
+ * —`IGU (ISOLATED GLASS UNIT)`— con su relleno. Es una píldora que no se parte,
+ * así que por debajo de eso se sale de su celda: medidos 15 desbordes de 3px
+ * con la columna a 184px, que es justo lo que le tocaba en la v12.11 con las
+ * columnas de fábrica en una pantalla de 1600. 192 deja cinco píxeles de margen
+ * para que la misma letra dibujada en otra máquina no lo tire.
+ *
+ * OJO A LA DEPENDENCIA: este número lo fija el nombre de categoría MÁS LARGO, y
+ * eso es dato del cliente, no nuestro. Un cliente con una categoría más larga
+ * volvería a desbordar. La solución de verdad es el nombre corto de categoría
+ * que Jose aprobó el 2026-09-22 (ver BACKLOG, punto C); cuando exista, este
+ * suelo puede bajar y hay que volver a medirlo, no adivinarlo. */
+var _MOV_MIN_WHAT = 192;
+
+/* LO QUE MIDE UNA CABECERA EN MODO EDICIÓN, medido y no elegido: el asa `⋮⋮`,
+ * el campo de nombre (`.col-rename`, 118px), el ojo o el candado, los huecos
+ * entre ellos y el relleno de la celda.
+ *
+ * El umbral medido es 178, y sale de un detalle que no se ve leyendo: una
+ * columna ESCONDIDA dibuja 🚫 en vez de 👁, y 🚫 es dos píxeles más ancho. Con
+ * 176 las cinco escondidas de fábrica se salían de su celda por un píxel y las
+ * otras once estaban bien — o sea que probar con una columna cualquiera daba
+ * verde. 184 deja seis de margen para otra máquina, y se queda por debajo de
+ * `_MOV_MIN_WHAT` (192), que es lo que hace que a la columna elástica, que en
+ * edición no lleva ancho, también le quepan sus mandos.
+ *
+ * Lo vigila tools/test-columnas.js, que abre el editor y comprueba que CADA ojo
+ * cae dentro de su celda por los cuatro lados — no que el botón exista, que ya
+ * existía mientras Jose no podía pulsarlo. */
+var _COL_EDIT_MIN = 184;
 
 var STOCK_COL_TIPS = {
   levels:       'Everything this material is accounted for as today, in one bar: ' +
@@ -5018,6 +5080,10 @@ var COL_TABLES = {
     // tocaba (100px medidos, para nombres de veinte letras) por culpa de una
     // columna que sólo lleva dos botones.
     tail: function(){ return _movCanAct() ? '<th style="width:44px"></th>' : ''; },
+    // El suelo de la columna elástica. Su presencia es lo que dice
+    // "esta tabla reparte en fijo y calcula su mínimo"; Stock no lo declara
+    // porque reparte por contenido y no tiene columna elástica.
+    minWhat: _MOV_MIN_WHAT,
     refresh: function(){ renderMovements(); }                             // rebuilds its own header
   }
 };
@@ -5075,7 +5141,30 @@ function _colOrder(t){
   // on to one that no longer exists.
   var out = saved.filter(function(k){ return known[k]; });
   _defaultColOrder(t).forEach(function(k){ if (out.indexOf(k) === -1) out.push(k); });
-  return out;
+
+  /* LAS BLOQUEADAS VAN DELANTE, Y EN SU ORDEN DE FÁBRICA (v12.13).
+   *
+   * Jose: *"tampoco se debería poder cambiar o mover… deben tener un lugar
+   * específico al ser mostradas."* `lock` significaba sólo "no se puede
+   * esconder": la columna seguía siendo arrastrable, así que Type/Date o
+   * Category/Name podían acabar en cualquier sitio. Ahora significa las dos
+   * cosas, y eso obliga a normalizar también el orden que la gente ya tiene
+   * guardado — si no, a quien hubiera movido una bloqueada le quedaría un orden
+   * que la app ya no le deja reproducir, y el editor pelearía con su propio
+   * guardado en cada dibujado.
+   *
+   * CONSECUENCIA, dicha en voz alta: a quien hubiera arrastrado Type/Date o
+   * Category/Name a otro sitio, le vuelven al principio. Es intencionado —son
+   * lo que un movimiento ES— pero es un cambio que esa persona no pidió. */
+  var fijas = [], libres = [];
+  out.forEach(function(k){
+    var c = _colDef(t, k);
+    (c && c.lock ? fijas : libres).push(k);
+  });
+  fijas.sort(function(a, b){
+    return _defaultColOrder(t).indexOf(a) - _defaultColOrder(t).indexOf(b);
+  });
+  return fijas.concat(libres);
 }
 
 /* UNA COLUMNA DONDE TODAS LAS FILAS DICEN LO MISMO NO ES INFORMACIÓN, ES MARGEN.
@@ -5233,22 +5322,52 @@ function _colHeadRowHtml(t){
     if (!c) return;
     if (hidden[key] && !editing) return;           // gone entirely until edit mode
 
+    var anchoAttr = c.w ? ' style="width:' + c.w + 'px"' : '';
+
     if (editing){
-      html += '<th class="' + cfg.prefix + key + (hidden[key] ? ' col-off' : '') + ' col-edit" ' +
-              'draggable="true" data-col="' + key + '">' +
-        '<span class="col-drag" title="Drag to move">⋮⋮</span>' +
+      /* EN EDICIÓN LA COLUMNA NO MIDE LO QUE MIDE SU DATO, SINO LO QUE MIDEN SUS
+       * MANDOS (v12.13). Jose, con vídeo: *"no se muestra el botón del ojo al
+       * editar, o queda debajo de la columna de al lado."*
+       *
+       * Y era literal: la cabecera en edición lleva asa, campo de nombre y ojo
+       * —medidos, `_COL_EDIT_MIN`— dentro de una celda que en Qty o Unit mide
+       * 58px. Con `white-space:nowrap`, el ojo no se envolvía: se salía de la
+       * celda y la de al lado lo tapaba. O sea que el botón para esconder una
+       * columna era invisible justo en las columnas más estrechas.
+       *
+       * Ensanchar en edición mete barra horizontal mientras el panel está
+       * abierto. Es lo correcto: el editor es un modo aparte, con sus botones
+       * Save y Reset, y un mando que no se puede pulsar es peor que un
+       * desplazamiento. */
+      /* La elástica SIGUE SIENDO ELÁSTICA en edición: se le pone ancho sólo a
+       * la que ya lo tiene. Ponérselo a todas —lo primero que escribí— le daba
+       * a `what` un ancho de 176px y la sacaba del reparto, o sea que el nombre
+       * del material quedaba por DEBAJO de su suelo de 192 justo en el modo que
+       * acabo de arreglar. Lo cazó la prueba, no la lectura. Su suelo lo pone
+       * `minWhat` a través del mínimo de la tabla, y como 192 > 176 los mandos
+       * le caben de sobra; `test-columnas.js` exige que esa relación se cumpla. */
+      var fija = !!c.lock;
+      var anchoEdAttr = c.w ? ' style="width:' + Math.max(c.w, _COL_EDIT_MIN) + 'px"' : '';
+      html += '<th class="' + cfg.prefix + key + (hidden[key] ? ' col-off' : '') +
+              ' col-edit' + (fija ? ' col-fija' : '') + '"' + anchoEdAttr +
+              ' draggable="' + (fija ? 'false' : 'true') + '" data-col="' + key + '">' +
+        /* La bloqueada NO lleva asa: no se puede mover, y un asa es una promesa
+         * de que sí. Antes la llevaba y además funcionaba — `lock` sólo impedía
+         * esconderla, no moverla. */
+        (fija ? '' : '<span class="col-drag" title="Drag to move">⋮⋮</span>') +
         (isAdmin
           ? '<input class="col-rename" data-col="' + key + '" value="' + _escAttr(_colLabel(t, key)) + '" ' +
             'title="Name shown to everyone in this company">'
           : '<span class="col-name-ro">' + _he(_colLabel(t, key)) + '</span>') +
-        (c.lock
-          ? '<span class="col-lock" title="This column cannot be hidden">🔒</span>'
+        (fija
+          ? '<span class="col-lock tip" data-tip="Type, Name and Qty are what a movement IS — ' +
+            'a row without them says nothing. They cannot be hidden or moved.">🔒</span>'
           : '<button class="col-eye" data-col="' + key + '" title="' + (hidden[key] ? 'Show' : 'Hide') + '">' +
             (hidden[key] ? '🚫' : '👁') + '</button>') +
       '</th>';
     } else {
       var tip = cfg.tips[key];
-      html += '<th class="' + cfg.prefix + key + (tip ? ' tip' : '') + '"' +
+      html += '<th class="' + cfg.prefix + key + (tip ? ' tip' : '') + '"' + anchoAttr +
               (tip ? ' data-tip="' + _escAttr(tip) + '"' : '') + '>' +
               _he(_colLabel(t, key)) + '</th>';
     }
@@ -5256,10 +5375,40 @@ function _colHeadRowHtml(t){
   return html + cfg.tail();
 }
 
+/* El mínimo de la tabla, calculado de la cabecera que se acaba de construir.
+ *
+ * Se suman los `width:Npx` del HTML en lugar de recorrer otra vez MOV_COLS, y
+ * es a propósito: así entran también los anchos de la casilla de selección y de
+ * la columna de acciones, que los pone `lead()`/`tail()` y no están en la lista
+ * de columnas. Recorrer la lista los habría dejado fuera —76px— y el material
+ * habría vuelto a quedarse corto, que es EXACTAMENTE la forma del fallo que
+ * esto arregla: dos listas que tienen que decir lo mismo y nada que lo obligue. */
+function _anchoDeclarado(html){
+  var suma = 0, re = /width:(\d+)px/g, m;
+  while ((m = re.exec(html))) suma += Number(m[1]);
+  return suma;
+}
+
+/* Se llama desde LOS DOS sitios que construyen la cabecera: `renderColHead`, y
+ * `renderMovements`, que se dibuja la tabla entera de una pieza y por eso no
+ * pasa por el otro. Que sean dos caminos es justo la forma de fallo que más
+ * veces ha aparecido en este proyecto —una conducta escrita para un camino y
+ * nunca enchufada en los demás—, así que la regla vive en una sola función y
+ * `tools/test-columnas.js` mide los dos caminos por separado. */
+function _fijarMinTabla(t, headHtml){
+  var cfg = _colCfg(t);
+  if (!cfg.minWhat) return;                 // Stock reparte por contenido
+  var row = document.getElementById(cfg.head);
+  var tabla = row && row.closest('table');
+  if (tabla) tabla.style.minWidth = (_anchoDeclarado(headHtml) + cfg.minWhat) + 'px';
+}
+
 function renderColHead(t){
   var row = document.getElementById(_colCfg(t).head);
   if (!row) return;
-  row.innerHTML = _colHeadRowHtml(t);
+  var html = _colHeadRowHtml(t);
+  row.innerHTML = html;
+  _fijarMinTabla(t, html);
   if (_colEdit[t]) _wireColEdit(t);
 }
 
@@ -5351,7 +5500,14 @@ function resetColEdit(t){
 var _colDragKey = null;
 function _wireColEdit(t){
   var cfg = _colCfg(t);
-  document.querySelectorAll('#' + cfg.head + ' th.col-edit').forEach(function(th){
+  /* NI SE ARRASTRAN NI SE SUELTA NADA ENCIMA.
+   *
+   * Quitarles el asa no basta: `draggable` es del elemento, no del asa, así que
+   * una bloqueada sin asa se seguiría arrastrando agarrándola por el nombre. Y
+   * si además se pudiera SOLTAR una libre encima, una columna cualquiera se
+   * colaría entre las tres fijas y el bloque dejaría de ser un bloque.
+   * Por eso este selector excluye `.col-fija` en lugar de filtrar dentro. */
+  document.querySelectorAll('#' + cfg.head + ' th.col-edit:not(.col-fija)').forEach(function(th){
     th.addEventListener('dragstart', function(e){
       _colDragKey = th.getAttribute('data-col');
       th.classList.add('col-dragging');
@@ -7503,8 +7659,14 @@ function renderMovements(){
     : '';
 
   var tc = document.getElementById('tableContainer');
-  tc.innerHTML = '<table><thead><tr id="movHeadRow">' + _colHeadRowHtml('mov') + '</tr></thead>' +
+  var headHtml = _colHeadRowHtml('mov');
+  tc.innerHTML = '<table><thead><tr id="movHeadRow">' + headHtml + '</tr></thead>' +
                  '<tbody>' + rows + '</tbody>' + foot + '</table>' + loadMoreBtn;
+
+  // El mínimo de la tabla depende de QUÉ columnas se están viendo, y eso cambia
+  // en cada dibujado: con el ojo de "⚙ Columns", con el editor abierto (que las
+  // enseña todas) y con el filtro de categoría (que esconde la suya).
+  _fijarMinTabla('mov', headHtml);
 
   // The header is rebuilt with the table, so its drag/hide/rename handlers have
   // to be attached again each time.
