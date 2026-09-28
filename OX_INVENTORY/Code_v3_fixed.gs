@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.13';
+var APP_VERSION = '12.18';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.13';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '423e62dc';
+var APP_BUILD = '3f37137b';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1938,6 +1938,27 @@ function getInitialData(sessionToken) {
       })(),
       columnPrefs:        columnPrefs_(),
       movements:          movements,
+      /* ═══ EL CANARIO ══════════════════════════════════════════════════════
+       * El 26 de septiembre de 2026 el trabajo nocturno vació
+       * MASTER_ARCHIVE_V3 y la app se abrió como cualquier otro día, diciendo
+       * "No movements match your filters" — la misma frase que dice cuando un
+       * filtro no encuentra nada. Catorce horas sin que nadie lo supiera.
+       *
+       * Existencias sin un solo movimiento es IMPOSIBLE: cada unidad que hay en
+       * un estante llegó por una entrada, y esa entrada es una fila del archivo.
+       * Si el almacén dice que tiene material y el archivo dice que nunca pasó
+       * nada, lo que está roto es el archivo, y la app tiene que decirlo con
+       * todas las letras en lugar de enseñar una tabla vacía educada.
+       *
+       * Se manda como dato, no como texto: la frase vive en el navegador con
+       * las demás, en inglés y en un solo sitio. */
+      archiveVacioConStock: (movements.length === 0 && (function(){
+        for (var av = 0; av < stock.length; av++) {
+          var s = stock[av];
+          if ((s.warehouseQty || 0) > 0 || (s.siteQty || 0) > 0) return true;
+        }
+        return false;
+      })()),
       stock:              stock,
       config:             config,
       userRole:           auth.role,
@@ -4108,21 +4129,185 @@ function archiveOldMovements(ss) {
     var newActive  = toRestore.concat(keep).sort(byTs);
     var newHistory = stillOld.concat(toArchive).sort(byTs);
 
-    archive.getRange(2, 1, Math.max(archive.getMaxRows() - 1, 1), colCount).clearContent();
-    if (newActive.length) archive.getRange(2, 1, newActive.length, colCount).setValues(newActive.map(textSafeRow_));
+    /* ═══ LA NOCHE DEL 26 DE SEPTIEMBRE DE 2026 ══════════════════════════════
+     *
+     * Aquí decía, en este orden:
+     *
+     *     archive.getRange(...).clearContent();                    // BORRAR
+     *     if (newActive.length) archive.getRange(...).setValues(); // ESCRIBIR
+     *
+     * A las 3:19:10 el borrado salió bien y la escritura falló:
+     *
+     *     archiveOldMovements — El número de columnas de los datos no coincide
+     *     con el número de columnas del rango. Los datos tienen 23, y el rango, 20.
+     *
+     * MASTER_ARCHIVE_V3 de Jose tenía 20 columnas de ancho; las filas del modelo
+     * tienen AC_WIDTH = 23. `getRange(2,1,n,23)` sobre una hoja de 20 devuelve un
+     * rango de 20, y `setValues` con filas de 23 revienta. Para entonces el
+     * histórico entero ya estaba borrado. **Se perdió TODO el archivo de
+     * movimientos en una sola línea**, y sólo se salvó porque la copia de
+     * seguridad de las 2:36 se había hecho una hora antes.
+     *
+     * Hay TRES fallos aquí, no uno, y los tres se arreglan abajo:
+     *
+     *   1. `ensureArchiveWidth_` existe desde hace meses, para exactamente esto,
+     *      y este trabajo NUNCA la llamaba. Una hoja de un cliente que se creó
+     *      antes de las columnas de precio es el caso NORMAL en una
+     *      actualización, no el raro.
+     *
+     *   2. BORRAR ANTES DE ESCRIBIR. Esto es lo grave, y seguiría siendo grave
+     *      con el ancho bien: entre las dos líneas cabe cualquier cosa —una cuota
+     *      agotada, un tiempo de espera, un error pasajero de Sheets— y lo que
+     *      quede en medio se lleva el archivo entero. Ahora se ESCRIBE PRIMERO y
+     *      se limpia la cola después; si la escritura falla, no se ha borrado
+     *      nada y la hoja sigue teniendo sus filas.
+     *
+     *   3. NADIE SE ENTERÓ. El error se escribió en ERROR_LOG, que es una
+     *      pestaña que nadie mira, y la app siguió abriéndose como si nada,
+     *      enseñando "No movements match your filters". Jose lo descubrió
+     *      catorce horas después y por casualidad. Ahora este trabajo avisa por
+     *      correo cuando falla Y cuando las cuentas no cuadran.
+     *
+     * EL ORDEN DE LAS DOS HOJAS TAMBIÉN IMPORTA, y antes era el contrario:
+     * primero la que PIERDE filas (el archivo) y después la que las GANA (el
+     * histórico). Si fallaba la segunda, las filas ya no estaban en ninguna de
+     * las dos. Ahora se escribe primero la que gana: si falla la segunda, una
+     * fila puede quedar en las dos —un duplicado, que se ve y se arregla— en vez
+     * de en ninguna. Preferir un duplicado a un agujero.
+     * ═══════════════════════════════════════════════════════════════════════ */
 
-    history.getRange(2, 1, Math.max(history.getMaxRows() - 1, 1), colCount).clearContent();
-    if (newHistory.length) history.getRange(2, 1, newHistory.length, colCount).setValues(newHistory.map(textSafeRow_));
+    // ── GUARDA 0: que las dos hojas quepan, ANTES de tocar ninguna ───────────
+    ensureArchiveWidth_(archive);
+    ensureArchiveWidth_(history);
+    if (archive.getMaxColumns() < colCount || history.getMaxColumns() < colCount) {
+      var anchoMsg = 'ABORTED WITHOUT TOUCHING ANYTHING: the sheets cannot hold ' +
+        colCount + ' columns (archive ' + archive.getMaxColumns() +
+        ', history ' + history.getMaxColumns() + ').';
+      logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', anchoMsg, null, newRequestId_());
+      avisarFalloDeArchivo_(ss, anchoMsg);
+      return { status: 'aborted', reason: 'width' };
+    }
+
+    /* ── GUARDA 1: NINGUNA FILA PUEDE DESAPARECER ────────────────────────────
+     * Este trabajo sólo MUEVE filas entre dos hojas. La cuenta de las dos, antes
+     * y después, tiene que ser idéntica. Si no lo es, hay un fallo en el reparto
+     * de arriba y lo correcto es no escribir NADA — un archivo intacto con el
+     * recuento viejo es infinitamente mejor que uno reescrito al que le faltan
+     * filas, porque lo primero se nota y lo segundo no.
+     *
+     * SE CUENTAN FILAS CON DATOS, NO LONGITUDES DE ARRAY, y eso lo encontró la
+     * prueba: con `.length` a los dos lados, una fila que llegara VACÍA al
+     * reparto —del ancho correcto pero sin categoría ni nombre— cuadraba
+     * perfectamente y se escribía igual. El recuento pasaba y el movimiento se
+     * perdía. Las dos cuentas tienen que usar la MISMA definición de "fila", que
+     * es la de `contarConDatos_`, que es la misma que usa el reparto de arriba. */
+    var antes   = contarConDatos_(aData.slice(1)) + contarConDatos_(hData.slice(1));
+    var despues = contarConDatos_(newActive) + contarConDatos_(newHistory);
+    if (antes !== despues) {
+      var cuadreMsg = 'ABORTED WITHOUT TOUCHING ANYTHING: the split does not add up. ' +
+        antes + ' movements before, ' + despues + ' would come out.';
+      logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', cuadreMsg, null, newRequestId_());
+      avisarFalloDeArchivo_(ss, cuadreMsg);
+      return { status: 'aborted', reason: 'count' };
+    }
+
+    // ── ESCRIBIR, la que GANA filas primero ─────────────────────────────────
+    escribirHojaCompleta_(history, newHistory, colCount);
+    escribirHojaCompleta_(archive, newActive,  colCount);
+
+    /* ── GUARDA 2: volver a contar sobre la HOJA, no sobre la variable ───────
+     * Lo de arriba comprueba la aritmética; esto comprueba que lo escrito llegó.
+     * Son dos preguntas distintas y la segunda es la que faltaba en septiembre:
+     * `setValues` puede fallar, puede escribir de menos, y nadie estaba mirando. */
+    var quedanA = contarConDatos_(archive.getDataRange().getValues().slice(1));
+    var quedanH = contarConDatos_(history.getDataRange().getValues().slice(1));
+    if (quedanA + quedanH !== antes) {
+      var perdidaMsg = 'CHECK THIS NOW: the archive was written and the counts do ' +
+        'not add up. There were ' + antes + ' movements, now ' + (quedanA + quedanH) +
+        ' can be read (archive ' + quedanA + ', history ' + quedanH +
+        '). The backup made at 2am has all of them.';
+      logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', perdidaMsg, null, newRequestId_());
+      avisarFalloDeArchivo_(ss, perdidaMsg);
+    }
 
     auditLog_(ss, 'ARCHIVE_RECONCILE', 'system', 'cutoff=' + cutoffMonths + 'mo',
       toArchive.length + ' archived', toRestore.length + ' restored');
-    return { status: 'success', archived: toArchive.length, restored: toRestore.length };
+    return { status: 'success', archived: toArchive.length, restored: toRestore.length,
+             total: antes };
   } catch (e) {
     logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', e.message, null, newRequestId_());
+    // ANTES SÓLO SE REGISTRABA. ERROR_LOG es una pestaña que nadie mira, y por
+    // eso el desastre del 26 de septiembre estuvo catorce horas sin que nadie
+    // lo supiera. Un trabajo que corre de noche y sin nadie delante tiene que
+    // saber gritar.
+    try { avisarFalloDeArchivo_(ss, 'The nightly archive job failed: ' + e.message); } catch (e2) {}
     throw e;
   } finally {
     lock.releaseLock();
   }
+}
+
+/* Cuenta las filas que llevan datos de verdad, con la MISMA regla que usa el
+ * reparto de arriba (`!CATEGORY && !NAME` → no es una fila). Que las dos cuentas
+ * usen la misma definición es lo único que hace que compararlas signifique algo.
+ *
+ * Recibe filas SIN cabecera y no la salta por su cuenta: quien llama ya sabe si
+ * su lista la trae, y una función que decide sola que la primera no cuenta se
+ * equivoca en silencio el día que le pasen una lista que no la tiene. */
+function contarConDatos_(filas) {
+  var n = 0;
+  for (var i = 0; i < (filas || []).length; i++) {
+    var r = filas[i];
+    if (r && (r[AC.CATEGORY] || r[AC.NAME])) n++;
+  }
+  return n;
+}
+
+/* ESCRIBE PRIMERO, LIMPIA DESPUÉS. Es el orden que faltaba.
+ *
+ * Si `setValues` falla, no se ha borrado nada: la hoja conserva sus filas
+ * viejas y el trabajo se puede repetir mañana. La limpieza de la cola sólo se
+ * hace cuando la escritura ya está puesta, y sólo sobre las filas SOBRANTES —
+ * de `filas.length + 2` hacia abajo—, nunca sobre las que se acaban de escribir.
+ *
+ * El caso de cero filas se trata aparte a propósito: es el único en el que hay
+ * que limpiar sin escribir nada, y es justo el que puede vaciar una hoja. Por
+ * eso el que llama tiene que haber comprobado ANTES que ese cero es correcto. */
+function escribirHojaCompleta_(sheet, filas, colCount) {
+  if (filas.length) {
+    sheet.getRange(2, 1, filas.length, colCount).setValues(filas.map(textSafeRow_));
+  }
+  var primeraSobrante = filas.length + 2;
+  var sobrantes = sheet.getMaxRows() - primeraSobrante + 1;
+  if (sobrantes > 0) {
+    sheet.getRange(primeraSobrante, 1, sobrantes, colCount).clearContent();
+  }
+}
+
+/* EL AVISO QUE NO EXISTÍA. Va al admin, no a una pestaña.
+ *
+ * Nunca lanza: un fallo mandando el correo no puede convertirse en el error que
+ * tape al que lo provocó, y este ayudante se llama desde dentro de un `catch`.
+ * Se deja rastro en el registro pase lo que pase. */
+function avisarFalloDeArchivo_(ss, mensaje) {
+  try {
+    auditLog_(ss, 'ARCHIVE_ALERT', 'system', mensaje, '', '');
+  } catch (e) {}
+  try {
+    var cfg  = loadConfig();
+    var para = (cfg && cfg.adminEmail) || Session.getEffectiveUser().getEmail();
+    if (!para) return;
+    MailApp.sendEmail(para,
+      '⚠ ' + PRODUCT_NAME + ' — the nightly archive job needs attention',
+      'The nightly archive job did not finish cleanly.\n\n' +
+      mensaje + '\n\n' +
+      'What to do:\n' +
+      '1. Open your spreadsheet and check the MASTER_ARCHIVE_V3 tab.\n' +
+      '2. If it is empty, the backup made at 2am has everything — it runs an ' +
+      'hour before this job for exactly this reason.\n' +
+      '3. Copy that tab back over, then rebuild the stock sheets.\n\n' +
+      'Nothing else was changed.');
+  } catch (e) {}
 }
 
 function archiveOldMovementsTrigger() {

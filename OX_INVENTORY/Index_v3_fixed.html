@@ -1363,6 +1363,75 @@
        de una persona, puede ser larguísimo, y tiene su ayuda al pasar el ratón. */
     #tableContainer td{overflow-wrap:anywhere}
     #tableContainer td.mc-comment{max-width:none}
+
+    /* ═══ LA CANTIDAD NO SE PARTE EN DOS ═════════════════════════════════════
+     *
+     * Jose, con captura: un `−300` dibujado como `−30` y `0` debajo, al lado de
+     * un `−200` que cabía. *"No podemos mostrar un número de 3 cifras que no
+     * entra y otros que sí."*
+     *
+     * MEDIDO, y la causa no es el ancho de la columna: es el relleno. La columna
+     * mide 58px y el relleno se lleva 12 por lado, así que a la cifra le quedan
+     *
+     *     58 − 12 − 12 = 34px
+     *
+     * y `−300` necesita 37. `−20` necesita 28 y por eso ése sí cabía. **Toda
+     * cantidad de tres cifras se partía**, que en su almacén no es un caso raro:
+     * es cualquier entrada de bulto.
+     *
+     * Veinticuatro píxeles de relleno para un número de tres cifras es lo que
+     * estaba mal. A 4 por lado, la caja pasa de 34 a 50px y entran hasta cuatro
+     * cifras con signo. Para cinco —`+12500`, 54px— baja un punto la letra, que
+     * es la misma escalera de la tira de reservas: achicar sólo cuando hace
+     * falta y sólo lo que haga falta.
+     *
+     * `nowrap` es lo que convierte esto en algo que se puede comprobar: sin él
+     * un número que no cupiera se partiría en silencio; con él se saldría de su
+     * celda, y `tools/test-columnas.js` ya falla cuando algo se sale.
+     *
+     * `tabular-nums` hace que todas las cifras midan igual, así que una columna
+     * de cantidades queda alineada por unidades, decenas y centenas. En una
+     * columna de números eso no es adorno: es lo que permite compararlos de un
+     * vistazo sin leerlos.
+     *
+     * Y A LA DERECHA, que es como se leen los números y como van a quedar cuando
+     * se unan Qty y Unit — la costura que pidió Jose (`14 | UNITS`, `150 | BOX`)
+     * necesita la cifra pegada a la derecha. Esto adelanta ese trabajo en vez de
+     * ir en contra. */
+    #tableContainer th.mc-qty,
+    #tableContainer td.mc-qty{padding-left:4px;padding-right:4px}
+    #tableContainer th.mc-qty{text-align:left}
+
+    /* ═══ LA COSTURA DE `14 │ UNITS` ═════════════════════════════════════════
+     *
+     * Las dos mitades en un reparto FIJO, no automático. Con `auto` cada fila
+     * repartiría según lo que le toque —`+1 UNIT` y `−12500 PALLET` no miden
+     * igual— y la costura bailaría de fila en fila, que es exactamente lo que
+     * Jose pidió evitar: *"toda la columna debe verse igual… todas alineadas
+     * por la barra del medio."*
+     *
+     * 46 y 48 están MEDIDOS, no elegidos: `−9999` ocupa 45px con la letra en
+     * negrita, y `PALLET` —la unidad más larga del vocabulario de la app: UNIT,
+     * SET, ROLL, SHEET, LF, BOX, CASE, PALLET, BAG— ocupa 46.
+     *
+     * La cifra a la derecha y la unidad a la izquierda es lo que pone la costura
+     * en el medio. `tabular-nums` sigue haciendo que todas las cifras midan
+     * igual, así que las unidades, decenas y centenas también se alinean entre
+     * filas — no sólo la costura.
+     *
+     * Y SI UN CLIENTE INVENTA UNA UNIDAD MÁS LARGA que PALLET, la mitad derecha
+     * la recorta con puntos y guarda el texto entero en la ayuda al pasar el
+     * ratón. Es la misma excepción que ya tiene el comentario, y por el mismo
+     * motivo: aquí no se puede partir en dos líneas sin romper la costura, que
+     * es lo único que esta columna existe para dar. */
+    #tableContainer td.mc-qty{
+      display:grid;grid-template-columns:46px 48px;gap:5px;align-items:baseline}
+    #tableContainer td.mc-qty .qv{
+      text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+    #tableContainer td.mc-qty .qv.qty-lg{font-size:.82rem}
+    #tableContainer td.mc-qty .qu{
+      text-align:left;color:var(--muted);font-size:.78rem;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
     /* Mismo alto, mismo ancho, mismo sitio: sólo cambia el color. */
     .btn.col-open{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -3172,11 +3241,11 @@
         <div class="toolbar">
           <input type="text" id="stockSearch" placeholder="Search name or comment...">
           <select id="stockFilter"><option value="">All Categories</option></select>
-          <select id="stockStatusFilter">
-            <option value="">All Status</option>
-            <option value="in">In Stock only</option>
-            <option value="zero">Zero Stock only</option>
-          </select>
+          <!-- Las opciones las pone _llenarFiltroDeEstado desde STOCK_STATES.
+               Escritas a mano aquí, esta lista y la de las insignias eran dos
+               sitios que tenían que decir lo mismo — y no lo decían: faltaban
+               dos estados y un tercero filtraba por otra cosa. -->
+          <select id="stockStatusFilter"><option value="">All Status</option></select>
           <button id="btnMonitorSettingsToolbar" class="btn btn-ghost btn-sm" onclick="openMonitorModal()" title="Choose which materials to monitor and set minimum-stock thresholds" style="display:none">⚙ Stock Alerts</button>
         </div>
       </div>
@@ -4301,6 +4370,9 @@
 <script>
 // ── Global State ──────────────────────────────────────────────────────────────
 var movements   = [];
+/* Lo pone el servidor en cada carga: existencias en los estantes y CERO
+ * movimientos en el archivo, que es una mezcla imposible. Ver getInitialData. */
+var _archivoVacioConStock = false;
 var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, siteQty, ...} }
 var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
 var currentMoveType = 'ENTRY';
@@ -4313,7 +4385,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.13';
+var APP_VERSION = '12.18';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4325,7 +4397,7 @@ var APP_VERSION = '12.13';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '423e62dc';
+var APP_BUILD = '3f37137b';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4976,8 +5048,22 @@ var STOCK_COLS = [
 var MOV_COLS = [
   { key:'when',     def:'Type / Date',     lock:true,  w:112 },
   { key:'what',     def:'Category / Name', lock:true          },  // la elástica
-  { key:'qty',      def:'Qty',         lock:true,  w:58  },
-  { key:'unit',     def:'Unit',        lock:false, w:58  },
+  /* QTY Y UNIT SON UNA SOLA COLUMNA desde la v12.18. Idea de Jose:
+   *
+   *   "Podemos unir qty con unit, ya que van de la mano; tampoco se debería
+   *    poder cambiar o mover: la cantidad debe tener una unidad para ser
+   *    entendible… pero estas 2 columnas deben tener un lugar específico al ser
+   *    mostradas, una al lado de la otra, y toda la columna debe verse igual."
+   *
+   * Y tapa un agujero que nadie había visto: `qty` estaba bloqueada y `unit`
+   * NO, así que se podía esconder Unit y dejar la tabla diciendo "+25" sin
+   * decir veinticinco DE QUÉ. Unidas, la unidad ya no se puede perder.
+   *
+   * 107px = 4 de relleno + 46 para la cifra + 5 de hueco + 48 para la unidad +
+   * 4 de relleno. Los dos números están MEDIDOS: `−9999` ocupa 45px y `PALLET`
+   * —la unidad más larga del vocabulario de la app— ocupa 46. Antes las dos
+   * columnas sumaban 116, así que además se ahorran 9. */
+  { key:'qty',      def:'Qty / Unit',  lock:true,  w:107 },
   { key:'po',       def:'PO#',         lock:false, w:86  },
   { key:'locFlow',  def:'Src→Dest',    lock:false, w:150 },
   { key:'rawLoc',   def:'Raw Loc',     lock:false, w:120 },
@@ -5110,7 +5196,11 @@ function _defaultColOrder(t){ return _colCfg(t).cols.map(function(c){ return c.k
 // La vieja de arriba se queda con el sitio, la de abajo desaparece: es lo que
 // significa "type SOBRE date".
 var COL_MERGES = {
-  mov:   { type: 'when', date: null, category: 'what', name: null },
+  mov:   { type: 'when', date: null, category: 'what', name: null,
+           // `unit` desaparece y `qty` se queda con el sitio: es lo que
+           // significa "qty SOBRE unit". Sin esta línea, a quien tuviera Unit
+           // en su orden guardado se le caería la columna al final.
+           unit: null },
   // La barra se queda con el sitio que tenía "In Warehouse", que es la primera
   // de las cinco en el orden de fábrica. Las otras cuatro desaparecen del orden
   // guardado de cada persona sin que tenga que tocar nada.
@@ -6478,11 +6568,70 @@ function catBadge(cat){
   return '<span class="badge '+cls+'">'+ _he(c || '—') +'</span>';
 }
 
+/* ═══ EL ESTADO DE UN MATERIAL, ESCRITO UNA SOLA VEZ ════════════════════════
+ *
+ * Jose, con vídeo (2026-09-22): *"en la app sólo se puede filtrar por 2 estados
+ * (zero stock e in stock) y por todo, pero en la app existen también los
+ * estados at site y reserved, así que hay un fallo ahí."*
+ *
+ * Tenía razón, y al ir a arreglarlo apareció que eran TRES fallos, no dos:
+ *
+ *   1. Faltaba `Reserved` en el filtro.
+ *   2. Faltaba `All at Site`.
+ *   3. **Y "In Stock only" NO significaba lo mismo que la insignia verde.**
+ *      Filtraba por `warehouseQty > 0`, que incluye a las `Reserved` — material
+ *      que está en el estante pero NO se puede sacar. O sea que quien filtraba
+ *      "In Stock only" para saber qué podía llevarse veía cosas que no podía
+ *      llevarse. Ése es el error que hace caminar hasta el estante para nada, y
+ *      es el que Jose no había visto porque desde fuera no se nota.
+ *
+ * LA CAUSA DE LOS TRES ES LA MISMA: la insignia se decidía aquí y el filtro allá
+ * abajo, con su propia aritmética. Dos sitios que tenían que decir lo mismo y
+ * nada que lo obligara — el mismo patrón que borró el archivo de movimientos y
+ * que dejó el mínimo de la tabla en un número escrito a mano.
+ *
+ * Así que ahora hay UNA lista. La insignia sale de aquí, las opciones del
+ * desplegable se dibujan de aquí, y el filtro compara contra esto mismo. Añadir
+ * un quinto estado es añadir una fila; no hay una segunda copia que actualizar.
+ *
+ * EL ORDEN IMPORTA Y ES EL DE SIEMPRE: gana la primera que diga que sí. Un
+ * material con 3 disponibles y 7 apartados está `In Stock`, porque lo que la
+ * gente pregunta es "¿puedo llevarme algo?". */
+var STOCK_STATES = [
+  { key:'in',   label:'In Stock',    clase:'badge-green',
+    opcion:'In Stock only',    test:function(s){ return (s.availableQty || 0) > 0; } },
+  { key:'resv', label:'Reserved',    clase:'badge-yellow',
+    opcion:'Reserved only',    test:function(s){ return (s.warehouseQty || 0) > 0; } },
+  { key:'site', label:'All at Site', clase:'badge-blue',
+    opcion:'All at Site only', test:function(s){ return (s.siteQty || 0) > 0; } },
+  { key:'zero', label:'Zero Stock',  clase:'badge-gray',
+    opcion:'Zero Stock only',  test:function(){ return true; } }
+];
+
+function _stockState(item){
+  var it = item || {};
+  for (var i = 0; i < STOCK_STATES.length; i++){
+    if (STOCK_STATES[i].test(it)) return STOCK_STATES[i];
+  }
+  return STOCK_STATES[STOCK_STATES.length - 1];
+}
+
 function stockBadge(item){
-  if (item.availableQty > 0) return '<span class="badge badge-green">In Stock</span>';
-  if (item.warehouseQty > 0) return '<span class="badge badge-yellow">Reserved</span>';
-  if (item.siteQty > 0)      return '<span class="badge badge-blue">All at Site</span>';
-  return '<span class="badge badge-gray">Zero Stock</span>';
+  var st = _stockState(item);
+  return '<span class="badge ' + st.clase + '">' + _he(st.label) + '</span>';
+}
+
+/* El desplegable se dibuja de la misma lista, para que no pueda ofrecer un
+ * estado que no existe ni callarse uno que sí. Se llama al arrancar. */
+function _llenarFiltroDeEstado(){
+  var sel = document.getElementById('stockStatusFilter');
+  if (!sel) return;
+  var antes = sel.value;
+  sel.innerHTML = '<option value="">All Status</option>' +
+    STOCK_STATES.map(function(st){
+      return '<option value="' + st.key + '">' + _he(st.opcion) + '</option>';
+    }).join('');
+  sel.value = antes;                 // no se pierde lo que la persona tenía puesto
 }
 
 /** Los candados que afectan a ESTE material en los estantes donde HOY tiene
@@ -7101,8 +7250,9 @@ function renderStock(){
 
   var items = Object.values(stockData).filter(function(s){
     if (cf && nt(s.category) !== cf) return false;
-    if (sf === 'in'   && s.warehouseQty <= 0) return false;
-    if (sf === 'zero' && (s.warehouseQty > 0 || s.siteQty > 0)) return false;
+    // MISMA REGLA QUE LA INSIGNIA, y por eso se pregunta por el estado en vez
+    // de repetir aquí su aritmética. Ver STOCK_STATES.
+    if (sf && _stockState(s).key !== sf) return false;
     if (q){
       var haystack = (s.name + ' ' + s.category + ' ' + s.project).toLowerCase();
       if (haystack.indexOf(q) === -1) return false;
@@ -7581,8 +7731,29 @@ function renderMovements(){
                 '<div class="mc-sub">'+_he(m.dateRec||m.timestamp||'—')+'</div></td>',
       what:     '<td class="mc-what">'+catBadge(m.category)+
                 '<div class="mc-main">'+_he(displayName(m))+'</div></td>',
-      qty:      '<td class="mc-qty" style="color:'+(isOut?'var(--red)':'var(--accent2)')+';font-weight:600">'+(isOut?'−':'+')+m.qty+'</td>',
-      unit:     '<td class="mc-unit" style="color:var(--muted);font-size:.78rem">'+_he(m.unit||'—')+'</td>',
+      /* `qty-lg` cuando el texto pasa de cinco caracteres con su signo: ahí
+       * deja de caber en la caja de 50px y baja un punto la letra. Se mide el
+       * TEXTO YA ARMADO, con el signo dentro, porque el signo ocupa como una
+       * cifra y sin contarlo la cuenta se queda corta justo en el borde. */
+      /* LA COSTURA QUE PIDIÓ JOSE: `14 │ UNITS`, `150 │ BOX`, `243 │ BAGS`,
+       * todas alineadas por el mismo punto aunque la barra no se dibuje.
+       *
+       * Eso sale de un reparto FIJO dentro de la celda —46px y 48px— y no de
+       * dejar que cada mitad ocupe lo suyo: con `auto` la costura bailaría de
+       * fila en fila, que es justo lo que él no quiere.
+       *
+       * El color y el signo siguen siendo de la CIFRA. La unidad va en gris y
+       * pequeña, como estaba: así el `+`/`−` y la unidad dejan de competir por
+       * la misma mirada. */
+      qty:      (function(){
+        var txt = (isOut ? '−' : '+') + m.qty;
+        var uni = String(m.unit || '—');
+        return '<td class="mc-qty">' +
+          '<span class="qv' + (txt.length > 5 ? ' qty-lg' : '') + '" style="color:' +
+            (isOut ? 'var(--red)' : 'var(--accent2)') + '">' + _he(txt) + '</span>' +
+          '<span class="qu" title="' + _escAttr(uni) + '">' + _he(uni) + '</span>' +
+        '</td>';
+      })(),
       po:       '<td class="mc-po" style="font-size:.78rem">'+_he(m.po||'—')+'</td>',
       locFlow:  '<td class="mc-locFlow" style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>',
       rawLoc:   '<td class="mc-rawLoc" style="font-size:.75rem;color:var(--muted)">'+_he(srcDest)+'</td>',
@@ -7645,8 +7816,29 @@ function renderMovements(){
   // took the column editor off screen with it. The message is a row now, so the
   // headings stay put whatever the filters match.
   if (!total){
-    rows = '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
-           '<p>No movements match your filters.</p></div></td></tr>';
+    /* DOS VACÍOS QUE NO SON EL MISMO VACÍO.
+     *
+     * "No movements match your filters" es la respuesta correcta cuando un
+     * filtro no encuentra nada. El 26 de septiembre de 2026 fue también la
+     * respuesta a que el trabajo nocturno hubiera BORRADO el archivo entero, y
+     * eso es lo que hizo que el desastre pasara catorce horas inadvertido: la
+     * app se veía normal.
+     *
+     * Existencias sin un solo movimiento es imposible —cada unidad de un estante
+     * llegó por una entrada, y esa entrada es una fila del archivo—, así que
+     * cuando el servidor dice que se da esa mezcla, esta tabla deja de disimular. */
+    rows = _archivoVacioConStock
+      ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">🚨</div>' +
+        '<p><b>The movement history is empty, but the warehouse is not.</b></p>' +
+        '<p>That cannot happen on its own — every unit on a shelf got there ' +
+        'through an entry, and every entry is a row in the archive. Your ' +
+        'movements are almost certainly still in the backup made at 2am.</p>' +
+        '<p>Do not add movements and do not rebuild anything yet. Open your ' +
+        'spreadsheet and check the <b>MASTER_ARCHIVE_V3</b> tab, then the ' +
+        '<b>ERROR_LOG</b> tab for what the nightly job reported.</p>' +
+        '</div></td></tr>'
+      : '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
+        '<p>No movements match your filters.</p></div></td></tr>';
   }
 
   var foot = total
@@ -16276,12 +16468,33 @@ function _paintDeck(){
   // test-mazo-contador.js las compara entre sí precisamente para que no vuelva
   // a pasar.
   var total = _cfgDeckTotal + _sysDeckTotal + _todoDeckTotal;
+
+  /* LA INSIGNIA PROMETÍA NUEVE Y EL MAZO ENSEÑABA CINCO (v12.15).
+   *
+   * Jose, con vídeo: *"revisa las tarjetas y averigua por qué muestra el número
+   * 9 y sólo aparecen 5."* El número era cierto —hay nueve esperando— y el mazo
+   * también: cada clase de tarjeta pone como mucho `_DECK_VISIBLE` en el DOM,
+   * porque pintarlas todas hacía una escalera que se salía por arriba de la
+   * pantalla.
+   *
+   * O sea que las dos mitades tenían razón y JUNTAS mentían: el número decía
+   * que había nueve cosas que atender y no había forma de ver ni de alcanzar
+   * las otras cuatro. Un contador que promete lo que la pantalla no entrega
+   * enseña a no creerle, que es justo lo que este mazo no puede permitirse.
+   *
+   * Ahora la insignia dice las dos cosas —`5/9`— y la ayuda al pasar el ratón
+   * explica lo que pasa cuando resuelves una. No se enseñan las nueve: la
+   * escalera era un problema de verdad y esto no lo reabre. */
+  var enPantalla = deck.querySelectorAll('.deck-card').length;
   var top = deck.lastElementChild;
   if (top && total > 1){
     var badge = document.createElement('span');
     badge.className = 'cfg-count';
-    badge.title = total + ' waiting';
-    badge.textContent = total;
+    var recortado = enPantalla > 0 && enPantalla < total;
+    badge.title = recortado
+      ? total + ' waiting · ' + enPantalla + ' shown — deal with one and the next takes its place'
+      : total + ' waiting';
+    badge.textContent = recortado ? (enPantalla + '/' + total) : String(total);
     top.appendChild(badge);
   }
 
@@ -19919,22 +20132,31 @@ var _labelAfter = null;   // lo que hay que hacer al cerrar (ver submitMultiEntr
 
 /** Las filas imprimibles de una entrada: una por (material × estante). */
 function _labelsFromEntry(materiales, compartido){
-  /* LA CASILLA DEL FORMULARIO ESTRECHA, NO CREA.
+  /* LA CASILLA DEL FORMULARIO MANDA, Y PUNTO (v12.15).
    *
-   * Si alguien marcó "🏷 Label" en alguna línea, el cuadro se abre con ESAS
-   * marcadas y las demás no — que es lo que ahorra trabajo cuando se entran
-   * diez materiales y sólo dos necesitan etiqueta.
+   * Aquí había una excepción: si NADIE marcaba la casilla en ninguna línea, el
+   * cuadro se abría con TODAS marcadas. El argumento era que quien ignorase la
+   * casilla nueva no perdiera una función que ya tenía.
    *
-   * Si NADIE la tocó, todas vienen marcadas, como siempre. Quien ignore la
-   * casilla nueva no puede perder una función que ya tenía; y un cuadro que se
-   * abre con todo desmarcado y el botón apagado parece roto. */
-  var alguienEligio = (materiales || []).some(function(m){ return m.wantsLabel; });
+   * Jose lo tumbó, y tiene razón: *"eso es pedir información al usuario pero
+   * hacer lo que queremos después. ¿De qué sirve poner el checkbox dentro de
+   * cada material?"* Una casilla cuya respuesta se ignora cuando la respuesta
+   * es "ninguna" enseña a no leer las casillas.
+   *
+   * Y el argumento de perder algo ya no se sostiene, porque la salida existe y
+   * él la señaló: se selecciona un movimiento en Movements, se pulsa Labels y
+   * se reimprime lo que sea, cuando sea. Olvidarse de marcar cuesta dos clics
+   * después, no un material sin etiqueta.
+   *
+   * Las filas siguen saliendo TODAS —se ven los diez materiales de la entrada—
+   * pero marcadas sólo las que se marcaron. Si no se marcó ninguna, el cuadro
+   * ni se abre; de eso se encarga _openLabels. */
   var out = [];
   (materiales || []).forEach(function(mat){
     (mat.locations || []).forEach(function(l){
       if (!l || !(l.qty > 0)) return;
       out.push({
-        marcada:  alguienEligio ? !!mat.wantsLabel : true,
+        marcada:  !!mat.wantsLabel,
         name:     mat.name || '',
         category: mat.category || compartido.category || '',
         qty:      l.qty,
@@ -20018,6 +20240,23 @@ function _openLabels(rows, alCerrar){
   _labelAfter = alCerrar || null;
   _labelRows  = rows || [];
   if (!_labelRows.length){ _labelsDone(); return; }
+
+  /* SI NO SE MARCÓ NINGUNA, NO SE ABRE (v12.15). Jose: *"si no se marca
+   * ninguna en el entry no se abre la ventana, así de simple."*
+   *
+   * Un cuadro que se abre con todo desmarcado no ofrece nada: obliga a cerrarlo
+   * después de cada entrada para llegar a lo siguiente. Y no se pierde nada,
+   * porque reimprimir existe — se marca un movimiento en Movements y se pulsa
+   * Labels.
+   *
+   * La regla vive AQUÍ y no en el formulario de entrada, para que valga también
+   * para cualquier camino que se añada mañana. Y no afecta a la reimpresión:
+   * esas filas no traen `marcada`, y sin ella se cuentan como marcadas —que es
+   * lo correcto, porque ahí se eligió fila por fila antes de abrir el cuadro. */
+  var hayMarcadas = _labelRows.some(function(r){
+    return r.marcada === undefined ? true : !!r.marcada;
+  });
+  if (!hayMarcadas){ _labelsDone(); return; }
 
   var lead = document.getElementById('labelsLead');
   var list = document.getElementById('labelsList');
@@ -21354,6 +21593,11 @@ function _loadCache() {
 
 function _applyData(data) {
   movements          = data.movements          || [];
+  /* EL CANARIO DEL ARCHIVO. Ver el comentario del servidor, en getInitialData.
+   * Va en su propia variable y NO se deduce aquí a partir de `movements` y
+   * `stockData`: la caché de este navegador puede traer movimientos de antes y
+   * taparía justo el caso que hay que ver. Lo decide quien lee la hoja. */
+  _archivoVacioConStock = !!data.archiveVacioConStock;
   stockData          = data.stock              || {};
   config             = data.config             || config;
   userRole           = data.userRole           || 'WAREHOUSE';
@@ -21687,7 +21931,7 @@ function _renderTodoDeck(){
 
   // Como las otras dos: sólo un puñado en el DOM, y pintadas al revés para que
   // la más nueva quede la última y por tanto encima.
-  _todoDeckHtml = _todoItems.slice(0, 5).slice().reverse().map(function(t){
+  _todoDeckHtml = _todoItems.slice(0, _DECK_VISIBLE).slice().reverse().map(function(t){
     var qty = t.qty > 0 ? (_qtyText(t.qty) + ' ' + (t.unit || 'UNIT')) : 'qty not stated';
     return '<div class="deck-card todo-card" data-todo-id="' + _he(t.id) + '">' +
       '<button class="sys-card-x" data-todo-x="' + _he(t.id) + '" title="Dismiss">✕</button>' +
@@ -21715,7 +21959,7 @@ function _renderSysDeck(){
   if (!_sysCards.length){ _sysDeckHtml = ''; _paintDeck(); return; }
 
   // Newest painted last so it sits nearest the top of the pile.
-  _sysDeckHtml = _sysCards.slice(0, 5).reverse().map(function(c){
+  _sysDeckHtml = _sysCards.slice(0, _DECK_VISIBLE).reverse().map(function(c){
     return '<div class="deck-card sys-card" data-card-id="' + _he(c.id) + '" data-sys-open="' + _he(c.id) + '" title="Click for the full record">' +
       '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
       '<div class="sys-card-title">✓ ' + _he(c.label) + '</div>' +
@@ -22332,6 +22576,10 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('stockSearch','input', _debounce(renderStock, 220));
   _safeOn('stockFilter','change', renderStock);
   _safeOn('stockStatusFilter','change', renderStock);
+  // Las opciones, desde la misma lista que decide las insignias. Va aquí, con
+  // el resto del arranque de los filtros, para que no dependa de que alguien se
+  // acuerde de llamarla desde otro sitio.
+  try { _llenarFiltroDeEstado(); } catch (e) { console.error('_llenarFiltroDeEstado:', e); }
 
   // Movement filters
   // Cambiar el filtro SUELTA la selección. Sin esto, alguien puede marcar tres
