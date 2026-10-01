@@ -873,6 +873,10 @@
     .dq-kind.dq-spelling{background:#DBEAFE;color:var(--accent2)}
     .dq-kind.dq-gap{background:var(--green-bg);color:var(--green)}
     .dq-kind.dq-similar{background:var(--yellow-bg);color:var(--yellow)}
+    /* Rojo, y es el único de los cuatro que lo lleva. Los otros tres son
+     * "esto se puede mejorar"; éste es "esto no puede haber pasado", y una
+     * lista donde todo tiene el mismo color no deja verlo. */
+    .dq-kind.dq-negative{background:var(--red-bg);color:var(--red)}
     .dq-head{font-size:.86rem;margin-bottom:.2rem;word-break:break-word}
     .dq-body{font-size:.78rem;color:var(--muted);line-height:1.45}
     .dq-act{margin-top:.5rem}
@@ -1400,7 +1404,25 @@
      * ir en contra. */
     #tableContainer th.mc-qty,
     #tableContainer td.mc-qty{padding-left:4px;padding-right:4px}
-    #tableContainer th.mc-qty{text-align:left}
+    /* EL TÍTULO VA CENTRADO, y es la única columna de la tabla que lo lleva.
+     *
+     * Jose, 2026-09-28: "es la única columna que se ve desproporcionada... todas
+     * las columnas se ven bien porque el nombre y el valor van de izquierda a
+     * derecha, pero en ésta el nombre está a la izquierda y el valor a la
+     * derecha, y como hay valores de 3 dígitos sin contar el signo se ve raro."
+     *
+     * La razón por la que aquí se rompe la regla de la tabla: en las demás
+     * columnas el título y el valor empiezan en el mismo sitio, así que
+     * alinearlos a la izquierda los ata. Ésta NO tiene un sitio donde empiece el
+     * valor — tiene dos mitades que se encuentran en una costura, y la cifra
+     * crece hacia la izquierda desde ella. Pegar "Qty / Unit" a la izquierda lo
+     * ata al borde de una caja vacía cuando el número es corto.
+     *
+     * Centrado, el título queda sobre la costura: el contenido son 46+5+48 = 99
+     * px, así que el centro cae en 48,5 y la costura en 46+2,5 = 48,5. El mismo
+     * punto, no una aproximación — y por eso el título deja de moverse respecto
+     * a los números por mucho que cambien de largo. */
+    #tableContainer th.mc-qty{text-align:center}
 
     /* ═══ LA COSTURA DE `14 │ UNITS` ═════════════════════════════════════════
      *
@@ -4382,6 +4404,10 @@ var movements   = [];
 /* Lo pone el servidor en cada carga: existencias en los estantes y CERO
  * movimientos en el archivo, que es una mezcla imposible. Ver getInitialData. */
 var _archivoVacioConStock = false;
+/* Cuántas filas tiene ARCHIVE_HISTORY. Lo manda el servidor con un getLastRow,
+ * y es lo único que separa "se lo llevó todo el archivado" de "no está en
+ * ninguna parte" — dos pantallas idénticas y dos sustos muy distintos. */
+var _historicoFilas = 0;
 var stockData   = {};  // pre-calculated by backend: { matId: {warehouseQty, siteQty, ...} }
 var config      = { projects:[], categories:[], suppliers:[], locations:[], trucks:[], minStock:{} };
 var currentMoveType = 'ENTRY';
@@ -4394,7 +4420,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.19';
+var APP_VERSION = '12.27';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4406,7 +4432,7 @@ var APP_VERSION = '12.19';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '49b4d850';
+var APP_BUILD = 'e7f6a8cd';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -4687,6 +4713,38 @@ function _normKey(v){
 // An empty catalog must look empty; guessing is how one company's data ends up
 // inside another's system.
 var _NO_CATS_OPTION = '<option value="">— no categories yet — add them in Settings —</option>';
+
+/* UN SOLO ORDEN PARA CADA CATÁLOGO, Y SE PONE AL LLEGAR.
+ *
+ * Jose, 2026-09-28, con dos capturas: "la lista está ordenada por alfabeto en
+ * Settings pero no en la lista al crear un movimiento, ¿por qué?"
+ *
+ * Porque eran DOS COPIAS ordenadas en sitios distintos. Settings ordenaba
+ * `_settingsData`, su propia copia; los formularios leían `config`, que llega
+ * del servidor en el orden en que las cosas se escribieron en la hoja CONFIG
+ * —o sea, el orden en que se crearon hace meses—. Ese orden no lo puede
+ * predecir nadie: para encontrar SEALANT/CAULK en un desplegable de dieciséis
+ * hay que recorrerlos todos.
+ *
+ * Es el patrón de siempre en este proyecto: dos listas que tienen que coincidir
+ * y nada que lo obligue. Por eso el orden se pone UNA vez, aquí, en cuanto los
+ * datos entran — no en cada sitio que dibuja un desplegable, que es la versión
+ * que vuelve a separarse en cuanto alguien añade el siguiente.
+ *
+ * LOCATIONS NO, y no es un olvido: su orden se coloca a mano en la pestaña de
+ * Locations y se guarda en CONFIG, así que ordenarlas aquí tiraría ese trabajo
+ * en cada carga. Esa pestaña ofrece su propio "Sort A–Z". Mismas tres listas
+ * que ya ordena Settings, por la misma razón. */
+function _ordenarCatalogos(cfg){
+  if (!cfg) return;
+  ['categories', 'projects', 'suppliers'].forEach(function(k){
+    if (Array.isArray(cfg[k])) {
+      cfg[k].sort(function(a, b){
+        return String(a).localeCompare(String(b), undefined, { sensitivity:'base', numeric:true });
+      });
+    }
+  });
+}
 
 function _catOptions(){
   var cats = (config.categories && config.categories.length) ? config.categories : null;
@@ -5001,9 +5059,41 @@ function _mountRowMode(scope){ _applyRowMode(scope); }
 // shelf a rack, the next calls it a bay; "At Site" reads as delivered to one
 // and as used-on-a-job to another. Both the label and whether a column appears
 // at all are the customer's to decide.
+/* ANCHOS DECLARADOS, COMO EN MOVEMENTS (v12.22).
+ *
+ * Jose, 2026-09-29, con cinco capturas —una por categoría, misma ventana—:
+ * *"debemos estandarizar las columnas del Dashboard así como lo hicimos con
+ * Movements. Todos los filtros hacen que las filas se muevan y cambien de
+ * ancho, no debe pasar eso."*
+ *
+ * Medido sobre sus capturas: `STOCK` empieza en 541 con SHOWER y en 655 con
+ * WINDOW. **114px de diferencia sin tocar más que el filtro.**
+ *
+ * Y la causa no es el filtro: ES EL CONTENIDO. El navegador reparte el ancho
+ * por lo que hay dentro, y lo que hay dentro cambia por completo entre
+ * categorías — los nombres de WINDOW son largos (`GHH-SCENICMTN-P2,5P-TT`) y
+ * los de MIRROR cortos (`KUNA`); las ubicaciones de SHOWER son
+ * `MIRRORS/SHOWERS WAREHOUSE (234)` y las de WINDOW `A3A (54)`. Por eso
+ * cualquier filtro mueve la tabla, no sólo el de estado.
+ *
+ * LOS NÚMEROS ESTÁN MEDIDOS, NO ELEGIDOS. Dibujando la tabla con los peores
+ * casos reales de sus capturas y midiendo el ancho natural de cada celda sin
+ * envolver:
+ *
+ *     category 199   ·   levels 128   ·   status 93
+ *     dateReceived 110 (lo pide el TÍTULO, no el dato)
+ *     location 476   ·   name 658   ← éstas dos no pueden ir fijas
+ *
+ * `name` se queda ELÁSTICA —es la que tiene que crecer con la ventana, igual
+ * que `what` en Movements— y `location` va fija y recorta con puntos
+ * suspensivos, que es lo que ya hacía y nadie ha echado de menos.
+ *
+ * `category` se lleva 200 porque el peor caso es el distintivo
+ * `IGU (ISOLATED GLASS UNIT)`, y recortar un distintivo lo vuelve ilegible.
+ */
 var STOCK_COLS = [
-  { key:'category',     def:'Category',         lock:true  },   // the row is unreadable without it
-  { key:'name',         def:'Name / Description', lock:true },   // the row would be meaningless without it
+  { key:'category',     def:'Category',         lock:true,  w:200 },   // the row is unreadable without it
+  { key:'name',         def:'Name / Description', lock:true },   // la elástica: sin `w:` a propósito
   // CINCO COLUMNAS EN UNA BARRA. Idea de Jose, 2026-09-09:
   //
   //   "una barra de 2 colores que muestra la cantidad que hay con la cantidad
@@ -5013,13 +5103,26 @@ var STOCK_COLS = [
   // Cinco números sueltos obligan al ojo a sumarlos para entender la situación
   // de un material. La barra dice de un vistazo cuánto había en total y qué
   // proporción queda — y la proporción es la pregunta de verdad.
-  { key:'levels',       def:'Stock',            lock:false },
-  { key:'location',     def:'Location',         lock:false },
-  { key:'status',       def:'Status',           lock:false },
-  { key:'dateReceived', def:'Date Received',    lock:false },
-  { key:'lastNote',     def:'Last Note',        lock:false },
-  { key:'docs',         def:'Docs',             lock:false }
+  { key:'levels',       def:'Stock',            lock:false, w:130 },
+  { key:'location',     def:'Location',         lock:false, w:230 },
+  { key:'status',       def:'Status',           lock:false, w:100 },
+  { key:'dateReceived', def:'Date Received',    lock:false, w:115 },
+  { key:'lastNote',     def:'Last Note',        lock:false, w:190 },
+  { key:'docs',         def:'Docs',             lock:false, w:60  }
 ];
+
+/* EL SUELO DE LA COLUMNA ELÁSTICA DEL DASHBOARD.
+ *
+ * Mismo papel que `_MOV_MIN_WHAT` en Movements: por debajo de esto, el nombre
+ * del material deja de poder leerse de un vistazo y la tabla prefiere sacar
+ * barra horizontal antes que estrujarlo.
+ *
+ * Medido, no elegido: el título `Name / Description` necesita 145px, y un
+ * nombre de material corriente con su proyecto debajo (`LIBERTY WELLS
+ * TOWNHOMES`) pide más. 210 deja el nombre completo en la gran mayoría de las
+ * filas de OX y recorta sólo los monstruos como el GUNTHER de 658px, que no
+ * cabe en ninguna pantalla y ya se leía recortado. */
+var _STOCK_MIN_NAME = 210;
 
 // Movements is the record of what happened, Stock is what is on hand — different
 // columns, but the same gesture edits both. What is locked here is what makes a
@@ -5145,6 +5248,10 @@ var COL_TABLES = {
     cols: STOCK_COLS, tips: STOCK_COL_TIPS, prefix: 'sc-',
     orderKey: 'acopio_stock_col_order', hiddenKey: 'acopio_stock_col_hidden',
     defaultHidden: [],
+    // Desde la v12.22. Antes no estaba, y por eso `_fijarMinTabla` se salía por
+    // la primera línea para esta tabla — que es literalmente lo que hacía que
+    // el Dashboard repartiera por contenido y se moviera con cada filtro.
+    minWhat: _STOCK_MIN_NAME,
     head: 'stockHeadRow',
     lead: function(){ return '<th style="width:30px"></th>'; },        // row-select checkbox
     tail: function(){ return ''; },
@@ -5496,7 +5603,12 @@ function _anchoDeclarado(html){
  * `tools/test-columnas.js` mide los dos caminos por separado. */
 function _fijarMinTabla(t, headHtml){
   var cfg = _colCfg(t);
-  if (!cfg.minWhat) return;                 // Stock reparte por contenido
+  // Hasta la v12.22 esta línea decía "Stock reparte por contenido" y era la
+  // puerta por la que el Dashboard se escapaba del mecanismo: sin `minWhat` no
+  // se fijaba mínimo, y sin mínimo el navegador repartía por lo que hubiera
+  // dentro — que es exactamente lo que movía la tabla con cada filtro. Ahora
+  // las dos tablas lo tienen; queda para Incoming y Project View.
+  if (!cfg.minWhat) return;
   var row = document.getElementById(cfg.head);
   var tabla = row && row.closest('table');
   if (tabla) tabla.style.minWidth = (_anchoDeclarado(headHtml) + cfg.minWhat) + 'px';
@@ -6519,6 +6631,63 @@ function locSummary(locs){
 
 // Move-type badge: ENTRY=green, EXIT=red, TRANSFER=purple, RETURN=gray,
 // WASTE=black, ADJUST=slate
+/* ═══ LAS CIFRAS DEL SERVIDOR, PUESTAS AL INSTANTE ═══════════════════════════
+ *
+ * Jose, 2026-09-28, con vídeo y cronómetro: *"aun cuando la app dice done o
+ * listo, igual luego de eso se toma unos segundos más para cambiar la cantidad,
+ * restaurar las cantidades y cambiar el estado de In Stock a At Site."*
+ *
+ * LO QUE HACÍA. Los tres caminos de guardado terminaban en
+ * `loadDataFromGoogle(false)`, y ese `false` significa USA EL CACHÉ. El caché es
+ * la foto de ANTES del movimiento que se acaba de guardar, así que lo que salía
+ * "al instante" era la cantidad VIEJA. Y es peor que un esqueleto de carga:
+ * un esqueleto se ve como algo cargando, un número viejo se ve como un número.
+ * Luego terminaba el viaje entero y el número saltaba. Ésos eran los segundos.
+ *
+ * El comentario que decía "cached numbers show instantly, fresh ones catch up
+ * quietly" lo escribí yo, y describía el fallo creyendo que describía el
+ * arreglo.
+ *
+ * POR QUÉ NO SE REHACE LA ARITMÉTICA AQUÍ. Era la otra salida —calcular en el
+ * navegador el efecto del movimiento— y la descarté: abre la puerta a que el
+ * navegador y el servidor no coincidan, y entonces el número parpadea a un
+ * valor EQUIVOCADO antes de corregirse. Eso es peor que esperar, y rompe la
+ * regla de siempre: los datos como el usuario los ingresó.
+ *
+ * LO QUE SE HACE. El servidor YA tenía las cifras de después —muta su snapshot
+ * fila a fila para validar el guardado— y las tiraba. Ahora las manda en
+ * `res.stockAfter`. No hay dos aritméticas: es la del servidor, contada.
+ *
+ * Y la foto completa se sigue pidiendo detrás, en silencio, con
+ * `_reloadWhenIdle()`: esto adelanta lo que se mira, no sustituye la verdad.
+ */
+function _aplicarStockDelServidor(res){
+  var mapa = res && res.stockAfter;
+  if (!mapa) return 0;
+  var puestos = 0;
+  for (var k in mapa) {
+    if (!mapa.hasOwnProperty(k)) continue;
+    var s = stockData[k], f = mapa[k];
+    // Un material que esta pantalla no tenía todavía —la primera entrada de
+    // algo nuevo— no se inventa aquí: le faltan categoría, nombre y unidad, y
+    // media fila es peor que ninguna. Llega entero con la recarga.
+    if (!s) continue;
+    s.warehouseQty  = f.warehouseQty;
+    s.siteQty       = f.siteQty;
+    s.reservedQty   = f.reservedQty;
+    s.availableQty  = f.availableQty;
+    s.totalQty      = f.totalQty;
+    if (f.warehouseLocs) s.warehouseLocs = f.warehouseLocs;
+    puestos++;
+  }
+  // El badge sale gratis: desde la v12.17 el estado lo decide _stockState() a
+  // partir de estos números, así que In Stock → All at Site se corrige solo sin
+  // una línea más. Ése era el sentido de unificar los estados y éste es el
+  // primer sitio donde se cobra.
+  if (puestos) renderAll();
+  return puestos;
+}
+
 function normMT(mt){
   var n = nt(mt);
   if (n === 'DISPATCH' || n === 'DISPATCHED' || n === 'DEL') return 'EXIT';
@@ -7111,13 +7280,41 @@ function _liveStockSelection(){
   return _selectedStockRows();
 }
 
-// How many material lines the form is holding RIGHT NOW. ENTRY and EXIT keep one
-// line per material; every other screen has room for exactly one.
+/* CUÁNTOS MATERIALES HAY PUESTOS AHORA MISMO — y "puesto" quiere decir CON
+ * NOMBRE, no una tarjeta en blanco.
+ *
+ * ESTO CONTABA TARJETAS VACÍAS, y por eso Jose veía el aviso siempre:
+ *
+ *   "1 material was not carried over — ADJUST holds one at a time"
+ *   "este mensaje aparece siempre que doy clic en Entry o Exit y paso a
+ *    Adjust. Es una advertencia, pero no tiene sentido si no había
+ *    seleccionado algo antes de pasar a ajustar."
+ *
+ * Tenía razón entera. ENTRY y EXIT SIEMPRE tienen al menos una tarjeta dibujada
+ * —la vacía que espera a que escribas—, así que `before` valía 1 sin que
+ * hubiera ningún material. Al pasar a ADJUST, `after` lee #mName, que está
+ * vacío, y da 0. Uno mayor que cero: aviso. Cada vez, sin excepción.
+ *
+ * Y las dos mitades ni siquiera medían lo mismo: una contaba CAJAS y la otra
+ * miraba si había TEXTO. Un aviso que se dispara solo enseña a la gente a no
+ * leer los avisos, que es justo lo contrario de para lo que existe éste —
+ * decir la verdad cuando de verdad se pierden materiales (Jose perdió cuatro
+ * y se enteró razonándolo después).
+ *
+ * Ahora las dos mitades cuentan lo mismo: líneas con nombre escrito. */
 function _countMoveMaterialLines(){
+  function conNombre(sel, campo){
+    var n = 0;
+    document.querySelectorAll(sel).forEach(function(linea){
+      var inp = linea.querySelector(campo);
+      if (inp && String(inp.value || '').trim()) n++;
+    });
+    return n;
+  }
   if (currentMoveType === 'ENTRY')
-    return document.querySelectorAll('#multiMatContainer .mat-line').length;
+    return conNombre('#multiMatContainer .mat-line', 'input[id^="mat-name-"]');
   if (currentMoveType === 'EXIT')
-    return document.querySelectorAll('#multiExitContainer .exit-mat-line').length;
+    return conNombre('#multiExitContainer .exit-mat-line', 'input[id^="exit-name-"]');
   var el = document.getElementById('mName');
   return (el && String(el.value || '').trim()) ? 1 : 0;
 }
@@ -7836,18 +8033,34 @@ function renderMovements(){
      * Existencias sin un solo movimiento es imposible —cada unidad de un estante
      * llegó por una entrada, y esa entrada es una fila del archivo—, así que
      * cuando el servidor dice que se da esa mezcla, esta tabla deja de disimular. */
-    rows = _archivoVacioConStock
-      ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">🚨</div>' +
-        '<p><b>The movement history is empty, but the warehouse is not.</b></p>' +
-        '<p>That cannot happen on its own — every unit on a shelf got there ' +
-        'through an entry, and every entry is a row in the archive. Your ' +
-        'movements are almost certainly still in the backup made at 2am.</p>' +
-        '<p>Do not add movements and do not rebuild anything yet. Open your ' +
-        'spreadsheet and check the <b>MASTER_ARCHIVE_V3</b> tab, then the ' +
-        '<b>ERROR_LOG</b> tab for what the nightly job reported.</p>' +
-        '</div></td></tr>'
-      : '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
-        '<p>No movements match your filters.</p></div></td></tr>';
+    /* TRES VACÍOS, NO DOS. El tercero lo destapó Jose el 29/09 y es el que más
+     * asusta sin motivo: el archivo vacío porque el trabajo nocturno se llevó
+     * TODO al histórico. No se perdió nada, y sin embargo la pantalla se ve
+     * exactamente igual que el desastre del 26/09. Decirle a alguien que su
+     * almacén se rompió cuando sólo hay que pulsar un botón es casi tan malo
+     * como no decirle nada cuando sí se rompió. */
+    rows = !_archivoVacioConStock
+      ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
+        '<p>No movements match your filters.</p></div></td></tr>'
+      : _historicoFilas > 0
+        ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📦</div>' +
+          '<p><b>Nothing recent — all ' + _he(String(_historicoFilas)) +
+          ' of your movements are in the archived history.</b></p>' +
+          '<p>Nothing is lost. The nightly job moves anything older than your ' +
+          'cutoff out of the recent list, and this time that was everything. ' +
+          'Press <b>Load Older History</b> to see them.</p>' +
+          '<p>If you expected recent movements here, your archive cutoff in ' +
+          'Settings is probably shorter than you think.</p>' +
+          '</div></td></tr>'
+        : '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">🚨</div>' +
+          '<p><b>The movement history is empty, but the warehouse is not.</b></p>' +
+          '<p>That cannot happen on its own — every unit on a shelf got there ' +
+          'through an entry, and every entry is a row in the archive. Your ' +
+          'movements are almost certainly still in the backup made at 2am.</p>' +
+          '<p>Do not add movements and do not rebuild anything yet. Open your ' +
+          'spreadsheet and check the <b>MASTER_ARCHIVE_V3</b> tab, then the ' +
+          '<b>ERROR_LOG</b> tab for what the nightly job reported.</p>' +
+          '</div></td></tr>';
   }
 
   var foot = total
@@ -7907,24 +8120,59 @@ function renderMovements(){
   });
 }
 
+/* EL BOTÓN TRAE UNA TANDA MÁS CADA VEZ, Y DICE CUÁNTAS QUEDAN.
+ *
+ * Jose, 2026-10-01: *"la app sólo carga 56 movimientos y luego no puede cargar
+ * más; debería ir cargando más y más cada vez que se apriete el botón."*
+ *
+ * Lo que hacía: se traía ARCHIVE_HISTORY ENTERO de un golpe y después decía
+ * "ya está cargado". Con 56 filas eso parece que sólo sabe cargar 56; con
+ * 20.000 sería un viaje que no termina.
+ *
+ * Lo que faltaba de verdad no era el paginado: era que el botón DIJERA SI HA
+ * TERMINADO. "Older History (56)" no distingue "van 56 de 56" de "van 56 de
+ * 1.271", y sin esa diferencia la persona tiene que adivinar — que es
+ * exactamente lo que pasó. Ahora el rótulo cuenta las dos cosas. */
+var _oldHistoryQuedan = 0;
+
+function _rotuloHistorico(btn){
+  if (!btn) return;
+  if (!_oldHistoryLoaded) { _btnLabel(btn, '📜 Load Older History'); return; }
+  _btnLabel(btn, _oldHistoryQuedan > 0
+    ? '📜 Load ' + Math.min(300, _oldHistoryQuedan) + ' more (' + oldMovements.length + ' loaded, ' +
+      _oldHistoryQuedan + ' older still there)'
+    : '📜 All older history loaded (' + oldMovements.length + ')');
+}
+
 function _loadOlderHistoryClicked() {
   var btn = document.getElementById('btnLoadOlderHistory');
-  if (_oldHistoryLoaded) { showToast('Older history already loaded (' + oldMovements.length + ' movements).', 'ok', TOAST_QUICK); return; }
+  if (_oldHistoryLoaded && _oldHistoryQuedan === 0) {
+    showToast('That is all of it — ' + oldMovements.length +
+              ' archived movement(s), nothing older left.', 'ok', TOAST_QUICK);
+    return;
+  }
   _btnBusy(btn, 'Loading…');
   google.script.run
-    .withSuccessHandler(function(rows) {
-      oldMovements = rows || [];
+    .withSuccessHandler(function(res) {
+      var tanda = (res && res.items) || [];
+      // Al final: la hoja se lee de atrás hacia delante, así que cada tanda es
+      // MÁS VIEJA que la anterior y va debajo. renderMovements invierte el
+      // conjunto, así que lo de arriba sigue siendo lo más reciente.
+      oldMovements = tanda.concat(oldMovements);
+      _oldHistoryQuedan = (res && res.quedan) || 0;
       _oldHistoryLoaded = true;
-      _btnLabel(btn, '📜 Older History (' + oldMovements.length + ')');
+      _rotuloHistorico(btn);
       _movPage = 1;
       renderMovements();
-      showToast('✓ Loaded ' + oldMovements.length + ' archived movement(s).', 'ok', TOAST_QUICK);
+      showToast('✓ ' + tanda.length + ' more loaded' +
+                (_oldHistoryQuedan ? ' — ' + _oldHistoryQuedan + ' older still there.' : '. That is all of it.'),
+                'ok', TOAST_QUICK);
     })
     .withFailureHandler(function(e) {
-      _btnLabel(btn, '📜 Load Older History');
+      _rotuloHistorico(btn);
       showToast('⚠ Error: ' + _stripTags(e), 'err');
     })
-    .processMovement('loadOlderHistory', _h({}));
+    .processMovement('loadOlderHistory', _h({ desde: oldMovements.length }));
 }
 
 function _loadMoreMovements(){
@@ -10044,10 +10292,10 @@ async function submitMovement(){
         // window that closed without saving, and the toast arrives afterwards,
         // somewhere else on the screen, when the eye is still on the button.
         _btnDone(btn, true, function(){ closeModal('moveOverlay'); });
-        // Show cached numbers instantly (no skeleton-card flash), fresh data quietly
-        // replaces them a moment later once the round-trip completes — the "reload"
-        // feeling was the skeleton cards, not the actual data refresh.
-        loadDataFromGoogle(false);
+        // Las cifras REALES de después, que el servidor acaba de mandar, y la
+        // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
+        _aplicarStockDelServidor(res);
+        _reloadWhenIdle();
         setTimeout(function(){
           if (res && (res.emailError || res.fileError || res.refreshError)){
             var msgs = [];
@@ -11330,7 +11578,10 @@ function submitMultiExit(){
         } else {
           showToast('✓ '+res.rowCount+' movement record(s) saved.','ok',TOAST_QUICK);
         }
-        loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
+        // Las cifras REALES de después, que el servidor acaba de mandar, y la
+        // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
+        _aplicarStockDelServidor(res);
+        _reloadWhenIdle();
       })
       .withFailureHandler(function(err){
         // ANTES de soltar el botón: mientras se espera turno no debe poder
@@ -11516,7 +11767,10 @@ function submitMultiEntry(){
         // marcó — ver _entryFromIncId.
         var deLaEntrega = _entryFromIncId;
         closeModal('moveOverlay');
-        loadDataFromGoogle(false); // cached numbers show instantly, fresh ones catch up quietly
+        // Las cifras REALES de después, que el servidor acaba de mandar, y la
+        // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
+        _aplicarStockDelServidor(res);
+        _reloadWhenIdle();
         setTimeout(function(){
           var count = (res && res.count) ? res.count : materials.length;
           var rows  = (res && res.rowCount) ? res.rowCount : count;
@@ -12161,19 +12415,20 @@ function _spotMovementRows(want, mayFetch){
     var btn = document.getElementById('btnLoadOlderHistory');
     if (btn) _btnBusy(btn, 'Loading…');
     google.script.run
-      .withSuccessHandler(function(rows){
-        oldMovements     = rows || [];
+      .withSuccessHandler(function(res){
+        oldMovements      = ((res && res.items) || []).concat(oldMovements);
+        _oldHistoryQuedan = (res && res.quedan) || 0;
         _oldHistoryLoaded = true;
-        _btnLabel(btn, '📜 Older History (' + oldMovements.length + ')');
+        _rotuloHistorico(btn);
         _movPage = 1;
         renderMovements();
         setTimeout(function(){ _spotMovementRows(want, false); }, 60);
       })
       .withFailureHandler(function(e){
-        _btnLabel(btn, '📜 Load Older History');
+        _rotuloHistorico(btn);
         showToast('Could not load the archived history: ' + (e.message || e), 'err', 6000);
       })
-      .processMovement('loadOlderHistory', _h({}));
+      .processMovement('loadOlderHistory', _h({ desde: oldMovements.length }));
     return;
   }
 
@@ -12386,8 +12641,24 @@ function _paintTrash(items){
               _he(String(it.qty)) + ' ' + _he(it.unit) + ' · ' + _he(it.moveType) +
               (where ? ' · ' + _he(where) : '') + '</span>' +
             '</div>' +
-            '<div style="font-size:.72rem;color:var(--muted)">Deleted by ' + _he(it.deletedBy) +
+            /* LA SEGUNDA LÍNEA DICE DE QUÉ MOVIMIENTO SE TRATA, no sólo quién
+             * lo borró. Jose borró una salida, la devolvió y la volvió a
+             * borrar, y vio dos renglones que decían exactamente lo mismo — sin
+             * nada que dijera si era UN movimiento listado dos veces o DOS
+             * movimientos de verdad. Las dos respuestas piden acciones
+             * opuestas, así que dejar la pregunta abierta era el fallo.
+             *
+             * Se enseñan la fecha del movimiento, su PO y su id. El id va en
+             * letra pequeña y monoespaciada porque no es para leerlo: es para
+             * poder compararlo — con el otro renglón, o con la hoja. */
+            '<div style="font-size:.72rem;color:var(--muted)">' +
+              (it.when ? _he(_fmtWhen(it.when)) + ' · ' : '') +
+              (it.po ? 'PO ' + _he(it.po) + ' · ' : '') +
+              'Deleted by ' + _he(it.deletedBy) +
               (it.deletedAt ? ' · ' + _he(_fmtWhen(it.deletedAt)) : '') + '</div>' +
+            (it.movId ? '<div style="font-size:.66rem;color:var(--muted);opacity:.75;' +
+              'font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;' +
+              'text-overflow:ellipsis;white-space:nowrap">' + _he(it.movId) + '</div>' : '') +
           '</div>' +
           // El id va en un atributo, no dentro de las comillas de un onclick.
           // Lo que hay en la hoja lo puede haber escrito una persona a mano, y
@@ -12821,6 +13092,21 @@ function _dqCard(f, i){
            '<strong>' + _he(f.value) + '</strong>.';
     action = '<button class="btn btn-primary btn-sm" onclick="_dqApply(' + i + ')">Fill them in</button>';
 
+  } else if (f.kind === 'negative'){
+    /* LESS THAN NOTHING. No Apply button and there never will be one: the fix
+     * is either "one of these movements should not be there" or "an entry was
+     * never recorded", and only somebody who knows the warehouse can say which.
+     * What this owes them is the evidence and where to go look. */
+    head = '<strong>' + _he(f.name) + '</strong> <span style="color:var(--muted);font-size:.78rem">' + _he(f.category) + '</span>';
+    body = 'More of this has left than ever arrived: <strong>' + _he(String(f.inQty)) + ' in</strong>, ' +
+           '<strong>' + _he(String(f.outQty)) + ' out</strong>, which leaves it at ' +
+           '<strong style="color:var(--red)">' + _he(String(f.value)) + '</strong>. ' +
+           'That cannot have happened, so one of its movements is wrong — either something went out ' +
+           'twice, or something that came in was never recorded. ' +
+           '<em>Every stock figure for this material is wrong until it is sorted.</em><br><br>' +
+           'Search its name in Movement History and compare the entries against the exits. ' +
+           'Also worth a look: Settings → System → Deleted movements.';
+
   } else {
     // No Apply button, on purpose. The app is not confident enough to offer
     // one, and saying so is worth more than a button that is wrong one time in
@@ -12833,7 +13119,10 @@ function _dqCard(f, i){
 
   return '<div class="dq-card" id="dq-card-' + i + '">' +
       '<div class="dq-kind dq-' + f.kind + '">' +
-        (f.kind === 'spelling' ? 'Written two ways' : f.kind === 'gap' ? 'Missing a value' : 'Have a look') +
+        (f.kind === 'spelling' ? 'Written two ways'
+          : f.kind === 'gap'      ? 'Missing a value'
+          : f.kind === 'negative' ? 'Less than nothing'
+          : 'Have a look') +
       '</div>' +
       '<div class="dq-head">' + head + '</div>' +
       '<div class="dq-body">' + body + '</div>' +
@@ -14787,14 +15076,36 @@ function _renderPacksPanel(){
   if (!host) return;
   var rows = _packsPanelRows();
 
+  /* EL BOTÓN DE AÑADIR, que faltaba.
+   *
+   * Jose, 2026-09-28: "no hay forma de corregir o añadir la cantidad de unidades
+   * por caja de un material que ya creé... la única forma es eliminar el
+   * material y hacerlo otra vez y eso no es útil para el usuario."
+   *
+   * Tenía razón a medias, y la mitad que le faltaba era la peor. CORREGIR sí se
+   * podía: el ✏️ Edit de cada renglón lleva meses aquí. AÑADIR no — y esta misma
+   * lista lo decía sin darse cuenta, en su propio texto de lista vacía: "una
+   * línea aparece la primera vez que alguien recibe un material por caja". O
+   * sea: para decirle a la app cuántas unidades trae una caja había que fingir
+   * una entrada. Un dato de catálogo escondido detrás de un movimiento.
+   *
+   * Por eso "no se puede corregir" es lo que se ve desde fuera: si el material
+   * no tiene todavía su factor, no hay renglón, y sin renglón no hay ✏️. */
   var head = '<div class="packs-hd"><span class="packs-title">Units per Box / Pallet</span>' +
-             '<span class="packs-count">' + rows.length + '</span></div>';
+             '<span class="packs-count">' + rows.length + '</span>' +
+             '<button class="cfg-btn packs-add" style="margin-left:auto">＋ Add a pack</button>' +
+             '</div>' +
+             '<div id="packsAddBox"></div>';
 
   if (!rows.length){
     host.innerHTML = head +
       '<p class="packs-empty">Nothing here yet — and for a warehouse that counts everything ' +
       'one at a time, there never will be. A line appears the first time somebody receives ' +
-      'a material by the box, case, pallet or bag and says how many are inside.</p>';
+      'a material by the box, case, pallet or bag and says how many are inside — or when ' +
+      'you add one here.</p>';
+    host.querySelectorAll('.packs-add').forEach(function(b){
+      b.addEventListener('click', function(){ _packsPanelAdd(); });
+    });
     return;
   }
 
@@ -14820,6 +15131,125 @@ function _renderPacksPanel(){
   host.querySelectorAll('.packs-del').forEach(function(b){
     b.addEventListener('click', function(){ _packsPanelDelete(rows[+b.dataset.i], b); });
   });
+  host.querySelectorAll('.packs-add').forEach(function(b){
+    b.addEventListener('click', function(){ _packsPanelAdd(); });
+  });
+}
+
+/* AÑADIR UN FACTOR SIN FINGIR UNA ENTRADA.
+ *
+ * Tres campos, y ni uno más: qué material, en qué envase, cuántas unidades.
+ *
+ * LO QUE PROTEGE LA EXACTITUD, que es la condición que puso Jose — "hacerle la
+ * vida más fácil al usuario pero sin comprometer la accuracy":
+ *
+ *   1. EL MATERIAL TIENE QUE EXISTIR YA. Es una lista, no un campo libre. Un
+ *      factor escrito sobre un nombre que no existe no da error: se guarda, no
+ *      se aplica nunca, y nadie se entera. El error silencioso es peor que la
+ *      molestia de elegir de una lista.
+ *   2. EL ENVASE SÓLO PUEDE SER UNO DE LOS CUATRO QUE CONTIENEN COSAS. Sale de
+ *      _PACK_UNITS, la misma fuente que usa el formulario de entrada, para que
+ *      no haya dos ideas de qué es un envase.
+ *   3. MÁS DE UNA UNIDAD. Una caja de 1 es una unidad, y guardarlo así hace que
+ *      la app divida por uno para siempre.
+ *   4. SI YA TIENE FACTOR, NO SE PISA EN SILENCIO: se dice cuál es y se manda
+ *      al mismo camino de cambio que ya avisa dos veces, porque cambiar un
+ *      factor que ya existe cambia el coste de todo lo que venga.
+ */
+function _packsPanelAdd(){
+  var box = document.getElementById('packsAddBox');
+  if (!box) return;
+  if (box.innerHTML){ box.innerHTML = ''; return; }   // el botón también cierra
+
+  var mats = (_matListAll || []).slice().sort(function(a, b){
+    return String(a.name).localeCompare(String(b.name), undefined, { sensitivity:'base', numeric:true });
+  });
+  if (!mats.length){
+    box.innerHTML = '<p class="packs-note" style="margin:.4rem 0 0">The material list is still ' +
+      'loading — give it a moment and press ＋ again.</p>';
+    return;
+  }
+
+  var unitOpts = Object.keys(_PACK_UNITS).map(function(u){
+    return '<option value="' + u + '">' + _he(_UNIT_WORDS[u] || u) + '</option>';
+  }).join('');
+
+  box.innerHTML =
+    '<div class="pack-note ask" style="margin:.45rem 0 .6rem;flex-wrap:wrap">' +
+      '<input type="text" id="packAddName" list="packAddNames" placeholder="Material name…" ' +
+        'autocomplete="off" style="flex:1;min-width:11rem">' +
+      '<datalist id="packAddNames">' +
+        mats.map(function(m){ return '<option value="' + _escAttr(m.name) + '">' + _he(m.category) + '</option>'; }).join('') +
+      '</datalist>' +
+      '<select id="packAddUnit">' + unitOpts + '</select>' +
+      '<input type="number" class="pack-qty" id="packAddQty" min="0" step="any" placeholder="12">' +
+      '<button type="button" class="pack-save" id="packAddSave">+ Add it</button>' +
+      '<button type="button" class="cfg-btn" id="packAddCancel">Cancel</button>' +
+      '<div class="pack-warn" id="packAddWarn" style="display:none"></div>' +
+    '</div>';
+
+  var inpName = document.getElementById('packAddName');
+  var selUnit = document.getElementById('packAddUnit');
+  var inpQty  = document.getElementById('packAddQty');
+  var warn    = document.getElementById('packAddWarn');
+
+  function decir(msg){ warn.style.display = ''; warn.innerHTML = msg; }
+
+  document.getElementById('packAddCancel').addEventListener('click', function(){ box.innerHTML = ''; });
+  [inpName, inpQty].forEach(function(el){
+    el.addEventListener('input', function(){ warn.style.display = 'none'; });
+  });
+
+  document.getElementById('packAddSave').addEventListener('click', function(){
+    var escrito = String(inpName.value || '').trim();
+    // Por nombre exacto, sin distinguir mayúsculas: es lo que la lista ofrece.
+    var mat = null;
+    for (var i = 0; i < mats.length; i++){
+      if (String(mats[i].name).toUpperCase() === escrito.toUpperCase()){ mat = mats[i]; break; }
+    }
+    if (!mat){
+      decir(escrito
+        ? 'There is no material called <strong>' + _he(escrito) + '</strong>. Pick one from the list — ' +
+          'a pack saved against a name that does not exist would never be used.'
+        : 'Which material?');
+      inpName.focus();
+      return;
+    }
+    var unit = selUnit.value;
+    var word = (_UNIT_WORDS[unit] || unit).toLowerCase();
+    var v = Number(inpQty.value);
+    if (!isFinite(v) || v <= 0){ decir('How many units are in one ' + _he(word) + '?'); inpQty.focus(); return; }
+    if (v <= 1){
+      decir('A ' + _he(word) + ' of 1 is the same as a unit — nothing to divide.');
+      return;
+    }
+    var ya = _packFactor(mat.category, mat.name, unit);
+    if (ya){
+      decir('<strong>' + _he(mat.name) + '</strong> already has ' + ya + ' per ' + _he(word) +
+        '. Close this and use ✏️ Edit on its line — changing a factor that already exists ' +
+        'changes what future entries cost, so it asks twice.');
+      return;
+    }
+    var btn = document.getElementById('packAddSave');
+    _btnBusy(btn, 'Saving…');
+    google.script.run
+      .withSuccessHandler(function(){
+        var key = _packKeyJs(mat.category, mat.name);
+        if (!materialPacks[key]) materialPacks[key] = { packs: [] };
+        materialPacks[key].packs.push({ pack: unit, perPack: v });
+        box.innerHTML = '';
+        _renderPacksPanel();
+        toast('One ' + word + ' of ' + mat.name + ' is ' + v + ' units.', 'success');
+      })
+      .withFailureHandler(function(e){
+        _btnReset(btn);
+        decir('Could not save: ' + _he((e && e.message) || String(e)));
+      })
+      .processMovement('saveMaterialPack',
+        _h({ category: mat.category, name: mat.name, pack: unit, perPack: v }));
+  });
+
+  setTimeout(function(){ inpName.focus(); }, 20);
 }
 
 function _packsPanelEdit(r){
@@ -21607,8 +22037,10 @@ function _applyData(data) {
    * `stockData`: la caché de este navegador puede traer movimientos de antes y
    * taparía justo el caso que hay que ver. Lo decide quien lee la hoja. */
   _archivoVacioConStock = !!data.archiveVacioConStock;
+  _historicoFilas       = Number(data.historicoFilas) || 0;
   stockData          = data.stock              || {};
   config             = data.config             || config;
+  _ordenarCatalogos(config);
   userRole           = data.userRole           || 'WAREHOUSE';
   if (data.rolePerms) rolePerms = data.rolePerms;
   if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;

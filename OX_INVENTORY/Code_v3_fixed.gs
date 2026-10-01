@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.19';
+var APP_VERSION = '12.27';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.19';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '49b4d850';
+var APP_BUILD = 'e7f6a8cd';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -467,10 +467,224 @@ function ensureCoreSheets_(ss) {
   try { ensureWasteSheet_(ss);          } catch (e) {}
   try { ensureArchiveHistorySheet_(ss); } catch (e) {}
 
+  /* EL CONJUNTO COMPLETO SÓLO SI LA HOJA ACABA DE NACER.
+   *
+   * `created.length && !ss.getSheetByName(SHEETS.ARCHIVE).getLastRow() > 1` sería
+   * frágil. La regla que sí se sostiene: `aplicarFormatoEstandar_` decide por sí
+   * misma, hoja por hoja, si puede tocar el formato de las celdas —sólo las
+   * vacías— así que pedirle el conjunto completo aquí es seguro en los dos
+   * casos. En una instalación nueva formatea todo; en una de meses formatea el
+   * color, la cabecera y la nota, y deja los datos en paz.
+   *
+   * Envuelto porque un fallo de formato NO puede impedir que existan las hojas.
+   * Ése es el orden de importancia y conviene que esté escrito. */
+  try { aplicarFormatoEstandar_(ss, { completo: true }); } catch (e) {
+    try { Logger.log('aplicarFormatoEstandar_: ' + e.message); } catch (e2) {}
+  }
+
   if (repaired.length) {
     try { auditLog_(ss, 'REPAIR_HEADERS', 'system', repaired.join(', '), '', ''); } catch (e) {}
   }
   return created;
+}
+
+/* ═══ EL FORMATO ESTÁNDAR DE LA HOJA ═════════════════════════════════════════
+ *
+ * Jose, 2026-09-28: *"sobre la plantilla debemos estandarizarla y ponerle
+ * formato a todo, el formato profesional que queremos que los usuarios vean ya
+ * sea cuando yo les instale el programa o cuando ellos lo hagan."*
+ *
+ * LO QUE HABÍA. Una casa de estilo de verdad —SH_NAVY / SH_ACCENT / SH_MUTED,
+ * tipografía, jerarquía, anchos medidos— usada por TRES pestañas de veinte:
+ * START HERE, Terms y Privacy. Las otras diecisiete recibían esto y nada más:
+ *
+ *     sheet.setFrozenRows(1);
+ *     sheet.getRange(1,1,1,n).setFontWeight('bold');
+ *
+ * Así que lo que vive un cliente nuevo es una bienvenida cuidada y, detrás,
+ * diecisiete volcados de hoja de cálculo. El contraste hace MÁS daño que si
+ * ninguna estuviera formateada, porque enseña que sí sabíamos cómo.
+ *
+ * ── POR QUÉ ESTO ES CÓDIGO Y NO UNA LISTA DE PASOS ──────────────────────────
+ *
+ * Un formato puesto a mano sobre la plantilla se pierde en el primer
+ * `insertSheet` que añada una pestaña, y nadie lo nota, porque lo que falta no
+ * falla. Es el patrón que este archivo ya conoce por su nombre: dos listas que
+ * tienen que coincidir sin nada que lo obligue. Idempotente: correrla dos veces
+ * no cambia nada la segunda.
+ *
+ * ── LOS DOS CONJUNTOS, Y POR QUÉ NO SON UNO ─────────────────────────────────
+ *
+ * SEGURO SIEMPRE, incluso sobre una instalación de meses: color de pestaña,
+ * fila fija, estilo de la cabecera, la nota en A1 y la protección en modo
+ * aviso. Nada de eso pisa una decisión de nadie.
+ *
+ * SÓLO EN PLANTILLA Y EN HOJAS VACÍAS (`completo`): anchos de columna y formato
+ * de texto. El cliente pudo haber cambiado un ancho a propósito, y eso es suyo.
+ *
+ * ── LA CORRECCIÓN SOBRE EL FORMATO DE TEXTO, que yo mismo había exagerado ───
+ *
+ * `ESTANDAR-DE-LA-PLANTILLA.md` decía que una instalación nueva sale SIN la
+ * protección que impide que un PO `07-6329` se vuelva fecha, y que era un
+ * agujero abierto. **No es verdad, y conviene decirlo aquí para que nadie lo
+ * vuelva a creer:** `textCell_` pone una comilla delante de CADA cadena en cada
+ * camino de escritura, y eso ya protege las escrituras de la app —es el arreglo
+ * de la v11.x que guarda `test-text-stays-text.js`—.
+ *
+ * El formato `@` de la columna es la SEGUNDA capa, y sirve para lo que la
+ * comilla no alcanza: cuando una persona escribe A MANO en la hoja, y si algún
+ * día alguien añade un camino de escritura que se olvide de `textCell_`.
+ *
+ * Y por eso sólo va en hojas VACÍAS. Poner `@` sobre una columna que ya tiene
+ * números cambia cómo se ven —un importe pasaría a enseñarse como texto y
+ * cualquier fórmula del cliente sobre esa columna dejaría de sumar—. Sobre una
+ * plantilla vacía no cuesta nada y protege desde el primer día; sobre datos de
+ * verdad sería exactamente la clase de sorpresa que este archivo evita.
+ */
+var FORMATO_CABECERA_ALTO = 28;
+
+/* El color de pestaña DICE SI SE PUEDE EDITAR A MANO, que es la pregunta de
+ * soporte más frecuente que va a haber y hoy no está escrita en ningún sitio.
+ * No es decoración: es el único dato que el color puede llevar. */
+function gruposDeFormato_() {
+  return [
+    { grupo: 'documento', color: SH_NAVY, proteger: true, nota: '',
+      hojas: [START_HERE_SHEET, TERMS_SHEET, PRIVACY_SHEET] },
+    { grupo: 'datos', color: SH_ACCENT, proteger: false, nota: '',
+      hojas: [SHEETS.ARCHIVE, 'INCOMING_V3', 'USERS_V3', SHEETS.CONFIG,
+              SHEETS.PACKS, 'PM_DIRECTORY', 'RACK_PHOTOS'] },
+    { grupo: 'calculada', color: SH_MUTED, proteger: true,
+      nota: 'Rebuilt by ' + PRODUCT_NAME + ' from ' + SHEETS.ARCHIVE + '.\n' +
+            'Edits here are overwritten — change the movement instead.',
+      hojas: [SHEETS.LIVE, SHEETS.SITE, SHEETS.WASTE, SHEETS.RESERVATIONS, 'MATERIAL_LOCKS'] },
+    { grupo: 'registro', color: '#9CA3AF', proteger: true,
+      nota: 'A record of what happened. Rows are only ever added.\n' +
+            'Correcting one here does not correct anything else.',
+      hojas: [SHEETS.AUDIT, SHEETS.ERRORS, SHEETS.ARCHIVE_HISTORY, SHEETS.TRASH] }
+  ];
+}
+
+/* Anchos del archivo POR CLASE DE CONTENIDO, no columna por columna: añadir una
+ * columna deja de ser inventarse un número. Los que no están aquí se quedan
+ * como estén — ensanchar una columna que nadie pidió tampoco es gratis. */
+function anchosDelArchivo_() {
+  var a = {};
+  a[AC.TIMESTAMP] = 140;  a[AC.DATE_REC]  = 100;
+  a[AC.CATEGORY]  = 170;  a[AC.NAME]      = 260;
+  a[AC.QTY]       = 80;   a[AC.UNIT]      = 90;
+  a[AC.SRC_LOC]   = 120;  a[AC.DEST_LOC]  = 120;
+  a[AC.SUPPLIER]  = 170;  a[AC.PROJECT]   = 170;
+  a[AC.PO]        = 110;  a[AC.STATUS]    = 110;
+  a[AC.COMMENTS]  = 260;  a[AC.MAT_ID]    = 220;
+  a[AC.MOV_ID]    = 180;  a[AC.USER_EMAIL]= 200;
+  a[AC.UNIT_COST] = 90;   a[AC.TOTAL_COST]= 90;
+  return a;
+}
+
+/** ¿Tiene datos de verdad, o sólo la cabecera? Decide si se le puede tocar el
+ *  formato de las celdas sin cambiarle nada a nadie. */
+function hojaVacia_(sheet) {
+  try { return sheet.getLastRow() <= 1; } catch (e) { return false; }
+}
+
+/** Protección en modo AVISO, y sólo si no la tiene ya.
+ *
+ *  Aviso y no bloqueo, a propósito: la app escribe en estas hojas con la misma
+ *  cuenta, así que un bloqueo de verdad sería una forma NUEVA de que la app
+ *  falle de noche. El aviso frena a la persona y no frena al código. */
+function protegerConAviso_(sheet) {
+  try {
+    var ya = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+    if (ya && ya.length) return false;
+    sheet.protect().setWarningOnly(true);
+    return true;
+  } catch (e) { return false; }
+}
+
+function aplicarFormatoEstandar_(ss, opciones) {
+  opciones = opciones || {};
+  var completo = !!opciones.completo;
+  var rep = { pestanas: 0, cabeceras: 0, notas: 0, protegidas: 0,
+              texto: [], anchos: 0, saltadas: [], fallos: [] };
+  var orden = [];
+
+  gruposDeFormato_().forEach(function (g) {
+    g.hojas.forEach(function (nombre) {
+      var sh = ss.getSheetByName(nombre);
+      if (!sh) return;                       // una instalación no las tiene todas
+      orden.push(sh);
+      try {
+        if (sh.getTabColor() !== g.color) { sh.setTabColor(g.color); rep.pestanas++; }
+
+        // Los documentos traen su propio diseño desde createLegalSheets_ y
+        // showStartHere_: pintarles encima una cabecera de tabla los estropea.
+        if (g.grupo !== 'documento') {
+          var ancho = Math.max(1, sh.getLastColumn());
+          var cab = sh.getRange(1, 1, 1, ancho);
+          if (cab.getBackground() !== SH_NAVY) {
+            cab.setBackground(SH_NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
+               .setFontSize(9.5).setVerticalAlignment('bottom');
+            sh.setRowHeight(1, FORMATO_CABECERA_ALTO);
+            rep.cabeceras++;
+          }
+          try { sh.setFrozenRows(1); } catch (e) {}
+        }
+
+        // La nota vive en A1, que el código no lee y la persona ve al pasar el
+        // ratón. Es la línea que evita que alguien "arregle" el stock a mano y
+        // no entienda por qué vuelve.
+        if (g.nota) {
+          var a1 = sh.getRange(1, 1);
+          if (String(a1.getNote() || '') !== g.nota) { a1.setNote(g.nota); rep.notas++; }
+        }
+
+        if (g.proteger && protegerConAviso_(sh)) rep.protegidas++;
+
+        if (completo) {
+          if (g.grupo === 'documento') return;
+          if (!hojaVacia_(sh)) { rep.saltadas.push(nombre); return; }
+
+          // Texto en todo lo que no sea la cabecera. Ver el comentario largo de
+          // arriba: sólo sobre hojas vacías, nunca sobre datos de verdad.
+          var filas = Math.max(1, sh.getMaxRows() - 1);
+          var cols  = Math.max(1, sh.getMaxColumns());
+          sh.getRange(2, 1, filas, cols).setNumberFormat('@');
+          rep.texto.push(nombre);
+
+          if (nombre === SHEETS.ARCHIVE || nombre === SHEETS.ARCHIVE_HISTORY ||
+              nombre === SHEETS.TRASH) {
+            var anchos = anchosDelArchivo_();
+            Object.keys(anchos).forEach(function (idx) {
+              var col = Number(idx) + 1;
+              if (col > sh.getMaxColumns()) return;
+              sh.setColumnWidth(col, anchos[idx]);
+              rep.anchos++;
+            });
+            // Cantidades y dinero a la derecha. Es presentación y no toca el
+            // valor: el formato sigue siendo texto, que es lo que protege el
+            // dato. Alinear con un formato de número sí lo tocaría.
+            [AC.QTY, AC.UNIT_COST, AC.TOTAL_COST].forEach(function (c) {
+              if (c + 1 <= sh.getMaxColumns()) {
+                sh.getRange(2, c + 1, filas, 1).setHorizontalAlignment('right');
+              }
+            });
+          }
+        }
+      } catch (e) { rep.fallos.push(nombre + ': ' + e.message); }
+    });
+  });
+
+  // El orden de las pestañas, sólo en el conjunto completo: mover las pestañas
+  // de alguien que lleva meses usando la hoja es reordenarle el escritorio.
+  if (completo) {
+    try {
+      for (var i = 0; i < orden.length; i++) {
+        ss.setActiveSheet(orden[i]);
+        ss.moveActiveSheet(i + 1);
+      }
+    } catch (e) { rep.fallos.push('orden: ' + e.message); }
+  }
+  return rep;
 }
 
 /* PONE NOMBRE A LAS COLUMNAS QUE NO LO TIENEN, y sólo a ésas.
@@ -1952,13 +2166,59 @@ function getInitialData(sessionToken) {
        *
        * Se manda como dato, no como texto: la frase vive en el navegador con
        * las demás, en inglés y en un solo sitio. */
+      /* ═══ ESTE CANARIO NUNCA PUDO CANTAR, Y LO DESCUBRIÓ JOSE ═══════════════
+       *
+       * Escrito así en la v12.14, para exactamente el desastre del 26/09:
+       *
+       *     for (var av = 0; av < stock.length; av++) { var s = stock[av]; ... }
+       *
+       * `stock` NO ES UN ARRAY. Es un mapa `{ matId: {...} }` — lo devuelven así
+       * tanto calculateStock como buildStockFromDerivedSheets_, y así lo consume
+       * el navegador con Object.values. `stock.length` es `undefined`,
+       * `0 < undefined` es `false`, el bucle no da ni una vuelta y la expresión
+       * devuelve `false` SIEMPRE.
+       *
+       * O sea: la red de seguridad que puse para que esto no volviera a pasar
+       * desapercibido llevaba diez días sin poder dispararse nunca. El 29/09
+       * Jose abrió Movements, vio la tabla vacía, y la app le enseñó el educado
+       * "No movements match your filters" — la misma frase del 26/09, por el
+       * mismo motivo, con el aviso puesto y roto.
+       *
+       * ES EL MISMO FALLO QUE writeConfigSnapshot_: una protección que se
+       * escribió, se dio por buena y nunca se ejecutó ni una vez. Lo que las dos
+       * tienen en común no es el descuido — es que NINGUNA TENÍA PRUEBA. Ahora
+       * la tiene, y ejecuta (tools/test-canario-archivo.js).
+       *
+       * Y SE DISTINGUEN LOS DOS VACÍOS, que no son el mismo susto:
+       *   · el archivo vacío y el HISTÓRICO con filas → no se perdió nada, el
+       *     trabajo nocturno se lo llevó todo al histórico. Un botón lo trae.
+       *   · los dos vacíos y el almacén con existencias → eso sí es imposible. */
       archiveVacioConStock: (movements.length === 0 && (function(){
-        for (var av = 0; av < stock.length; av++) {
+        for (var av in stock) {
+          if (!stock.hasOwnProperty(av)) continue;
           var s = stock[av];
           if ((s.warehouseQty || 0) > 0 || (s.siteQty || 0) > 0) return true;
         }
         return false;
       })()),
+      /* Cuántas filas tiene el histórico. Un `getLastRow()` y nada más — no se
+       * lee la hoja— y es lo que separa "se lo llevó todo el archivado" de "no
+       * está en ninguna parte". Cero si la hoja no existe todavía. */
+      historicoFilas: (function(){
+        try {
+          var h = ss.getSheetByName(SHEETS.ARCHIVE_HISTORY);
+          return h ? Math.max(0, h.getLastRow() - 1) : 0;
+        } catch (e) {
+          /* Se registra, no se traga. test-use-before-var exige que cada catch
+           * de esta carga esté argumentado, y aquí el argumento es el CONTRARIO
+           * al de los otros dos: si esto falla, la pantalla de "no hay
+           * movimientos" elige el mensaje EQUIVOCADO — le dice a alguien que
+           * perdió su almacén cuando sólo estaba todo en el histórico. Un cero
+           * en silencio es justo el fallo que este campo viene a evitar. */
+          Logger.log('historicoFilas: ' + e.message);
+          return 0;
+        }
+      })(),
       stock:              stock,
       config:             config,
       userRole:           auth.role,
@@ -2592,7 +2852,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'setBackupEnabled') return setBackupEnabled(data, auth);
   if (action === 'runBackupOnDemand') return runBackupOnDemand(data, auth);
   if (action === 'logClientError')  return logClientError(data, auth);
-  if (action === 'loadOlderHistory') return loadOlderHistory(auth);
+  if (action === 'loadOlderHistory') return loadOlderHistory(auth, data);
   if (action === 'getSpaceUsage')   return getSpaceUsage(auth);
   if (action === 'getAiStatus')     return getAiStatus(auth);
   if (action === 'setAiKey')        return setAiKey(data, auth);
@@ -3349,13 +3609,47 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       }
     }
 
-    // ── available-after per material from the final snapshot ─────────────────
-    var availableByMat = {};
-    for (var m2 in snapshot) {
-      if (snapshot.hasOwnProperty(m2)) {
-        availableByMat[m2] = Math.max(0, snapshot[m2].wh -
-                                reservedQtyFromRacks_(locksMap, m2, snapshot[m2].locs));
-      }
+    /* ── LAS CIFRAS DE DESPUÉS, PARA LA PANTALLA ─────────────────────────────
+     *
+     * Jose, con cronómetro: *"aun cuando la app dice done o listo, igual luego
+     * de eso se toma unos segundos más para cambiar la cantidad, restaurar las
+     * cantidades y cambiar el estado de In Stock a At Site."*
+     *
+     * El navegador tenía dos formas de arreglarlo y las dos eran malas:
+     * repintar desde su caché —que es la foto de ANTES, o sea un número viejo
+     * vestido de número nuevo— o rehacer la aritmética del almacén por su
+     * cuenta, que abre la puerta a que el navegador y el servidor no coincidan
+     * y el número parpadee a un valor equivocado antes de corregirse.
+     *
+     * LA TERCERA FORMA es la que faltaba y no cuesta nada: `snapshot` YA ES el
+     * estado de después —lo hemos ido mutando fila a fila para validar— así que
+     * basta con mandarlo. No hay dos aritméticas: es la del servidor, contada.
+     *
+     * SÓLO LOS MATERIALES DE ESTE LOTE. `availableByMat` devolvía el snapshot
+     * ENTERO, que en OX son 652 materiales en cada guardado de una sola línea.
+     * Nadie lo leía salvo un caso que mira justo el material que acaba de
+     * guardar, así que estrecharlo no rompe nada y quita peso del viaje.
+     *
+     * `wasted` no va: applyMovementToSnapshot_ no lleva esa cuenta, y prefiero
+     * no mandar un campo que tendría que inventar. La recarga silenciosa lo
+     * corrige, y el desperdicio no es el número que alguien mira al guardar. */
+    var tocados = {};
+    for (var t2 = 0; t2 < rowMeta.length; t2++) tocados[rowMeta[t2].matId] = true;
+
+    var availableByMat = {}, stockAfter = {};
+    for (var m2 in tocados) {
+      if (!tocados.hasOwnProperty(m2) || !snapshot[m2]) continue;
+      var reservado = reservedQtyFromRacks_(locksMap, m2, snapshot[m2].locs);
+      var disp      = Math.max(0, snapshot[m2].wh - reservado);
+      availableByMat[m2] = disp;
+      stockAfter[m2] = {
+        warehouseQty:  snapshot[m2].wh,
+        siteQty:       snapshot[m2].site,
+        reservedQty:   reservado,
+        availableQty:  disp,
+        totalQty:      snapshot[m2].wh + snapshot[m2].site,
+        warehouseLocs: snapshot[m2].locs
+      };
     }
 
     return {
@@ -3365,7 +3659,8 @@ function addMovementsBatch_(ss, archive, movements, auth) {
       fileError:      fileError,
       emailError:     emailError,
       refreshError:   refreshError,
-      availableByMat: availableByMat
+      availableByMat: availableByMat,
+      stockAfter:     stockAfter
     };
 
   } finally {
@@ -4052,9 +4347,34 @@ function ensureArchiveHistorySheet_(ss) {
 // Rewrites MASTER_ARCHIVE_V3 and ARCHIVE_HISTORY so every row lands in the
 // sheet matching the CURRENT cutoff. Locked against concurrent movement saves
 // (same script lock addMovementsBatch_ uses) since row positions shift.
-function archiveOldMovements(ss) {
+/* `opciones.ensayo` — HACERLO TODO MENOS ESCRIBIR.
+ *
+ * Jose, 2026-09-30, después de que el archivo se vaciara por segunda vez:
+ * *"¿podemos crear un botón y una prueba que nos diga qué falla al momento de
+ * probarlo? ¿cómo podemos hacer la prueba y saber qué falla?"*
+ *
+ * Es la pregunta correcta y no se me había ocurrido. Este trabajo corre a las
+ * 3 de la mañana sin nadie delante, escribe en ERROR_LOG —una pestaña que nadie
+ * mira— y para cuando alguien se entera ya pasó. Lo único que puede convertir
+ * eso en algo investigable es poder EJECUTARLO A VOLUNTAD y ver qué dice.
+ *
+ * EL ENSAYO VA DENTRO DE LA FUNCIÓN DE VERDAD, no en una copia. Una copia sería
+ * una segunda versión que se da la razón a sí misma — el mismo error que dejó
+ * pasar el canario roto diez días. Aquí se recorre EXACTAMENTE el mismo camino,
+ * con las mismas guardas y las mismas cuentas, y lo único que cambia es que las
+ * dos escrituras no se hacen.
+ *
+ * Devuelve `informe`: qué ancho tiene cada hoja, cuántas filas hay, qué corte
+ * se está aplicando, cuántas filas se moverían en cada sentido, y qué diría
+ * cada guarda. Si algo revienta, devuelve el error en vez de tragárselo.
+ */
+function archiveOldMovements(ss, opciones) {
+  var ensayo = !!(opciones && opciones.ensayo);
+  var informe = { ensayo: ensayo, pasos: [] };
+  function anotar(t) { informe.pasos.push(t); }
+
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return { status: 'busy' };
+  if (!lock.tryLock(10000)) return { status: 'busy', informe: informe };
   try {
     var archive = ss.getSheetByName(SHEETS.ARCHIVE);
     if (!archive) return { status: 'no-archive' };
@@ -4077,6 +4397,23 @@ function archiveOldMovements(ss) {
     var aData    = archive.getDataRange().getValues();
     var hData    = history.getDataRange().getValues();
 
+    /* LO PRIMERO QUE HAY QUE SABER CUANDO ESTO FALLA, y hasta ahora no se
+     * apuntaba en ninguna parte: cómo de anchas son las hojas DE VERDAD. El
+     * error del 26/09 y el del 29/09 dicen los dos "los datos tienen 23 y el
+     * rango 20", y sin estos cuatro números no hay forma de saber cuál de las
+     * dos hojas iba estrecha ni si la ensanchamos bien. */
+    informe.modeloAncho   = colCount;
+    informe.archivoAncho  = archive.getMaxColumns();
+    informe.archivoUltima = archive.getLastColumn();
+    informe.histAncho     = history.getMaxColumns();
+    informe.histUltima    = history.getLastColumn();
+    informe.archivoFilas  = contarConDatos_(aData.slice(1));
+    informe.histFilas     = contarConDatos_(hData.slice(1));
+    anotar('Model needs ' + colCount + ' columns. Archive is ' + informe.archivoAncho +
+           ' wide (last used ' + informe.archivoUltima + ') with ' + informe.archivoFilas +
+           ' movement(s). History is ' + informe.histAncho + ' wide (last used ' +
+           informe.histUltima + ') with ' + informe.histFilas + '.');
+
     // ── The one place both sheets are in memory together ─────────────────────
     // Which makes it the only place a name duplicated ACROSS them can be seen
     // at all. A save only ever holds the active archive, so it cannot catch
@@ -4087,7 +4424,13 @@ function archiveOldMovements(ss) {
     var aIdFix   = dedupeMovementIds_(aData, takenIds);
     var hIdFix   = dedupeMovementIds_(hData, takenIds);
     if (aIdFix.length || hIdFix.length) {
+      informe.idsDuplicados = aIdFix.length + hIdFix.length;
+      // UN ENSAYO NO ESCRIBE. Ésta es una de las dos escrituras que se colaban
+      // en el ensayo de la primera versión — la prueba las cazó, que es
+      // exactamente para lo que está.
+      if (ensayo) anotar(informe.idsDuplicados + ' duplicated movement ID(s) would be renamed.');
       try {
+        if (ensayo) throw { _saltar: true };
         // Written now rather than left to the rewrite below, because the rewrite
         // does not happen on a night when nothing crosses the cutoff — which is
         // most nights, and would be exactly when the repair quietly never ran.
@@ -4097,7 +4440,7 @@ function archiveOldMovements(ss) {
           (aIdFix.length + hIdFix.length) + ' duplicated movement ID(s) renamed',
           'archive rows ' + (aIdFix.join(',') || '—'),
           'history rows ' + (hIdFix.join(',') || '—'));
-      } catch (de) { Logger.log('nightly dedupe movement ids: ' + de.message); }
+      } catch (de) { if (!de || !de._saltar) Logger.log('nightly dedupe movement ids: ' + de.message); }
     }
 
     var keep = [], toArchive = [];
@@ -4119,7 +4462,19 @@ function archiveOldMovements(ss) {
       (hts && hts >= cutoffDate ? toRestore : stillOld).push(padRow_(hrow, colCount));
     }
 
-    if (!toArchive.length && !toRestore.length) return { status: 'noop' };
+    informe.corteMeses = cutoffMonths;
+    informe.corteFecha = Utilities.formatDate(cutoffDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    informe.seArchivan = toArchive.length;
+    informe.seDevuelven = toRestore.length;
+    informe.seQuedan   = keep.length;
+    anotar('Cutoff is ' + cutoffMonths + ' month(s) — anything before ' + informe.corteFecha +
+           ' is old. ' + toArchive.length + ' would move OUT of the recent list, ' +
+           toRestore.length + ' would come back IN, ' + keep.length + ' would stay.');
+
+    if (!toArchive.length && !toRestore.length) {
+      anotar('Nothing crosses the cutoff tonight — the job would do nothing at all.');
+      return { status: 'noop', informe: informe };
+    }
 
     var byTs = function(a, b) {
       var ta = a[AC.TIMESTAMP] instanceof Date ? a[AC.TIMESTAMP].getTime() : 0;
@@ -4177,15 +4532,32 @@ function archiveOldMovements(ss) {
      * ═══════════════════════════════════════════════════════════════════════ */
 
     // ── GUARDA 0: que las dos hojas quepan, ANTES de tocar ninguna ───────────
-    ensureArchiveWidth_(archive);
-    ensureArchiveWidth_(history);
-    if (archive.getMaxColumns() < colCount || history.getMaxColumns() < colCount) {
+    /* ENSANCHAR ES ESCRIBIR, y un ensayo no escribe. La primera versión de esto
+     * llamaba a ensureArchiveWidth_ también en el ensayo y por tanto INSERTABA
+     * COLUMNAS en la hoja de alguien que sólo quería mirar. Lo cazó la prueba
+     * —"NO TOCÓ EL ARCHIVO"— y es justo el tipo de fallo por el que un ensayo
+     * tiene que probarse igual que lo que ensaya. */
+    if (!ensayo) {
+      ensureArchiveWidth_(archive);
+      ensureArchiveWidth_(history);
+    }
+    informe.archivoAnchoTras = ensayo ? Math.max(informe.archivoAncho, colCount) : archive.getMaxColumns();
+    informe.histAnchoTras    = ensayo ? Math.max(informe.histAncho,    colCount) : history.getMaxColumns();
+    if (informe.archivoAnchoTras !== informe.archivoAncho || informe.histAnchoTras !== informe.histAncho) {
+      anotar((ensayo ? 'Would widen' : 'Widened') + ' the sheets to fit: archive ' +
+             informe.archivoAncho + ' → ' + informe.archivoAnchoTras + ', history ' +
+             informe.histAncho + ' → ' + informe.histAnchoTras + '.');
+    }
+    if (informe.archivoAnchoTras < colCount || informe.histAnchoTras < colCount) {
       var anchoMsg = 'ABORTED WITHOUT TOUCHING ANYTHING: the sheets cannot hold ' +
-        colCount + ' columns (archive ' + archive.getMaxColumns() +
-        ', history ' + history.getMaxColumns() + ').';
+        colCount + ' columns (archive ' + informe.archivoAnchoTras +
+        ', history ' + informe.histAnchoTras + ').';
+      anotar('GUARD 1 (width) FAILS: ' + anchoMsg);
+      informe.error = anchoMsg;
+      if (ensayo) return { status: 'aborted', reason: 'width', informe: informe };
       logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', anchoMsg, null, newRequestId_());
       avisarFalloDeArchivo_(ss, anchoMsg);
-      return { status: 'aborted', reason: 'width' };
+      return { status: 'aborted', reason: 'width', informe: informe };
     }
 
     /* ── GUARDA 1: NINGUNA FILA PUEDE DESAPARECER ────────────────────────────
@@ -4206,12 +4578,26 @@ function archiveOldMovements(ss) {
     if (antes !== despues) {
       var cuadreMsg = 'ABORTED WITHOUT TOUCHING ANYTHING: the split does not add up. ' +
         antes + ' movements before, ' + despues + ' would come out.';
+      anotar('GUARD 2 (count) FAILS: ' + cuadreMsg);
+      informe.error = cuadreMsg;
+      if (ensayo) return { status: 'aborted', reason: 'count', informe: informe };
       logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', cuadreMsg, null, newRequestId_());
       avisarFalloDeArchivo_(ss, cuadreMsg);
-      return { status: 'aborted', reason: 'count' };
+      return { status: 'aborted', reason: 'count', informe: informe };
     }
 
+    anotar('GUARD 1 (width) passes. GUARD 2 (count) passes: ' + antes +
+           ' movement(s) in, ' + despues + ' out.');
+
     // ── ESCRIBIR, la que GANA filas primero ─────────────────────────────────
+    if (ensayo) {
+      anotar('DRY RUN — stopping here. Nothing was written. The real job would ' +
+             'now leave ' + contarConDatos_(newActive) + ' movement(s) in the recent ' +
+             'list and ' + contarConDatos_(newHistory) + ' in the archived history.');
+      informe.quedariaEnArchivo  = contarConDatos_(newActive);
+      informe.quedariaEnHistoria = contarConDatos_(newHistory);
+      return { status: 'dry-run', informe: informe };
+    }
     escribirHojaCompleta_(history, newHistory, colCount);
     escribirHojaCompleta_(archive, newActive,  colCount);
 
@@ -4222,19 +4608,97 @@ function archiveOldMovements(ss) {
     var quedanA = contarConDatos_(archive.getDataRange().getValues().slice(1));
     var quedanH = contarConDatos_(history.getDataRange().getValues().slice(1));
     if (quedanA + quedanH !== antes) {
-      var perdidaMsg = 'CHECK THIS NOW: the archive was written and the counts do ' +
-        'not add up. There were ' + antes + ' movements, now ' + (quedanA + quedanH) +
-        ' can be read (archive ' + quedanA + ', history ' + quedanH +
-        '). The backup made at 2am has all of them.';
+      /* ── Y SI FALTAN, SE DEVUELVEN. ───────────────────────────────────────
+       *
+       * Esta guarda DETECTABA la pérdida y no hacía nada con ella: escribía una
+       * línea en ERROR_LOG, mandaba un correo, y dejaba la hoja rota. Es lo que
+       * pasó las tres veces —26/09, 29/09 y 01/10—, y las tres veces Jose se
+       * enteró horas después y tuvo que restaurar a mano desde un backup.
+       *
+       * Darse cuenta de que acabas de perder mil filas y no devolverlas es casi
+       * peor que no darse cuenta: la información para repararlo ESTÁ AHÍ, en
+       * memoria, a dos líneas de distancia. `aData` y `hData` son las dos hojas
+       * tal como estaban antes de tocar nada, y siguen en el ámbito.
+       *
+       * Así que se devuelven. Sin preguntar y sin esperar a nadie.
+       *
+       * ESTO NO DEPENDE DE SABER POR QUÉ FALLÓ, y ésa es la razón de escribirlo
+       * así: llevo tres incidentes sin poder explicar el mecanismo, y mientras
+       * tanto la red tiene que sostener igual. Una reparación que sólo funciona
+       * cuando entiendes la causa no es una red, es una esperanza.
+       *
+       * EL ORDEN AL DESHACER ES EL CONTRARIO AL DE ESCRIBIR, y por el mismo
+       * motivo: primero se repone el archivo —la que perdió filas— porque es la
+       * que deja a alguien sin nada que ver si falla otra vez. Si la reposición
+       * falla, el correo lo dice y el backup de las 2 sigue estando.
+       *
+       * Y se vuelve a contar DESPUÉS de deshacer, para no prometer una
+       * reparación que tampoco llegó. */
+      var perdidaMsg = 'The archive write lost rows. There were ' + antes +
+        ' movements, only ' + (quedanA + quedanH) + ' could be read afterwards ' +
+        '(recent ' + quedanA + ', archived ' + quedanH + ').';
+      var reparado = false;
+      try {
+        escribirHojaCompleta_(archive, aData.slice(1), colCount);
+        escribirHojaCompleta_(history, hData.slice(1), colCount);
+        var trasA = contarConDatos_(archive.getDataRange().getValues().slice(1));
+        var trasH = contarConDatos_(history.getDataRange().getValues().slice(1));
+        reparado = (trasA + trasH === antes);
+        perdidaMsg += reparado
+          ? ' PUT BACK AUTOMATICALLY from memory — all ' + antes + ' are there again ' +
+            '(recent ' + trasA + ', archived ' + trasH + '). Nothing was archived ' +
+            'tonight; the job will try again. Nothing for you to do, but tell ' +
+            'support so the cause gets found.'
+          : ' COULD NOT BE PUT BACK — only ' + (trasA + trasH) + ' are readable now. ' +
+            'STOP: do not add movements and do not rebuild anything. Restore ' +
+            'MASTER_ARCHIVE_V3 and ARCHIVE_HISTORY from the 2am backup.';
+      } catch (re) {
+        perdidaMsg += ' PUTTING THEM BACK ALSO FAILED (' + re.message + '). STOP: ' +
+          'do not add movements and do not rebuild anything. Restore ' +
+          'MASTER_ARCHIVE_V3 and ARCHIVE_HISTORY from the 2am backup.';
+      }
       logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', perdidaMsg, null, newRequestId_());
       avisarFalloDeArchivo_(ss, perdidaMsg);
+      // Se devuelve el estado real, no 'success': esta noche no se archivó nada.
+      return { status: reparado ? 'rolled-back' : 'lost', total: antes, informe: informe };
+    }
+
+    /* ── GUARDA 3: DEJAR EL ARCHIVO VACÍO NO ES UN ERROR, PERO HAY QUE DECIRLO ─
+     *
+     * Jose, 2026-09-29: abrió Movements, lo vio vacío, y dio por hecho que era
+     * el desastre del 26 otra vez.
+     *
+     * Y puede no serlo en absoluto: si TODO cruza el corte, todas las filas se
+     * van legítimamente al histórico y el archivo activo queda vacío. Las
+     * cuentas cuadran —la Guarda 1 pasa, y con razón: no falta ni una fila— y la
+     * pantalla queda idéntica a la de haberlo perdido todo.
+     *
+     * Dos pantallas iguales para un susto y una nada es peor que cualquiera de
+     * las dos por separado. Así que se avisa, y el aviso dice cuál de las dos es
+     * y qué hacer. No se aborta: mover filas viejas al histórico es el trabajo
+     * de esta función, y negarse a hacerlo bien sería inventarse un fallo. */
+    if (quedanA === 0 && antes > 0) {
+      var vacioMsg = 'The recent movement list is now EMPTY — all ' + antes +
+        ' movement(s) crossed the ' + cutoffMonths + '-month cutoff and moved to ' +
+        'ARCHIVE_HISTORY. Nothing was lost: press "Load Older History" in the app ' +
+        'to see them. If that is not what you expected, your archive cutoff in ' +
+        'Settings is shorter than you think.';
+      logError_(ss, 'WARN', 'backend', 'archiveOldMovements', 'system', vacioMsg, null, newRequestId_());
+      avisarFalloDeArchivo_(ss, vacioMsg);
     }
 
     auditLog_(ss, 'ARCHIVE_RECONCILE', 'system', 'cutoff=' + cutoffMonths + 'mo',
       toArchive.length + ' archived', toRestore.length + ' restored');
     return { status: 'success', archived: toArchive.length, restored: toRestore.length,
-             total: antes };
+             total: antes, informe: informe };
   } catch (e) {
+    /* EN ENSAYO NO SE RELANZA NI SE MANDA CORREO: se devuelve. El sentido del
+     * ensayo es que alguien pulse un botón y LEA el fallo, no que le llegue un
+     * correo diez minutos después de una prueba que hizo a propósito. */
+    informe.error = e.message;
+    informe.stack = String(e.stack || '').split('\n').slice(0, 6).join(' | ');
+    anotar('THREW: ' + e.message);
+    if (ensayo) return { status: 'error', informe: informe };
     logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', e.message, null, newRequestId_());
     // ANTES SÓLO SE REGISTRABA. ERROR_LOG es una pestaña que nadie mira, y por
     // eso el desastre del 26 de septiembre estuvo catorce horas sin que nadie
@@ -5374,17 +5838,52 @@ function sendDailyReportNow(auth) {
 // export ("Load older history"). Read-only in the UI — rowIdx here refers to
 // ARCHIVE_HISTORY's row, not MASTER_ARCHIVE_V3's, so it's tagged `archived: true`
 // and must never be sent to modifyMovement/updateDocument_.
-function loadOlderHistory(auth) {
+/* DE LO MÁS NUEVO HACIA ATRÁS, Y A TANDAS.
+ *
+ * Jose, 2026-10-01: *"lo que hace es cargar literalmente los movimientos más
+ * viejos... la app sólo carga 56 y luego no puede cargar más; debería ir
+ * cargando más y más cada vez que se apriete el botón, pero desde los más
+ * recientes a los más viejos."*
+ *
+ * Tenía razón en el fondo aunque el síntoma le engañó: la lista SÍ se pintaba
+ * de nuevo a viejo, pero el botón se traía ARCHIVE_HISTORY ENTERO de un golpe y
+ * después decía "ya está cargado". Con 56 filas eso parece que sólo sabe
+ * cargar 56; con 20.000 sería un viaje que no termina.
+ *
+ * Ahora se lee desde el FINAL de la hoja —que es donde están las más nuevas,
+ * porque el archivado escribe ordenado por fecha— y de 300 en 300. `desde` es
+ * cuántas se han traído ya, así que cada pulsación continúa donde se quedó.
+ *
+ * Y se devuelve `quedan`, que es lo que faltaba para que el botón pueda decir
+ * la verdad: "quedan 1.215 más" o "ya están todas". Un botón que no sabe si ha
+ * terminado obliga a la persona a adivinar, que es lo que pasó aquí.
+ *
+ * Se leen SÓLO las filas de la tanda, no la hoja entera: es lo que hace que
+ * esto siga funcionando el día que el histórico tenga años dentro. */
+var OLDER_HISTORY_PAGE = 300;
+
+function loadOlderHistory(auth, data) {
   auth = requireAuth_();   // any registered user; unauthenticated callers are refused
   var seeCosts = canSeeCosts_(auth);
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var history = ensureArchiveHistorySheet_(ss);
-  var data    = history.getDataRange().getValues();
+
+  var ultima = history.getLastRow();
+  var hay    = Math.max(0, ultima - 1);              // sin la cabecera
+  var desde  = Math.max(0, Number(data && data.desde) || 0);
+  if (desde >= hay) return { items: [], total: hay, quedan: 0 };
+
+  var cuantas  = Math.min(OLDER_HISTORY_PAGE, hay - desde);
+  // La tanda, contada desde el final: las `desde` últimas ya se mandaron.
+  var primera  = ultima - desde - cuantas + 1;
+  var ancho    = Math.min(Math.max(history.getLastColumn(), AC_WIDTH), history.getMaxColumns());
+  var filas    = history.getRange(primera, 1, cuantas, ancho).getValues();
+
   var out = [];
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
+  for (var i = 0; i < filas.length; i++) {
+    var row = filas[i];
     if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
-    var m = parseArchiveRow(row, i + 1);
+    var m = parseArchiveRow(row, primera + i);
     m.archived = true;
     // The second door for costs, and it would have been easy to miss: this
     // returns exactly the same movement objects getInitialData does, from the
@@ -5396,7 +5895,11 @@ function loadOlderHistory(auth) {
     if (!seeCosts) { m.unitCost = null; m.totalCost = null; }
     out.push(m);
   }
-  return out;
+  /* `quedan` cuenta FILAS DE HOJA, no movimientos devueltos: una fila en blanco
+   * se salta arriba pero sigue consumiendo sitio en la tanda, y si `quedan` se
+   * calculara sobre `out` el botón creería que falta una tanda que no existe y
+   * se quedaría pidiéndola para siempre. */
+  return { items: out, total: hay, quedan: Math.max(0, hay - desde - cuantas) };
 }
 
 // ─── REFRESH DERIVED SHEETS ──────────────────────────────────────────────────
@@ -7792,6 +8295,7 @@ function onOpen() {
     .addSeparator()
     .addItem('📁 Tidy up my Drive (one folder for everything)', 'menuOrganizeDrive')
     .addItem('🩺 Check this installation', 'menuCheckInstallation')
+    .addItem('🌙 Test the nightly archive (changes nothing)', 'menuProbarArchivado')
     .addItem('🔎 Check if this copy is a clean template', 'menuVerifyMasterTemplate')
     .addItem('💣 Erase everything — make this a blank template', 'menuPrepareMasterTemplate');
 
@@ -8911,6 +9415,96 @@ function detectFolderPrefixes_() {
   return Object.keys(found);
 }
 
+/* EL BOTÓN QUE PIDIÓ JOSE.
+ *
+ * *"¿podemos crear un botón y una prueba que nos diga qué falla al momento de
+ * probarlo? ¿cómo podemos hacer la prueba y saber qué falla?"*
+ *
+ * Corre el trabajo nocturno ENTERO —las mismas guardas, las mismas cuentas, el
+ * mismo reparto— y se para justo antes de las dos escrituras. Se puede pulsar
+ * en cualquier momento, con datos de verdad, sin riesgo, y lo que enseña es lo
+ * que el trabajo diría esta noche a las 3.
+ *
+ * Por qué hacía falta: este trabajo corre sin nadie delante y escribe en
+ * ERROR_LOG, que es una pestaña que nadie mira. El 26/09 y el 29/09 vació el
+ * archivo y en las dos ocasiones se supo horas después y por casualidad. Un
+ * fallo que sólo se puede observar a las 3 de la mañana no se puede investigar.
+ */
+function menuProbarArchivado() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var r;
+  try {
+    r = archiveOldMovements(ss, { ensayo: true });
+  } catch (e) {
+    ui.alert('The test itself could not run', String(e && e.message || e), ui.ButtonSet.OK);
+    return;
+  }
+
+  var inf = (r && r.informe) || { pasos: [] };
+  var lineas = [];
+
+  lineas.push('RESULT: ' + String(r && r.status || '?').toUpperCase());
+  lineas.push('');
+  lineas.push('NOTHING WAS WRITTEN. This is a rehearsal of tonight\'s job.');
+  lineas.push('');
+
+  if (inf.modeloAncho) {
+    lineas.push('SHEET WIDTHS — this is what the "23 vs 20" error is about');
+    lineas.push('  The row model needs   : ' + inf.modeloAncho + ' columns');
+    lineas.push('  MASTER_ARCHIVE_V3 has : ' + inf.archivoAncho +
+                (inf.archivoAnchoTras && inf.archivoAnchoTras !== inf.archivoAncho
+                  ? ' → widened to ' + inf.archivoAnchoTras : '') +
+                '   (last column in use: ' + inf.archivoUltima + ')');
+    lineas.push('  ARCHIVE_HISTORY has   : ' + inf.histAncho +
+                (inf.histAnchoTras && inf.histAnchoTras !== inf.histAncho
+                  ? ' → widened to ' + inf.histAnchoTras : '') +
+                '   (last column in use: ' + inf.histUltima + ')');
+    lineas.push('');
+    lineas.push('MOVEMENTS RIGHT NOW');
+    lineas.push('  Recent list      : ' + inf.archivoFilas);
+    lineas.push('  Archived history : ' + inf.histFilas);
+    lineas.push('');
+  }
+
+  if (inf.corteMeses !== undefined) {
+    lineas.push('CUTOFF');
+    lineas.push('  ' + inf.corteMeses + ' month(s) — anything before ' + inf.corteFecha + ' counts as old.');
+    lineas.push('  Would move OUT of the recent list : ' + inf.seArchivan);
+    lineas.push('  Would come back IN                : ' + inf.seDevuelven);
+    lineas.push('  Would stay                        : ' + inf.seQuedan);
+    lineas.push('');
+  }
+
+  if (inf.quedariaEnArchivo !== undefined) {
+    lineas.push('AFTER TONIGHT IT WOULD LEAVE');
+    lineas.push('  Recent list      : ' + inf.quedariaEnArchivo);
+    lineas.push('  Archived history : ' + inf.quedariaEnHistoria);
+    if (inf.quedariaEnArchivo === 0 && inf.quedariaEnHistoria > 0) {
+      lineas.push('');
+      lineas.push('  ⚠ The recent list would end up EMPTY. Nothing would be lost —');
+      lineas.push('    it all moves to the archived history — but the app will look');
+      lineas.push('    blank until you press "Load Older History". If that is not');
+      lineas.push('    what you want, raise the cutoff in Settings.');
+    }
+    lineas.push('');
+  }
+
+  if (inf.error) {
+    lineas.push('✗ WHAT FAILED');
+    lineas.push('  ' + inf.error);
+    if (inf.stack) { lineas.push(''); lineas.push('  ' + inf.stack); }
+    lineas.push('');
+  }
+
+  if (inf.pasos && inf.pasos.length) {
+    lineas.push('STEP BY STEP');
+    inf.pasos.forEach(function (t) { lineas.push('  · ' + t); });
+  }
+
+  ui.alert('🌙 Nightly archive — rehearsal', lineas.join('\n'), ui.ButtonSet.OK);
+}
+
 function menuCheckInstallation() {
   var ui = SpreadsheetApp.getUi();
   var p  = PropertiesService.getScriptProperties();
@@ -9008,6 +9602,30 @@ function menuCheckInstallation() {
   var backupErr = String(p.getProperty('BACKUP_TRIGGER_ERROR') || '').trim();
   if (backupErr) {
     triggerNotes.push('  • The nightly backup failed to schedule during setup:\n      ' + backupErr);
+  }
+
+  /* EL FORMATO DE LA HOJA, en su conjunto SEGURO.
+   *
+   * Sin `completo`, así que no toca anchos, ni el orden de las pestañas, ni el
+   * formato de las celdas — nada que un cliente de meses haya podido decidir a
+   * propósito. Sólo pone el color de pestaña, la cabecera, la nota de "esto lo
+   * reescribe la app" y la protección en modo aviso, y sólo donde falten.
+   *
+   * Aquí porque esta es la función que la gente ejecuta cuando algo va raro, y
+   * una hoja restaurada de un backup llega sin nada de esto: la copia trae los
+   * datos y pierde el formato. */
+  var fmtChk = null;
+  try {
+    fmtChk = aplicarFormatoEstandar_(SpreadsheetApp.getActiveSpreadsheet(), { completo: false });
+  } catch (e) {}
+  if (fmtChk && (fmtChk.pestanas || fmtChk.cabeceras || fmtChk.notas || fmtChk.protegidas)) {
+    var puestas = [];
+    if (fmtChk.pestanas)   puestas.push(fmtChk.pestanas + ' tab colour(s)');
+    if (fmtChk.cabeceras)  puestas.push(fmtChk.cabeceras + ' header row(s)');
+    if (fmtChk.notas)      puestas.push(fmtChk.notas + ' "rebuilt by the app" note(s)');
+    if (fmtChk.protegidas) puestas.push(fmtChk.protegidas + ' warning-only protection(s)');
+    repaired.push('Sheet formatting — ' + puestas.join(', ') +
+                  ' restored. Column widths and tab order left as you have them.');
   }
 
   var lines = [];
@@ -9130,13 +9748,28 @@ function menuPrepareMasterTemplate() {
   try { ss.rename(PRODUCT_NAME + ' — Warehouse Template'); } catch (e) {}
   try { createStartHereSheet_(ss); } catch (e) {}
 
+  /* EL FORMATO VA AQUÍ Y NO ANTES, y el orden importa: las hojas acaban de
+   * quedarse vacías, que es la única condición bajo la cual el conjunto
+   * completo —formato de texto y anchos— se puede aplicar sin cambiarle a
+   * nadie cómo se ven sus datos. Una plantilla es exactamente el momento. */
+  var fmt = { pestanas:0, cabeceras:0, texto:[], anchos:0, saltadas:[], fallos:[] };
+  try { fmt = aplicarFormatoEstandar_(ss, { completo: true }); } catch (e) {
+    fmt.fallos.push(e.message);
+  }
+
   ui.alert('✓ Template prepared',
     'Cleared: ' + cleared.join(', ') + '\n' +
     (missing.length ? 'Not present (fine): ' + missing.join(', ') + '\n' : '') +
     'CONFIG catalogs cleared.\n' +
     wiped + ' script propert(ies) removed.\n' +
     triggersRemoved + ' trigger(s) removed.\n\n' +
-    'Now run "Check if this copy is a clean template" to confirm, then share the\n' +
+    'FORMATTING\n' +
+    '· ' + fmt.pestanas + ' tab colour(s) set — navy reads, blue data, grey rebuilt, pale grey logs\n' +
+    '· ' + fmt.cabeceras + ' header row(s) styled\n' +
+    '· ' + fmt.texto.length + ' sheet(s) set to plain text, ' + fmt.anchos + ' column width(s)\n' +
+    (fmt.saltadas.length ? '· Left alone (still had rows): ' + fmt.saltadas.join(', ') + '\n' : '') +
+    (fmt.fallos.length ? '· NOT done: ' + fmt.fallos.join(' | ') + '\n' : '') +
+    '\nNow run "Check if this copy is a clean template" to confirm, then share the\n' +
     'file with a /copy link.',
     ui.ButtonSet.OK);
 }
@@ -10396,6 +11029,184 @@ function listMaterials(auth) {
 // never work? It never worked.
 var MOVEMENT_OPS = { deleteRow: true, restoreMovement: true, listTrash: true };
 
+/* ═══ CUANDO UN MATERIAL CAMBIA DE NOMBRE, LO SUYO SE VA CON ÉL ═══════════════
+ *
+ * Jose, 2026-09-29, con tres capturas: renombró SEALANT #450 (FLASHING/CAULK) a
+ * RAIN BUSTER 450 y lo movió a SEALANT/CAULK. Los 1.271 movimientos se
+ * actualizaron. Pero en Settings → Materials, el panel de envases seguía
+ * diciendo `FLASHING/CAULK · SEALANT #450 · 12 per box`.
+ *
+ * Dos daños al mismo tiempo, y el segundo es peor que el primero:
+ *
+ *   1. Queda una línea huérfana apuntando a un material que ya no existe.
+ *   2. EL MATERIAL RENOMBRADO PERDIÓ SU FACTOR. Y no avisa: la próxima entrada
+ *      por caja no divide, así que el coste por unidad sale multiplicado por 12
+ *      y se mezcla en el promedio de ese material para siempre.
+ *
+ * LA CAUSA, dicha en general porque es general: la identidad de un material es
+ * `categoría + nombre`, y CINCO SITIOS guardan cosas bajo esa identidad. Las
+ * tres operaciones que la cambian —renombrar, cambiar de categoría, fusionar—
+ * reescribían el archivo y nada más. Cada una de esas cinco cosas era un cabo
+ * suelto esperando.
+ *
+ * Es el patrón que este archivo ya conoce por su nombre: COMPORTAMIENTO CABLEADO
+ * EN UN CAMINO Y NO EN LOS OTROS. Aquí era peor: no estaba cableado en ninguno.
+ *
+ * LO QUE SE MUEVE, y por qué importa cada uno:
+ *
+ *   · MATERIAL_PACKS      cuántas unidades trae una caja  → dinero
+ *   · CONFIG avgCost      el coste promedio               → dinero
+ *   · MATERIAL_LOCKS      lo apartado                     → material que deja
+ *                                                           de estar protegido
+ *   · CONFIG minStock     el mínimo                       → la alerta se apaga
+ *   · MONITORED_MATERIALS qué se vigila                   → la alerta se apaga
+ *
+ * Los dos últimos van por NOMBRE solo, no por categoría, así que un cambio de
+ * categoría no los rompe. Se tratan igual de todas formas: una regla con una
+ * excepción se olvida antes que una regla.
+ *
+ * LA DECISIÓN EN UNA FUSIÓN — `fusionando`. Si A se fusiona en B y los dos
+ * tienen factor de caja, ¿cuál queda? EL DE B. El que sobrevive es el que la
+ * gente va a seguir usando, y pisarlo con el del que desaparece cambiaría en
+ * silencio el coste de un material que nadie tocó. Lo del origen se descarta,
+ * y el resumen lo dice para que quede en el audit log en vez de en la cabeza
+ * de nadie.
+ *
+ * LO QUE NO HACE, y va en BACKLOG.md en vez de quedar a medias: las ubicaciones
+ * tienen el mismo problema con RACK_PHOTOS y con la columna Rack de
+ * MATERIAL_LOCKS. Es otra operación (mergeLocations) y merece su propio
+ * arreglo, no una mitad de éste.
+ *
+ * Nunca lanza. Un cabo suelto no debe impedir un renombrado que ya ocurrió en
+ * el archivo — eso dejaría las dos mitades en desacuerdo, que es justo el
+ * estado del que sale este arreglo. Lo que no se pudo mover se cuenta.
+ */
+function moverDependencias_(ss, catViejo, nomViejo, catNuevo, nomNuevo, fusionando) {
+  var res = { packs: 0, avgCost: 0, locks: 0, minStock: 0, monitored: 0,
+              descartados: 0, fallos: 0, resumen: '' };
+  var vc = String(catViejo || '').trim().toUpperCase();
+  var vn = String(nomViejo || '').trim().toUpperCase();
+  var nc = String(catNuevo || '').trim().toUpperCase();
+  var nn = String(nomNuevo || '').trim().toUpperCase();
+  if (vc === nc && vn === nn) return res;   // nada cambió
+
+  // ── 1. MATERIAL_PACKS ──────────────────────────────────────────────────────
+  try {
+    var pk = ss.getSheetByName(SHEETS.PACKS);
+    if (pk && pk.getLastRow() > 1) {
+      var pr = pk.getRange(2, 1, pk.getLastRow() - 1, 7).getValues();
+      // Qué envases tiene YA el destino: en una fusión son los que mandan.
+      var enDestino = {};
+      for (var d = 0; d < pr.length; d++) {
+        if (String(pr[d][PACK_COLS.CATEGORY] || '').trim().toUpperCase() === nc &&
+            String(pr[d][PACK_COLS.NAME]     || '').trim().toUpperCase() === nn) {
+          enDestino[String(pr[d][PACK_COLS.PACK] || '').trim().toUpperCase()] = true;
+        }
+      }
+      // Hacia atrás: borrar una fila mueve las de abajo.
+      for (var p = pr.length - 1; p >= 0; p--) {
+        if (String(pr[p][PACK_COLS.CATEGORY] || '').trim().toUpperCase() !== vc ||
+            String(pr[p][PACK_COLS.NAME]     || '').trim().toUpperCase() !== vn) continue;
+        var envase = String(pr[p][PACK_COLS.PACK] || '').trim().toUpperCase();
+        if (fusionando && enDestino[envase]) {
+          pk.deleteRow(p + 2);          // el del destino gana; éste sobra
+          res.descartados++;
+        } else {
+          pk.getRange(p + 2, 1, 1, 2).setValues([textSafeRow_([nc, nn])]);
+          res.packs++;
+        }
+      }
+    }
+  } catch (e) { res.fallos++; }
+
+  // ── 2. MATERIAL_LOCKS — matId, categoría y nombre ──────────────────────────
+  try {
+    var lk = ss.getSheetByName('MATERIAL_LOCKS');
+    if (lk && lk.getLastRow() > 1) {
+      var lr = lk.getRange(2, 1, lk.getLastRow() - 1, 4).getValues();
+      var idNuevo = getMaterialId(normalizeString(nc), normalizeString(nn));
+      for (var l = 0; l < lr.length; l++) {
+        if (String(lr[l][2] || '').trim().toUpperCase() !== vc ||
+            String(lr[l][3] || '').trim().toUpperCase() !== vn) continue;
+        lk.getRange(l + 2, 2, 1, 3).setValues([textSafeRow_([idNuevo, nc, nn])]);
+        res.locks++;
+      }
+    }
+  } catch (e) { res.fallos++; }
+
+  // ── 3 y 4. CONFIG: avgCost (col O/P/Q) y minStock (col L/M) ────────────────
+  try {
+    var cfg = ss.getSheetByName(SHEETS.CONFIG);
+    if (cfg && cfg.getLastRow() > 1) {
+      var cr = cfg.getRange(2, 1, cfg.getLastRow() - 1, 17).getValues();
+      // avgCost: columnas 14 (cat) y 15 (nombre).
+      var costeEnDestino = false;
+      for (var q = 0; q < cr.length; q++) {
+        if (String(cr[q][14] || '').trim().toUpperCase() === nc &&
+            String(cr[q][15] || '').trim().toUpperCase() === nn) { costeEnDestino = true; break; }
+      }
+      for (var c2 = 0; c2 < cr.length; c2++) {
+        if (String(cr[c2][14] || '').trim().toUpperCase() !== vc ||
+            String(cr[c2][15] || '').trim().toUpperCase() !== vn) continue;
+        if (fusionando && costeEnDestino) {
+          // El promedio del destino manda. El del origen se vacía en vez de
+          // dejarse: una fila de coste sobre un material que ya no existe es
+          // exactamente la huérfana que este arreglo viene a quitar.
+          cfg.getRange(c2 + 2, 15, 1, 3).setValues([['', '', '']]);
+          res.descartados++;
+        } else {
+          cfg.getRange(c2 + 2, 15, 1, 2).setValues([textSafeRow_([nc, nn])]);
+          res.avgCost++;
+        }
+      }
+      // minStock: columna 11 (nombre) — por NOMBRE, sin categoría.
+      if (vn !== nn) {
+        for (var m = 0; m < cr.length; m++) {
+          if (String(cr[m][11] || '').trim().toUpperCase() !== vn) continue;
+          cfg.getRange(m + 2, 12, 1, 1).setValues([textSafeRow_([nn])]);
+          res.minStock++;
+        }
+      }
+    }
+  } catch (e) { res.fallos++; }
+
+  // ── 5. WMS_MONITORED_MATERIALS — una lista de nombres ──────────────────────
+  if (vn !== nn) {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      var crudo = props.getProperty('WMS_MONITORED_MATERIALS');
+      if (crudo) {
+        var lista = JSON.parse(crudo);
+        if (Object.prototype.toString.call(lista) === '[object Array]') {
+          var cambio = false, vistos = {}, salida = [];
+          for (var mo = 0; mo < lista.length; mo++) {
+            var v = String(lista[mo] || '').trim();
+            if (v.toUpperCase() === vn) { v = nomNuevo; cambio = true; }
+            // Una fusión puede dejar el mismo nombre dos veces en la lista.
+            var clave = v.toUpperCase();
+            if (clave && !vistos[clave]) { vistos[clave] = true; salida.push(v); }
+          }
+          if (cambio) {
+            props.setProperty('WMS_MONITORED_MATERIALS', JSON.stringify(salida));
+            res.monitored++;
+          }
+        }
+      }
+    } catch (e) { res.fallos++; }
+  }
+
+  var partes = [];
+  if (res.packs)       partes.push(res.packs + ' pack');
+  if (res.avgCost)     partes.push(res.avgCost + ' avg cost');
+  if (res.locks)       partes.push(res.locks + ' reservation');
+  if (res.minStock)    partes.push(res.minStock + ' min stock');
+  if (res.monitored)   partes.push('stock alerts');
+  if (res.descartados) partes.push(res.descartados + ' dropped (target kept its own)');
+  if (res.fallos)      partes.push(res.fallos + ' NOT moved');
+  res.resumen = partes.length ? ', ' + partes.join(', ') : '';
+  return res;
+}
+
 function manageMaterial(data, auth) {
   // ignores any caller-supplied `auth` — see requireAuth_
   if (MOVEMENT_OPS[data && data.op]) {
@@ -10438,18 +11249,22 @@ function manageMaterialLocked_(data, auth) {
     if (!newNm) throw new Error('New name required.');
     var hit = matches(cat, oldNm), storedNm = newNm;   // crudo: cita rewriteArchiveColumn_
     var count = rewriteBoth(AC.NAME, function (row) { return hit(row) ? storedNm : null; });
+    var depR  = moverDependencias_(ss, cat, oldNm, cat, newNm);
     if (count) refreshOrDefer_(ss, data);
-    auditLog_(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm, newNm + ' (' + count + ' rows)');
-    return { status: 'success', updated: count };
+    auditLog_(ss, 'RENAME_MATERIAL', auth.email, cat, oldNm,
+              newNm + ' (' + count + ' rows' + depR.resumen + ')');
+    return { status: 'success', updated: count, dependencias: depR };
 
   } else if (op === 'changeCategory') {
     var newCat = String(data.newCategory || '').trim().toUpperCase();
     if (!newCat) throw new Error('New category required.');
     var hitC = matches(cat, nm), storedCat = newCat;   // crudo: cita rewriteArchiveColumn_
     var countC = rewriteBoth(AC.CATEGORY, function (row) { return hitC(row) ? storedCat : null; });
+    var depC   = moverDependencias_(ss, cat, nm, newCat, nm);
     if (countC) refreshOrDefer_(ss, data);
-    auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat, newCat + ' (' + countC + ' rows)');
-    return { status: 'success', updated: countC };
+    auditLog_(ss, 'CHANGE_CAT', auth.email, nm, cat,
+              newCat + ' (' + countC + ' rows' + depC.resumen + ')');
+    return { status: 'success', updated: countC, dependencias: depC };
 
   } else if (op === 'merge') {
     // Rename all rows of sourceName → targetName (same category)
@@ -10458,9 +11273,13 @@ function manageMaterialLocked_(data, auth) {
     if (!tgtNm) throw new Error('Target name required.');
     var hitM = matches(cat, srcNm), storedTgt = tgtNm; // crudo: cita rewriteArchiveColumn_
     var countM = rewriteBoth(AC.NAME, function (row) { return hitM(row) ? storedTgt : null; });
+    // fusionando: true — el destino YA EXISTE y lo suyo manda. Ver el comentario
+    // de moverDependencias_: en una fusión, el que sobrevive gana.
+    var depM   = moverDependencias_(ss, cat, srcNm, cat, tgtNm, true);
     if (countM) refreshOrDefer_(ss, data);
-    auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm, tgtNm + ' (' + countM + ' rows)');
-    return { status: 'success', merged: countM };
+    auditLog_(ss, 'MERGE_MATERIAL', auth.email, cat, srcNm,
+              tgtNm + ' (' + countM + ' rows' + depM.resumen + ')');
+    return { status: 'success', merged: countM, dependencias: depM };
 
   } else if (op === 'deleteRow') {
     // BY NAME, NOT BY POSITION. A row number is what made this dangerous:
@@ -10534,6 +11353,59 @@ function manageMaterialLocked_(data, auth) {
     ensureArchiveWidth_(target);
 
     var restored = padRow_(entry.row, AC_WIDTH);   // drops the three trash columns
+
+    /* THE WAREHOUSE MAY HAVE MOVED ON WHILE THIS SAT IN THE TRASH.
+     *
+     * Jose, 2026-09-28, with his sheet open: two EXIT rows, 37 UNIT each, same
+     * material, DIFFERENT ids (MMULCYV78-J2R-0 and MMJLCVYS1-Z6T-0), against a
+     * single ENTRY of 37. That material stood at MINUS 37 and nothing anywhere
+     * had said a word — no toast, no ERROR_LOG line, no console.
+     *
+     * The sequence that produces it needs no bug in delete and none in restore:
+     *
+     *   08:41  exit #1 saved              37 → 0
+     *   08:43  exit #1 deleted            0 → 37    the stock comes back
+     *   08:44  exit #2 saved              37 → 0    LEGAL: there were 37
+     *          exit #1 put back           0 → −37   nobody looked
+     *
+     * Saving an outgoing movement goes through buildStockSnapshot_ and is
+     * refused when the material will not cover it. RESTORING went through
+     * nothing at all: it appended the row and returned success. The same door,
+     * with a lock on one side and no lock on the other.
+     *
+     * The rule this settles: A RESTORE IS NEVER MORE PERMISSIVE THAN A SAVE.
+     * It is checked against the same snapshot, from the same sheet, by the same
+     * arithmetic — so a movement is refused on the way back in exactly when an
+     * identical one would be refused on the way in.
+     *
+     * The movement STAYS IN THE TRASH when refused. Nothing is lost: the person
+     * is told what changed and decides, which is the only honest answer when
+     * two true movements no longer fit in the same warehouse.
+     *
+     * Only the types that TAKE material out. TRANSFER moves between racks and
+     * leaves the warehouse total alone, and RETURN and ENTRY only ever add — a
+     * restore of those cannot make the total impossible. A transfer can still
+     * leave one rack short, which is a smaller and different problem; it is in
+     * BACKLOG.md rather than half-solved here. */
+    var mtBack = String(restored[AC.MOVETYPE] || '').toUpperCase().trim();
+    if (mtBack === 'EXIT' || mtBack === 'DISPATCH' || mtBack === 'WASTE') {
+      var qtyBack = Math.abs(Number(restored[AC.QTY] || 0));
+      var matBack = getMaterialId(normalizeString(restored[AC.CATEGORY] || ''),
+                                  normalizeString(restored[AC.NAME]     || ''));
+      // The same sheet the save path reads, for the same reason it reads only
+      // that one: the two checks have to agree, and one of them reading more
+      // than the other is how they stop agreeing.
+      var snapBack = buildStockSnapshot_(archive.getDataRange().getValues());
+      var haveBack = (snapBack[matBack] && snapBack[matBack].wh) || 0;
+      if (haveBack < qtyBack) {
+        throw new Error('CANNOT PUT THIS BACK — the warehouse changed while it was in the trash. ' +
+          String(restored[AC.NAME] || 'This material') + ' now has ' + haveBack +
+          ' in the warehouse, and this movement takes ' + qtyBack + ' out. ' +
+          'Putting it back would leave you holding less than nothing. ' +
+          'It is still in the trash: check whether the same material left again after this was deleted.');
+      }
+    }
+
     target.getRange(target.getLastRow() + 1, 1, 1, AC_WIDTH).setValues([textSafeRow_(restored)]);
     target.getRange(target.getLastRow(), AC.TIMESTAMP + 1, 1, 1).setNumberFormat('mm/dd/yyyy hh:mm');
 
@@ -10582,6 +11454,16 @@ function manageMaterialLocked_(data, auth) {
         project:   String(tr[AC.PROJECT] || ''),
         srcLoc:    String(tr[AC.SRC_LOC] || ''),
         destLoc:   String(tr[AC.DEST_LOC] || ''),
+        // THE MOVEMENT'S OWN DATE AND PO, not the deletion's. Without these the
+        // list cannot tell two movements apart: Jose deleted an exit, put it
+        // back, deleted it again, and saw two lines reading exactly
+        // "SR-MM213-TT-091026 · 37 UNIT · EXIT · SR MM213" with nothing to say
+        // whether that was one movement listed twice or two real movements.
+        // That is the wrong question to leave a person holding, because the two
+        // answers call for opposite actions.
+        when:      tr[AC.TIMESTAMP] instanceof Date ? tr[AC.TIMESTAMP].toISOString()
+                                                    : String(tr[AC.TIMESTAMP] || ''),
+        po:        String(tr[AC.PO] || ''),
         deletedBy: String(tr[TR.DELETED_BY] || ''),
         deletedAt: tr[TR.DELETED_AT] instanceof Date ? tr[TR.DELETED_AT].toISOString() : ''
       });
@@ -11079,6 +11961,62 @@ function runDataQualityScan(data) {
         value: projs[0], rows: m.staleTransfer
       });
     }
+  });
+
+  /* ── Family 4: this material is holding less than nothing ──────────────────
+   *
+   * A material whose movements add up below zero is not a tidiness problem. It
+   * means the archive is asserting something that cannot have happened — more
+   * went out than ever came in — and every number built on top of it is wrong.
+   *
+   * WHY NOTHING HAS EVER SEEN ONE. applyMovementToSnapshot_ clamps:
+   *
+   *     s.wh = Math.max(0, s.wh - qty);
+   *
+   * That clamp is right for the stock screen — a shelf cannot show −37 windows
+   * — but it means the arithmetic REFUSES TO REPRESENT the broken state, so the
+   * broken state is invisible everywhere the arithmetic is used. Jose's
+   * WINDOW|||SR-MM213-TT-091026 stood at −37 across the whole app and every
+   * screen showed a calm 0.
+   *
+   * So this counts WITHOUT the clamp. It is the only place in the file that
+   * does, and that is the entire point of it.
+   *
+   * Nothing is offered to Apply. There is no safe automatic answer: the fix is
+   * either "one of these movements should not be there" or "an entry was never
+   * recorded", and only a person who knows the warehouse can say which. What
+   * this owes them is the evidence — the number, and the movements that made
+   * it — which is what a finding carries. */
+  var netos = {};
+  rows.forEach(function (row) {
+    var cat  = String(row[AC.CATEGORY] || '').trim();
+    var name = String(row[AC.NAME]     || '').trim();
+    if (!cat && !name) return;
+    var matId = getMaterialId(normalizeString(cat), normalizeString(name));
+    var n = netos[matId] || (netos[matId] = { category: cat, name: name, neto: 0, dentro: 0, fuera: 0 });
+    var qty = Math.abs(Number(row[AC.QTY] || 0));
+    var mt  = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
+    // Same normalisation the stock engine uses for rows written before the
+    // MoveType column existed, so old history is not read as entries.
+    if (!mt || mt === 'IN STOCK') {
+      mt = (Number(row[AC.QTY] || 0) < 0 ||
+            String(row[AC.STATUS] || '').toUpperCase().trim().indexOf('DISPATCH') === 0) ? 'EXIT' : 'ENTRY';
+    }
+    // TRANSFER and ADJUST are left out on purpose. A transfer moves between
+    // racks and nets to zero; an adjustment is a CORRECTION, so counting it
+    // here would flag the very movement somebody made to put a count right.
+    if (mt === 'ENTRY' || mt === 'RETURN')                       { n.neto += qty; n.dentro += qty; }
+    else if (mt === 'EXIT' || mt === 'DISPATCH' || mt === 'WASTE'){ n.neto -= qty; n.fuera  += qty; }
+  });
+
+  Object.keys(netos).forEach(function (matId) {
+    var n = netos[matId];
+    if (n.neto >= 0) return;
+    findings.push({
+      id: dqId_(['negative', matId]), kind: 'negative',
+      matId: matId, category: n.category, name: n.name,
+      value: n.neto, rows: 0, inQty: n.dentro, outQty: n.fuera
+    });
   });
 
   // ── Family 3: one of these two is probably a typo ─────────────────────────
