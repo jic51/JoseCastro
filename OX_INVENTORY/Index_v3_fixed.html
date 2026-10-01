@@ -1424,7 +1424,16 @@
      * ratón. Es la misma excepción que ya tiene el comentario, y por el mismo
      * motivo: aquí no se puede partir en dos líneas sin romper la costura, que
      * es lo único que esta columna existe para dar. */
-    #tableContainer td.mc-qty{
+    /* LA REJILLA VA EN UN ENVOLTORIO, NO EN LA CELDA, y esto lo rompí yo en la
+     * v12.18: puse `display:grid` directamente en el `<td>` y con eso dejó de
+     * comportarse como celda de tabla. Una celda con `display:grid` ya no es un
+     * `table-cell`, así que pierde el `vertical-align:middle` que alinea todas
+     * las demás — y la cantidad se quedaba flotando por encima de su propia
+     * fila. Jose lo vio a la primera.
+     *
+     * Con el envoltorio, el `<td>` sigue siendo un `table-cell` normal y la
+     * rejilla vive dentro. La costura no cambia; la alineación vuelve. */
+    #tableContainer td.mc-qty .qpair{
       display:grid;grid-template-columns:46px 48px;gap:5px;align-items:baseline}
     #tableContainer td.mc-qty .qv{
       text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -4385,7 +4394,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.18';
+var APP_VERSION = '12.19';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4397,7 +4406,7 @@ var APP_VERSION = '12.18';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '3f37137b';
+var APP_BUILD = '49b4d850';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7748,11 +7757,11 @@ function renderMovements(){
       qty:      (function(){
         var txt = (isOut ? '−' : '+') + m.qty;
         var uni = String(m.unit || '—');
-        return '<td class="mc-qty">' +
+        return '<td class="mc-qty"><span class="qpair">' +
           '<span class="qv' + (txt.length > 5 ? ' qty-lg' : '') + '" style="color:' +
             (isOut ? 'var(--red)' : 'var(--accent2)') + '">' + _he(txt) + '</span>' +
           '<span class="qu" title="' + _escAttr(uni) + '">' + _he(uni) + '</span>' +
-        '</td>';
+        '</span></td>';
       })(),
       po:       '<td class="mc-po" style="font-size:.78rem">'+_he(m.po||'—')+'</td>',
       locFlow:  '<td class="mc-locFlow" style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>',
