@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.29';
+var APP_VERSION = '12.30';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.29';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '8b55aed4';
+var APP_BUILD = 'f1b731c6';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -4385,6 +4385,39 @@ function archiveOldMovements(ss, opciones) {
     var cutoffDate   = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - cutoffMonths);
 
+    /* ═══ EL SUELO: LO DE ESTE MES NO SE ARCHIVA NUNCA ════════════════════════
+     *
+     * Jose, 2026-10-01: *"el archivado no debe ser un problema para el usuario,
+     * es un problema para nosotros y para que la app sea más rápida, así que la
+     * app debe seguir mostrando los movimientos aunque estén archivados, o por
+     * lo menos mostrar los del último mes sin que el usuario deba pedirlo."*
+     *
+     * Con el corte en 6 meses esto ya se cumple por aritmética: nada de los
+     * últimos seis meses puede cruzar el corte. Pero se cumple POR CASUALIDAD —
+     * depende de un ajuste que el usuario puede bajar, y de que loadConfig
+     * devuelva lo que creemos. Lo que Jose pide no es un número grande, es una
+     * GARANTÍA, y una garantía que depende de una preferencia no es una
+     * garantía.
+     *
+     * Así que es una regla: pase lo que pase en los ajustes, los movimientos de
+     * los últimos 30 días se quedan en la lista reciente. Si alguien pone el
+     * corte en "1 mes" y hoy es día 2, lo de ayer sigue en pantalla.
+     *
+     * No se toca el ajuste del usuario ni se le corrige: se recorta la fecha de
+     * corte para ESTA corrida y el informe lo dice en voz alta. Un ajuste que la
+     * app ignora en silencio es peor que un ajuste que no se puede poner. */
+    var SUELO_DIAS = 30;
+    var suelo = new Date();
+    suelo.setDate(suelo.getDate() - SUELO_DIAS);
+    informe.sueloDias = SUELO_DIAS;
+    informe.sueloAplicado = (cutoffDate > suelo);
+    if (informe.sueloAplicado) {
+      anotar('Cutoff of ' + cutoffMonths + ' month(s) would archive movements from the ' +
+             'last ' + SUELO_DIAS + ' days. It will not: the last ' + SUELO_DIAS +
+             ' days always stay in the recent list.');
+      cutoffDate = suelo;
+    }
+
     // THIS SAID 20, AND 20 STOPPED BEING TRUE THE DAY THE PRICING COLUMNS WERE
     // ADDED. The rows are read at their real width — getDataRange() gives back
     // however many columns the sheet actually has — and were then written into
@@ -8363,6 +8396,7 @@ function onOpen() {
     .addItem('📁 Tidy up my Drive (one folder for everything)', 'menuOrganizeDrive')
     .addItem('🩺 Check this installation', 'menuCheckInstallation')
     .addItem('🌙 Test the nightly archive (changes nothing)', 'menuProbarArchivado')
+    .addItem('▶️ Archive old movements NOW (asks first)', 'menuArchivarAhora')
     .addItem('🔎 Check if this copy is a clean template', 'menuVerifyMasterTemplate')
     .addItem('💣 Erase everything — make this a blank template', 'menuPrepareMasterTemplate');
 
@@ -9519,68 +9553,188 @@ function menuProbarArchivado() {
     return;
   }
 
-  var inf = (r && r.informe) || { pasos: [] };
-  var lineas = [];
+  ui.alert('🌙 Nightly archive — rehearsal',
+           informeDeArchivado_(r, true).join('\n'), ui.ButtonSet.OK);
+}
 
-  lineas.push('RESULT: ' + String(r && r.status || '?').toUpperCase());
-  lineas.push('');
-  lineas.push('NOTHING WAS WRITTEN. This is a rehearsal of tonight\'s job.');
-  lineas.push('');
+/* EL INFORME, ESCRITO UNA VEZ Y LEÍDO POR LOS DOS BOTONES.
+ *
+ * Estaba dentro de menuProbarArchivado y ahí se habría quedado si el botón de
+ * "hazlo ahora" hubiera traído su propio informe: dos textos que describen el
+ * mismo trabajo y que empiezan a divergir el día que uno de los dos se cambia.
+ * Es el mismo patrón que ya nos mordió con las dos listas de pruebas que tenían
+ * que coincidir sin nada que lo obligara.
+ *
+ * Lo único que cambia entre ensayo y corrida de verdad son los tiempos verbales
+ * —"would move" contra "moved"—, y cambian a propósito: un informe que dice
+ * "would" después de haber reescrito las dos hojas le hace creer a quien lo lee
+ * que todavía está a tiempo de arrepentirse.
+ */
+function informeDeArchivado_(r, ensayo) {
+  var inf = (r && r.informe) || { pasos: [] };
+  var L = [];
+
+  L.push('RESULT: ' + String(r && r.status || '?').toUpperCase());
+  L.push('');
+  L.push(ensayo
+    ? 'NOTHING WAS WRITTEN. This is a rehearsal of tonight\'s job.'
+    : 'THIS WAS THE REAL RUN. Both sheets have been rewritten.');
+  L.push('');
 
   if (inf.modeloAncho) {
-    lineas.push('SHEET WIDTHS — this is what the "23 vs 20" error is about');
-    lineas.push('  The row model needs   : ' + inf.modeloAncho + ' columns');
-    lineas.push('  MASTER_ARCHIVE_V3 has : ' + inf.archivoAncho +
-                (inf.archivoAnchoTras && inf.archivoAnchoTras !== inf.archivoAncho
-                  ? ' → widened to ' + inf.archivoAnchoTras : '') +
-                '   (last column in use: ' + inf.archivoUltima + ')');
-    lineas.push('  ARCHIVE_HISTORY has   : ' + inf.histAncho +
-                (inf.histAnchoTras && inf.histAnchoTras !== inf.histAncho
-                  ? ' → widened to ' + inf.histAnchoTras : '') +
-                '   (last column in use: ' + inf.histUltima + ')');
-    lineas.push('');
-    lineas.push('MOVEMENTS RIGHT NOW');
-    lineas.push('  Recent list      : ' + inf.archivoFilas);
-    lineas.push('  Archived history : ' + inf.histFilas);
-    lineas.push('');
+    L.push('SHEET WIDTHS — this is what the "23 vs 20" error is about');
+    L.push('  The row model needs   : ' + inf.modeloAncho + ' columns');
+    L.push('  MASTER_ARCHIVE_V3 has : ' + inf.archivoAncho +
+           (inf.archivoAnchoTras && inf.archivoAnchoTras !== inf.archivoAncho
+             ? ' → widened to ' + inf.archivoAnchoTras : '') +
+           '   (last column in use: ' + inf.archivoUltima + ')');
+    L.push('  ARCHIVE_HISTORY has   : ' + inf.histAncho +
+           (inf.histAnchoTras && inf.histAnchoTras !== inf.histAncho
+             ? ' → widened to ' + inf.histAnchoTras : '') +
+           '   (last column in use: ' + inf.histUltima + ')');
+    L.push('');
+    L.push(ensayo ? 'MOVEMENTS RIGHT NOW' : 'MOVEMENTS BEFORE THIS RUN');
+    L.push('  Recent list      : ' + inf.archivoFilas);
+    L.push('  Archived history : ' + inf.histFilas);
+    L.push('');
   }
 
   if (inf.corteMeses !== undefined) {
-    lineas.push('CUTOFF');
-    lineas.push('  ' + inf.corteMeses + ' month(s) — anything before ' + inf.corteFecha + ' counts as old.');
-    lineas.push('  Would move OUT of the recent list : ' + inf.seArchivan);
-    lineas.push('  Would come back IN                : ' + inf.seDevuelven);
-    lineas.push('  Would stay                        : ' + inf.seQuedan);
-    lineas.push('');
+    L.push('CUTOFF');
+    L.push('  ' + inf.corteMeses + ' month(s) — anything before ' + inf.corteFecha +
+           ' counts as old.');
+    /* EL SUELO SE DICE EN VOZ ALTA CUANDO ACTÚA. Un corte que la app ignora en
+     * silencio es peor que un corte que no se puede poner: la persona cree que
+     * ha configurado algo y la app hace otra cosa. */
+    if (inf.sueloDias && inf.sueloAplicado) {
+      L.push('  ⓘ The last ' + inf.sueloDias + ' days are never archived, whatever the ' +
+             'cutoff says, so');
+      L.push('    the cutoff used here is ' + inf.corteFecha + ' and not the date your ' +
+             'setting asks for.');
+    }
+    L.push((ensayo ? '  Would move OUT of the recent list : '
+                   : '  Moved OUT of the recent list : ') + inf.seArchivan);
+    L.push((ensayo ? '  Would come back IN                : '
+                   : '  Came back IN                 : ') + inf.seDevuelven);
+    L.push((ensayo ? '  Would stay                        : '
+                   : '  Stayed                       : ') + inf.seQuedan);
+    L.push('');
   }
 
   if (inf.quedariaEnArchivo !== undefined) {
-    lineas.push('AFTER TONIGHT IT WOULD LEAVE');
-    lineas.push('  Recent list      : ' + inf.quedariaEnArchivo);
-    lineas.push('  Archived history : ' + inf.quedariaEnHistoria);
+    L.push(ensayo ? 'AFTER TONIGHT IT WOULD LEAVE' : 'IT NOW LEAVES');
+    L.push('  Recent list      : ' + inf.quedariaEnArchivo);
+    L.push('  Archived history : ' + inf.quedariaEnHistoria);
     if (inf.quedariaEnArchivo === 0 && inf.quedariaEnHistoria > 0) {
-      lineas.push('');
-      lineas.push('  ⚠ The recent list would end up EMPTY. Nothing would be lost —');
-      lineas.push('    it all moves to the archived history — but the app will look');
-      lineas.push('    blank until you press "Load Older History". If that is not');
-      lineas.push('    what you want, raise the cutoff in Settings.');
+      L.push('');
+      L.push('  ⚠ The recent list ' + (ensayo ? 'would end up' : 'is now') + ' EMPTY. ' +
+             'Nothing ' + (ensayo ? 'would be' : 'was') + ' lost —');
+      L.push('    it all moves to the archived history — but the app will look');
+      L.push('    blank until you press "Load Older History". If that is not');
+      L.push('    what you want, raise the cutoff in Settings.');
     }
-    lineas.push('');
+    L.push('');
   }
 
   if (inf.error) {
-    lineas.push('✗ WHAT FAILED');
-    lineas.push('  ' + inf.error);
-    if (inf.stack) { lineas.push(''); lineas.push('  ' + inf.stack); }
-    lineas.push('');
+    L.push('✗ WHAT FAILED');
+    L.push('  ' + inf.error);
+    if (inf.stack) { L.push(''); L.push('  ' + inf.stack); }
+    L.push('');
   }
 
   if (inf.pasos && inf.pasos.length) {
-    lineas.push('STEP BY STEP');
-    inf.pasos.forEach(function (t) { lineas.push('  · ' + t); });
+    L.push('STEP BY STEP');
+    inf.pasos.forEach(function (t) { L.push('  · ' + t); });
   }
 
-  ui.alert('🌙 Nightly archive — rehearsal', lineas.join('\n'), ui.ButtonSet.OK);
+  return L;
+}
+
+/* "¿PODEMOS CREAR UN BOTÓN QUE LO HAGA EN ESTE MOMENTO? QUIERO SABER SI
+ * FUNCIONA EN ESTE MISMO MOMENTO." — Jose, 2026-10-01.
+ *
+ * Sí, y hace falta por algo más que la comodidad. Hasta hoy la única forma de
+ * saber si el trabajo nocturno funciona era esperar a las 3 de la mañana y
+ * mirar al día siguiente: **cada intento costaba veinticuatro horas**. Llevamos
+ * tres incidentes a ese ritmo, y dos semanas en las que cada arreglo tardaba un
+ * día en poder comprobarse — y resultó que ni siquiera se estaba comprobando,
+ * porque lo que corría de noche era otro código. Un fallo que sólo se puede
+ * observar una vez al día no se puede investigar.
+ *
+ * ES LA MISMA FUNCIÓN, no una copia "de prueba". Una copia que imita al trabajo
+ * de verdad es exactamente la forma de tener una prueba que pasa mientras el
+ * producto falla — ya nos pasó con la hoja de mentira que guardaba el apóstrofo.
+ *
+ * Enseña el ensayo PRIMERO, con los números, y pide confirmación. Un botón que
+ * reescribe las dos hojas de movimientos no se pulsa a ciegas.
+ */
+function menuArchivarAhora() {
+  var ui = SpreadsheetApp.getUi();
+  setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Spreadsheet menu' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var previo;
+  try {
+    previo = archiveOldMovements(ss, { ensayo: true });
+  } catch (e) {
+    ui.alert('It could not even be rehearsed',
+             String(e && e.message || e) +
+             '\n\nNothing was written. Nothing to undo.', ui.ButtonSet.OK);
+    return;
+  }
+
+  var inf = (previo && previo.informe) || {};
+
+  /* NO PREGUNTAR CUANDO NO HAY NADA QUE HACER. Un "¿seguro?" seguido de "no he
+   * hecho nada" enseña a la gente a pulsar YES sin leer, que es justo lo que no
+   * queremos el día que el aviso sí importe. */
+  if (previo && previo.status === 'noop') {
+    ui.alert('Nothing to archive right now',
+      'No movement crosses the ' + inf.corteMeses + '-month cutoff, so the job ' +
+      'would move nothing in either direction.\n\n' +
+      'Recent list      : ' + inf.archivoFilas + '\n' +
+      'Archived history : ' + inf.histFilas, ui.ButtonSet.OK);
+    return;
+  }
+
+  var resp = ui.alert('Run the archive NOW?',
+    'This runs tonight\'s job right now and rewrites both movement sheets.\n\n' +
+    '  Would move OUT of the recent list : ' + inf.seArchivan + '\n' +
+    '  Would come back IN                : ' + inf.seDevuelven + '\n' +
+    '  Would stay                        : ' + inf.seQuedan + '\n\n' +
+    'Afterwards: ' + inf.quedariaEnArchivo + ' in the recent list, ' +
+    inf.quedariaEnHistoria + ' in the archived history.\n\n' +
+    'NOTHING LEAVES THE SPREADSHEET. Archived movements move to ARCHIVE_HISTORY, ' +
+    'where the app can still read them with "Load Older History". There is also ' +
+    'the 2am backup.\n\nRun it?', ui.ButtonSet.YES_NO);
+
+  if (resp !== ui.Button.YES) {
+    ui.alert('Nothing was done.', 'The archive was not run. Both sheets are ' +
+             'exactly as they were.', ui.ButtonSet.OK);
+    return;
+  }
+
+  var r;
+  try {
+    r = archiveOldMovements(ss);
+  } catch (e) {
+    /* El trabajo relanza después de registrar y avisar — ese comportamiento es
+     * para la corrida de las 3 de la mañana, donde no hay nadie delante. Aquí sí
+     * lo hay, así que se le enseña, y se le dice lo único que de verdad importa
+     * saber en ese momento: el orden de escritura es escribir-y-luego-limpiar,
+     * así que una escritura que revienta no deja la hoja vacía. */
+    ui.alert('▶️ The archive FAILED',
+      String(e && e.message || e) + '\n\n' +
+      'The rows are written BEFORE anything is cleared, so a failed write does ' +
+      'not empty the sheet. Open ERROR_LOG: the newest row carries the version, ' +
+      'the sheet widths and the step-by-step trail up to the exact write that ' +
+      'failed.\n\nSend me that row.', ui.ButtonSet.OK);
+    return;
+  }
+
+  ui.alert('▶️ Archive — real run',
+           informeDeArchivado_(r, false).join('\n'), ui.ButtonSet.OK);
 }
 
 function menuCheckInstallation() {
