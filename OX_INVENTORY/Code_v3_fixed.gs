@@ -46,7 +46,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.27';
+var APP_VERSION = '12.29';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +58,7 @@ var APP_VERSION = '12.27';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'e7f6a8cd';
+var APP_BUILD = '8b55aed4';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -4598,8 +4598,28 @@ function archiveOldMovements(ss, opciones) {
       informe.quedariaEnHistoria = contarConDatos_(newHistory);
       return { status: 'dry-run', informe: informe };
     }
+    /* MIGAS DE PAN, Y NO SON DECORACIÓN.
+     *
+     * Jose, 2026-10-01: *"¿qué activa ese error? ¿qué pasa antes y después de
+     * ese error? Ahí está la clave, hay que ver antes, durante y después."*
+     *
+     * Tiene razón y llevaba tres incidentes sin poder contestarle, porque lo
+     * único que quedaba del fallo era el mensaje de Sheets: "los datos tienen 23
+     * y el rango 20". Ese mensaje no dice QUÉ HOJA, ni en qué paso, ni qué
+     * anchos tenía cada una. Sin eso no hay caso que investigar.
+     *
+     * Estas dos líneas dicen, JUSTO ANTES de cada escritura, a qué hoja se va a
+     * escribir, cuántas filas y de cuántas columnas, y de cuántas columnas es la
+     * hoja en ese preciso momento. Si la siguiente línea del registro es el
+     * error, ya sabemos cuál de las dos escrituras fue y con qué números. */
+    anotar('WRITE 1/2 → ' + history.getName() + ': ' + newHistory.length + ' row(s) × ' +
+           colCount + ' col(s) into a sheet that is ' + history.getMaxColumns() + ' wide.');
     escribirHojaCompleta_(history, newHistory, colCount);
+    anotar('WRITE 1/2 done.');
+    anotar('WRITE 2/2 → ' + archive.getName() + ': ' + newActive.length + ' row(s) × ' +
+           colCount + ' col(s) into a sheet that is ' + archive.getMaxColumns() + ' wide.');
     escribirHojaCompleta_(archive, newActive,  colCount);
+    anotar('WRITE 2/2 done.');
 
     /* ── GUARDA 2: volver a contar sobre la HOJA, no sobre la variable ───────
      * Lo de arriba comprueba la aritmética; esto comprueba que lo escrito llegó.
@@ -4687,7 +4707,20 @@ function archiveOldMovements(ss, opciones) {
       avisarFalloDeArchivo_(ss, vacioMsg);
     }
 
-    auditLog_(ss, 'ARCHIVE_RECONCILE', 'system', 'cutoff=' + cutoffMonths + 'mo',
+    /* LA VERSIÓN QUEDA ESCRITA EN CADA CORRIDA, y es la línea que habría
+     * ahorrado tres incidentes y dos semanas.
+     *
+     * El 01/10 a las 3:19 este trabajo falló con el mismo error del 26 y del 29.
+     * La pila decía `archiveOldMovements(Code:2148)` — y en la v12.14, que es la
+     * que puso las guardas, esa función está en la 4371 y ocupa unas 300 líneas,
+     * no las ~90 que caben antes de la 2170 donde estaba su disparador. O sea
+     * que LAS GUARDAS NO ESTABAN EN EL CÓDIGO QUE CORRIÓ: el trabajo nocturno
+     * llevaba semanas ejecutando una versión vieja mientras nosotros mirábamos
+     * la nueva.
+     *
+     * Nada en la app decía qué versión había corrido de noche. Ahora sí. */
+    auditLog_(ss, 'ARCHIVE_RECONCILE', 'system',
+      'v' + APP_VERSION + ' · cutoff=' + cutoffMonths + 'mo',
       toArchive.length + ' archived', toRestore.length + ' restored');
     return { status: 'success', archived: toArchive.length, restored: toRestore.length,
              total: antes, informe: informe };
@@ -4699,7 +4732,34 @@ function archiveOldMovements(ss, opciones) {
     informe.stack = String(e.stack || '').split('\n').slice(0, 6).join(' | ');
     anotar('THREW: ' + e.message);
     if (ensayo) return { status: 'error', informe: informe };
-    logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', e.message, null, newRequestId_());
+
+    /* EL REGISTRO LLEVA AHORA EL CAMINO, NO SÓLO EL FINAL.
+     *
+     * Hasta aquí este catch guardaba `e.message` y nada más, y por eso tres
+     * incidentes seguidos dejaron la misma línea inútil: "los datos tienen 23 y
+     * el rango 20", sin decir qué hoja, en qué paso, ni con qué anchos.
+     *
+     * Ahora se guarda todo lo que `informe` fue anotando hasta el momento de
+     * reventar —los anchos de las dos hojas, el corte, cuántas filas iban a cada
+     * lado, cuál de las dos escrituras se intentó— y la pila con las líneas.
+     * Es exactamente el "antes, durante y después" que pidió Jose, y existe
+     * porque sin él la próxima vez tampoco sabríamos nada.
+     *
+     * Va en el campo de CONTEXTO, no pegado al mensaje: logError_ recorta el
+     * mensaje a 500 caracteres, y pegarlo ahí se habría comido el final — que es
+     * justo la parte que dice dónde murió. */
+    /* UN OBJETO, NO UNA CADENA, y por poco se me cuela: sanitizeErrorContext_
+     * empieza con `if (!obj || typeof obj !== 'object') return ''`, así que un
+     * texto suelto se habría descartado en silencio y este rastro no habría
+     * llegado nunca al registro. Habríamos vuelto a tener la misma línea inútil
+     * creyendo que esta vez sí decía algo. */
+    logError_(ss, 'ERROR', 'backend', 'archiveOldMovements', 'system', e.message, {
+      version: APP_VERSION,     // qué versión corrió DE VERDAD — ver ARCHIVE_RECONCILE
+      steps: informe.pasos.join('  →  ') || '(none)',
+      stack: informe.stack,
+      archiveWidth: informe.archivoAncho, historyWidth: informe.histAncho,
+      modelWidth:   informe.modeloAncho
+    }, newRequestId_());
     // ANTES SÓLO SE REGISTRABA. ERROR_LOG es una pestaña que nadie mira, y por
     // eso el desastre del 26 de septiembre estuvo catorce horas sin que nadie
     // lo supiera. Un trabajo que corre de noche y sin nadie delante tiene que
@@ -4780,6 +4840,13 @@ function archiveOldMovementsTrigger() {
   // archive rewrite on demand and burn the project's execution quota.
   requireOwnerContext_();
   setVerifiedAuth_({ role: 'ADMIN', email: 'system@scheduled-trigger', name: 'Scheduled trigger' });
+  /* ANTES DE NADA, para que conste aunque lo de abajo reviente en la primera
+   * línea. Es la diferencia entre "falló el archivado" y "falló el archivado de
+   * la v12.9 cuando creíamos tener la v12.14". */
+  try {
+    auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'ARCHIVE_START', 'system',
+              'nightly archive starting · v' + APP_VERSION, '', '');
+  } catch (e) {}
   archiveOldMovements(SpreadsheetApp.getActiveSpreadsheet());
 }
 
@@ -9432,6 +9499,17 @@ function detectFolderPrefixes_() {
  */
 function menuProbarArchivado() {
   var ui = SpreadsheetApp.getUi();
+  /* LA IDENTIDAD, QUE SE ME OLVIDÓ Y DEJÓ EL ENSAYO INÚTIL.
+   *
+   * Jose lo corrió y lo único que sacó fue "Not authenticated", desde
+   * loadConfig. Toda entrada por menú tiene que declarar quién es antes de
+   * tocar nada —menuActivateWebApp y menuCheckInstallation ya lo hacían— porque
+   * `requireAuth_` mira la sesión de la app, no la de Google, y desde un menú no
+   * hay ninguna.
+   *
+   * Un botón de diagnóstico que no arranca es peor que no tenerlo: le hice
+   * perder un día a Jose creyendo que el ensayo le iba a decir algo. */
+  setVerifiedAuth_({ role: 'ADMIN', email: requireOwnerContext_(), name: 'Spreadsheet menu' });
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var r;
   try {
