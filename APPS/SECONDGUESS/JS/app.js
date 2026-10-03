@@ -64,11 +64,19 @@ const App = {
     // Check streak break
     if (this.data.lastPlayed) {
       const last = new Date(this.data.lastPlayed);
-      const diff = Math.floor((this.today - last) / (1000 * 60 * 60 * 24));
-      if (diff > 1) {
+      if (this.daysBetween(last, this.today) > 1) {
         this.data.streak = 0;
       }
     }
+  },
+
+  // Dias de calendario entre dos fechas. Restar milisegundos y dividir entre 24h
+  // no sirve: jugar anteayer a las 23:59 y abrir hoy a las 09:00 son 33 horas,
+  // un solo "dia" por division, pero un dia completo saltado en el calendario.
+  daysBetween(from, to) {
+    const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const b = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    return Math.round((b - a) / (1000 * 60 * 60 * 24));
   },
 
   saveData() {
@@ -380,6 +388,13 @@ const App = {
 
   // ===== COUNTDOWN VIEW (anti-cheat fallback) =====
   renderCountdown(container, targetTime) {
+    // Un objetivo ya vencido solo pinta un contador muerto en "00" del que el
+    // jugador no puede salir. Si ya paso, le toca jugar.
+    if (targetTime <= Date.now()) {
+      this.renderQuestion(container);
+      return;
+    }
+
     container.innerHTML = `
       <div class="countdown-card animate-pop" style="margin-top:2rem">
         <div style="font-size:3rem;margin-bottom:1rem">⏳</div>

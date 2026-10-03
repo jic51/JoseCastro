@@ -55,12 +55,19 @@ const Security = {
     localStorage.setItem(this.CHECK_KEY, JSON.stringify(checks));
   },
 
+  clearChecks() {
+    localStorage.removeItem(this.CHECK_KEY);
+  },
+
   detectTimeTampering() {
     const checks = JSON.parse(localStorage.getItem(this.CHECK_KEY) || '[]');
     if (checks.length < 2) return false;
     for (let i = 1; i < checks.length; i++) {
+      // Solo el reloj yendo hacia atras es manipulacion. Un hueco hacia adelante
+      // es un jugador que se ausento unos dias, y tratarlo como trampa lo dejaba
+      // encerrado: la vista de espera nunca vuelve a guardar, asi que el hueco
+      // no salia nunca de la lista.
       if (checks[i] < checks[i-1]) return true;
-      if (checks[i] - checks[i-1] > 1000 * 60 * 60 * 48) return true;
     }
     return false;
   },
@@ -70,6 +77,9 @@ const Security = {
     const today = now.toDateString();
 
     if (this.detectTimeTampering()) {
+      // Se descarta el historial corrupto para que el castigo dure un ciclo y no
+      // para siempre. Sin esto el jugador solo podia salir borrando su progreso.
+      this.clearChecks();
       return { canPlay: false, reason: 'time_tampering', fallback: true };
     }
 
