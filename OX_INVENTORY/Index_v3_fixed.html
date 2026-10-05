@@ -95,7 +95,7 @@
        on a wide window and dropped below it on a narrower one — and the whole
        page shifted as it went. Now the tabs have a line of their own that they
        never leave; they just move toward the middle as the window grows. */
-    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:0;z-index:var(--z-topbar);border-bottom:3px solid var(--accent)}
+    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:var(--tb-alto);z-index:var(--z-topbar);border-bottom:3px solid var(--accent)}
     .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     /* Row two is the tabs and the account cluster TOGETHER, so the circle is
        always beside the tabs rather than stranded on the line above them. The
@@ -596,7 +596,42 @@
        baja—, y `scrollbar-gutter:stable` también: reserva el carril para que un
        formulario que crece, al añadir otro material, no dé un salto lateral
        cuando aparezca la barra. */
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:82vh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    /* ══ LAS BARRAS DE ARRIBA, EN UNA SOLA PILA ════════════════════════════
+       Jose, 2026-10-05: *"poner un label (este sí que se vea como los demás
+       arriba en la pantalla) que diga 'you are off-line' y 'back on-line'."*
+
+       Hasta hoy la app SÓLO decía que estaba caída con un punto de color y un
+       texto al pasar el ratón por encima. Nadie pasa el ratón por un punto: se
+       sigue trabajando, se sigue escribiendo, y lo que se escriba no se guarda.
+       Un estado que puede costarte el trabajo no se cuenta en un `title`.
+
+       Van en una pila y no sueltas porque ya había una barra fija arriba —la
+       del desajuste de versiones— y dos elementos `position:fixed; top:0` se
+       tapan el uno al otro. Con la pila, la segunda se pone debajo de la
+       primera sola. */
+    /* EMPUJA, NO TAPA. La primera versión iba `position:fixed; top:0` —como la
+       del desajuste de versiones, que lleva meses así— y en una pantalla de
+       teléfono eso se come la barra de navegación entera: los botones de las
+       pestañas y el círculo de la cuenta quedan DEBAJO del aviso y no se pueden
+       pulsar. Lo cazó test-responsive-polish, que a 375px se quedó sin poder
+       pulsar el botón de la cuenta.
+       Un aviso que te deja sin app para contarte que la app no va es peor que
+       no tener aviso. Así que ocupa su sitio en la página y la barra de
+       navegación se pega justo debajo (`--tb-alto`, que escribe _barraArriba). */
+    :root{--tb-alto:0px}
+    #topBanners{position:sticky;top:0;left:0;right:0;z-index:99999;display:flex;flex-direction:column}
+    .top-banner{display:flex;align-items:center;justify-content:center;gap:.5rem;
+      font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;color:#fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    .top-banner.warn{background:#b45309}
+    .top-banner.bad{background:var(--red)}
+    .top-banner.good{background:#15803d}
+    .top-banner .tb-x{cursor:pointer;text-decoration:underline;font-weight:600;opacity:.9}
+    /* El aro de la barra de "reconectando": el mismo que el de los botones, para
+       que girar signifique lo mismo en toda la app. */
+    .top-banner .tb-spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);
+      border-top-color:#fff;border-radius:50%;display:inline-block;animation:btnspin .7s linear infinite}
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:90vh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
     /* Standardized size tiers (scale with viewport via min(), never grow past
        that from content) — every popup uses one of these three instead of an
        ad-hoc per-modal pixel value. Content still picks the tier that fits it
@@ -658,7 +693,50 @@
        encogerse, y sin `wrap` el texto se desborda por encima del botón de al
        lado. Con `wrap` se baja a la línea siguiente, que es feo pero legible;
        sin él, se pisan. */
-    .modal-actions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;margin-top:1.5rem}
+    /* EL PIE VA FIJO ABAJO, igual que .mhdr va fija arriba desde hace meses.
+       Jose, 2026-10-04, con un vídeo de "Add Expected Material": *"si la
+       pantalla tiene espacio para poner toda la ventana, se lo hace; si no
+       tiene espacio, entonces vamos a poner los botones en el marco, fijos,
+       para que el usuario no tenga que hacer scroll para poder dar clic."*
+
+       Y pesa más que la comodidad: EL AVISO DE ERROR VIVE EN ESTE PIE. En su
+       captura de ENTRY, "Material 1 needs a name" sale justo al lado de "Save
+       to System". Con el pie fuera de la pantalla, la persona pulsa guardar, no
+       pasa nada, y el motivo está donde no está mirando. Un mensaje de error
+       que hay que ir a buscar es un mensaje de error que no existe.
+
+       Los márgenes negativos lo llevan hasta los bordes de la ventana —la misma
+       técnica que la cabecera— para que el contenido pase por DEBAJO y no por
+       un lado. */
+    .modal-actions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;
+      /* `bottom` NEGATIVO, no 0: un elemento pegajoso se ancla al borde del área
+       de desplazamiento, que INCLUYE el relleno de abajo de la ventana. Con
+       bottom:0 el pie quedaba flotando 28px por encima del borde y se veía una
+       franja de tarjeta por debajo. Medido: 561 contra 589. */
+      position:sticky;bottom:calc(-1 * var(--mpad));z-index:30;background:var(--card);
+      margin:1.5rem calc(-1 * var(--mpad)) calc(-1 * var(--mpad));
+      padding:.85rem var(--mpad);border-top:1px solid var(--border);
+      border-radius:0 0 14px 14px}
+    /* BOTONES QUE NO CAMBIAN DE TAMAÑO. Jose, en el mismo mensaje: *"debemos
+       estandarizar los botones para que no se hagan más grandes o más
+       pequeños, en especial si hay más botones al lado, porque se mueven o
+       empujan y se ve poco profesional."*
+
+       Dos causas distintas y las dos se tapan aquí: un rótulo largo hacía el
+       botón más ancho que su vecino (de ahí el min-width común), y un rótulo
+       que no cabía se partía en dos líneas y empujaba toda la fila hacia abajo
+       (de ahí el nowrap). Lo de cambiar de ancho al ponerse a girar ya estaba
+       resuelto: _btnBusy fija el ancho ANTES de cambiar el texto. */
+    /* EN EL PIE MANDA EL PIE, no la clase que traiga cada botón. Había pies con
+       un "Cancel" btn-sm de 88px al lado de un "Save" de 120: dos tamaños
+       distintos en la misma fila, que es exactamente lo que Jose llama "se ve
+       poco profesional". Dentro de .modal-actions todos miden igual — el mismo
+       ancho mínimo, el mismo relleno y la misma letra — sea cual sea la clase
+       con la que llegaron. */
+    .modal-actions .btn,
+    .modal-actions .btn.btn-sm{min-width:7.5rem;flex:0 0 auto;
+      padding:.5rem 1rem;font-size:.85rem}
+    .btn{white-space:nowrap}
     /* ── NOTIFY SECTION ── */
     .notify-section{margin-top:1rem;padding:1rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
     .notify-section label.check-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--navy)}
@@ -3610,7 +3688,7 @@
         style="font-size:.82rem">
       <div id="incDocPreview" style="margin-top:.55rem"></div>
     </div>
-    <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end">
+    <div class="modal-actions" style="margin-top:1rem">
       <button id="btnDeleteIncoming" class="btn btn-danger btn-sm" style="margin-right:auto;display:none" onclick="deleteIncomingItem()">🗑 Delete</button>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('incomingOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveIncomingItem()">💾 Save</button>
@@ -3676,7 +3754,7 @@
       <button class="btn btn-ghost btn-sm" onclick="monitorSelectAll(false)">✕ Clear all</button>
     </div>
     <div class="monitor-grid" id="monitorGrid"></div>
-    <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
+    <div class="modal-actions" style="margin-top:1rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('monitorOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveMonitorSettings()">💾 Save</button>
     </div>
@@ -3875,7 +3953,7 @@
     </div>
 
     <input type="hidden" id="em_rowIdx">
-    <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end">
+    <div class="modal-actions" style="margin-top:1rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('editMovOverlay')">Cancel</button>
       <button class="btn btn-primary" id="btnSaveEditMov" onclick="saveEditMov()">💾 Save Changes</button>
     </div>
@@ -4341,7 +4419,7 @@
       <label>Allowed transfer destinations <span style="font-weight:400;color:var(--muted)">(optional — leave blank to allow transfer anywhere)</span></label>
       <input type="text" id="lockAllowedDest" list="rackListDest" placeholder="e.g. B2B, C1A — comma-separated">
     </div>
-    <div style="display:flex;gap:.75rem;margin-top:1.25rem;justify-content:flex-end">
+    <div class="modal-actions" style="margin-top:1.25rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('lockMatOverlay')">Cancel</button>
       <button class="btn btn-danger btn-sm" id="lockMatSubmit" onclick="submitLockMaterial()">🔒 Reserve</button>
     </div>
@@ -4390,7 +4468,7 @@
       <input type="file" id="riPhotoFiles" accept="image/*" multiple style="display:none" onchange="_onReportIssuePhotos(this.files);this.value=''">
       <div id="riPhotoPreview" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem"></div>
     </div>
-    <div style="display:flex;gap:.75rem;margin-top:1.25rem;justify-content:flex-end">
+    <div class="modal-actions" style="margin-top:1.25rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('reportIssueOverlay')">Cancel</button>
       <button class="btn btn-primary btn-sm" id="riSubmitBtn" onclick="submitReportIssue()">Send Report</button>
     </div>
@@ -4420,7 +4498,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.30';
+var APP_VERSION = '12.38';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4432,7 +4510,7 @@ var APP_VERSION = '12.30';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'f1b731c6';
+var APP_BUILD = '3fb05219';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8162,8 +8240,13 @@ function _loadOlderHistoryClicked() {
       _oldHistoryQuedan = (res && res.quedan) || 0;
       _oldHistoryLoaded = true;
       _rotuloHistorico(btn);
-      _movPage = 1;
-      renderMovements();
+      /* NO SE VUELVE A LA PRIMERA PÁGINA, y esto salió de revisar el salto del
+       * otro botón. Aquí decía `_movPage = 1`, así que pedir histórico viejo
+       * ENCOGÍA la lista a las 75 primeras: quien había pulsado "Load more"
+       * diez veces perdía las diez, y para llegar a lo que acababa de pedir
+       * tenía que volver a pulsar otras tantas. Un botón que trae cosas no
+       * puede esconder las que ya estaban. */
+      _repintarSinSaltar(renderMovements);
       showToast('✓ ' + tanda.length + ' more loaded' +
                 (_oldHistoryQuedan ? ' — ' + _oldHistoryQuedan + ' older still there.' : '. That is all of it.'),
                 'ok', TOAST_QUICK);
@@ -8175,12 +8258,39 @@ function _loadOlderHistoryClicked() {
     .processMovement('loadOlderHistory', _h({ desde: oldMovements.length }));
 }
 
+/* REPINTAR SIN MOVER LA VISTA.
+ *
+ * Jose, 2026-10-04: *"cada vez que se pulsa Load more se cargan los movimientos
+ * pero la vista siempre se va al final, al último movimiento de esos 75 recién
+ * añadidos. La vista debe quedarse viendo los movimientos que ya se veían y
+ * añadir los demás debajo, no debemos irnos hasta el último."*
+ *
+ * Tiene razón, y la causa era una línea escrita A PROPÓSITO bajo un comentario
+ * que decía "Scroll to keep position near the new rows":
+ *
+ *     if (tc) tc.scrollTop = tc.scrollHeight;
+ *
+ * `scrollHeight` es el fondo del todo. O sea que la línea escrita para quedarse
+ * CERCA de las filas nuevas te manda MÁS ALLÁ de todas ellas, a la última de la
+ * lista. La intención era buena y el efecto el contrario — y por eso llevaba
+ * tanto tiempo sin verse: quien lee el código lee la intención.
+ *
+ * Como las filas crecen POR ABAJO, nada de lo que está encima cambia de sitio,
+ * así que devolver el `scrollTop` de antes deja la vista exactamente donde
+ * estaba. Va en una función compartida porque hay DOS botones que hacen crecer
+ * esta misma lista, y arreglar uno solo deja al otro sorprendiendo igual. */
+function _repintarSinSaltar(repintar) {
+  var tc  = document.getElementById('tableContainer');
+  var pos = tc ? tc.scrollTop : 0;
+  repintar();
+  if (tc) tc.scrollTop = pos;
+}
+
 function _loadMoreMovements(){
-  _movPage++;
-  renderMovements();
-  // Scroll to keep position near the new rows
-  var tc = document.getElementById('tableContainer');
-  if (tc) tc.scrollTop = tc.scrollHeight;
+  _repintarSinSaltar(function () {
+    _movPage++;
+    renderMovements();
+  });
 }
 
 function deleteMovementRow(rowIdx){
@@ -22111,6 +22221,54 @@ function _applyWarehouseRoleLabel(){
 
 // Warn if the backend (Code.gs) and this page (Index.html) were not deployed
 // together. A mismatch is the usual cause of "feature X silently doesn't work".
+/* UNA BARRA ARRIBA, CREADA O ACTUALIZADA EN UN SOLO SITIO.
+ *
+ * `tono`: 'bad' (rojo, algo está mal ahora), 'warn' (ámbar, algo hay que
+ * arreglar), 'good' (verde, ya se arregló y esto se va solo).
+ *
+ * Devuelve el elemento, o lo quita si `html` viene vacío. Idempotente: llamarla
+ * cien veces con el mismo texto no parpadea ni reinicia nada, que es lo que
+ * hace falta cuando quien llama es un latido que corre cada veinte segundos. */
+function _barraArriba(id, tono, html, segundos) {
+  var pila = document.getElementById('topBanners');
+  if (!pila) {
+    pila = document.createElement('div');
+    pila.id = 'topBanners';
+    // AL PRINCIPIO del body, no al final: si va al final, ocupa su sitio DEBAJO
+    // de toda la página y el aviso aparece al pie, donde nadie lo mira.
+    document.body.insertBefore(pila, document.body.firstChild);
+  }
+  var bar = document.getElementById(id);
+  if (!html) { if (bar) { bar.remove(); _medirBarras(); } return null; }
+
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = id;
+    pila.appendChild(bar);
+  }
+  // Sólo se reescribe si de verdad cambió: tocar innerHTML en cada latido
+  // reinicia la animación del aro y la barra "tiembla".
+  if (bar._acTono !== tono) { bar.className = 'top-banner ' + tono; bar._acTono = tono; }
+  if (bar._acHtml !== html) { bar.innerHTML = html; bar._acHtml = html; }
+
+  if (bar._acT) { clearTimeout(bar._acT); bar._acT = null; }
+  if (segundos) bar._acT = setTimeout(function(){
+    if (bar.parentNode) bar.remove();
+    _medirBarras();
+  }, segundos * 1000);
+  _medirBarras();
+  return bar;
+}
+
+/* CUÁNTO MIDE LA PILA, para que la barra de navegación se pegue justo debajo en
+ * vez de debajo del borde de la ventana. Sin esto, con un aviso puesto la
+ * navegación se queda medio tapada en cuanto se hace scroll. */
+function _medirBarras() {
+  var pila = document.getElementById('topBanners');
+  var alto = pila ? Math.round(pila.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty('--tb-alto', alto + 'px');
+}
+
 function _checkVersionMatch(serverVersion, serverBuild) {
   var existing = document.getElementById('versionMismatchBanner');
   var verBad   = serverVersion && serverVersion !== APP_VERSION;
@@ -22125,17 +22283,14 @@ function _checkVersionMatch(serverVersion, serverBuild) {
     return;
   }
   if (existing) return; // already showing
-  var bar = document.createElement('div');
-  bar.id = 'versionMismatchBanner';
-  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;' +
-    'color:#fff;font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;' +
-    'box-shadow:0 2px 8px rgba(0,0,0,.3)';
-  bar.innerHTML = (verBad
+  /* Pasa por la pila como la de la conexión. Antes se dibujaba a mano con su
+   * propio `position:fixed; top:0`, así que con las dos a la vez una tapaba a la
+   * otra — y la que tapaba era precisamente la de "estás sin conexión". */
+  _barraArriba('versionMismatchBanner', 'warn', (verBad
       ? '⚠ Version mismatch — App v' + APP_VERSION + ' vs Server v' + serverVersion
       : '⚠ These two files are from different builds — App ' + APP_BUILD + ' vs Server ' + serverBuild) +
     '. Redeploy BOTH files (Code.gs and Index.html) with a <b>New version</b>. ' +
-    '<span style="cursor:pointer;text-decoration:underline" onclick="this.parentNode.remove()">dismiss</span>';
-  document.body.appendChild(bar);
+    '<span class="tb-x" onclick="this.parentNode.remove()">dismiss</span>');
   console.warn('MISMATCH: frontend=' + APP_VERSION + '/' + APP_BUILD +
                ' backend=' + serverVersion + '/' + serverBuild);
 }
@@ -23169,7 +23324,41 @@ function setConnStatus(status){
     offline: '● Offline — click to retry'
   };
   btn.title = labels[status] || '';
+
+  /* ── Y AHORA SE DICE EN GRANDE, QUE ES LO QUE PEDÍA JOSE ─────────────────
+   *
+   * El punto y su `title` llevaban meses siendo la ÚNICA señal de que la app
+   * estaba caída. Nadie pasa el ratón por encima de un punto: se sigue
+   * trabajando, se sigue escribiendo, y lo que se escriba no se guarda. Un
+   * estado que te puede costar el trabajo no se cuenta en un texto escondido.
+   *
+   * CUÁNDO SALE Y CUÁNDO NO:
+   *
+   *  · `offline` → barra roja, y SE QUEDA. No se va sola ni se puede cerrar:
+   *    mientras siga caída, el aviso sigue siendo verdad. Un aviso que se cierra
+   *    sobre un problema que continúa es peor que no tenerlo.
+   *  · `online` → sólo si VENÍA CAÍDA sale el "Back online", en verde y durante
+   *    cinco segundos. Si no venía caída no sale nada: el arranque normal pasa
+   *    por `loading → online` y saludar con "Back online" al abrir la app sería
+   *    contar una caída que nunca ocurrió.
+   *  · `stale` y `loading` no ponen barra. "Estoy comprobando" no es una mala
+   *    noticia, y una barra por cada comprobación sería ruido cada veinte
+   *    segundos. */
+  var estabaCaida = (_connUltimo === 'offline');
+  if (status === 'offline') {
+    _barraArriba('connBanner', 'bad',
+      '<span class="tb-spin"></span> You are offline — nothing you type can be saved ' +
+      'until the connection comes back. The app keeps retrying on its own.');
+  } else if (status === 'online') {
+    if (estabaCaida) _barraArriba('connBanner', 'good', '✓ Back online', 5);
+    else _barraArriba('connBanner', 'good', '');
+  }
+  _connUltimo = status;
 }
+/* El estado anterior, para saber si una vuelta a verde es una RECUPERACIÓN o
+ * simplemente el arranque. Sin esto, abrir la app saludaría con "Back online"
+ * cada vez. */
+var _connUltimo = null;
 
 // Check every 60 s — if last load > 5 min ago, mark stale.
 //

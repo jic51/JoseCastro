@@ -4,6 +4,87 @@
 //         RETURN logic, custom on-demand notifications, WASTE-only auto-email
 // ════════════════════════════════════════════════════════════════════════════════
 
+// ╔══ ÍNDICE ══ generado por tools/test-indice.js — no editar a mano ══════════╗
+//
+//  Las 68 secciones de este archivo, en el orden en que están.
+//  Para saltar a una: Ctrl+F con su texto, tal cual aparece aquí.
+//
+//  NO SE EDITA A MANO. Lo genera (y lo comprueba) tools/test-indice.js a
+//  partir de las propias cabeceras del archivo — un índice escrito a mano es
+//  otra lista que tiene que coincidir con algo sin que nada lo obligue, y de
+//  esas este código ya se ha cazado dos.
+//
+//   1  THE `#.png` ON THE END IS LOAD-BEARING. DO NOT TIDY IT AWAY.
+//   2  UNA SOLA CARPETA MAESTRA
+//   3  ROUTING
+//   4  PRIVATE DOCUMENT ACCESS
+//   5  GOOGLE SIGN-IN (hybrid, for users outside the company's Workspace)
+//   6  PAID ADD-ON: GMAIL DELIVERY SCANNER
+//   7  THE AI KEY, SET FROM INSIDE THE APP
+//   8  RATE LIMITING
+//   9  AUTH
+//  10  AUTHORIZATION GATE
+//  11  PER-INSTALLATION PERMISSIONS
+//  12  CONFIG LOADER
+//  13  TEXT THAT STAYS TEXT
+//  14  INITIAL DATA
+//  15  STOCK CALCULATION
+//  16  PROCESS MOVEMENT
+//  17  BATCH MOVEMENT ENGINE
+//  18  THE STOCK LOCK
+//  19  ADD MULTI-ENTRY
+//  20  MULTI-MATERIAL EXIT
+//  21  FRESH STOCK QUERY (reads Archive directly, no cache)
+//  22  PACKS: HOW MANY UNITS COME IN A BOX
+//  23  ARCHIVING OLD MOVEMENTS
+//  24  THE TRASH
+//  25  AUTOMATIC BACKUP
+//  26  HOW FULL IS THE SPREADSHEET
+//  27  CHECK-IN — CATCH A STUCK CUSTOMER BEFORE THEY QUIETLY LEAVE
+//  28  REFRESH DERIVED SHEETS
+//  29  RESERVAS
+//  30  MATERIAL LOCKS
+//  31  PM DIRECTORY
+//  32  DOCUMENT UPLOAD
+//  33  RACK PHOTOS
+//  34  DUPLICATE MOVEMENT DETECTION
+//  35  ATTACH AN EXISTING DRIVE FILE
+//  36  MULTI-PHOTO NAMED DOCUMENT GROUPS
+//  37  ADMIN ACTIONS
+//  38  BULK IMPORT (CSV)
+//  39  NO TWO MOVEMENTS MAY SHARE A NAME
+//  40  GIVING EVERY EXISTING MOVEMENT A NAME
+//  41  AUDIT LOG
+//  42  WHAT THE SYSTEM DID ON ITS OWN
+//  43  ERROR LOG
+//  44  NOTIFICATIONS
+//  45  EXPORT
+//  46  CUSTOM MENU
+//  47  THE ACCEPT BUTTON
+//  48  BEGIN GENERATED LEGAL TEXT — node tools/sync-legal.js
+//  49  END GENERATED LEGAL TEXT
+//  50  PROGRAMMATIC DEPLOYMENT — ADVANCED / OWNER-ONLY
+//  51  INSTALLATION CHECK
+//  52  WHICH WAY AN ADJUSTMENT WENT
+//  53  PRESENCE / HEARTBEAT
+//  54  LOCKING
+//  55  USER MANAGEMENT
+//  56  SETTINGS / CONFIG MANAGEMENT
+//  57  COLUMN LABELS AND VISIBILITY
+//  58  COMPANY NAME, DOMAIN AND LOGO
+//  59  WHAT MAKES A LOCATION SAFE TO DELETE
+//  60  WHY ONLY CATEGORIES ARE REWRITTEN INTO THE ARCHIVE
+//  61  MATERIAL MANAGEMENT
+//  62  INCOMING MATERIALS
+//  63  APPLYING ONE FINDING
+//  64  READ AN EMAIL INTO EXPECTED DELIVERIES
+//  65  GMAIL SCANNER
+//  66  MODIFY MOVEMENT
+//  67  MONITORED MATERIALS
+//  68  AI DOCUMENT EXTRACTION
+//
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 // ⚠️ NAMING RULE — THIS IS A SECURITY BOUNDARY, NOT A STYLE CHOICE ⚠️
 //
 // A helper that must NOT be callable from a browser has to END with an
@@ -46,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.30';
+var APP_VERSION = '12.38';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -58,7 +139,7 @@ var APP_VERSION = '12.30';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'f1b731c6';
+var APP_BUILD = '3fb05219';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -784,8 +865,11 @@ function saveSetupWizard(data) {
     if (data.suppliers  && data.suppliers.length)  writeConfigColumn_(cfg, 2, data.suppliers);
     if (data.projects   && data.projects.length)   writeConfigColumn_(cfg, 0, data.projects);
     if (data.locations && data.locations.length) {
-      writeConfigColumn_(cfg, 3, data.locations.map(function(l){ return l.name; }));
-      writeConfigColumn_(cfg, 4, data.locations.map(function(l){ return l.type || 'RACK'; }));
+      // Las dos de una vez: nombre y tipo sólo significan algo emparejados.
+      writeConfigColumns_(cfg, 3, [
+        data.locations.map(function(l){ return l.name; }),
+        data.locations.map(function(l){ return l.type || 'RACK'; })
+      ]);
     }
     cfg.getRange(2, 8).setValue(textCell_(String(data.adminEmail || actor).trim()));
   }
@@ -863,19 +947,112 @@ function saveSetupWizard(data) {
 // (CONFIG packs unrelated lists side by side, so a whole-sheet write would
 // destroy trucks, min-stock levels and the archive cutoff).
 function writeConfigColumn_(cfg, colIdx, values) {
-  values = (values || []).map(function(v){ return String(v || '').trim(); })
-                         .filter(function(v){ return v; });
-  var lastRow = cfg.getLastRow();
-  if (lastRow > 1) cfg.getRange(2, colIdx + 1, lastRow - 1, 1).clearContent();
-  if (!values.length) return;
-  var needed = values.length + 1;
+  return writeConfigColumns_(cfg, colIdx, [values]);
+}
+
+/* ═══ EL MISMO PATRÓN QUE BORRÓ EL ARCHIVO, Y SEGUÍA AQUÍ ══════════════════════
+ *
+ * Anotado como urgente el 26/09/2026, el día después del primer desastre.
+ * Nueve días y tres pérdidas de datos después, esta función seguía diciendo:
+ *
+ *     cfg.getRange(...).clearContent();     // BORRAR la columna entera
+ *     if (!values.length) return;
+ *     cfg.getRange(...).setValues(...);     // y DESPUÉS escribir
+ *
+ * Entre esas dos líneas cabe una cuota agotada, un tiempo de espera o un error
+ * pasajero de Sheets. Lo que caiga ahí deja **la columna vacía** — y aquí no hay
+ * Guarda 2, ni correo, ni reparación: te enteras el día que abres un desplegable
+ * y no hay nada dentro.
+ *
+ * Y no es una columna cualquiera: son las categorías, los proveedores, los
+ * proyectos y las ubicaciones. Los movimientos no se pierden —cada fila guarda
+ * su propia categoría— pero sin la lista no se puede registrar nada, el mapa del
+ * almacén se queda sin estantes, y MATERIAL_LOCKS acaba apuntando a ubicaciones
+ * que ya no existen: reservas que no protegen nada, que es peor que no tener
+ * reserva porque alguien cuenta con ella.
+ *
+ * ── Y UN SEGUNDO FALLO, QUE SALIÓ AL MIRAR QUIÉN LA LLAMA ───────────────────
+ *
+ * Las ubicaciones se escribían en DOS llamadas seguidas:
+ *
+ *     writeConfigColumn_(cfg, 3, names);   // el nombre del estante
+ *     writeConfigColumn_(cfg, 4, types);   // y su tipo, en la columna de al lado
+ *
+ * Dos columnas que SÓLO significan algo si van en el mismo orden, escritas por
+ * separado. Si la primera sale y la segunda no, los nombres y los tipos quedan
+ * corridos: A1A se queda con el tipo de A1B, un estante aparece ARCHIVED y otro
+ * deja de estarlo. Nada falla, nada avisa, y las cuentas dejan de cuadrar.
+ *
+ * ── LO QUE HACE AHORA ───────────────────────────────────────────────────────
+ *
+ *   1. ESCRIBE PRIMERO Y LIMPIA DESPUÉS, como `escribirHojaCompleta_` desde la
+ *      v12.14. Si la escritura revienta, lo viejo sigue ahí: se queda una lista
+ *      desactualizada, que es un problema pequeño y visible, en vez de una lista
+ *      vacía, que es grande e invisible.
+ *   2. LAS COLUMNAS QUE VAN JUNTAS SE ESCRIBEN JUNTAS, en un solo rango de dos
+ *      de ancho. Para Sheets es una sola operación: no existe el estado en que
+ *      una salió y la otra no.
+ *   3. AL EMPAREJAR, MANDA LA PRIMERA COLUMNA. Una fila sin nombre se cae entera
+ *      —con su tipo— en vez de filtrarse cada columna por su cuenta, que es
+ *      precisamente cómo se descolocarían.
+ */
+function writeConfigColumns_(cfg, colIdx, columnas) {
+  columnas = columnas || [];
+  var ancho = columnas.length;
+  if (!ancho) return;
+
+  // Se arma por FILAS, no por columnas: es lo que hace imposible descolocarlas.
+  var filas = [];
+  var alto  = 0;
+  for (var c = 0; c < ancho; c++) alto = Math.max(alto, (columnas[c] || []).length);
+  for (var r = 0; r < alto; r++) {
+    var primera = String(((columnas[0] || [])[r]) || '').trim();
+    if (!primera) continue;            // sin nombre no hay fila, y se cae entera
+    var fila = [];
+    for (var c2 = 0; c2 < ancho; c2++) {
+      // textCell_, not sheetSafe_: every value in these columns is a LABEL — a
+      // category, a project, a supplier, a location. A category typed "3-4"
+      // becoming a date would split one material into two and make the stock
+      // numbers wrong, which is the worst version of this bug in the app.
+      fila.push(textCell_(String(((columnas[c2] || [])[r]) || '').trim()));
+    }
+    filas.push(fila);
+  }
+
+  /* VACIAR UNA LISTA QUE TENÍA COSAS ES LEGÍTIMO —alguien borró la última
+   * ubicación— pero también es lo que se vería si quien llama calculó mal.
+   * No se impide: impedirlo rompería el caso de verdad. Se deja dicho, que es
+   * lo que no había: tres veces nos hemos quedado mirando una lista vacía sin
+   * saber si fue una persona o un fallo. */
+  if (!filas.length) {
+    try {
+      var habia = 0, ultimaPrevia = cfg.getLastRow();
+      if (ultimaPrevia > 1) {
+        cfg.getRange(2, colIdx + 1, ultimaPrevia - 1, 1).getValues().forEach(function (f) {
+          if (String(f[0] || '').trim()) habia++;
+        });
+      }
+      if (habia) {
+        logError_(cfg.getParent(), 'WARN', 'backend', 'writeConfigColumns_', 'system',
+          'A CONFIG list was emptied: column ' + (colIdx + 1) + ' had ' + habia +
+          ' value(s) and now has none. If nobody deleted them on purpose, restore ' +
+          'them from the 2am backup.', { column: colIdx + 1, had: habia }, newRequestId_());
+      }
+    } catch (e) { Logger.log('writeConfigColumns_ warn: ' + e.message); }
+  }
+
+  var needed = filas.length + 1;
   if (cfg.getMaxRows() < needed) cfg.insertRowsAfter(cfg.getMaxRows(), needed - cfg.getMaxRows());
-  cfg.getRange(2, colIdx + 1, values.length, 1)
-     // textCell_, not sheetSafe_: every value in these four columns is a LABEL
-     // — a category, a project, a supplier, a location. A category typed "3-4"
-     // becoming a date would split one material into two and make the stock
-     // numbers wrong, which is the worst version of this bug in the app.
-     .setValues(values.map(function(v){ return [textCell_(v)]; }));
+
+  // 1) ESCRIBIR
+  if (filas.length) cfg.getRange(2, colIdx + 1, filas.length, ancho).setValues(filas);
+
+  // 2) Y SÓLO ENTONCES limpiar lo que sobra por debajo.
+  var primeraSobrante = filas.length + 2;
+  var sobrantes = cfg.getMaxRows() - primeraSobrante + 1;
+  if (sobrantes > 0) {
+    cfg.getRange(primeraSobrante, colIdx + 1, sobrantes, ancho).clearContent();
+  }
 }
 
 // ─── ROUTING ─────────────────────────────────────────────────────────────────
@@ -1374,9 +1551,25 @@ function serverSecret_() {
 
 // Must EXACTLY match the "Authorized redirect URI" registered in Google Cloud.
 // We read it from a Script Property so it can't drift from what getUrl() guesses
-// (the domain /a/macros/ form vs the /macros/s/ form). Falls back to getUrl().
+// (the domain /a/macros/ form vs the /macros/s/ form).
+//
+/* Y SI NO ESTÁ, LA GUARDADA ANTES QUE LA ADIVINADA — lo encontró el contador de
+ * puertas de test-url-de-la-app el 2026-10-04, buscando el fallo de otra
+ * función. Esta decía "falls back to getUrl()", y en una hoja COPIADA de otra ya
+ * publicada getUrl() devuelve la dirección del script ORIGINAL. O sea: en una
+ * copia sin OAUTH_REDIRECT_URI puesta, el inicio de sesión con Google mandaba a
+ * la gente de vuelta a la app de OTRO, y el fallo que sale es un
+ * redirect_uri_mismatch, que no se parece en nada a su causa.
+ *
+ * `savedWebAppUrl_()` existe veinte líneas más arriba y esta función no la
+ * llamaba: el ayudante escrito y el camino sin conectar, otra vez.
+ *
+ * El orden importa y es deliberado. OAUTH_REDIRECT_URI sigue ganando porque
+ * puede diferir a propósito —un proxy, un intermediario—; después la dirección
+ * que el dueño confirmó; y sólo al final la suposición de Google. */
 function redirectUri_() {
   return PropertiesService.getScriptProperties().getProperty('OAUTH_REDIRECT_URI')
+      || savedWebAppUrl_()
       || ScriptApp.getService().getUrl();
 }
 
@@ -4622,13 +4815,27 @@ function archiveOldMovements(ss, opciones) {
     anotar('GUARD 1 (width) passes. GUARD 2 (count) passes: ' + antes +
            ' movement(s) in, ' + despues + ' out.');
 
+    /* CÓMO QUEDA LA COSA — EN LAS DOS CORRIDAS, NO SÓLO EN EL ENSAYO.
+     *
+     * Estas dos líneas vivían dentro del `if (ensayo)`, así que el informe de la
+     * corrida de VERDAD nunca las traía y su apartado —el que dice cómo queda
+     * cada hoja— no se pintaba jamás. Jose archivó de verdad en la copia DEMO el
+     * 2026-10-04 y el informe no se lo dijo: los números estaban, pero
+     * desperdigados por el paso a paso.
+     *
+     * Lo escribí yo en la v12.30, con su texto en pasado ("IT NOW LEAVES") y
+     * todo, sin que pudiera salir nunca. Y mi prueba no lo cazó porque le pasaba
+     * los campos ya puestos a mano: midió el informe cómodo en vez del que
+     * produce el producto. Es, literalmente, el fallo que este archivo lleva
+     * meses nombrando. */
+    informe.quedariaEnArchivo  = contarConDatos_(newActive);
+    informe.quedariaEnHistoria = contarConDatos_(newHistory);
+
     // ── ESCRIBIR, la que GANA filas primero ─────────────────────────────────
     if (ensayo) {
       anotar('DRY RUN — stopping here. Nothing was written. The real job would ' +
-             'now leave ' + contarConDatos_(newActive) + ' movement(s) in the recent ' +
-             'list and ' + contarConDatos_(newHistory) + ' in the archived history.');
-      informe.quedariaEnArchivo  = contarConDatos_(newActive);
-      informe.quedariaEnHistoria = contarConDatos_(newHistory);
+             'now leave ' + informe.quedariaEnArchivo + ' movement(s) in the recent ' +
+             'list and ' + informe.quedariaEnHistoria + ' in the archived history.');
       return { status: 'dry-run', informe: informe };
     }
     /* MIGAS DE PAN, Y NO SON DECORACIÓN.
@@ -4660,6 +4867,14 @@ function archiveOldMovements(ss, opciones) {
      * `setValues` puede fallar, puede escribir de menos, y nadie estaba mirando. */
     var quedanA = contarConDatos_(archive.getDataRange().getValues().slice(1));
     var quedanH = contarConDatos_(history.getDataRange().getValues().slice(1));
+
+    /* Y AHORA LO QUE HAY DE VERDAD EN LAS HOJAS, no lo que íbamos a escribir.
+     * Son dos preguntas distintas —la segunda es la que importa cuando ya se ha
+     * escrito— y la diferencia entre las dos es exactamente lo que la Guarda 2
+     * está a punto de comprobar. El informe cuenta lo medido. */
+    informe.quedariaEnArchivo  = quedanA;
+    informe.quedariaEnHistoria = quedanH;
+
     if (quedanA + quedanH !== antes) {
       /* ── Y SI FALTAN, SE DEVUELVEN. ───────────────────────────────────────
        *
@@ -9240,10 +9455,37 @@ function menuActivateWebApp() {
 function selfActivateWebApp_() {
   var projectId = ScriptApp.getScriptId();
 
+  /* LA VERSIÓN LLEVA SU NOMBRE; LA IMPLEMENTACIÓN, NO. Y la diferencia importa.
+   *
+   * Jose, 2026-10-04, con la captura de "Manage deployments": *"la app funciona
+   * al hacer el deploy, pero le pone el mismo nombre a cada deploy, debemos
+   * hacer que se diferencie: el número de la versión o el código."*
+   *
+   * Tiene razón en lo que ve —una lista de "Acopio Web App" repetidos no dice
+   * nada— pero el nombre que hay que cambiar NO es el que él señala.
+   *
+   * `_findWebAppDeploymentId_` encuentra NUESTRA implementación comparando su
+   * descripción con esta constante, letra por letra. Es la única forma que tiene
+   * de saber cuál de todas hay que actualizar. Si la descripción de la
+   * implementación llevara la versión, a la siguiente publicación ya no
+   * coincidiría, no la encontraría, **crearía una implementación nueva — y una
+   * implementación nueva es una DIRECCIÓN NUEVA**. Todos los marcadores de todo
+   * el almacén dejarían de funcionar, y el aviso seguiría diciendo "esta
+   * dirección no cambia nunca".
+   *
+   * La VERSIÓN sí es libre: es la foto congelada, se archiva una por
+   * publicación, y su descripción es justo lo que se lee en el desplegable
+   * "Versión 117 del 4 oct 2026". Ahí es donde falta saber cuál es cuál, y ahí
+   * es donde se pone. */
   var versionNumber = _scriptApiRequest_(projectId, 'versions', 'post',
-    { description: _WEBAPP_DEPLOYMENT_MARKER }).versionNumber;
+    { description: PRODUCT_NAME + ' v' + APP_VERSION +
+                   (typeof APP_BUILD === 'string' && APP_BUILD ? ' · build ' + APP_BUILD : '') +
+                   ' · ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+    }).versionNumber;
 
   var deploymentId = _findWebAppDeploymentId_(projectId);
+  // La descripción de la implementación NO LLEVA VERSIÓN, a propósito: es la
+  // llave con la que se la vuelve a encontrar. Ver el comentario de arriba.
   var configBody = { versionNumber: versionNumber, description: _WEBAPP_DEPLOYMENT_MARKER };
 
   // create takes the config fields directly; update wraps them in
@@ -9257,6 +9499,27 @@ function selfActivateWebApp_() {
   for (var i = 0; i < entryPoints.length; i++) {
     if (entryPoints[i].webApp) {
       var url = entryPoints[i].webApp.url;
+      /* ANOTARLA, QUE ES EL ÚNICO MOMENTO EN QUE SE SABE CON CERTEZA.
+       *
+       * Jose, 2026-10-04, en la copia DEMO: publicó con este botón, el aviso le
+       * dio una dirección, y "Open WMS App" le dio OTRA — muerta, con la página
+       * de "Sorry, unable to open the file at this time".
+       *
+       * No era un misterio: es el peligro que `checkDeploymentReady` tiene
+       * escrito encima desde hace meses — en una hoja COPIADA de otra ya
+       * publicada, `ScriptApp.getService().getUrl()` devuelve una dirección con
+       * el identificador del script ORIGINAL. Una copia hereda ese enlace y lo
+       * enseña como si fuera suyo.
+       *
+       * La defensa ya existía (la propiedad WEB_APP_URL, que gana sobre
+       * getUrl()), y esta función —la ÚNICA del archivo que conoce la dirección
+       * buena de primera mano, porque acaba de crearla— no la rellenaba. Saber
+       * la respuesta correcta y no apuntarla en el sitio donde todos la buscan
+       * es la misma forma de fallo que el ensayo del archivado sin identidad.
+       *
+       * En try: publicar es lo importante, y que no se pueda anotar no puede
+       * tumbar una publicación que ya ha salido bien. */
+      try { saveWebAppUrl(url); } catch (e3) { Logger.log('saveWebAppUrl: ' + e3.message); }
       try {
         MailApp.sendEmail(Session.getActiveUser().getEmail(), '✅ Your ' + PRODUCT_NAME + ' system is ready',
           'Your warehouse system is live at:\n\n' + url +
@@ -10169,9 +10432,48 @@ function menuReconcile() {
   ui.alert('Reconciliation complete.');
 }
 
+/* LA DIRECCIÓN GUARDADA GANA, COMO EN TODAS PARTES MENOS AQUÍ.
+ *
+ * Esta entrada de menú preguntaba a `ScriptApp.getService().getUrl()` y punto,
+ * y era el único sitio del archivo que lo hacía: `checkDeploymentReady` prefiere
+ * la propiedad desde hace meses, y la línea que construye el enlace de los
+ * correos también. Una defensa escrita, probada, y un camino sin conectar.
+ *
+ * Lo que eso produce, medido en la copia DEMO de Jose el 2026-10-04: publicó
+ * con Push Update Live, el aviso le dio una dirección, pulsó "Open WMS App" y
+ * le dio otra distinta que abría "Sorry, unable to open the file at this time".
+ * En una hoja COPIADA de otra ya publicada, getUrl() devuelve una dirección con
+ * el identificador del script ORIGINAL — está escrito encima de
+ * checkDeploymentReady, con la palabra "observed", porque ya nos pasó.
+ *
+ * Y cuando hay que adivinar, se dice que se está adivinando. Una dirección
+ * muerta presentada sin reservas hace perder la tarde buscando el fallo en la
+ * app; la misma dirección con "esto no está confirmado, y así se confirma"
+ * cuesta dos minutos. */
 function menuOpenApp() {
-  var url = ScriptApp.getService().getUrl();
-  SpreadsheetApp.getUi().alert('Open this URL in your browser:\n\n' + url);
+  var ui = SpreadsheetApp.getUi();
+  var p  = PropertiesService.getScriptProperties();
+  var guardada = String(p.getProperty('WEB_APP_URL') || '').trim();
+  var url = guardada, aviso = '';
+
+  if (!url) {
+    try { url = String(ScriptApp.getService().getUrl() || ''); } catch (e) { url = ''; }
+    aviso = '\n\n⚠ THIS ADDRESS IS A GUESS, not a recorded one. On a spreadsheet ' +
+            'copied from another one that was already published, Google hands back ' +
+            'the ORIGINAL file\'s address here — which opens "Sorry, unable to open ' +
+            'the file at this time".\n\n' +
+            'To record the right one: 🔧 Advanced → Push Update Live, which writes ' +
+            'it down for you. Or copy it from Extensions → Apps Script → Deploy → ' +
+            'Manage deployments and paste it into the setup wizard.';
+  }
+
+  if (!url) {
+    ui.alert('No web app address yet',
+      'This copy has not been published. Extensions → Apps Script → Deploy → ' +
+      'New deployment → Web app.', ui.ButtonSet.OK);
+    return;
+  }
+  ui.alert('Open this URL in your browser:\n\n' + url + aviso);
 }
 
 // ─── PRESENCE / HEARTBEAT ────────────────────────────────────────────────────
@@ -10553,8 +10855,7 @@ function mergeLocationsLocked_(data, auth, into, from) {
       types.push(String(rows[r][4] || 'RACK').trim().toUpperCase() || 'RACK');
     }
     if (!sawInto) { names.push(into); types.push(intoType || 'RACK'); }
-    writeConfigColumn_(cfg, 3, names);
-    writeConfigColumn_(cfg, 4, types);
+    writeConfigColumns_(cfg, 3, [names, types]);   // emparejadas, en una escritura
   }
 
   refreshOrDefer_(ss, data);
@@ -10715,8 +11016,7 @@ function saveLocationLayout(data, auth) {
     }
   }
 
-  writeConfigColumn_(cfg, 3, names);
-  writeConfigColumn_(cfg, 4, types);
+  writeConfigColumns_(cfg, 3, [names, types]);   // emparejadas, en una escritura
 
   // Only after the write: a photo trashed for a save that then failed would be
   // gone for a location that is still there.
