@@ -404,3 +404,135 @@ Básico se vea incompleto. El de soporte es el único con ingreso recurrente —
 **La pregunta que más problemas evita, y hay que hacerla siempre:**
 
 > *"¿Con qué cuenta de Google vas a hacer la copia?"*
+
+---
+
+# 7. Precio, capacidad y el riesgo que hay que resolver primero
+
+Esta sección se escribió a partir de tres respuestas de Jose (agosto 2026):
+
+1. *"¿Cuánto le cuesta a un almacén el problema que resuelves?"* → **"No sé, yo
+   no manejo datos de dinero aquí, solo soy el warehouse manager."**
+2. *"¿Qué buscas con esto?"* → **"Una fuente de ingresos fluida y fuerte."**
+3. *"¿Cuántas horas puedes dar?"* → **"3 o 4 horas máximo al día... trabajo en
+   la app desde el trabajo porque empecé a crearla para ellos y sigo utilizando
+   tiempo de OX para seguir mejorándola."**
+
+Las tres cambian el precio. Van en orden de importancia.
+
+## 7.1 Lo primero, antes de cobrarle a nadie: de quién es la app
+
+**Está construida en horas de OX Glass, con equipo de OX Glass, y empezó como
+un encargo para OX Glass.** En Utah, y en casi todo Estados Unidos, eso hace
+que la empresa tenga un reclamo razonable sobre el producto. No importa que la
+idea sea de Jose ni que le haya metido noches: importa *cuándo y con qué
+recursos se escribió el código*.
+
+Esto no es un detalle legal lejano. Es el riesgo más grande del negocio,
+porque **crece con cada cliente que se venda**: mientras no haya nada firmado,
+cada venta aumenta lo que OX Glass podría reclamar si un día se entera.
+
+**Qué hacer, en este orden:**
+
+1. **Hablar con el jefe esta semana.** No como confesión, como propuesta:
+   *"Construí una herramienta para el almacén. Funciona bien y creo que otras
+   empresas la pagarían. Quiero venderla por mi cuenta, en mi tiempo. OX Glass
+   la usa gratis para siempre — quiero dejarlo por escrito para que no haya
+   dudas después."*
+2. **Que quede algo escrito**, aunque sea un correo con la respuesta del jefe.
+   Un correo guardado vale mucho más que un acuerdo de palabra.
+3. **Mientras tanto, desarrollar en tiempo propio.** Desde ahora, no desde el
+   día que se firme algo. Cada commit hecho en horas de OX es una prueba más
+   en contra.
+
+**OX Glass se queda con la app gratis, por escrito, para siempre.** No es
+generosidad: es lo que hace que la conversación sea fácil de aceptar. La
+empresa no pierde nada y Jose gana el derecho a vender.
+
+> Si el jefe dice que no, la respuesta no es esconderlo — es reescribir el
+> producto en tiempo propio o negociar una licencia. Esconderlo es lo único
+> que convierte un problema resoluble en uno que no se resuelve.
+
+## 7.2 Cuántos clientes caben en 3–4 horas al día
+
+Este es el número que define todo lo demás, y casi nadie lo calcula antes de
+empezar a vender.
+
+| Actividad | Tiempo real |
+|---|---|
+| Instalar un cliente nuevo (copia, wizard, OAuth, carga inicial, capacitación) | **4–6 horas**, repartidas en 2–3 días |
+| Soporte de un cliente ya instalado | **1–2 horas al mes** en promedio |
+| Mejorar la app (lo que se hace hoy) | Todo lo que sobre |
+
+Con 3–4 horas al día, o sea unas **20 horas a la semana / 80 al mes**:
+
+| Clientes | Soporte al mes | Queda para instalar y mejorar |
+|---|---|---|
+| 5 | ~8 h | ~72 h — cómodo |
+| 10 | ~15 h | ~65 h — bien |
+| 20 | ~30 h | ~50 h — apretado |
+| **25** | **~40 h** | **~40 h — el techo** |
+| 40 | ~60 h | ~20 h — la app deja de mejorar y el soporte se cae |
+
+**El techo son 20–25 clientes.** Pasado eso hay que contratar a alguien o
+dejar de vender. Esto no es pesimismo: es lo que hace que el precio tenga que
+ser alto. **No se puede compensar un precio bajo con volumen** cuando el
+volumen máximo son 25.
+
+## 7.3 El precio
+
+Como no hay datos del ahorro que produce (respuesta 1), el precio no puede
+salir del valor para el cliente. Sale de dos cosas que sí se conocen: **lo que
+cuesta la competencia** y **lo que el techo de capacidad obliga a cobrar**.
+
+Lo que hay en el mercado para un almacén chico:
+
+- Fishbowl, Cin7, Katana: **$300–$800 al mes**, más implementación.
+- Sortly, inFlow (los baratos): **$50–$200 al mes**, mucho menos capaces.
+- Un Excel compartido: gratis, y es contra lo que realmente se compite.
+
+**Precio recomendado:**
+
+| | Monto | Por qué |
+|---|---|---|
+| **Instalación** | **$1,200** (una vez) | Son 5 horas de trabajo real más el producto. Debajo de $800 se regala. |
+| **Soporte mensual** | **$175/mes** | Cubre las 1–2 horas de soporte y paga las mejoras. Es la mitad del competidor más barato serio. |
+| **Primeros 2–3 clientes** | **Mitad de precio** | $600 + $90/mes, a cambio de permiso explícito para usarlos como referencia. **Escribir en el contrato que es precio de lanzamiento y que sube después.** |
+
+**Lo que produce esto al llegar al techo:** 25 clientes × $175 = **$4,375 al
+mes recurrentes**, más las instalaciones. Eso es lo que Jose pidió: "una fuente
+de ingresos fluida y fuerte". Con $75 al mes no lo es — son $1,875 por el mismo
+trabajo y el mismo techo.
+
+**La regla que hay que sostener:** el mensual no es opcional. Sin él solo hay
+ingreso por instalación, y las instalaciones se acaban a los 25 clientes.
+Quien no quiera el mensual, no es cliente.
+
+## 7.4 Los tres números que Jose sí puede medir, y por qué importan
+
+No hacen falta los estados financieros de OX Glass. Estos tres se miden desde
+el puesto de warehouse manager, y son la única prueba real de que la app sirve:
+
+1. **Cuántos minutos toma hoy encontrar un material, contra los que tomaba
+   antes.** Cronometrarlo diez veces. Multiplicado por las veces al día y por
+   el salario por hora, ese número solo ya paga la app.
+2. **Cuántas veces al mes se compró algo que ya estaba en bodega**, o se paró
+   un trabajo porque faltaba algo que se creía tener. Cada una tiene un costo
+   que la gente de finanzas sí puede poner en dólares — y basta con
+   *preguntarles cuánto costó esa vez*, sin pedir ningún reporte.
+3. **Cuánto tarda el inventario físico ahora, contra antes.**
+
+Con esos tres, la conversación de venta cambia por completo: se deja de decir
+*"organiza tu inventario"* y se pasa a *"aquí se dejaron de comprar cosas
+repetidas tres veces al mes"*. **Esa frase es la que permite cobrar $175 sin
+discutir.**
+
+## 7.5 El orden de las cosas
+
+1. **Esta semana** — hablar con el jefe. Nada de vender antes de eso.
+2. **Este mes** — medir los tres números en OX Glass. Son el caso de estudio.
+3. **Después** — buscar 2 clientes a mitad de precio, con permiso de usarlos
+   como referencia.
+4. **Con 5 clientes** — subir al precio completo y no volver a bajarlo.
+5. **Con 20** — decidir: contratar a alguien, o cerrar la lista y vivir del
+   recurrente.

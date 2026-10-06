@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.43';
+var APP_VERSION = '12.44';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.43';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '934d377c';
+var APP_BUILD = '30badcc1';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -566,7 +566,15 @@ function ensureCoreSheets_(ss) {
   if (repaired.length) {
     try { auditLog_(ss, 'REPAIR_HEADERS', 'system', repaired.join(', '), '', ''); } catch (e) {}
   }
-  return created;
+  /* Las DOS listas, no sólo la de hojas creadas.
+   *
+   * Hasta la v12.44 esto devolvía `created` a secas, y daba igual porque el
+   * único que llamaba —el asistente de instalación— ni lo miraba. Desde que
+   * "Check installation" también llama, lo reparado importa tanto como lo
+   * creado: una instalación de meses no crea ninguna hoja y sí puede recuperar
+   * los nombres de sus columnas, y si no se devuelven, el arreglo ocurre y
+   * nadie se entera. */
+  return { created: created, repaired: repaired };
 }
 
 /* ═══ EL FORMATO ESTÁNDAR DE LA HOJA ═════════════════════════════════════════
@@ -6243,24 +6251,98 @@ function ensureDailyReportTrigger_() {
     if (triggers[i].getHandlerFunction() === 'dailyReportTrigger') { found = triggers[i]; break; }
   }
 
+  var p = PropertiesService.getScriptProperties();
   if (!cfg.enabled) {
     if (found) ScriptApp.deleteTrigger(found);
-    PropertiesService.getScriptProperties().deleteProperty('DAILY_REPORT_TRIGGER_HOUR');
+    p.deleteProperty('DAILY_REPORT_TRIGGER_HOUR');
+    p.deleteProperty('DAILY_REPORT_MODE');
     return 'off';
   }
 
-  // La hora a la que el disparador vivo fue creado. El objeto Trigger no la
-  // sabe decir, así que se guarda al crearlo — sin eso no hay forma de
-  // distinguir "instalado a las 20" de "instalado a las 9".
-  var p = PropertiesService.getScriptProperties();
-  var installedHour = parseInt(p.getProperty('DAILY_REPORT_TRIGGER_HOUR'), 10);
-
-  if (found && installedHour === cfg.hour) return 'unchanged';
+  /* ── EL DISPARADOR CORRE CADA HORA Y LA HORA LA DECIDE EL CÓDIGO ──────────
+   *
+   * Jose, 2026-10-06, con dos capturas: los ajustes decían **4:00 PM** y el
+   * correo llegaba a las **2:53 AM**, dos días seguidos. Y su proyecto está en
+   * GMT-06:00 Denver, que es la zona correcta — así que no era eso.
+   *
+   * ── LO QUE PASABA ───────────────────────────────────────────────────────
+   *
+   * Esta función guardaba en una propiedad la hora a la que había creado el
+   * disparador, y la próxima vez comparaba **la propiedad** con los ajustes: si
+   * coincidían, no tocaba nada. Pero la propiedad no es el disparador: es una
+   * NOTA SOBRE el disparador, escrita aparte, y **nada comprueba nunca que las
+   * dos digan lo mismo**. En cuanto se separaron —y se separaron—, la nota
+   * decía "a las 16" mientras el disparador de verdad salía a las 2, y esta
+   * función miraba la nota, decía "ya está bien" y se iba.
+   *
+   * Es el mismo patrón que llevamos todo el mes encontrando: **dos cosas que
+   * tienen que coincidir sin que nada lo obligue.** Las dos listas de usuarios,
+   * el sitemap escrito a mano, el sello del sitio. Aquí es peor, porque **el
+   * objeto Trigger de Apps Script no sabe decir a qué hora corre**: no hay
+   * forma de preguntárselo, así que la nota no se puede verificar ni queriendo.
+   *
+   * ── EL ARREGLO: NO GUARDAR UNA NOTA QUE NO SE PUEDE COMPROBAR ────────────
+   *
+   * El disparador pasa a correr **cada hora**, y `runDailyReport_` mira el reloj
+   * y decide si le toca. La hora deja de ser una propiedad de un objeto que no
+   * se puede inspeccionar y pasa a ser **un dato que se lee, se compara y se
+   * puede probar**.
+   *
+   * Lo que eso arregla, además del fallo:
+   *   · Cambiar la hora en Ajustes **ya no requiere tocar el disparador**. No
+   *     hay nada que pueda quedarse desincronizado porque no hay dos sitios.
+   *   · Una instalación rota como la de Jose se arregla sola la próxima vez
+   *     que alguien guarde los ajustes o abra "Check installation", sin que
+   *     nadie tenga que saber por qué se rompió.
+   *
+   * ── LO QUE CUESTA, DICHO CON NÚMEROS ────────────────────────────────────
+   *
+   * Veinticuatro arranques al día en vez de uno. Cada uno lee tres propiedades,
+   * compara dos números y se va: menos de un segundo. Una cuenta normal de Apps
+   * Script tiene **90 minutos diarios** de tiempo de disparadores, así que esto
+   * gasta del orden de medio minuto. No es gratis y no es nada. */
+  var MODO = 'cadahora/v1';
+  if (found && p.getProperty('DAILY_REPORT_MODE') === MODO) return 'unchanged';
 
   if (found) ScriptApp.deleteTrigger(found);
-  ScriptApp.newTrigger('dailyReportTrigger').timeBased().everyDays(1).atHour(cfg.hour).create();
-  p.setProperty('DAILY_REPORT_TRIGGER_HOUR', String(cfg.hour));
+  ScriptApp.newTrigger('dailyReportTrigger').timeBased().everyHours(1).create();
+  p.setProperty('DAILY_REPORT_MODE', MODO);
+  // Ya no significa nada: la hora vive sólo en DAILY_REPORT_HOUR. Se borra para
+  // que nadie la lea dentro de un año creyendo que dice algo.
+  p.deleteProperty('DAILY_REPORT_TRIGGER_HOUR');
   return found ? 'rescheduled' : 'installed';
+}
+
+/* ── DE QUÉ DÍA INFORMA ──────────────────────────────────────────────────────
+ *
+ * Jose, 2026-10-06: *"está enviando los movimientos del día 6 a las 2 am, cuando
+ * el trabajo de ese día aún no ha empezado… y el del día anterior, a la misma
+ * hora, dice que no hay movimientos, pero ayer sí hubo, entre las 7 am y las
+ * 4 pm."*
+ *
+ * Éste es un fallo aparte del de la hora, y no se arregla moviendo el reloj:
+ * el informe filtraba por **el día en que el correo se está enviando**, dando
+ * por hecho que sale por la tarde. Las dos cosas juntas producían el peor
+ * resultado posible: **los movimientos de un día de trabajo no los informaba
+ * nunca ningún correo**, y el que llegaba decía que no había pasado nada. Un
+ * informe que miente en silencio es peor que uno que falta.
+ *
+ * La regla, en una frase: **un correo de la mañana informa del día que acabó;
+ * uno de la tarde, del día que está acabando.** El corte es el mediodía.
+ *
+ * Se puede decir en voz alta y se puede probar, que es lo que le faltaba. */
+function diaDelInforme_(hora, ahora, tz) {
+  var d = new Date(ahora.getTime());
+  if (hora < 12) d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+}
+
+/** La fecha como la escribe Estados Unidos. Jose: *"la fecha debe estar siempre
+ *  en formato de EE. UU., la del título y la del mensaje."* El 6 de octubre
+ *  salía `06/10/2026`, que se lee como 10 de junio. */
+function fechaUS_(ymd) {
+  var p = String(ymd || '').split('-');
+  return (p.length === 3) ? (p[1] + '/' + p[2] + '/' + p[0]) : String(ymd || '');
 }
 
 /**
@@ -6274,7 +6356,9 @@ function dailyReportTrigger() {
   try {
     requireOwnerContext_();
     setVerifiedAuth_({ role: 'ADMIN', email: 'system@scheduled-trigger', name: 'Scheduled trigger' });
-    runDailyReport_();
+    // `true` = "me llama el reloj". Esto corre CADA HORA desde la v12.44, y es
+    // runDailyReport_ quien mira si toca. Ver ensureDailyReportTrigger_.
+    runDailyReport_(true);
   } catch (e) {
     // Un disparador que lanza le manda al dueño un aviso de fallo cada noche,
     // que es peor resultado que la llamada que acaba de bloquear.
@@ -6282,12 +6366,17 @@ function dailyReportTrigger() {
   }
 }
 
-/** Los movimientos de HOY, en la zona horaria de la instalación. */
-function dailyReportMovements_(ss) {
+/** Los movimientos DEL DÍA QUE SE PIDE, en la zona horaria de la instalación.
+ *
+ * El día llega de fuera y no se calcula aquí: antes esta función miraba "hoy" y
+ * era lo que hacía que un correo de madrugada informara de un día vacío. Quien
+ * sabe de qué día hay que informar es `diaDelInforme_`, y lo sabe con una regla
+ * escrita; esta función sólo filtra. */
+function dailyReportMovements_(ss, dia) {
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   if (!archive || archive.getLastRow() < 2) return [];
   var tz    = Session.getScriptTimeZone();
-  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var today = dia || Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var rows  = archive.getDataRange().getValues();
   var out   = [];
   for (var i = 1; i < rows.length; i++) {
@@ -6320,18 +6409,38 @@ function dailyReportMovements_(ss) {
   return out;
 }
 
-function runDailyReport_() {
+/* `programado` es true cuando llama el disparador de cada hora, y false cuando
+ * un admin pulsa "Send one now". El de la hora tiene que comprobar que le toca;
+ * el botón, no — quien lo pulsa ya ha decidido que quiere el correo ahora. */
+function runDailyReport_(programado) {
   var cfg = dailyReportSettings_();
   if (!cfg.enabled) return 'disabled';
+
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var tz  = Session.getScriptTimeZone();
+  var p   = PropertiesService.getScriptProperties();
+  var now = new Date();
+
+  if (programado) {
+    var horaAhora = parseInt(Utilities.formatDate(now, tz, 'H'), 10);
+    if (horaAhora !== cfg.hour) return 'not-yet';
+
+    /* Y una sola vez por día. Un disparador de Apps Script puede ejecutarse dos
+     * veces —se reintenta si el primer intento falla a medias— y dos correos
+     * idénticos del mismo día hacen dudar de los dos. Se apunta el día que se
+     * mandó, no la hora: es lo que de verdad no debe repetirse. */
+    var marca = Utilities.formatDate(now, tz, 'yyyy-MM-dd') + '@' + cfg.hour;
+    if (p.getProperty('DAILY_REPORT_LAST') === marca) return 'already-sent';
+    p.setProperty('DAILY_REPORT_LAST', marca);
+  }
 
   var to = dailyReportRecipients_();
   if (!to.length) return 'no-recipients';   // encendido sin nadie a quien mandarlo
 
-  var ss   = SpreadsheetApp.getActiveSpreadsheet();
-  var movs = dailyReportMovements_(ss);
+  var dia  = diaDelInforme_(cfg.hour, now, tz);
+  var movs = dailyReportMovements_(ss, dia);
   var cs   = companySettings_();
-  var tz   = Session.getScriptTimeZone();
-  var hoy  = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy');
+  var hoy  = fechaUS_(dia);
 
   var IN  = { ENTRY: 1, RETURN: 1 };
   var OUT = { EXIT: 1, WASTE: 1 };
@@ -6510,6 +6619,8 @@ function sendDailyReportNow(auth) {
   if (!cfg.enabled) return { ok: false, message: 'The daily report is off. Turn it on first.' };
   var to = dailyReportRecipients_();
   if (!to.length) return { ok: false, message: 'Nobody would receive it — add at least one address.' };
+  // Sin `true`: quien pulsa el botón ya ha decidido que lo quiere ahora, así
+  // que no se le comprueba la hora ni se le aplica el "una vez al día".
   runDailyReport_();
   return { ok: true, message: 'Sent to ' + to.join(', ') };
 }
@@ -10495,6 +10606,45 @@ function menuCheckInstallation() {
     if (v) { ok.push(g.key); return; }
     missing.push(g);
   });
+
+  /* ── LAS HOJAS Y SUS CABECERAS ──────────────────────────────────────────
+   *
+   * Jose, 2026-10-06, con dos capturas: `RESERVATIONS` y `AUDIT_LOG` sin
+   * nombres en las columnas, sólo la fila azul en blanco.
+   *
+   * Y lo que arregla eso YA ESTABA ESCRITO. `ensureCoreSheets_` tiene los
+   * nombres de las dos, y `fillMissingHeaders_` sabe rellenar los huecos de una
+   * hoja que ya existe sin tocar lo que tenga texto. **Lo que faltaba era
+   * alguien que las llamara**: buscado en el archivo, `ensureCoreSheets_`
+   * aparecía UNA SOLA VEZ, dentro del asistente de instalación. O sea que una
+   * instalación que ya existía —la de Jose, la de cualquier cliente— no iba a
+   * recibir esos nombres nunca, por mucho que el código los tuviera.
+   *
+   * Cuarto caso este mes del mismo patrón: **una protección escrita y nunca
+   * ejecutada.** Y el más irónico, porque el comentario que hay encima de
+   * `fillMissingHeaders_` cuenta exactamente este daño: que Jose estuvo a punto
+   * de borrar las columnas Unit Cost y Total Cost de su archivo porque sus
+   * cabeceras estaban en blanco y no había forma de saber qué eran. El arreglo
+   * escrito para ese daño no podía llegar a la hoja donde el daño ocurrió.
+   *
+   * Aquí es donde va, y no en otro sitio: ésta es la función que la gente
+   * ejecuta cuando quiere saber si su instalación está sana, y "a dos de tus
+   * pestañas les faltan los nombres de las columnas" es exactamente eso.
+   *
+   * No toca nada que tenga texto, así que es seguro sobre datos existentes. */
+  try {
+    var hojas = ensureCoreSheets_(SpreadsheetApp.getActiveSpreadsheet());
+    if (hojas && hojas.created && hojas.created.length) {
+      repaired.push('Missing tabs created: ' + hojas.created.join(', '));
+    }
+    if (hojas && hojas.repaired && hojas.repaired.length) {
+      repaired.push('Column names filled in: ' + hojas.repaired.join(', ') +
+        ' — a column with no name looks like junk, and sooner or later somebody ' +
+        'deletes it.');
+    }
+  } catch (eHojas) {
+    repaired.push('Could not check the tabs: ' + (eHojas && eHojas.message));
+  }
 
   // Repair what can be repaired without asking, and only that.
   if (!String(p.getProperty('SESSION_SECRET') || '').trim()) {
