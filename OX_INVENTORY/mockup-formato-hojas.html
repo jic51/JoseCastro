@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Formato de las pestañas — dos opciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0F2F5; --surface:#FFF; --ink:#1A1A2E; --steel:#6B7280;
+    --line:#E5E7EB; --navy:#1B2A4A; --accent:#3B7DD8; --accent-ink:#1E52A0;
+    --amber-wash:#FEF3C7; --amber-ink:#B45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+       font:16px/1.65 Inter,-apple-system,BlinkMacSystemFont,sans-serif}
+  header{background:var(--navy);color:#fff;padding:1.6rem 1.4rem}
+  header div{max-width:1100px;margin:0 auto}
+  h1{font:800 1.9rem/1.15 Archivo,sans-serif;letter-spacing:-.02em;margin:0 0 .5rem}
+  header p{margin:0;color:#B9C6DC;max-width:62ch}
+  main{max-width:1100px;margin:0 auto;padding:2rem 1.4rem 5rem}
+  h2{font:800 1.35rem/1.2 Archivo,sans-serif;margin:2.6rem 0 .3rem}
+  h2 .n{color:var(--accent);margin-right:.4rem}
+  .sub{color:var(--steel);margin:0 0 1.1rem;max-width:72ch}
+  .nota{background:var(--amber-wash);border-left:3px solid var(--amber-ink);
+        border-radius:0 8px 8px 0;padding:.85rem 1.1rem;margin:1rem 0 1.4rem;
+        font-size:.92rem;color:#5B4300;max-width:72ch}
+  .nota b{color:#3D2E00}
+
+  /* ── La imitación de una hoja de cálculo ───────────────────────────────── */
+  .hoja{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+        overflow:hidden;margin:0 0 1.1rem;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .hoja .nombre{font:600 .78rem/1 Inter,sans-serif;letter-spacing:.06em;
+        text-transform:uppercase;padding:.55rem .9rem;color:#fff;display:flex;
+        align-items:center;gap:.5rem}
+  .hoja .nombre .pill{background:rgba(255,255,255,.22);border-radius:99px;
+        padding:.12rem .5rem;font-size:.68rem;letter-spacing:.04em}
+  table{border-collapse:collapse;width:100%;font-size:.8rem;
+        font-family:Inter,sans-serif}
+  th{color:#fff;text-align:left;padding:.5rem .7rem;font-weight:700;
+     font-size:.72rem;letter-spacing:.03em;white-space:nowrap}
+  td{padding:.42rem .7rem;border-bottom:1px solid #EDF0F4;white-space:nowrap;
+     color:#243}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:#F7F9FC}
+  .tabs{display:flex;gap:.3rem;flex-wrap:wrap;padding:.5rem .6rem;background:#F1F3F6;
+        border-top:1px solid var(--line)}
+  .tabs span{font-size:.7rem;font-weight:600;padding:.25rem .6rem;border-radius:5px 5px 0 0;
+        color:#fff;opacity:.55}
+  .tabs span.on{opacity:1;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+
+  .dos{display:grid;grid-template-columns:1fr;gap:1.4rem}
+  @media(min-width:900px){.dos{grid-template-columns:1fr 1fr}}
+  .leyenda{display:flex;gap:1rem;flex-wrap:wrap;margin:.2rem 0 1.2rem;font-size:.82rem;color:var(--steel)}
+  .leyenda i{display:inline-block;width:.9rem;height:.9rem;border-radius:3px;
+             vertical-align:-2px;margin-right:.35rem}
+  .pros{display:grid;grid-template-columns:1fr;gap:1rem;margin:1rem 0 0}
+  @media(min-width:760px){.pros{grid-template-columns:1fr 1fr}}
+  .pros div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem}
+  .pros h4{margin:0 0 .5rem;font:700 .82rem/1 Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+  .pros ul{margin:0;padding-left:1.1rem}
+  .pros li{margin:.35rem 0;font-size:.92rem}
+  .si h4{color:#15803D} .no h4{color:#B91C1C}
+  footer{max-width:1100px;margin:0 auto;padding:0 1.4rem 4rem;color:var(--steel);font-size:.88rem}
+</style>
+</head>
+<body>
+<header><div>
+  <h1>Formato de las pestañas — dos opciones</h1>
+  <p>Jose, 2026-10-06: <em>«pongámosle a cada pestaña un color diferente (aunque sea
+  gradiente diferente) y de ese mismo color el header; también las filas deben tener
+  colores intercalados».</em> Esto es cómo quedaría, para elegir antes de tocar las
+  dieciséis.</p>
+</div></header>
+
+<main>
+
+<div class="nota">
+  <b>Lo que las dos opciones comparten</b>, porque no se discute: cabecera con el
+  color de la pestaña y letra blanca, fila congelada, filas intercaladas en blanco
+  y gris muy claro, una sola tipografía y un solo tamaño, números alineados a la
+  derecha, y anchos de columna por clase de contenido. Eso es lo de la imagen que
+  mandaste y es lo que hoy no tienen catorce de las dieciséis.
+  <br><br>
+  <b>Lo que cambia entre A y B es sólo qué significa el color.</b>
+</div>
+
+<h2><span class="n">A.</span> Un color por GRUPO</h2>
+<p class="sub">Cuatro colores. El color dice <b>si puedes escribir ahí a mano</b>, que
+es la pregunta de soporte que más se va a repetir. Es lo que la app ya hace hoy con
+los colores de pestaña, sólo que ahora además se nota dentro.</p>
+
+<div class="leyenda">
+  <span><i style="background:#1B2A4A"></i>Documento — léelo, no lo toques</span>
+  <span><i style="background:#3B7DD8"></i>Tus datos — aquí sí se puede</span>
+  <span><i style="background:#6B7280"></i>Calculada — la app la rehace</span>
+  <span><i style="background:#9CA3AF"></i>Registro — sólo se añade</span>
+</div>
+
+<div class="dos">
+  <div class="hoja">
+    <div class="nombre" style="background:#3B7DD8">MASTER_ARCHIVE_V3 <span class="pill">tus datos</span></div>
+    <table>
+      <thead><tr style="background:#3B7DD8">
+        <th>System Date</th><th>Type</th><th>Name</th><th>Qty</th><th>Loc</th><th>Supplier</th></tr></thead>
+      <tbody>
+        <tr><td>04/06/2026 7:35</td><td>BONEYARD</td><td>WINDOW SCREEN</td><td class="num">11</td><td>A6C</td><td>NORTHGATE SUPPLY</td></tr>
+        <tr><td>04/06/2026 7:41</td><td>BONEYARD</td><td>WINDOW SCREEN</td><td class="num">8</td><td>A6C</td><td>NORTHGATE SUPPLY</td></tr>
+        <tr><td>04/06/2026 7:43</td><td>BONEYARD</td><td>WINDOW SCREEN</td><td class="num">11</td><td>A6C</td><td>NORTHGATE SUPPLY</td></tr>
+        <tr><td>04/06/2026 7:48</td><td>BONEYARD</td><td>WINDOW SCREEN</td><td class="num">20</td><td>A6C</td><td>NORTHGATE SUPPLY</td></tr>
+        <tr><td>04/06/2026 7:49</td><td>IGU</td><td>1ACACSL IGU</td><td class="num">20</td><td>B2A</td><td>REDROCK</td></tr>
+      </tbody>
+    </table>
+    <div class="tabs">
+      <span class="on" style="background:#3B7DD8">MASTER_ARCHIVE_V3</span>
+      <span style="background:#3B7DD8">INCOMING_V3</span>
+      <span style="background:#3B7DD8">USERS_V3</span>
+      <span style="background:#6B7280">LIVE_STOCK</span>
+      <span style="background:#9CA3AF">AUDIT_LOG</span>
+    </div>
+  </div>
+
+  <div class="hoja">
+    <div class="nombre" style="background:#6B7280">LIVE_STOCK <span class="pill">la rehace la app</span></div>
+    <table>
+      <thead><tr style="background:#6B7280">
+        <th>Category</th><th>Name</th><th>In Stock</th><th>Reserved</th><th>Available</th><th>Racks</th></tr></thead>
+      <tbody>
+        <tr><td>WINDOW</td><td>KUNA-2640</td><td class="num">41</td><td class="num">4</td><td class="num">37</td><td>A1A, A1B</td></tr>
+        <tr><td>IGU</td><td>1ACACSL IGU</td><td class="num">12</td><td class="num">0</td><td class="num">12</td><td>B2A</td></tr>
+        <tr><td>SHOWER</td><td>LIBERTY WELLS B4</td><td class="num">10</td><td class="num">10</td><td class="num">0</td><td>C3B</td></tr>
+        <tr><td>SCREEN</td><td>WINDOW SCREEN</td><td class="num">186</td><td class="num">0</td><td class="num">186</td><td>A6C</td></tr>
+        <tr><td>WINDOW</td><td>PAT-BMW3</td><td class="num">1</td><td class="num">0</td><td class="num">1</td><td>O1A</td></tr>
+      </tbody>
+    </table>
+    <div class="tabs">
+      <span style="background:#3B7DD8">MASTER_ARCHIVE_V3</span>
+      <span style="background:#3B7DD8">INCOMING_V3</span>
+      <span style="background:#3B7DD8">USERS_V3</span>
+      <span class="on" style="background:#6B7280">LIVE_STOCK</span>
+      <span style="background:#9CA3AF">AUDIT_LOG</span>
+    </div>
+  </div>
+</div>
+
+<div class="pros">
+  <div class="si"><h4>A favor</h4><ul>
+    <li><b>El color dice algo.</b> Azul = aquí puedes escribir; gris = la app lo rehace y lo que escribas se pierde.</li>
+    <li>Es lo que la app <b>ya hace</b> con los colores de pestaña: no se tira nada.</li>
+    <li>Con dieciséis pestañas, cuatro colores se aprenden; dieciséis, no.</li>
+  </ul></div>
+  <div class="no"><h4>En contra</h4><ul>
+    <li><b>No es lo que pediste.</b> Varias pestañas comparten color, así que de un vistazo no se distingue una de otra por el color — sí por el nombre.</li>
+    <li>Menos vistoso.</li>
+  </ul></div>
+</div>
+
+<h2><span class="n">B.</span> Un tono por PESTAÑA, dentro del color de su grupo</h2>
+<p class="sub">Cada pestaña su propio tono — es tu <em>«aunque sea gradiente diferente»</em> —
+pero el tono sale del color de su grupo. Así cada una se distingue <b>y</b> el color
+sigue diciendo si se puede escribir ahí.</p>
+
+<div class="dos">
+  <div class="hoja">
+    <div class="nombre" style="background:#2F6FD0">INCOMING_V3 <span class="pill">tus datos · tono 2</span></div>
+    <table>
+      <thead><tr style="background:#2F6FD0">
+        <th>ID</th><th>Est. Date</th><th>Category</th><th>Name</th><th>Qty</th><th>Supplier</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>INC-1778618350779</td><td>05/14/2026</td><td>SHOWER</td><td>LIBERTY WELLS B3/7</td><td class="num">7</td><td>REDROCK</td><td>Arrived</td></tr>
+        <tr><td>INC-1778618456884</td><td>05/14/2026</td><td>SHOWER</td><td>KATHUELSKAMP</td><td class="num">1</td><td>REDROCK</td><td>Arrived</td></tr>
+        <tr><td>INC-1778618721743</td><td>05/14/2026</td><td>IGU</td><td>1ACACSL IGU</td><td class="num">1</td><td>REDROCK</td><td>Arrived</td></tr>
+        <tr><td>INC-1778622102660</td><td>05/29/2026</td><td>STOREFRONT</td><td>SKYVIEW BLDG</td><td class="num">29</td><td>REDROCK</td><td>Pending</td></tr>
+        <tr><td>INC-1778622204962</td><td>05/29/2026</td><td>WINDOW</td><td>PAT-BMW3</td><td class="num">1</td><td>BLUE MESA</td><td>Pending</td></tr>
+      </tbody>
+    </table>
+    <div class="tabs">
+      <span style="background:#1B2A4A">START HERE</span>
+      <span style="background:#3B7DD8">MASTER_ARCHIVE_V3</span>
+      <span class="on" style="background:#2F6FD0">INCOMING_V3</span>
+      <span style="background:#5C97E4">USERS_V3</span>
+      <span style="background:#7C8795">LIVE_STOCK</span>
+      <span style="background:#A9B0BA">AUDIT_LOG</span>
+    </div>
+  </div>
+
+  <div class="hoja">
+    <div class="nombre" style="background:#A9B0BA">AUDIT_LOG <span class="pill">registro · tono 2</span></div>
+    <table>
+      <thead><tr style="background:#A9B0BA">
+        <th>Timestamp</th><th>Action</th><th>User</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td>05/08/2026 13:51</td><td>ADD_MOVEMENT</td><td>jose@ox-glass.com</td><td>ENTRY | HIGCAN.G.LUG x1</td></tr>
+        <tr><td>05/08/2026 14:07</td><td>ADD_MOVEMENT</td><td>jose@ox-glass.com</td><td>ENTRY | WESTERLYREORDER x1</td></tr>
+        <tr><td>05/08/2026 15:11</td><td>ADD_MOVEMENT</td><td>jose@ox-glass.com</td><td>ENTRY | HOL2-B1&amp;2.M x13</td></tr>
+        <tr><td>05/11/2026 13:59</td><td>ADD_MOVEMENT</td><td>jose@ox-glass.com</td><td>EXIT | WHIASPEN x16</td></tr>
+        <tr><td>05/12/2026 08:04</td><td>USER_MIGRATED</td><td>system</td><td>sam@demo-glass.example</td></tr>
+      </tbody>
+    </table>
+    <div class="tabs">
+      <span style="background:#1B2A4A">START HERE</span>
+      <span style="background:#3B7DD8">MASTER_ARCHIVE_V3</span>
+      <span style="background:#2F6FD0">INCOMING_V3</span>
+      <span style="background:#5C97E4">USERS_V3</span>
+      <span style="background:#7C8795">LIVE_STOCK</span>
+      <span class="on" style="background:#A9B0BA">AUDIT_LOG</span>
+    </div>
+  </div>
+</div>
+
+<div class="pros">
+  <div class="si"><h4>A favor</h4><ul>
+    <li><b>Cada pestaña se distingue</b>, que es lo que pediste.</li>
+    <li>Y <b>el color sigue diciendo si se puede escribir</b>: los azules son tuyos, los grises los rehace la app. No se pierde nada.</li>
+    <li>Los tonos salen de una fórmula, no se eligen a mano: una pestaña nueva recibe el suyo sin que nadie decida nada.</li>
+  </ul></div>
+  <div class="no"><h4>En contra</h4><ul>
+    <li>Dos tonos vecinos del mismo grupo <b>se parecen</b>. Con dieciséis pestañas, algunos pares van a costar de distinguir.</li>
+    <li>Un poco más de trabajo que A, y hay que <b>comprobar el contraste</b> de los tonos claros con la letra blanca.</li>
+  </ul></div>
+</div>
+
+<h2><span class="n">C.</span> Lo que yo NO haría, y por qué lo digo</h2>
+<p class="sub">Dieciséis colores sueltos del arcoíris, uno por pestaña, sin relación
+entre ellos.</p>
+<div class="nota">
+  Es lo más vistoso de los tres y es el que yo descartaría. <b>Hoy el color de
+  pestaña es el único sitio donde está escrito si una hoja se puede editar a
+  mano</b> — azul tus datos, gris la app la rehace y lo que escribas se pierde al
+  día siguiente. Con dieciséis colores sin relación, ese dato desaparece y lo
+  reemplaza una decoración. <br><br>
+  Es la misma clase de cambio que llevamos toda la semana deshaciendo: algo que
+  se ve mejor y dice menos. <b>Si aun así lo prefieres, se hace</b> — pero quiero
+  que sea una decisión y no un efecto secundario.
+</div>
+
+<footer>
+  <p>Mockup, no la app. Los datos son de ejemplo. Ninguna pestaña se ha tocado
+  todavía: esto es para elegir entre <b>A</b> y <b>B</b> (o pedir <b>C</b>) antes
+  de hacer nada.</p>
+</footer>
+</main>
+</body>
+</html>

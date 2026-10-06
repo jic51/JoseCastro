@@ -4510,7 +4510,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.45';
+var APP_VERSION = '12.46';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4522,7 +4522,7 @@ var APP_VERSION = '12.45';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '485c66e3';
+var APP_BUILD = '3bfa8137';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -15096,7 +15096,73 @@ function _pmDirDelete(name) {
   });
 }
 
+/* ── UN RENOMBRE A LA VEZ, Y SIN TIRAR LO QUE ALGUIEN ESCRIBIÓ ───────────────
+ *
+ * Jose, 2026-10-06, con un vídeo de la pestaña de Categorías: *"al dar clic en
+ * editar se habilitan todas las categorías y se pueden editar todas al mismo
+ * tiempo, pero al guardar sólo se puede dar clic en 1 a la vez, y cuando esa
+ * una se guarda, las demás ya se desactivan del modo edición y SE BORRA EL
+ * CAMBIO QUE SE HIZO."*
+ *
+ * Exacto, y la última parte es la grave. Lo que pasaba:
+ *
+ *   · `_cfgStartEdit` abría una fila y **no cerraba las demás**, así que se
+ *     podían abrir todas y escribir en todas.
+ *   · Guardar una llama al servidor y, al volver, `_applyCfgChangeLocally`
+ *     **repinta la pestaña entera** — se lleva por delante los demás recuadros
+ *     y lo tecleado dentro.
+ *
+ * Así que la app **ofrecía un trabajo que no podía entregar**: dejaba escribir
+ * cinco renombres y guardaba uno, tirando los otros cuatro sin avisar. Es la
+ * misma familia que el resto de los fallos de esta semana —prometer algo y
+ * hacer otra cosa en silencio— sólo que aquí lo que se pierde es lo que la
+ * persona acaba de teclear.
+ *
+ * ── POR QUÉ UNO A LA VEZ Y NO "GUARDAR TODOS" ──────────────────────────────
+ *
+ * Porque renombrar una categoría **reescribe cada fila del archivo** que la
+ * usaba y después rehace la caché de existencias. Cinco de golpe son cinco de
+ * esas pasadas, y si la tercera falla queda media tanda aplicada y nadie sabe
+ * cuál. Guardar de uno en uno es lo correcto; lo que estaba mal era fingir que
+ * se podía empezar de cinco.
+ *
+ * ── Y NO SE CIERRA UNO QUE TENGA CAMBIOS ───────────────────────────────────
+ *
+ * Cerrar el recuadro abierto para abrir otro sería el mismo pecado más
+ * pequeño: tirar lo tecleado, sólo que de a uno. Si lo abierto está sin tocar,
+ * se cierra y ya; si tiene algo escrito, **no se abre el nuevo** y se lleva el
+ * cursor al que estaba a medias. */
+function _cfgEditAbierto() {
+  var scope = document.getElementById('settingsTabContent');
+  if (!scope) return null;
+  var cajas = scope.querySelectorAll('[id^="cfgEdit-"]');
+  for (var k = 0; k < cajas.length; k++) {
+    if (cajas[k].style.display === 'none') continue;
+    var inp = cajas[k].querySelector('.cfg-item-input');
+    var li  = cajas[k].closest ? cajas[k].closest('.cfg-item') : null;
+    var original = li ? String(li.dataset.val || '') : '';
+    var ahora    = inp ? String(inp.value || '') : '';
+    return { caja: cajas[k], input: inp,
+             cambiado: ahora.trim().toUpperCase() !== original.trim().toUpperCase(),
+             id: cajas[k].id };
+  }
+  return null;
+}
+
 function _cfgStartEdit(tab, i) {
+  var abierto = _cfgEditAbierto();
+  if (abierto && abierto.id !== 'cfgEdit-' + tab + '-' + i) {
+    if (abierto.cambiado) {
+      showToast('Finish the one you are editing first — saving it would discard ' +
+                'this one.', 'warn', 5000);
+      if (abierto.input) { abierto.input.focus(); abierto.input.select(); }
+      return;
+    }
+    // Sin tocar: se cierra y no se pierde nada.
+    var partes = abierto.id.split('-');
+    _cfgCancelEdit(partes[1], partes[2]);
+  }
+
   var nm  = document.getElementById('cfgName-'+tab+'-'+i);
   var ed  = document.getElementById('cfgEdit-'+tab+'-'+i);
   if (nm) nm.style.display = 'none';
