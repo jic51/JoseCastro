@@ -4510,7 +4510,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.44';
+var APP_VERSION = '12.45';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4522,7 +4522,7 @@ var APP_VERSION = '12.44';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '30badcc1';
+var APP_BUILD = '485c66e3';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -9878,6 +9878,38 @@ function _ubicacionDesconocida(err, reintentar){
   return true;
 }
 
+/* ── UNA CATEGORÍA QUE NO ESTÁ EN EL CATÁLOGO ────────────────────────────────
+ *
+ * No se puede llegar aquí tecleando: la categoría es un desplegable cerrado. Si
+ * el servidor la rechaza es porque la pantalla y el catálogo **no dicen lo
+ * mismo** — normalmente porque alguien la borró en Ajustes mientras esta
+ * ventana estaba abierta, o porque el material entró por una importación.
+ *
+ * Por eso aquí no se ofrece "créala y sigue" como con las ubicaciones: lo que
+ * hace falta es **volver a cargar lo que el servidor dice que hay**, no empujar
+ * más datos. Ofrecer crear una categoría para salir del paso es cómo se acaba
+ * con dos categorías que son la misma. */
+function _categoriaDesconocida(err){
+  var msg = (err && err.message) || String(err || '');
+  var i = msg.indexOf('UNKNOWN_CATEGORY|');
+  if (i === -1) return false;
+  var partes   = msg.substring(i).split('|');
+  var tecleada = (partes[1] || '').trim();
+  var parecida = (partes[2] || '').trim();
+  _showConfirm({
+    icon: '📦',
+    title: 'No such category: ' + tecleada,
+    message: 'The category "' + tecleada + '" is not in your catalog' +
+             (parecida ? ', and the closest one you do have is ' + parecida + '.' : '.') +
+             '\n\nA category is half of a material\'s identity here, so material ' +
+             'cannot be filed under one that does not exist.\n\n' +
+             'Reload the page to get the current list, then pick again.',
+    confirmText: 'OK',
+    soloAviso: true
+  });
+  return true;
+}
+
 /* Deja la ubicación corregida donde estaba la mala. Qué casilla es depende del
  * tipo de movimiento, y es la misma regla que usa el servidor: el destino,
  * salvo cuando el movimiento sólo tiene origen. */
@@ -10567,6 +10599,7 @@ async function submitMovement(){
         // ── Otro se llevó el material mientras esta ventana estaba abierta ─
         _btnReset(btn);
         _setModalBusy('moveOverlay', false);
+        if (_categoriaDesconocida(err)) return;
         if (_ubicacionDesconocida(err, function(){ _doSubmit(force); })) return;
         if (_shortStockFix(err)) return;
         // ── Any other error ────────────────────────────────────────────────
@@ -16864,7 +16897,10 @@ function updateMatList(){
 // offered, because its own history counted as proof it was on the list.
 function _cfgKnownValues(type){
   var set = {};
-  ((type === 'suppliers' ? config.suppliers : config.projects) || []).forEach(function(v){
+  var lista = (type === 'suppliers')  ? config.suppliers
+            : (type === 'categories') ? config.categories
+            :                           config.projects;
+  (lista || []).forEach(function(v){
     var k = String(v || '').trim().toUpperCase();
     if (k) set[k] = true;
   });
@@ -16996,7 +17032,16 @@ function _recomputeCfgDeck(){
   // whatever is oldest in the loaded window.
   for (var i = movements.length - 1; i >= 0; i--){
     var m = movements[i];
-    [['projects', m.project], ['suppliers', m.supplier]].forEach(function(pair){
+    /* LAS CATEGORÍAS TAMBIÉN, desde la v12.45, y por una consecuencia que no es
+     * evidente: la categoría es un DESPLEGABLE CERRADO en el formulario, así
+     * que un material cuya categoría no esté en la lista **no se puede ni
+     * seleccionar para sacarlo**. Está dentro y es intocable.
+     *
+     * No se podía teclear desde la app —de ahí que no estuviera aquí— pero una
+     * importación trae la categoría que venga en el fichero. El resultado era
+     * material importado, invisible en el catálogo, y sin forma de moverlo. */
+    [['projects', m.project], ['suppliers', m.supplier],
+     ['categories', m.category]].forEach(function(pair){
       var type = pair[0], val = String(pair[1] || '').trim();
       if (!val) return;
       var key = _cfgKey(type, val);

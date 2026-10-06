@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.44';
+var APP_VERSION = '12.45';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.44';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '30badcc1';
+var APP_BUILD = '485c66e3';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -899,7 +899,7 @@ function saveSetupWizard(data) {
     var email = String(u.email || '').toLowerCase().trim();
     if (!email || email.indexOf('@') === -1 || existing[email]) return;
     var role = String(u.role || 'WAREHOUSE').toUpperCase().trim();
-    if (['ADMIN','WAREHOUSE','VIEWER'].indexOf(role) === -1) role = 'WAREHOUSE';
+    if (ROLES.indexOf(role) === -1) role = 'WAREHOUSE';
     users.appendRow(['USR-' + (now.getTime() + i), textCell_(email),
                      textCell_(String(u.name || '').trim()), role, actor, now, true]);
     existing[email] = true;
@@ -1811,6 +1811,42 @@ function registrarAccesoDenegado_(auth, motivo) {
   } catch (e) { /* nunca lanza: ver arriba */ }
 }
 
+/* ── QUIÉN PUEDE ESCRIBIR, DICHO COMO UNA LISTA DE QUIÉN SÍ ──────────────────
+ *
+ * Encontrado el 2026-10-05 mirando qué costaría el *"otro tipo de usuario"* que
+ * pidió Jose. **No era un fallo ese día. Lo habría sido el día siguiente a que
+ * existiera un rol más**, y por eso se arregla antes y no después.
+ *
+ * `requireAuth_` decidía si podías escribir así:
+ *
+ *     if (minRole === 'WRITE' && a.role === 'VIEWER') throw ...
+ *
+ * Eso no pregunta *"¿puede éste escribir?"*. Pregunta *"¿es VIEWER?"*. Con tres
+ * roles da el mismo resultado, así que nunca se notó. Pero **cualquier rol
+ * nuevo habría pasado la guardia de escritura sin que nadie lo decidiera**,
+ * sólo por no llamarse VIEWER — y en una app de almacén eso es permiso para
+ * mover material.
+ *
+ * Es la tercera vez este mes del mismo patrón: **una guardia que dice que sí.**
+ * El goteo de CONFIG en los usuarios era igual, y la lista vieja de usuarios
+ * también. Una lista de excluidos sólo es correcta mientras nadie añada nada;
+ * una de admitidos lo es siempre.
+ *
+ * ── Y POR QUÉ UNA SOLA CONSTANTE ──────────────────────────────────────────
+ *
+ * Los roles válidos estaban escritos a mano en DOS sitios —`addUser` y el
+ * asistente de instalación— y ahora harían falta en tres. Tres copias de la
+ * misma lista es exactamente el fallo que llevamos todo el mes arreglando en
+ * otros sitios: **dos cosas que tienen que coincidir sin que nada lo obligue.**
+ * Aquí la coincidencia decide quién entra, así que vale la pena la constante. */
+var ROLES = ['ADMIN', 'WAREHOUSE', 'VIEWER'];
+
+/* Los que pueden escribir en el almacén. VIEWER no está, y ésa es la frase
+ * entera: lo de sólo lectura es lo que significa. Un rol que se añada mañana
+ * **no escribe hasta que alguien lo ponga aquí a propósito**, que es justo lo
+ * contrario de lo que pasaba antes. */
+var ROLES_QUE_ESCRIBEN = ['ADMIN', 'WAREHOUSE'];
+
 function requireAuth_(minRole) {
   var a = _verifiedAuth;
   if (!a || !a.email || a.role === 'NO_SESSION') {
@@ -1822,7 +1858,7 @@ function requireAuth_(minRole) {
     throw new Error('Access denied. Your account (' + a.email + ') is not registered in this system.');
   }
   if (minRole === 'ADMIN' && a.role !== 'ADMIN') throw new Error('Admin only.');
-  if (minRole === 'WRITE'  && a.role === 'VIEWER') {
+  if (minRole === 'WRITE' && ROLES_QUE_ESCRIBEN.indexOf(a.role) === -1) {
     throw new Error('Read-only access — you can view data but cannot record movements.');
   }
   return a;
@@ -3795,6 +3831,15 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
     var ubicaciones = mapaDeUbicaciones_(cfgAhora);
     var crearUbic   = !!(opciones && opciones.crearUbicaciones);
     var ubicNuevas  = [];
+    // Las categorías, de la misma lectura. Es la mitad del nombre interno de
+    // cada material, así que una que no esté en la lista parte unas existencias
+    // en dos sin que nadie lo vea.
+    var categorias  = {};
+    (cfgAhora.categories || []).forEach(function (c) {
+      var n = String(c || '').trim();
+      if (n) categorias[normalizeString(n)] = n;
+    });
+    var catNuevas   = [];
 
     // ── Validate every movement against the live snapshot, build its row ─────
     for (var i = 0; i < movements.length; i++) {
@@ -3872,6 +3917,54 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       var dest    = String(d.destLoc   || '').toUpperCase().trim();
       var srcKey  = normalizeString(src);
       var destKey = normalizeString(dest);
+
+      /* ── LA CATEGORÍA, Y SÓLO AL ENTRAR ───────────────────────────────────
+       *
+       * La categoría no es una etiqueta: **es la mitad del nombre interno del
+       * material** (`getMaterialId` = categoría + nombre). Una categoría
+       * distinta no es el mismo material mal clasificado: es OTRO material, con
+       * sus propias existencias. Un `WINDOWS` donde debía decir `WINDOW` parte
+       * el stock en dos y nadie los suma nunca.
+       *
+       * ── POR QUÉ ESTO NO ES LO MISMO QUE PROYECTO Y PROVEEDOR ─────────────
+       *
+       * Al mirarlo resultó más pequeño de lo que decía la nota del backlog, y
+       * conviene que quede escrito para no "arreglar" lo que ya está decidido:
+       *
+       *   · **Proyecto y proveedor** son campos libres A PROPÓSITO: una obra o
+       *     un proveedor nuevos aparecen cada semana, y el de bodega es quien se
+       *     entera primero. Ya tienen su mecanismo —la baraja de valores sin
+       *     registrar que ve el admin, con su "+ Add it"— y es blando a
+       *     propósito. Cerrarlos sería pelearse con el trabajo de verdad.
+       *   · **La categoría no es un campo libre**: en la pantalla es un
+       *     desplegable cerrado. Desde la app no se puede teclear una que no
+       *     exista.
+       *
+       * Entonces, ¿qué queda? **Lo que no pasa por la pantalla.** Una
+       * importación trae la categoría que venga en el fichero, y una llamada
+       * hecha a mano al servidor puede mandar cualquier cosa. El navegador
+       * decide qué OFRECE; el servidor decide qué PERMITE — y aquí no decidía
+       * nada.
+       *
+       * ── Y SÓLO AL ENTRAR, POR LO MISMO QUE LAS UBICACIONES ──────────────
+       *
+       * Un ENTRY es lo único que mete un material nuevo en el sistema con su
+       * identidad. Un EXIT, un TRANSFER o un ajuste trabajan sobre material que
+       * YA está dentro — a veces con una categoría que no está registrada,
+       * precisamente porque esto no existía. Comprobarlos también dejaría ese
+       * material encerrado, que es el mismo error que no cometimos con `A1P`. */
+      if (mt === 'ENTRY' && cat) {
+        var catKey = normalizeString(cat);
+        if (!categorias[catKey]) {
+          if (crearUbic) {
+            categorias[catKey] = cat;
+            catNuevas.push(cat);
+          } else {
+            throw new Error('UNKNOWN_CATEGORY|' + cat + '|' +
+                            sugerirUbicacion_(cat, categorias));
+          }
+        }
+      }
 
       // ── La ubicación por la que LLEGA el material tiene que existir ────────
       var llega = ubicacionDeLlegada_(mt, src, dest);
@@ -4226,7 +4319,8 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       stockAfter:     stockAfter,
       // Sólo tiene algo cuando quien llamó pidió `crearUbicaciones` — es decir,
       // la importación. Vacío en cualquier otro caso, por construcción.
-      ubicacionesCreadas: ubicNuevas
+      ubicacionesCreadas: ubicNuevas,
+      categoriasCreadas:  catNuevas
     };
 
   } finally {
@@ -8314,6 +8408,27 @@ function commitImport(data, auth) {
    * importar es decir "esto es mi almacén". Pero SE ESCRIBEN EN LA LISTA y se
    * cuentan: una importación que crea quince estanterías en silencio deja a
    * alguien con quince sitios que no sabe que tiene. */
+  /* Las categorías que traía el fichero y no existían, igual que las
+   * ubicaciones: se dan de alta, se escriben en la lista y se cuentan. Y aquí
+   * importa MÁS que en las ubicaciones, por un motivo que no es obvio: la
+   * categoría es un desplegable cerrado en la pantalla, así que un material
+   * cuya categoría no esté en la lista **no se puede ni seleccionar para
+   * sacarlo**. Importado y, acto seguido, intocable. */
+  var catCreadas = res.categoriasCreadas || [];
+  if (catCreadas.length) {
+    try {
+      var cfgSheet2 = ss.getSheetByName(SHEETS.CONFIG);
+      var catYa = (loadConfig().categories || []);
+      writeConfigColumn_(cfgSheet2, 1, catYa.concat(catCreadas));
+      auditLog_(ss, 'CATEGORIES_CREATED', auth.email,
+        catCreadas.length + ' category(ies) came in with an import: ' +
+        catCreadas.join(', '), '', '');
+    } catch (eCat) {
+      logError_(ss, 'WARN', 'backend', 'commitImport/categories', auth.email,
+        'Could not record the imported categories: ' + (eCat && eCat.message), null, '');
+    }
+  }
+
   var creadas = res.ubicacionesCreadas || [];
   if (creadas.length) {
     try {
@@ -8330,7 +8445,8 @@ function commitImport(data, auth) {
     }
   }
   auditLog_(ss, 'BULK_IMPORT', auth.email, rows.length + ' row(s) imported', '', '');
-  return { status: 'success', rowCount: res.rowCount, newLocations: creadas };
+  return { status: 'success', rowCount: res.rowCount, newLocations: creadas,
+           newCategories: catCreadas };
 }
 
 function runReconciliation_(ss) {
@@ -11335,7 +11451,7 @@ function addUser(data, auth) {
   var name  = String(data.name  || '').trim();
   var role  = String(data.role  || 'WAREHOUSE').toUpperCase().trim();
   if (!email || email.indexOf('@') === -1) throw new Error('Valid email required.');
-  if (['ADMIN','WAREHOUSE','VIEWER'].indexOf(role) === -1) throw new Error('Invalid role.');
+  if (ROLES.indexOf(role) === -1) throw new Error('Invalid role.');
 
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ensureUsersSheet_(ss);
