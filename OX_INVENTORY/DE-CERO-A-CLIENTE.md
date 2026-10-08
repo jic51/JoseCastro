@@ -208,3 +208,119 @@ Gemini de OX Glass. **Un proyecto resuelve las dos cosas.**
 Pero **no hay prisa**: mientras tanto se publica con `Extensiones → Apps Script →
 Deploy → Manage deployments → ✏️ → New version → Deploy`, que es el mismo camino
 que va a usar cada cliente.
+
+---
+
+# LAS APIS QUE HAY QUE ENCENDER EN UN PROYECTO NUEVO
+
+Jose, 07/10: *"al pasar el script del proyecto demo al proyecto ACOPIO ya no
+sirve el .json porque me dice que hay cosas que no están permitidas… dame el
+nombre de las APIs para buscarlas."*
+
+**Por qué pasa:** con el proyecto **automático**, Apps Script enciende solo lo
+que el script pide. Con un proyecto **estándar**, no: hay que encenderlo a mano,
+porque el proyecto es tuyo y Google no toca lo que es tuyo.
+
+**Dónde:** Cloud Console → **APIs y servicios** → **Biblioteca** → buscar →
+*Habilitar*. O directo:
+`console.cloud.google.com/apis/library?project=NÚMERO`
+
+**Los nombres exactos, que es lo que faltaba.** Hay que buscarlos **en inglés**
+aunque la consola esté en español — la Biblioteca no traduce los nombres:
+
+| Buscar EXACTAMENTE | Para qué, en Acopio |
+|---|---|
+| **Google Drive API** | fotos, documentos, respaldos, carpetas |
+| **Google Sheets API** | la hoja entera |
+| **Google Docs API** | los documentos que genera |
+| **Apps Script API** | **sólo** para el botón *Push Update Live* |
+| **Generative Language API** | **sólo** si la clave de Gemini vive en este proyecto |
+
+**Cuidado con los parecidos, que es donde se pierde la gente:** buscando "drive"
+salen también *Drive Activity API*, *Drive Labels API* y *Google Drive Lite* —
+**ninguna** de ésas sirve. La buena se llama exactamente **Google Drive API**.
+
+Lo que **NO** hay que encender (son servicios internos de Apps Script y no tienen
+API que habilitar): enviar correo, `UrlFetchApp`, los disparadores, y los
+diálogos dentro de la hoja.
+
+**Después de encender una API, espera unos minutos** y vuelve a autorizar el
+script una vez.
+
+---
+
+# LAS DOS PANTALLAS DE PERMISOS — y por qué esto decide el negocio
+
+Esto es lo que faltaba en la primera versión de este documento, y cambia la
+recomendación. **Hay DOS consentimientos distintos y no tienen el mismo riesgo
+ni el mismo coste:**
+
+## Pantalla 1 — la autorización del script
+
+La que pide Drive, Sheets, Docs. **Drive es un permiso RESTRINGIDO** por
+Google, de los que más vigila.
+
+**Pero la ve UNA sola persona: el dueño de la copia, una vez.** Bajo *Ejecutar
+como: Yo*, **nadie más autoriza nada nunca** — el resto de la gente abre una
+dirección y entra.
+
+## Pantalla 2 — la de iniciar sesión (el cliente de OAuth, pieza C)
+
+Ésa pide **sólo `openid email profile`**: quién eres, tu correo y tu nombre.
+**No son permisos sensibles ni restringidos.** Son los tres más básicos que
+existen. Comprobado en el código (`_startGoogleLogin`).
+
+**Esa es la que ve cada trabajador que no está en el dominio.**
+
+## Y aquí está lo que vale dinero
+
+| El proyecto del cliente está en… | Qué pasa con la pantalla 1 |
+|---|---|
+| **Interno** (*Internal*) — el cliente tiene Workspace y su gente está en su dominio | **Sin pantalla gris. Sin revisión de Google. Sin tope de usuarios. Gratis.** Los permisos restringidos **no necesitan revisión** en una app interna |
+| **Externo** (*External*) — hace falta meter a gente de fuera, o el cliente no tiene Workspace | Pantalla gris de "Google no ha verificado". Y si alguna vez se quisiera quitar, Google exige una **evaluación de seguridad anual de pago** (CASA), porque Drive es permiso restringido |
+
+> ## ⚠️ La consecuencia, y es la decisión más cara del producto
+>
+> **Si todos los clientes colgaran de NUESTRO proyecto ACOPIO**, sería un
+> proyecto **Externo** con permiso restringido → **evaluación de seguridad
+> anual de pago, para siempre.**
+>
+> **Si cada cliente tiene SU proyecto en SU Workspace, en modo Interno** → la
+> pantalla gris desaparece, **sin revisión y sin pagar nada.**
+>
+> **Es el mismo camino que ya recomendábamos por limpieza, y ahora resulta que
+> además es el único gratis.**
+
+**Un aviso de ida y vuelta:** se puede pasar de Interno a Externo, pero **no se
+vuelve** una vez que alguien ha autorizado. Así que si el cliente tiene
+Workspace, **se empieza en Interno.**
+
+---
+
+# ¿QUÉ NOS CUESTA A NOSOTROS? — nada, y por eso escala
+
+La pregunta de Jose: *"¿esto gasta algo nuestro? ¿al tener más clientes se hace
+más pesado o lento o caro para nosotros? ¿se puede escalar?"*
+
+**No gasta nada nuestro, y la razón es que no compartimos nada:**
+
+| Pieza | De quién es | Quién paga |
+|---|---|---|
+| La hoja y el script | del cliente, en su Drive | su cuota de Google, que ya tiene |
+| El proyecto de Cloud | **del cliente** | gratis (nada de lo que usamos se cobra) |
+| El cliente de OAuth | **del cliente**, en su proyecto | gratis |
+| La clave de Gemini | **del cliente** | su cuota gratuita, o su tarjeta si se pasa |
+
+**Cien clientes no son más lentos que uno**, porque no hay nada en medio: cada
+instalación corre en la cuenta de su dueño, con sus propios límites. No hay
+servidor nuestro, no hay base de datos nuestra, no hay factura que crezca.
+
+**Lo único que NO escala es nuestro tiempo**, y es exactamente por eso que estos
+documentos valen lo que valen.
+
+**Y la regla que se deriva de todo esto, que conviene no romper nunca:**
+
+> **Nunca poner una clave nuestra en la instalación de un cliente.**
+> Ni la de Gemini, ni un cliente de OAuth, ni nada. En el momento en que una
+> credencial nuestra vive en la copia de un cliente, su consumo es nuestro
+> consumo, su tope es nuestro tope, y el día que uno abusa se cae para todos.
