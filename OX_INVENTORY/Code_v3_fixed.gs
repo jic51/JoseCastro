@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.46';
+var APP_VERSION = '12.50';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.46';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '3bfa8137';
+var APP_BUILD = '38266b1a';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1489,37 +1489,87 @@ function setAiKey(data, auth) {
   // the Generative Language API switched off fails identically to no key at
   // all — days later, in front of somebody trying to read an email. Better to
   // find out here, in the one place where the person can still fix it.
+  //
+  // UN SOLO MODELO, y antes probaba cuatro. `geminiFetch_` recorre la lista de
+  // respaldo hasta que uno conteste, y eso es lo correcto PARA TRABAJAR: si
+  // Google retira un modelo, la app sigue. Pero PARA COMPROBAR UNA CLAVE no
+  // aporta nada —si la clave está mal, está mal para los cuatro— y lo que sí
+  // hace es multiplicar por cuatro el tiempo que la rueda da vueltas. Jose,
+  // 2026-10-07: *"lleva mucho tiempo verificando con Google, así que creo que
+  // está mal"*. Creyó que la clave fallaba porque tardaba. Tardaba por esto.
   var probe;
   try {
     probe = geminiFetch_({
       contents: [{ parts: [{ text: 'Reply with the single word: ok' }] }],
       generationConfig: { maxOutputTokens: 5 }
-    }, key);
+    }, key, true);
   } catch (e) {
     throw new Error('Could not reach Google to check the key: ' + e.message);
   }
 
   var code = probe.getResponseCode();
+
+  /* ── UN 503 NO ES UNA SENTENCIA SOBRE LA CLAVE ────────────────────────────
+   *
+   * Jose, 2026-10-07, con la captura: `Google rejected that key (HTTP 503)`.
+   * GOOGLE NO RECHAZÓ LA CLAVE. Un 503 es "estoy saturado"; un 429, "ahora no".
+   * Ninguno de los dos mira la clave siquiera. La suya podía estar perfecta.
+   *
+   * Y creyéndose el mensaje borró claves que funcionaban y se pasó un día
+   * sacando otras: *"creo que vamos a tener que empezar de nuevo… no entiendo
+   * nada"*. Ese "no entiendo nada" no era suyo: era de una frase nuestra que
+   * afirmaba algo que no sabía.
+   *
+   * ASÍ QUE AQUÍ SE GUARDA. Rechazar una clave por un fallo pasajero de Google
+   * deja a la persona sin poder avanzar por algo que no ha hecho ella, y a
+   * cambio de nada: la comprobación existe para cazar una clave MALA, y esto
+   * no demuestra que lo sea. Se guarda, se dice en voz alta que no se pudo
+   * comprobar, y si luego falla de verdad, el sitio donde se usa ya traduce el
+   * error bien desde hace meses.
+   *
+   * La traducción de los códigos YA ESTABA ESCRITA en geminiErrorText_ —con un
+   * comentario encima que nombra a Jose topándose con este mismo 503 en otra
+   * pantalla— y esta función no la llamaba: se armaba su propio texto a mano y
+   * decía "rejected" para todo lo que no fuera 200. Quinto caso del patrón de
+   * siempre: la respuesta correcta escrita en el archivo y nunca llamada. */
+  if (code === 429 || code >= 500) {
+    p.setProperty('GEMINI_API_KEY', key);
+    auditLog_(ss, 'AI_KEY', auth.email, 'GEMINI_API_KEY', 'set', 'saved, not verified (Google busy)');
+    return {
+      status: 'success', configured: true, hint: '…' + key.slice(-4), verified: false,
+      message: 'Key saved — but Google was too busy to check it just now, so we could ' +
+               'not confirm it works.\n\nThis is on Google\'s side, not yours. Try the ' +
+               'document reader in a few minutes; if it still fails, come back and paste ' +
+               'the key again.'
+    };
+  }
+
+  // Lo que sí es una sentencia sobre la clave: 400 y 403. Mal copiada, o la
+  // "Generative Language API" apagada en su proyecto.
   if (code !== 200) {
-    var why = 'Google rejected that key (HTTP ' + code + ').';
-    if (code === 400 || code === 403) {
-      why += '\n\nThe usual causes: the key was copied incompletely, or the ' +
-             '"Generative Language API" is not enabled on the Google project ' +
-             'the key belongs to.';
-    }
-    throw new Error(why);
+    var errTxt = '';
+    try {
+      var eo = JSON.parse(probe.getContentText() || '{}');
+      errTxt = (eo.error && eo.error.message) ? eo.error.message : '';
+    } catch (e2) {}
+    throw new Error(geminiErrorText_(code, errTxt || ('HTTP ' + code)));
   }
 
   p.setProperty('GEMINI_API_KEY', key);
   // Never the key itself, not even partially, into a sheet anyone can open.
   auditLog_(ss, 'AI_KEY', auth.email, 'GEMINI_API_KEY', 'set', 'verified against Google');
-  return { status: 'success', configured: true, hint: '…' + key.slice(-4) };
+  return { status: 'success', configured: true, hint: '…' + key.slice(-4), verified: true };
 }
 
 // One call, trying each model until one answers. Returns the HTTPResponse of
 // the first success, or of the last attempt so the caller can report something.
-function geminiFetch_(requestBody, apiKey) {
-  var models = geminiModels_();
+//
+// `unSoloModelo` — para COMPROBAR una clave, no para trabajar. Recorrer la
+// lista de respaldo cuando lo que se quiere saber es si la clave vale sólo
+// multiplica la espera: una clave mala lo es para todos los modelos. Ver
+// setAiKey.
+function geminiFetch_(requestBody, apiKey, unSoloModelo) {
+  var models = unSoloModelo ? [geminiModel_()] : geminiModels_();
   var last = null;
   for (var i = 0; i < models.length; i++) {
     last = UrlFetchApp.fetch(geminiUrl_(models[i], apiKey), {
@@ -3131,6 +3181,9 @@ function processMovementInner_(ss, action, data, auth) {
         fileError:  entryRes.fileError,
         emailError: entryRes.emailError,
         refreshError: entryRes.refreshError,
+        stockAfter:     entryRes.stockAfter     || null,
+        availableByMat: entryRes.availableByMat || null,
+        movimientos:    entryRes.movimientos    || [],
         message:    'ENTRY recorded' + (entryRes.rowCount > 1 ? ' (' + entryRes.rowCount + ' locations).' : '.')
       };
     }
@@ -3170,6 +3223,9 @@ function processMovementInner_(ss, action, data, auth) {
         fileError:  exitRes.fileError,
         emailError: exitRes.emailError,
         refreshError: exitRes.refreshError,
+        stockAfter:     exitRes.stockAfter     || null,
+        availableByMat: exitRes.availableByMat || null,
+        movimientos:    exitRes.movimientos    || [],
         message:    'EXIT recorded' + (exitRes.rowCount > 1 ? ' (' + exitRes.rowCount + ' locations).' : '.')
       };
     }
@@ -3205,6 +3261,9 @@ function processMovementInner_(ss, action, data, auth) {
         fileError:  transferRes.fileError,
         emailError: transferRes.emailError,
         refreshError: transferRes.refreshError,
+        stockAfter:     transferRes.stockAfter     || null,
+        availableByMat: transferRes.availableByMat || null,
+        movimientos:    transferRes.movimientos    || [],
         message:    'TRANSFER recorded' + (transferRes.rowCount > 1 ? ' (' + transferRes.rowCount + ' pairs).' : '.')
       };
     }
@@ -3247,7 +3306,10 @@ function processMovementInner_(ss, action, data, auth) {
       availableAfter: availAfter != null ? availAfter : null,
       fileError:      singleRes.fileError,
       emailError:     singleRes.emailError,
-      refreshError:   singleRes.refreshError
+      refreshError:   singleRes.refreshError,
+      stockAfter:     singleRes.stockAfter     || null,
+      availableByMat: singleRes.availableByMat || null,
+      movimientos:    singleRes.movimientos    || []
     };
   }
   if (action === 'addMultiEntry')         return addMultiEntry(ss, archive, data, auth);
@@ -3512,20 +3574,90 @@ var DATA_STAMP_KEY = 'WMS_DATA_STAMP';
 // una vez, en vez de N veces a quien estaba borrando filas.
 var REFRESH_PENDING_KEY = 'WMS_REFRESH_PENDING';
 
+/* Devuelve `true` si DE VERDAD refrescó, y `false` si lo aplazó.
+ *
+ * Hasta la v12.50 no devolvía nada, y quien llamaba no tenía forma de saber si
+ * las hojas calculadas estaban al día en ese instante. Eso importa desde que
+ * borrar y editar mandan de vuelta las cifras de después: sólo se pueden leer
+ * cuando el refresco ha ocurrido. Aplazado, lo honesto es no mandar nada —
+ * mandar cifras de antes diciendo que son de después es peor que no mandarlas. */
 function refreshOrDefer_(ss, data) {
   if (data && data._skipRefresh) {
     try {
       PropertiesService.getScriptProperties().setProperty(REFRESH_PENDING_KEY, '1');
+      return false;
     } catch (e) {
       // Si no se pudo dejar la marca, NO se aplaza: refrescar de más cuesta
       // segundos; no refrescar cuando nadie va a hacerlo cuesta números falsos.
       Logger.log('refreshOrDefer_: no se pudo marcar, refrescando ahora: ' + e.message);
       refreshDerivedSheets_(ss);
+      return true;
     }
-    return;
   }
   refreshDerivedSheets_(ss);
   _clearRefreshPending_();
+  return true;
+}
+
+/* ── LAS CIFRAS DE DESPUÉS, PARA BORRAR Y PARA EDITAR ────────────────────────
+ *
+ * Jose, 2026-10-08: *"eso va para TODO lo que hace la app"*. Guardar ya las
+ * manda desde la v12.49. Esto es lo mismo para las otras dos operaciones que
+ * mueven existencias.
+ *
+ * LEE EL MISMO CAMINO QUE getInitialData, a propósito, y no una cuenta nueva.
+ * `buildStockFromDerivedSheets_` + `applyReservationsAndFinalize_` es
+ * exactamente lo que la app usa para dibujar el Dashboard al entrar; si aquí se
+ * escribiera una segunda aritmética, el día que las dos discrepen el número de
+ * la pantalla dependería de si llegaste por un borrado o por una recarga. Ésa
+ * es la familia de fallos que llevamos meses cerrando.
+ *
+ * SÓLO SE LLAMA DESPUÉS DE UN REFRESCO DE VERDAD. Las hojas calculadas acaban
+ * de reescribirse, así que leerlas son tres viajes cortos, una vez por tanda —
+ * no por operación. Aplazado, el que llama no pide nada y manda `null`.
+ *
+ * Devuelve sólo los materiales que se piden, con la forma exacta que espera
+ * `_aplicarStockDelServidor` en el navegador. Ni uno más: mandar el almacén
+ * entero por borrar una fila sería pagar con la red lo que se ahorró en la
+ * hoja.
+ */
+function stockAfterParaIds_(ss, ids) {
+  var out = {};
+  try {
+    var quiero = {};
+    (ids || []).forEach(function (id) { if (id) quiero[id] = true; });
+    if (!Object.keys(quiero).length) return out;
+
+    var stock = buildStockFromDerivedSheets_(ss);
+    if (!stock) return out;                       // todavía no se construyeron
+    applyReservationsAndFinalize_(stock, getActiveLocksMap_(ss));
+
+    for (var k in quiero) {
+      if (!quiero.hasOwnProperty(k)) continue;
+      var s = stock[k];
+      /* UN MATERIAL QUE YA NO ESTÁ SE MANDA EN CERO, no se omite. Borrar la
+       * única entrada de algo lo deja sin filas en LIVE_STOCK, así que
+       * `stock[k]` no existe — y omitirlo dejaría en la pantalla la cifra de
+       * antes, que es justo el número falso que esto venía a evitar. */
+      out[k] = s ? {
+        warehouseQty:  s.warehouseQty,
+        siteQty:       s.siteQty,
+        reservedQty:   s.reservedQty,
+        availableQty:  s.availableQty,
+        totalQty:      s.totalQty,
+        warehouseLocs: s.warehouseLocs
+      } : {
+        warehouseQty: 0, siteQty: 0, reservedQty: 0,
+        availableQty: 0, totalQty: 0, warehouseLocs: {}
+      };
+    }
+  } catch (e) {
+    // Comodidad, nunca una razón para tumbar un borrado o una edición que ya
+    // están hechos. Vacío significa "no sé", y el navegador recarga.
+    Logger.log('stockAfterParaIds_: ' + e.message);
+    return {};
+  }
+  return out;
 }
 
 function _clearRefreshPending_() {
@@ -4308,6 +4440,50 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       };
     }
 
+    /* ── LAS FILAS QUE ACABAN DE ESCRIBIRSE, DE VUELTA ────────────────────────
+     *
+     * Jose, 2026-10-08, después de que yo cronometrara su vídeo: *"lo que
+     * quiero es que la app muestre lo que guardó, modificó, cambió, borró,
+     * etc. exactamente en el mismo segundo que termina de hablar con el
+     * servidor."*
+     *
+     * Medido en ese vídeo, guardando diez entradas: la ventana se cerraba a
+     * los 14,3 segundos y la tabla tardaba DIECISÉIS Y MEDIO MÁS en enseñar lo
+     * guardado. Durante esos dieciséis segundos la pantalla mostraba una tabla
+     * SIN lo que la persona acababa de meter — que es exactamente cuando uno
+     * piensa que falló y vuelve a darle.
+     *
+     * Y la tabla no tardaba por lenta: tardaba porque NO SE LE DECÍA NADA. El
+     * navegador pedía la foto entera otra vez (`_reloadWhenIdle`) para
+     * enterarse de unas filas que ESTA FUNCIÓN ACABABA DE ESCRIBIR y tenía
+     * delante en `newRows`.
+     *
+     * Es el mismo hallazgo que `stockAfter` en la v12.24, y lo escribí
+     * entonces: **el servidor ya tenía las cifras de después y las tiraba.**
+     * También tenía las filas. Esto es la otra mitad de aquello.
+     *
+     * Se mandan EXACTAMENTE como las manda getInitialData —el mismo
+     * parseArchiveRow, el mismo tapado de costes— porque la pantalla las va a
+     * meter en la misma lista. Dos formas distintas del mismo dato es el fallo
+     * que llevamos meses cazando, y aquí sería gratuito.
+     *
+     * En try, y si falla va vacío: esto es comodidad, y un fallo pintando una
+     * fila NO puede tumbar un guardado que ya está hecho. Vacío significa "no
+     * sé", y el navegador entonces hace lo de siempre, que es recargar.
+     */
+    var guardados = [];
+    try {
+      var verCostes = canSeeCosts_(auth);
+      for (var g = 0; g < newRows.length; g++) {
+        var mg = parseArchiveRow(newRows[g], startRow + g);
+        if (!verCostes) { mg.unitCost = null; mg.totalCost = null; }
+        guardados.push(mg);
+      }
+    } catch (eGuardados) {
+      Logger.log('returning saved movements: ' + eGuardados.message);
+      guardados = [];
+    }
+
     return {
       status:         'success',
       firstRowIdx:    startRow,
@@ -4317,6 +4493,8 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       refreshError:   refreshError,
       availableByMat: availableByMat,
       stockAfter:     stockAfter,
+      // Las filas recién guardadas, listas para pintar. Ver el bloque de arriba.
+      movimientos:    guardados,
       // Sólo tiene algo cuando quien llamó pidió `crearUbicaciones` — es decir,
       // la importación. Vacío en cualquier otro caso, por construcción.
       ubicacionesCreadas: ubicNuevas,
@@ -4572,6 +4750,23 @@ function addMultiEntry(ss, archive, data, auth) {
     emailError: res.emailError || null,
     refreshError: res.refreshError || null,
     pmError:    pmError,
+      /* LO QUE EL SERVIDOR YA SABE, REENVIADO. Y hasta la v12.49 no lo era.
+       *
+       * `addMovementsBatch_` calcula `stockAfter` desde la v12.24 —las cifras
+       * de después, para que la pantalla no tenga que preguntarlas— y estas
+       * tres envolturas NO LO PASABAN. El navegador llamaba a
+       * `_aplicarStockDelServidor(res)` y recibía `undefined`, así que se
+       * salía por la primera línea y no ponía nada. Un arreglo escrito,
+       * probado y muerto en el camino de vuelta.
+       *
+       * Dos cosas que tienen que coincidir —lo que una función produce y lo
+       * que la de arriba reenvía— sin que nada lo obligue. El mismo patrón de
+       * siempre, esta vez entre dos funciones del mismo archivo.
+       *
+       * `movimientos` es nuevo en la v12.49 y viene por la misma puerta. */
+    stockAfter:     res.stockAfter     || null,
+    availableByMat: res.availableByMat || null,
+    movimientos:    res.movimientos    || [],
     message:    totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }
@@ -4620,6 +4815,23 @@ function addMultiExit(ss, archive, data, auth) {
     count:    totalMats,
     rowCount: res.rowCount,
     refreshError: res.refreshError || null,
+      /* LO QUE EL SERVIDOR YA SABE, REENVIADO. Y hasta la v12.49 no lo era.
+       *
+       * `addMovementsBatch_` calcula `stockAfter` desde la v12.24 —las cifras
+       * de después, para que la pantalla no tenga que preguntarlas— y estas
+       * tres envolturas NO LO PASABAN. El navegador llamaba a
+       * `_aplicarStockDelServidor(res)` y recibía `undefined`, así que se
+       * salía por la primera línea y no ponía nada. Un arreglo escrito,
+       * probado y muerto en el camino de vuelta.
+       *
+       * Dos cosas que tienen que coincidir —lo que una función produce y lo
+       * que la de arriba reenvía— sin que nada lo obligue. El mismo patrón de
+       * siempre, esta vez entre dos funciones del mismo archivo.
+       *
+       * `movimientos` es nuevo en la v12.49 y viene por la misma puerta. */
+    stockAfter:     res.stockAfter     || null,
+    availableByMat: res.availableByMat || null,
+    movimientos:    res.movimientos    || [],
     message:  totalMats + ' material(s), ' + res.rowCount + ' row(s) recorded.'
   };
 }
@@ -6022,6 +6234,38 @@ function getBackupStatus(auth) {
       }
     } catch (e) { Logger.log('getBackupStatus backfill: ' + e.message); }
   }
+  /* ── UN NÚMERO QUE NADIE COMPARA NO VIGILA NADA ────────────────────────────
+   *
+   * Jose, 2026-10-07: *"en la DEMO el backup se paró desde el día 1 de
+   * octubre."* Se dio cuenta SEIS DÍAS DESPUÉS, y sólo porque fue a mirar la
+   * lista por otra cosa.
+   *
+   * Esta función ya sabía la fecha del último respaldo, y la enseñaba, y la
+   * lista entera debajo. Lo que no hacía nadie —ni aquí ni en ninguna
+   * pantalla— era RESTARLE HOY. La respuesta estaba en la pantalla y la
+   * pregunta no se hacía.
+   *
+   * Y el modo de fallo es el peor que hay en un sistema de inventario: todo se
+   * ve normal. El interruptor sigue en verde, la lista sigue llena de
+   * respaldos, el último tiene su fecha y su enlace. Sólo que es de la semana
+   * pasada. Alguien se entera el día que necesita restaurar, que es el único
+   * día en que ya no se puede arreglar.
+   *
+   * 36 horas, y no 24, a propósito: el trabajo corre de noche, y una ventana
+   * de un día justo convertiría cualquier retraso normal de Google en una
+   * alarma. Lo que se persigue es "lleva días sin correr", no "hoy llegó
+   * tarde". Una alarma que salta cuando no pasa nada es una alarma que se
+   * aprende a ignorar, y entonces no sirve el día que importa.
+   *
+   * Se calcula aquí y no en el navegador porque la hora del servidor es la que
+   * manda: el reloj de una máquina del almacén puede estar en cualquier sitio.
+   */
+  var horasDesde = null;
+  if (lastAt) {
+    var t = new Date(lastAt).getTime();
+    if (isFinite(t)) horasDesde = Math.floor((Date.now() - t) / 3600000);
+  }
+
   return {
     enabled:          backupEnabled_(),
     retentionDays:    BACKUP_RETENTION_DAYS,
@@ -6029,6 +6273,14 @@ function getBackupStatus(auth) {
     lastBackupAt:     lastAt || '',
     lastBackupName:   lastName || '',
     lastBackupFileId: lastId || '',
+    hoursSinceBackup: horasDesde,
+    // Sólo cuenta como parado si está ENCENDIDO. Apagado a propósito no es un
+    // fallo, y decirle "lleva 9 días sin respaldo" a quien lo apagó él mismo es
+    // exactamente el ruido que vacía de significado a los avisos.
+    backupStalled:    !!(backupEnabled_() && horasDesde !== null && horasDesde >= 36),
+    // Nunca ha corrido ninguno, estando encendido. Es distinto de "se paró" y
+    // merece otra frase: aquí no hay nada que restaurar todavía.
+    backupNeverRan:   !!(backupEnabled_() && !lastAt),
     // How the configuration snapshot went on the last run: a number of
     // properties saved, or "FAILED: …". Surfaced because a backup that quietly
     // stopped carrying the configuration looks exactly like a healthy one
@@ -11550,24 +11802,89 @@ function invitarUsuario_(ss, email, name, role, auth) {
   }
 }
 
+/* ── UN CORREO MAL ESCRITO SÓLO SE PODÍA ARREGLAR EN LA HOJA ─────────────────
+ *
+ * Jose, 2026-10-07, después de un día entero sin poder entrar en la DEMO con su
+ * cuenta de empresa: *"el correo de jose@ox-glass.com está mal escrito, nadie se
+ * enteró de que estaba mal… y otra cosa, la app no me permite editar el correo,
+ * sólo el nombre y el tipo de usuario."*
+ *
+ * Decía `jose@ox-glasss.com`, con tres eses. La app lo aceptó sin pestañear —es
+ * un correo perfectamente válido, sólo que de un dominio que no existe—, lo
+ * enseñó en la lista con su palomita verde de Activo, y cuando él intentó
+ * entrar le dijo, con razón y sin ayudar en nada, que esa cuenta no estaba
+ * registrada. Dos pantallas que se contradicen y ninguna miente.
+ *
+ * Y LO PEOR NO ERA EL FALLO, ERA LA SALIDA: el correo no se podía editar. El
+ * campo estaba `disabled` desde que se escribió, así que la única forma de
+ * corregir una letra era **abrir el Sheet y editarla a mano** — justo lo que
+ * toda la dirección del producto lleva meses intentando que nadie tenga que
+ * hacer nunca.
+ *
+ * Por qué estaba bloqueado, que no fue un descuido: el correo ES la identidad.
+ * Cambiarlo cambia quién puede entrar. Pero "esto es delicado" no se resuelve
+ * quitando el botón; se resuelve poniendo las guardas. Son tres:
+ *
+ *   1. NO al correo de otra fila. Dos filas con el mismo correo es la clase de
+ *      lío donde una dice ADMIN y la otra VIEWER y nadie sabe cuál gana.
+ *   2. NO a cambiarse el suyo propio. Quien lo hiciera perdería el acceso en el
+ *      acto, y sería el administrador — o sea, nadie podría arreglarlo desde la
+ *      app. Es la misma regla que ya tiene removeUser.
+ *   3. EL CAMBIO QUEDA ESCRITO, de dónde a dónde. Para eso existen las dos
+ *      últimas columnas de AUDIT_LOG y ésta es exactamente su razón de ser.
+ */
 function updateUser(data, auth) {
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var email = String(data.email || '').toLowerCase().trim();
   if (!email) throw new Error('Email required.');
 
+  // El correo nuevo, si lo hay. Vacío o igual al de antes = no se toca.
+  var nuevo = String((data.newEmail === undefined ? '' : data.newEmail) || '').toLowerCase().trim();
+  if (nuevo === email) nuevo = '';
+
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('USERS_V3');
   if (!sheet) throw new Error('Users sheet not found.');
 
+  if (nuevo) {
+    // Forma, antes de nada. No prueba que el dominio exista —`ox-glasss.com` es
+    // válido y no existe— pero sí caza lo que no es un correo.
+    if (!/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(nuevo)) {
+      throw new Error('That does not look like an email address: ' + nuevo);
+    }
+    if (email === String(auth.email || '').toLowerCase().trim()) {
+      throw new Error('You cannot change your own email address — you would lose access ' +
+                      'the moment it saved, and nobody could undo it from inside the app. ' +
+                      'Ask another administrator, or add the new address as a second user.');
+    }
+  }
+
   var rows = sheet.getDataRange().getValues();
+
+  // Una pasada previa, porque el duplicado hay que verlo ANTES de escribir
+  // nada: media actualización aplicada es peor que ninguna.
+  if (nuevo) {
+    for (var d = 1; d < rows.length; d++) {
+      if (String(rows[d][1] || '').toLowerCase().trim() === nuevo) {
+        throw new Error('That email is already registered: ' + nuevo);
+      }
+    }
+  }
+
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][1] || '').toLowerCase().trim() === email) {
       var rowNum = i + 1;
+      if (nuevo)                     sheet.getRange(rowNum, 2).setValue(textCell_(nuevo));
       if (data.name !== undefined)   sheet.getRange(rowNum, 3).setValue(textCell_(String(data.name).trim()));
       if (data.role !== undefined)   sheet.getRange(rowNum, 4).setValue(textCell_(String(data.role).toUpperCase().trim()));
       if (data.active !== undefined) sheet.getRange(rowNum, 7).setValue(!!data.active);
-      auditLog_(ss, 'UPDATE_USER', auth.email, email + ' → ' + (data.role || 'no role change'), '', '');
-      return { status: 'success' };
+      if (nuevo) {
+        auditLog_(ss, 'CHANGE_USER_EMAIL', auth.email,
+                  'Corrected a registered email address', email, nuevo);
+      }
+      auditLog_(ss, 'UPDATE_USER', auth.email,
+                (nuevo || email) + ' → ' + (data.role || 'no role change'), '', '');
+      return { status: 'success', email: nuevo || email };
     }
   }
   throw new Error('User not found: ' + email);
@@ -12718,12 +13035,38 @@ function manageMaterialLocked_(data, auth) {
     auditLog_(ss, 'DELETE_ROW', auth.email, String(found.row[AC.CATEGORY]), String(found.row[AC.NAME]),
               movId + ' — ' + JSON.stringify(found.row.slice(0, 8)));
 
+    /* EL MATERIAL, ANTES DE BORRAR LA FILA. Después ya no se puede leer: la
+     * fila desaparece y con ella la categoría y el nombre que componen su id. */
+    var matBorrado = getMaterialId(
+      normalizeString(found.row[AC.CATEGORY] || ''),
+      normalizeString(found.row[AC.NAME]     || ''));
+
     found.sheet.deleteRow(found.rowIdx);
     // LIVE_STOCK/SITE_STOCK/WASTED_STOCK are aggregates built from the archive —
     // deleting a row without recomputing them leaves stale totals behind forever
     // (the deleted movement's effect stays baked in even though the row is gone).
-    refreshOrDefer_(ss, data);
-    return { status: 'success', movId: movId, trashed: true };
+    var refrescado = refreshOrDefer_(ss, data);
+
+    /* LAS CIFRAS DE DESPUÉS, CUANDO SE PUEDEN SABER.
+     *
+     * Jose llevaba tiempo con esto y estaba anotado desde la v12.24: la fila se
+     * va al pulsar, pero las cifras del Dashboard se quedaban esperando la
+     * recarga. Se dejó pendiente porque calcularlas en CADA borrado devolvería
+     * la ráfaga lenta que arregló la v11.96 — trece borrados, trece
+     * reconstrucciones del almacén.
+     *
+     * Pero esa objeción sólo valía para los borrados APLAZADOS. El último de la
+     * tanda refresca de verdad, y en ese momento las hojas calculadas acaban de
+     * reescribirse: leer de ellas el material tocado son tres viajes cortos,
+     * UNA VEZ por tanda. Ahí sí se puede, y ahí es justo cuando alguien mira.
+     *
+     * Aplazado se manda `null`, que el navegador entiende como "todavía no" y
+     * deja para la recarga. Mandar las cifras de antes como si fueran las de
+     * después sería peor que no mandar nada. */
+    return {
+      status: 'success', movId: movId, trashed: true,
+      stockAfter: refrescado ? stockAfterParaIds_(ss, [matBorrado]) : null
+    };
 
   } else if (op === 'restoreMovement') {
     // Undo. The row goes back EXACTLY as it was — the trash kept the movement's
@@ -13837,6 +14180,17 @@ function modifyMovementLocked_(data, auth) {
   var range   = archive.getRange(rowIdx, 1, 1, readWidth_(archive));
   var rowVals = range.getValues()[0];
 
+  /* EL MATERIAL DE ANTES, ANOTADO AHORA. `rowVals` se muta más abajo, así que
+   * leerlo después daría el de después.
+   *
+   * Y HACEN FALTA LOS DOS. Cambiar la categoría o el nombre MUEVE existencias
+   * de un material a otro: el de antes se queda con menos y el de después con
+   * más. Mandar sólo uno dejaría al otro con la cifra vieja en pantalla — el
+   * número falso que esto venía a evitar, sólo que en la otra fila. */
+  var matAntes = getMaterialId(
+    normalizeString(rowVals[AC.CATEGORY] || ''),
+    normalizeString(rowVals[AC.NAME]     || ''));
+
   // Row numbers shift whenever archiveOldMovements() reconciles the sheet —
   // guard against silently editing the wrong movement if the client's cached
   // rowIdx is now stale (e.g. an archiving pass ran between page load and this
@@ -13954,7 +14308,11 @@ function modifyMovementLocked_(data, auth) {
   // Same class of bug as manageMaterial's deleteRow: qty/category/location edits
   // change what LIVE_STOCK/SITE_STOCK/WASTED_STOCK should total to — without this,
   // the derived sheets keep reflecting the pre-edit numbers indefinitely.
-  refreshOrDefer_(ss, data);
+  var refrescado = refreshOrDefer_(ss, data);
+
+  var matDespues = getMaterialId(
+    normalizeString(rowVals[AC.CATEGORY] || ''),
+    normalizeString(rowVals[AC.NAME]     || ''));
 
   // Audit log
   auditLog_(ss, 'MODIFY_MOVEMENT', auth.email,
@@ -13990,7 +14348,37 @@ function modifyMovementLocked_(data, auth) {
     { name: (companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME }
   );
 
-  return { status: 'success', changes: changes.length };
+  /* LA FILA COMO QUEDÓ, Y LAS CIFRAS DE DESPUÉS.
+   *
+   * Lo mismo que hace guardar desde la v12.49, por el mismo motivo: la pantalla
+   * no tiene por qué volver a preguntar por una fila que esta función acaba de
+   * escribir y tiene delante.
+   *
+   * Se manda LO QUE QUEDÓ EN LA HOJA, no lo que pidió el formulario. Esta
+   * función recalcula el Mat ID, normaliza y puede rechazar partes de lo
+   * pedido; pintar la petición en vez del resultado enseñaría una fila que no
+   * existe. Es la misma regla que en el guardado.
+   *
+   * En try, como todo lo de esta familia: una edición que YA está escrita no se
+   * tumba por un fallo preparando lo que se va a pintar. */
+  var filaEditada = null;
+  try {
+    filaEditada = parseArchiveRow(padRow_(rowVals, AC_WIDTH), rowIdx);
+    if (!canSeeCosts_(auth)) { filaEditada.unitCost = null; filaEditada.totalCost = null; }
+  } catch (eFila) {
+    Logger.log('modifyMovement, returning the edited row: ' + eFila.message);
+    filaEditada = null;
+  }
+
+  return {
+    status: 'success',
+    changes: changes.length,
+    movimiento: filaEditada,
+    // Los DOS materiales: el de antes y el de después. Son el mismo salvo que
+    // se haya editado la categoría o el nombre, y ahí está justo el caso que
+    // dejaría una cifra vieja en pantalla.
+    stockAfter: refrescado ? stockAfterParaIds_(ss, [matAntes, matDespues]) : null
+  };
 }
 
 // ── Diagnostic — run this in GAS Editor to identify load issues ───────────────

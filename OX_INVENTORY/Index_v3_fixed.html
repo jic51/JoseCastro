@@ -4510,7 +4510,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.46';
+var APP_VERSION = '12.50';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4522,7 +4522,7 @@ var APP_VERSION = '12.46';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '3bfa8137';
+var APP_BUILD = '38266b1a';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6778,6 +6778,59 @@ function _aplicarStockDelServidor(res){
   return puestos;
 }
 
+/* ── LO GUARDADO SE VE EN EL MISMO SEGUNDO ───────────────────────────────────
+ *
+ * Jose, 2026-10-08: *"lo que quiero es que la app muestre lo que guardó,
+ * modificó, cambió, borró, etc. exactamente en el mismo segundo que termina de
+ * hablar con el servidor. Y eso va para todo lo que hace la app."*
+ *
+ * Cronometrado en su vídeo, guardando diez entradas: la ventana se cerraba a
+ * los 14,3 segundos y la tabla tardaba DIECISÉIS Y MEDIO MÁS en enseñarlas.
+ * Dieciséis segundos mirando una tabla que no contiene lo que acabas de meter
+ * es exactamente cuando uno piensa que falló y vuelve a darle.
+ *
+ * Y no tardaba por lenta: tardaba porque pedía la foto entera otra vez para
+ * enterarse de unas filas que el servidor ACABABA DE ESCRIBIR y le estaba
+ * devolviendo en la misma respuesta. Ahora vienen en `res.movimientos` (ver
+ * addMovementsBatch_) y se meten aquí.
+ *
+ * TRES REGLAS, Y LAS TRES IMPORTAN:
+ *
+ *   1. NO SE INVENTA NADA. Esto no reconstruye el movimiento a partir de lo
+ *      que se tecleó: pinta lo que el servidor dice que guardó, con su
+ *      identificador, su hora y sus costes ya tapados si no se pueden ver. Si
+ *      el servidor corrigió algo al guardarlo, lo que se ve es lo corregido.
+ *   2. SI NO VIENEN, NO PASA NADA. Lista vacía = no sé, y entonces manda la
+ *      recarga de siempre. Un fallo pintando no puede tumbar un guardado hecho.
+ *   3. LA RECARGA SIGUE EN PIE, en silencio y detrás. Esto adelanta lo que ya
+ *      se sabe; no sustituye a la foto completa. Si algo no cuadrara, la
+ *      recarga lo corrige sin que nadie haga nada — y por eso esto puede ser
+ *      optimista sin ser peligroso.
+ *
+ * Y NO SE PINTAN DE UNA EN UNA, a propósito, aunque Jose lo pidió así: las
+ * diez se guardan en UNA sola operación con un solo candado, y o entran todas
+ * o no entra ninguna. Enseñarlas goteando fingiría un progreso que no existe
+ * —ya están las diez— y sería la clase de adorno que este archivo lleva meses
+ * quitando. Aparecen juntas en el segundo en que el servidor dice que están.
+ */
+function _pintarGuardado(res){
+  var nuevos = res && res.movimientos;
+  if (!nuevos || !nuevos.length) return 0;
+  var yaEstan = {};
+  movements.forEach(function(m){ if (m && m.movId) yaEstan[m.movId] = true; });
+  var puestos = 0;
+  nuevos.forEach(function(m){
+    // Por id, no por posición: una recarga que se cruce no puede duplicar una
+    // fila, y volver a guardar lo mismo tampoco.
+    if (!m || (m.movId && yaEstan[m.movId])) return;
+    movements.push(m);           // `movements` va en orden de hoja; la tabla lo invierte
+    if (m.movId) yaEstan[m.movId] = true;
+    puestos++;
+  });
+  if (puestos) renderMovements();
+  return puestos;
+}
+
 function normMT(mt){
   var n = nt(mt);
   if (n === 'DISPATCH' || n === 'DISPATCHED' || n === 'DEL') return 'EXIT';
@@ -8661,9 +8714,20 @@ function _doDeleteMovementRow(rowIdx){
       var carga = { op: 'deleteRow', movId: mov.movId || '', rowIdx: rowIdx };
       _marcarAplazable(carga);
       google.script.run
-        .withSuccessHandler(function(){
+        .withSuccessHandler(function(res){
           _delGen++;   // una foto pedida antes de esto ya no vale
           if (mov.movId) delete _delPending[mov.movId];
+          /* LAS CIFRAS DE DESPUÉS, SI EL SERVIDOR LAS SUPO.
+           *
+           * La fila se va al pulsar desde la v11.66, pero el Dashboard seguía
+           * esperando la recarga — quedaba la fila fuera y el total sin
+           * cambiar, que es peor que no mover nada: parece que el borrado no
+           * contó.
+           *
+           * Sólo vienen en el borrado que SÍ refrescó, que es el último de la
+           * tanda. En los aplazados llega `null`, y entonces manda la recarga,
+           * igual que antes. Ver stockAfterParaIds_. */
+          _aplicarStockDelServidor(res);
           // La fila ya se fue al pulsar, hace unos cuatro segundos. Esto es el
           // seguro por si la animación no llegó a correr —pestaña en segundo
           // plano, movimiento reducido, una fila que no estaba pintada— y
@@ -10546,6 +10610,9 @@ async function submitMovement(){
         // Las cifras REALES de después, que el servidor acaba de mandar, y la
         // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
         _aplicarStockDelServidor(res);
+        // Y las filas, en el mismo segundo. Ver _pintarGuardado: la recarga de
+        // abajo sigue estando, en silencio, para cuadrar lo que falte.
+        _pintarGuardado(res);
         _reloadWhenIdle();
         setTimeout(function(){
           if (res && (res.emailError || res.fileError || res.refreshError)){
@@ -11834,6 +11901,9 @@ function submitMultiExit(){
         // Las cifras REALES de después, que el servidor acaba de mandar, y la
         // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
         _aplicarStockDelServidor(res);
+        // Y las filas, en el mismo segundo. Ver _pintarGuardado: la recarga de
+        // abajo sigue estando, en silencio, para cuadrar lo que falte.
+        _pintarGuardado(res);
         _reloadWhenIdle();
       })
       .withFailureHandler(function(err){
@@ -12023,6 +12093,9 @@ function submitMultiEntry(){
         // Las cifras REALES de después, que el servidor acaba de mandar, y la
         // foto completa detrás en silencio. Ver _aplicarStockDelServidor.
         _aplicarStockDelServidor(res);
+        // Y las filas, en el mismo segundo. Ver _pintarGuardado: la recarga de
+        // abajo sigue estando, en silencio, para cuadrar lo que falte.
+        _pintarGuardado(res);
         _reloadWhenIdle();
         setTimeout(function(){
           var count = (res && res.count) ? res.count : materials.length;
@@ -13524,9 +13597,22 @@ function _aiSaveKey(){
   if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Checking the key with Google…'; }
   _btnBusy(btn, 'Checking…');
   google.script.run
-    .withSuccessHandler(function(){
+    /* GUARDADA NO ES LO MISMO QUE COMPROBADA, y decir "on" en los dos casos
+     * es la mentira pequeña que luego cuesta un día. Cuando Google está
+     * saturado el servidor guarda la clave y avisa de que no pudo comprobarla
+     * (ver setAiKey); si aquí se dijera "Document reader is on" igual, la
+     * persona se iría convencida de que funciona y se enteraría de que no
+     * delante de un proveedor. */
+    .withSuccessHandler(function(res){
       if (inp) inp.value = '';
-      showToast('Document reader is on.', 'ok');
+      var sinComprobar = res && res.verified === false;
+      if (sinComprobar) {
+        if (msg) { msg.style.color = 'var(--amber, #B45309)'; msg.textContent = res.message || ''; }
+        showToast('Key saved — Google was too busy to check it.', 'warn', 6000);
+      } else {
+        if (msg) msg.textContent = '';
+        showToast('Document reader is on.', 'ok');
+      }
       _loadAiStatus();
     })
     .withFailureHandler(function(e){
@@ -13697,6 +13783,34 @@ function _drawBackupBox(st){
   // window can scroll past yesterday's backup in well under a day even
   // though the file is sitting safely in Drive the whole time. This line
   // can't be scrolled past.
+  /* ── QUE SE PARÓ HAY QUE DECIRLO, NO DEJARLO DEDUCIR ────────────────────────
+   *
+   * Jose tardó SEIS DÍAS en ver que los respaldos de la DEMO se habían parado,
+   * y lo vio de casualidad. Todo lo que había en esta caja era correcto: el
+   * interruptor en verde, la lista llena, el último con su fecha y su enlace.
+   * Nada decía que esa fecha era de la semana pasada.
+   *
+   * Un sistema de respaldo que falla en silencio es peor que no tener ninguno,
+   * porque el que no tiene ninguno lo sabe. Esto va ARRIBA DEL TODO de la
+   * caja, antes que el interruptor, porque es lo único que hay que leer
+   * cuando pasa. */
+  var alarmaHtml = '';
+  if (st.backupStalled) {
+    var dias = Math.floor((st.hoursSinceBackup || 0) / 24);
+    alarmaHtml =
+      '<div class="snap-warn" style="margin-bottom:.6rem">⚠ <b>The nightly backup has not run ' +
+      (dias >= 1 ? 'in ' + dias + ' day' + (dias === 1 ? '' : 's') : 'since yesterday') + '.</b> ' +
+      'It is switched on, so something is stopping it. The most common cause is that the ' +
+      'script needs to be authorised again — open Extensions → Apps Script, run any function ' +
+      'once and accept the permissions. Press <b>Back up now</b> below to make a copy ' +
+      'immediately in the meantime.</div>';
+  } else if (st.backupNeverRan) {
+    alarmaHtml =
+      '<div class="snap-warn" style="margin-bottom:.6rem">⚠ <b>No backup has been made yet.</b> ' +
+      'The nightly copy is switched on but has not run for the first time. Press ' +
+      '<b>Back up now</b> if you would rather not wait for tonight.</div>';
+  }
+
   var lastHtml = '';
   if (st.lastBackupAt) {
     var link = st.lastBackupFileId
@@ -13746,6 +13860,7 @@ function _drawBackupBox(st){
       '</details>';
   }
   box.innerHTML =
+    alarmaHtml +
     '<label class="sw" style="margin-bottom:.5rem">' +
       '<input type="checkbox" id="backupSw"' + (on ? ' checked' : '') + ' onchange="_toggleBackup(this)">' +
       '<span class="sw-track"></span>' +
@@ -21897,12 +22012,74 @@ function toggleSelectedUsers(){
   });
 }
 
+/* ── "NADIE MÁS ESTÁ EN ESE DOMINIO. ¿QUISISTE DECIR…?" ──────────────────────
+ *
+ * `jose@ox-glasss.com` es un correo perfectamente válido. Ninguna comprobación
+ * de forma lo caza, ni debe: el dominio existe o no existe, y eso no se sabe
+ * desde aquí. Lo que SÍ se sabe es que los otros cinco usuarios están en
+ * `ox-glass.com` y que éste se parece muchísimo a ése sin serlo.
+ *
+ * LA REGLA ES "PARECIDO PERO DISTINTO", y es deliberadamente estrecha:
+ *
+ *   · dominio que ya usa alguien  → callado. Es el caso normal.
+ *   · dominio lejano (un gmail de un contratista) → callado. Es legítimo y
+ *     frecuente, y un aviso ahí sería ruido que se aprende a ignorar.
+ *   · dominio a una o dos letras de uno que ya se usa → SE PREGUNTA.
+ *
+ * Una errata es exactamente eso: casi igual. Avisar sólo de los casi-iguales es
+ * lo que hace que el aviso signifique algo el día que salta.
+ *
+ * Y pregunta, no bloquea: puede haber dos dominios de verdad parecidos, y la
+ * app no está para decirle a nadie cómo se llama su empresa.
+ */
+function _distanciaTexto(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (a === b) return 0;
+  var fila = [], i, j;
+  for (j = 0; j <= b.length; j++) fila[j] = j;
+  for (i = 1; i <= a.length; i++) {
+    var ant = fila[0]; fila[0] = i;
+    for (j = 1; j <= b.length; j++) {
+      var tmp = fila[j];
+      fila[j] = Math.min(fila[j] + 1, fila[j - 1] + 1,
+                         ant + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      ant = tmp;
+    }
+  }
+  return fila[b.length];
+}
+
+function _dominioParecido(email, omitirEmail) {
+  var dom = String(email || '').split('@')[1] || '';
+  if (!dom) return '';
+  var vistos = {}, mejor = '', mejorD = 99;
+  (_usersData || []).forEach(function(u){
+    var e = String(u.email || '').toLowerCase();
+    if (!e || e === String(omitirEmail || '').toLowerCase()) return;
+    var d = e.split('@')[1] || '';
+    if (d) vistos[d] = true;
+  });
+  if (vistos[dom]) return '';                 // alguien más ya lo usa: normal
+  Object.keys(vistos).forEach(function(d){
+    var dist = _distanciaTexto(dom, d);
+    if (dist < mejorD) { mejorD = dist; mejor = d; }
+  });
+  // Dos letras de margen. Con tres ya se parecen dominios que no tienen nada
+  // que ver, y el aviso empezaría a salir cuando no toca.
+  return (mejorD >= 1 && mejorD <= 2) ? mejor : '';
+}
+
 function editUser(email) {
   var u = _usersData.find(function(x){ return x.email === email; });
   if (!u) return;
   _editingUser = email;
   document.getElementById('uEmail').value = u.email;
-  document.getElementById('uEmail').disabled = true; // can't change email
+  // EDITABLE DESDE LA v12.48. Estuvo bloqueado porque el correo es la
+  // identidad, y eso sigue siendo verdad — pero la consecuencia era que una
+  // errata de una letra sólo se podía arreglar ABRIENDO LA HOJA, que es
+  // justo lo que el producto entero intenta que nadie tenga que hacer.
+  // Las guardas están en updateUser, donde no se pueden saltar.
+  document.getElementById('uEmail').disabled = false;
   document.getElementById('uName').value  = u.name  || '';
   document.getElementById('uRole').value  = u.role  || 'WAREHOUSE';
   document.getElementById('userFormTitle').textContent = '✏️ Editing: ' + u.email;
@@ -21948,12 +22125,47 @@ function saveUser() {
   var role  = document.getElementById('uRole').value;
   if (!email) { _userFormMsg('Email is required.', 'error'); return; }
 
+  // El aviso de la errata va AQUÍ, antes de guardar, porque después ya no sirve
+  // de nada: la fila queda escrita y quien la leyera la daría por buena. Ver
+  // _dominioParecido.
+  var sugerido = _dominioParecido(email, _editingUser);
+  if (sugerido) {
+    var local = email.split('@')[0];
+    _showConfirm({
+      icon: '✉️',
+      title: 'Check this address',
+      message: 'Nobody else in this system uses “@' + email.split('@')[1] + '”, and it ' +
+               'is one or two letters away from “@' + sugerido + '”, which the others use.\n\n' +
+               'An address with a typo is accepted by Google, shows up here as a normal ' +
+               'user, and then simply never lets that person in.',
+      confirmText: 'Use ' + local + '@' + sugerido,
+      cancelText:  'Keep what I typed',
+      onConfirm: function(){
+        document.getElementById('uEmail').value = local + '@' + sugerido;
+        saveUser();
+      },
+      onCancel: function(){ _guardarUsuario_(); }
+    });
+    return;
+  }
+  _guardarUsuario_();
+}
+
+function _guardarUsuario_() {
+  var email = (document.getElementById('uEmail').value || '').trim().toLowerCase();
+  var name  = (document.getElementById('uName').value  || '').trim();
+  var role  = document.getElementById('uRole').value;
+
   var btn = document.getElementById('btnSaveUser');
   _btnBusy(btn, 'Saving…');
 
   var action  = _editingUser ? 'updateUser' : 'addUser';
   var invitar = !_editingUser && !!(document.getElementById('uInvite') || {}).checked;
-  var payload = { email: email, name: name, role: role, active: true, invite: invitar };
+  // Al editar, `email` es el de la fila que se busca y `newEmail` el que se
+  // escribe. Mandar sólo uno dejaría al servidor sin saber a cuál apuntar.
+  var payload = _editingUser
+    ? { email: _editingUser, newEmail: email, name: name, role: role, active: true }
+    : { email: email, name: name, role: role, active: true, invite: invitar };
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -21968,9 +22180,14 @@ function saveUser() {
       // The row is patched in place rather than the whole list being fetched
       // again: the browser already knows exactly what changed, and re-reading
       // the sheet to learn it puts a "Loading…" flash over a list of four names.
+      // Al EDITAR se busca por el correo con el que se abrió la ficha, no por
+      // el tecleado: si lo que se acaba de corregir es justamente el correo,
+      // buscar por el nuevo no encuentra nada y la lista se quedaría con la
+      // fila vieja Y una fila nueva, las dos de la misma persona.
+      var buscar = _editingUser || email;
       var found = null;
-      _usersData.forEach(function(u){ if (u.email === email) found = u; });
-      if (found){ found.name = name; found.role = role; found.active = true; }
+      _usersData.forEach(function(u){ if (u.email === buscar) found = u; });
+      if (found){ found.email = email; found.name = name; found.role = role; found.active = true; }
       else _usersData.push({ email: email, name: name, role: role, active: true,
                              addedBy: userEmail, addedAt: _isoDate(new Date()) });
       _sysCachePut('users', _usersData, true);   // ya está al día, no hay que ir a buscarla
@@ -23994,10 +24211,17 @@ function renderActiveUsers(users){
 }
 
 // ── Custom Confirm Dialog ─────────────────────────────────────────────────────
-var _confirmCb = null;
+var _confirmCb = null, _confirmCancelCb = null;
 function _showConfirm(opts) {
-  // opts: { icon, title, message, confirmText, danger, onConfirm }
-  _confirmCb = opts.onConfirm || null;
+  // opts: { icon, title, message, confirmText, cancelText, danger, onConfirm, onCancel }
+  _confirmCb       = opts.onConfirm || null;
+  /* `onCancel` y `cancelText` existen desde la v12.48, y la razón importa: hay
+   * avisos donde las DOS respuestas son acciones, no una acción y una retirada.
+   * El de la errata en el correo es el primero: "usa la que te sugiero" y
+   * "guarda la que escribí" son los dos un guardado. Sin esto, el segundo botón
+   * no hacía nada y había que volver a pulsar Guardar — un botón que parece
+   * contestar la pregunta y en realidad la tira. */
+  _confirmCancelCb = opts.onCancel  || null;
   document.getElementById('confirmIcon').textContent    = opts.icon    || (opts.danger ? '🗑️' : '⚠️');
   document.getElementById('confirmTitle').textContent   = opts.title   || 'Confirm';
   document.getElementById('confirmMessage').textContent = opts.message || '';
@@ -24008,16 +24232,21 @@ function _showConfirm(opts) {
   // propuesto nada. Con soloAviso el botón de la izquierda desaparece y el de
   // la derecha dice lo único que se puede hacer, que es enterarse.
   var cancelBtn = document.getElementById('confirmCancelBtn');
-  if (cancelBtn) cancelBtn.hidden = !!opts.soloAviso;
+  if (cancelBtn) {
+    cancelBtn.hidden = !!opts.soloAviso;
+    cancelBtn.textContent = opts.cancelText || 'Cancel';
+  }
   document.getElementById('confirmOverlay').classList.add('show');
 }
 function _confirmOk() {
   document.getElementById('confirmOverlay').classList.remove('show');
+  _confirmCancelCb = null;
   if (_confirmCb) { var cb = _confirmCb; _confirmCb = null; cb(); }
 }
 function _confirmCancel() {
   _confirmCb = null;
   document.getElementById('confirmOverlay').classList.remove('show');
+  if (_confirmCancelCb) { var cc = _confirmCancelCb; _confirmCancelCb = null; cc(); }
 }
 
 // ── Ask for a value, in the app's own dialog ─────────────────────────────────
@@ -24269,43 +24498,42 @@ function saveEditMov() {
     btn:  btn,
     what: 'Could not save',
     ok: function(res) {
-      // LA FILA EDITADA, al día en el acto. Ver "PINTAR EN CUANTO EL SERVIDOR
-      // DICE SÍ", junto a _incAplicarLocal.
-      //
-      // Se normaliza IGUAL que el servidor —mayúsculas en categoría y estantes,
-      // cleanDisplay_ en el nombre (mayúsculas + trim + espacios colapsados)—
-      // porque si las dos mitades no coinciden, la recarga "corrige" algo que
-      // ya estaba bien y se ve un parpadeo donde antes había un retraso. Un
-      // parpadeo es peor: el retraso al menos no miente dos veces.
-      //
-      // LO QUE ESTO NO ARREGLA, y hay que decirlo: si el cambio fue de CANTIDAD,
-      // los totales del dashboard siguen esperando la recarga. El navegador no
-      // puede recalcularlos — el stock sale de las hojas derivadas del servidor,
-      // no de sumar movimientos aquí. La fila que la persona acaba de editar
-      // cambia al instante; el total del material tarda lo que tarde el viaje.
-      if (typeof movements !== 'undefined' && movements){
-        var limpio = function(v){ return String(v || '').toUpperCase().trim().replace(/\s+/g, ' '); };
+      /* LA FILA EDITADA, Y LA MANDA EL SERVIDOR.
+       *
+       * Aquí vivía una SEGUNDA NORMALIZACIÓN: el navegador rehacía lo que el
+       * servidor hace —mayúsculas en categoría y estantes, cleanDisplay_ en el
+       * nombre— para pintar la fila sin esperar. Funcionaba, y su propio
+       * comentario avisaba del peligro: *"si las dos mitades no coinciden, la
+       * recarga corrige algo que ya estaba bien y se ve un parpadeo"*. Dos
+       * aritméticas que tienen que coincidir sin que nada lo obligue.
+       *
+       * Y traía escrito lo que no podía hacer: *"si el cambio fue de CANTIDAD,
+       * los totales del dashboard siguen esperando la recarga"*.
+       *
+       * Desde la v12.50 las dos cosas vienen hechas: `res.movimiento` es LA
+       * FILA COMO QUEDÓ EN LA HOJA —no lo que pidió el formulario— y
+       * `res.stockAfter` trae las cifras del material de antes y del de
+       * después, porque editar la categoría o el nombre mueve existencias de
+       * uno a otro.
+       *
+       * Si el servidor no las mandó, no se inventa nada: manda la recarga,
+       * como antes. */
+      if (res && res.movimiento && typeof movements !== 'undefined' && movements){
         for (var i = 0; i < movements.length; i++){
-          if (movements[i].rowIdx !== payload.rowIdx) continue;
           var m = movements[i];
-          m.category    = String(payload.category || '').trim().toUpperCase();
-          m.name        = limpio(payload.name);
-          m.qty         = Math.abs(Number(payload.qty) || 0);
-          m.unit        = payload.unit || '';
-          m.dateRec     = payload.dateRec || '';
-          m.responsible = payload.responsible || '';
-          m.sourceLoc   = String(payload.sourceLoc || '').trim().toUpperCase();
-          m.destLoc     = String(payload.destLoc || '').trim().toUpperCase();
-          m.project     = payload.project || '';
-          m.gc          = payload.gc || '';
-          m.supplier    = payload.supplier || '';
-          m.po          = payload.po || '';
-          m.pm          = payload.pm || '';
-          m.comments    = payload.comments || '';
+          // Por id propio cuando lo hay; por posición sólo en las filas viejas
+          // que todavía no lo tienen.
+          var esta = (res.movimiento.movId && m.movId)
+            ? (m.movId === res.movimiento.movId)
+            : (m.rowIdx === payload.rowIdx);
+          if (!esta) continue;
+          movements[i] = res.movimiento;
           break;
         }
         renderAll();
       }
+      // Y los totales, que es lo que la versión anterior no podía hacer.
+      _aplicarStockDelServidor(res);
       _setModalBusy('editMovOverlay', false);
       closeModal('editMovOverlay');
       // EL CHECK SE VA AQUÍ. Jose: "una vez que se selecciona un movimiento, se
