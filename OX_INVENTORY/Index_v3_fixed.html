@@ -3323,6 +3323,11 @@
       </label>
       <div id="userFormMsg" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.35rem .6rem;border-radius:6px"></div>
       <div class="modal-actions" style="margin-top:1.1rem">
+        <!-- A LA IZQUIERDA Y SEPARADO, y sólo al editar. Borrar de verdad no es
+             lo normal —lo normal es Deactivate, que deja el rastro— y no puede
+             estar al lado de Guardar invitando a un clic distraído. -->
+        <button class="btn btn-danger btn-sm" id="btnDeleteUser" style="margin-right:auto;display:none"
+                onclick="deleteUserPermanently()">🗑 Delete permanently</button>
         <button class="btn btn-ghost" onclick="closeModal('userFormOverlay')">Cancel</button>
         <button class="btn btn-primary" onclick="saveUser()" id="btnSaveUser">Save User</button>
       </div>
@@ -4510,7 +4515,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.50';
+var APP_VERSION = '12.51';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4522,7 +4527,7 @@ var APP_VERSION = '12.50';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '38266b1a';
+var APP_BUILD = 'de6a6a6e';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -22086,6 +22091,12 @@ function editUser(email) {
   // Invitar es cosa del alta. A quien ya está dentro no se le manda un "te han
   // dado acceso" cada vez que se le corrige el nombre.
   _mostrarInvitar(false);
+  /* El botón de borrar de verdad sólo existe EDITANDO, y nunca sobre uno
+   * mismo: el servidor también lo rechaza, pero enseñar un botón que siempre
+   * va a decir que no es una forma de mentir. */
+  var bd = document.getElementById('btnDeleteUser');
+  if (bd) bd.style.display = (String(u.email||'').toLowerCase() === String(userEmail||'').toLowerCase())
+    ? 'none' : '';
   // El formulario vive en su propia ventana desde la v11.98, así que hay que
   // abrirla — antes estaba siempre puesta y bastaba con rellenarla.
   document.getElementById('userFormOverlay').classList.add('show');
@@ -22094,6 +22105,8 @@ function editUser(email) {
 
 function resetUserForm() {
   _editingUser = null;
+  var bdel = document.getElementById('btnDeleteUser');
+  if (bdel) bdel.style.display = 'none';          // dando de alta no hay nada que borrar
   document.getElementById('uEmail').value    = '';
   document.getElementById('uEmail').disabled = false;
   document.getElementById('uName').value     = '';
@@ -22103,6 +22116,61 @@ function resetUserForm() {
   if (inv) inv.checked = true;
   _mostrarInvitar(true);
   _userFormMsg('', '');
+}
+
+/* ── BORRAR DE VERDAD, CON LO QUE CUESTA ESCRITO DELANTE ─────────────────────
+ *
+ * Jose, 2026-10-08: *"no puedo corregir el correo que está mal y tampoco puedo
+ * eliminarlo. No hay forma de corregir nada aquí."*
+ *
+ * Lo normal sigue siendo Deactivate, y el aviso lo dice. Esto es para una fila
+ * que NUNCA DEBIÓ EXISTIR — una errata, un duplicado, algo que trajo de más una
+ * migración.
+ *
+ * El aviso cuenta las TRES cosas que hay que saber antes de pulsar, y la
+ * segunda es la que tranquiliza: lo que esa persona registró no se toca.
+ */
+function deleteUserPermanently() {
+  if (!_editingUser) return;
+  var correo = _editingUser;
+  _showConfirm({
+    icon: '🗑️', danger: true,
+    title: 'Delete this user row for good?',
+    message:
+      correo + '\n\n' +
+      '• Their access disappears, and so does the record of who gave it to them.\n' +
+      '• Everything they recorded stays exactly where it is — each movement carries ' +
+      'their email in its own row.\n' +
+      '• This cannot be undone from the app.\n\n' +
+      'If this is somebody who actually worked here, close this and use Deactivate ' +
+      'instead: that stops them signing in and keeps the trail.',
+    confirmText: 'Delete permanently',
+    onConfirm: function(){
+      var btn = document.getElementById('btnDeleteUser');
+      _btnBusy(btn, 'Deleting…');
+      google.script.run
+        .withSuccessHandler(function(res){
+          /* La lista se arregla aquí mismo, sin volver a preguntar: es la misma
+           * regla que el resto de la app desde la v12.49 — lo que el servidor
+           * confirma se ve en el acto. */
+          _usersData = (_usersData || []).filter(function(u){
+            return String(u.email||'').toLowerCase() !== correo.toLowerCase();
+          });
+          _sysCachePut('users', _usersData, true);
+          _renderUsersTable();
+          closeModal('userFormOverlay');
+          _btnDone(btn, true);
+          showToast(res && res.removedFromLegacyList
+            ? 'User deleted — also removed from the old CONFIG list, so they will not come back.'
+            : 'User deleted.', 'ok');
+        })
+        .withFailureHandler(function(e){
+          _btnDone(btn, false);
+          _userFormMsg((e && e.message) || String(e), 'error');
+        })
+        .processMovement('deleteUserRow', _h({ email: correo }));
+    }
+  });
 }
 
 function _mostrarInvitar(ver) {

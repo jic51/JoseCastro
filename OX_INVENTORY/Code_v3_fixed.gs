@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.50';
+var APP_VERSION = '12.51';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.50';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '38266b1a';
+var APP_BUILD = 'de6a6a6e';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -3348,6 +3348,7 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'addUser')        return addUser(data, auth);
   if (action === 'updateUser')     return updateUser(data, auth);
   if (action === 'removeUser')     return removeUser(data.email, auth);
+  if (action === 'deleteUserRow')  return deleteUserRow(data, auth);
   // ── Settings / Config management (ADMIN only) ─────────────────────────────
   if (action === 'getSettings')    return getSettings(auth);
   if (action === 'updateConfig')   return updateConfig(data, auth);
@@ -8257,16 +8258,35 @@ function addUser_(ss, data) {
 //
 // Ahora hace lo mismo que la versión viva: vacía las dos celdas del usuario y
 // deja la fila donde está. Nada se desplaza, nada más se pierde.
-function removeUser_(ss, data) {
-  var cfg    = ss.getSheetByName(SHEETS.CONFIG);
+/* Quita un correo de la LISTA VIEJA de CONFIG (columnas F y G). Devuelve si
+ * estaba.
+ *
+ * Existe aparte desde la v12.51 porque hacen falta dos cosas distintas: aquí
+ * abajo, donde NO estar es un error que hay que decir; y al borrar a alguien de
+ * USERS_V3, donde no estar es el caso normal y callarse es lo correcto.
+ *
+ * Y es imprescindible para que un borrado sea un borrado: quien siga en esta
+ * lista vieja VUELVE A APARECER solo la próxima vez que revisarUsuarios_ pase —
+ * ver adoptarUsuarioDeConfig_. Borrar la fila y dejar el correo aquí sería
+ * prometer algo que se deshace solo en unas horas. */
+function limpiarUsuarioDeConfig_(ss, email) {
+  var buscado = String(email || '').toLowerCase().trim();
+  if (!buscado) return false;
+  var cfg = ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg) return false;
   var values = cfg.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
-    if (String(values[i][5] || '').toLowerCase() === data.email.toLowerCase()) {
+    if (String(values[i][5] || '').toLowerCase().trim() === buscado) {
       // Columnas F y G — el correo y el rol. Y sólo ésas.
       cfg.getRange(i + 1, 6, 1, 2).setValues([['', '']]);
-      return { status: 'success' };
+      return true;
     }
   }
+  return false;
+}
+
+function removeUser_(ss, data) {
+  if (limpiarUsuarioDeConfig_(ss, data.email)) return { status: 'success' };
   throw new Error('User not found.');
 }
 
@@ -11866,7 +11886,12 @@ function updateUser(data, auth) {
   if (nuevo) {
     for (var d = 1; d < rows.length; d++) {
       if (String(rows[d][1] || '').toLowerCase().trim() === nuevo) {
-        throw new Error('That email is already registered: ' + nuevo);
+        /* DECIR QUÉ HACER, no sólo que no. Jose se quedó encerrado aquí: no
+         * podía corregir el correo porque el bueno ya existía, y tampoco podía
+         * borrar la fila mala. Una negativa sin salida es una trampa. */
+        throw new Error('That email is already registered on another row: ' + nuevo +
+          '\n\nIf this row is a duplicate or a typo that should never have existed, ' +
+          'open it and use "Delete permanently" instead of renaming it.');
       }
     }
   }
@@ -11909,6 +11934,78 @@ function removeUser(email, auth) {
       auditLog_(ss, 'REMOVE_USER', auth.email, email, '', '');
       return { status: 'success' };
     }
+  }
+  throw new Error('User not found: ' + email);
+}
+
+/* ── BORRAR DE VERDAD UNA FILA DE USUARIO ────────────────────────────────────
+ *
+ * Jose, 2026-10-08, atrapado en una esquina que hizo la app:
+ * *"hay 2 correos muy parecidos, de la misma persona, y no hay forma de borrar
+ * ninguno; también traté de corregir el correo con la 's' de más pero me dice
+ * que ya existe otro usuario con ese correo. Entonces no puedo corregir el que
+ * está mal y tampoco puedo eliminarlo. No hay forma de corregir nada aquí."*
+ *
+ * Tiene toda la razón, y la esquina la cerré yo: la v12.48 dejó corregir un
+ * correo y —correctamente— se niega si el nuevo ya lo tiene otra fila. Pero sin
+ * forma de borrar una fila, esa negativa deja el error encerrado para siempre.
+ * Dos salidas tapiadas y ninguna puerta.
+ *
+ * APAGAR SIGUE SIENDO LO NORMAL, y esto no lo cambia: a alguien que trabajó
+ * aquí se le quita el acceso, no se le borra, porque su fila dice quién lo dio
+ * de alta y cuándo. Esto es para la otra cosa: UNA FILA QUE NUNCA DEBIÓ
+ * EXISTIR. Una errata, un duplicado, una migración que trajo algo de más.
+ *
+ * ── LO QUE NO SE PIERDE, Y HAY QUE DECIRLO ANTES DE PULSAR ─────────────────
+ *
+ * Los movimientos que esa persona registró NO SE TOCAN: llevan su correo
+ * escrito en su propia fila del archivo, y eso es lo que hace de registro. Lo
+ * que desaparece es su permiso de entrar y la nota de quién se lo dio.
+ *
+ * ── Y LA PARTE QUE SE OLVIDA ───────────────────────────────────────────────
+ *
+ * Quien siga en la LISTA VIEJA de CONFIG vuelve a aparecer él solo la próxima
+ * vez que la app la revise (ver adoptarUsuarioDeConfig_). Borrar la fila sin
+ * limpiar ahí sería prometer un borrado que se deshace en unas horas, y nadie
+ * entendería por qué. Por eso se limpian las dos.
+ *
+ * ── SOBRE QUEDARSE SIN ADMINISTRADORES ─────────────────────────────────────
+ *
+ * No hace falta guarda: quien llama es ADMIN y no puede borrarse a sí mismo,
+ * así que después de esto queda al menos uno. Queda escrito para que nadie
+ * añada una comprobación que no hace falta, ni quite la de "a sí mismo"
+ * creyendo que es sólo una comodidad.
+ */
+function deleteUserRow(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var email = String((data && data.email) || '').toLowerCase().trim();
+  if (!email) throw new Error('Email required.');
+  if (email === String(auth.email || '').toLowerCase().trim()) {
+    throw new Error('You cannot delete your own account. Ask another administrator.');
+  }
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('USERS_V3');
+  if (!sheet) throw new Error('Users sheet not found.');
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '').toLowerCase().trim() !== email) continue;
+
+    /* LA FILA ENTERA AL REGISTRO, ANTES DE QUITARLA. Un borrado permanente es
+     * justo el momento en que un resumen no basta: si alguien pregunta dentro
+     * de un año qué rol tenía esa cuenta y quién la dio de alta, la única copia
+     * que va a quedar es ésta. */
+    auditLog_(ss, 'DELETE_USER_ROW', auth.email,
+      'Permanently removed a user row', JSON.stringify(rows[i].slice(0, 7)), '');
+
+    sheet.deleteRow(i + 1);
+
+    var tambienEnConfig = false;
+    try { tambienEnConfig = limpiarUsuarioDeConfig_(ss, email); }
+    catch (e) { Logger.log('deleteUserRow, legacy list: ' + e.message); }
+
+    return { status: 'success', email: email, removedFromLegacyList: tambienEnConfig };
   }
   throw new Error('User not found: ' + email);
 }
