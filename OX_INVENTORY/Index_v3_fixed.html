@@ -4515,7 +4515,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.51';
+var APP_VERSION = '12.52';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4527,7 +4527,7 @@ var APP_VERSION = '12.51';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'de6a6a6e';
+var APP_BUILD = '0a6d1528';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -22395,8 +22395,49 @@ function _showGoogleSignIn(clientId, redirectUri) {
 
 // Opens the Google OAuth popup and polls the backend until the verified token is ready.
 var _loginPollTimer = null;
+/* El identificador del despliegue que hay dentro de una dirección de Apps
+ * Script. Gemelo de idDeDespliegue_ en el servidor, y por el mismo motivo: dos
+ * direcciones con el mismo identificador son la misma app aunque el principio
+ * cambie (`/macros/`, `/a/macros/`, `/macros/u/0/`); con identificadores
+ * distintos son dos apps distintas por muy parecidas que se vean. */
+function _idDeDespliegue(url){
+  var m = String(url || '').match(/\/s\/([A-Za-z0-9_-]{20,})(?:\/|$)/);
+  return m ? m[1] : '';
+}
+
 function _startGoogleLogin() {
   if (!_oauthClientId || !_oauthRedirectUri) return;
+
+  /* ── NO SE ABRE UNA VENTANA QUE YA SABEMOS QUE VA A MORIR ──────────────────
+   *
+   * Jose, 2026-10-08, después de un día entero: la página estaba en un
+   * despliegue y la dirección de vuelta apuntaba a otro. La ventanita de Google
+   * moría con el error genérico de Drive —"no se pudo abrir el archivo"— y esta
+   * pantalla se quedaba CUATRO MINUTOS en "Waiting for sign-in…" para terminar
+   * diciendo "Timed out. Please try again."
+   *
+   * Cuatro minutos para no enterarse de nada, y un mensaje que invita a repetir
+   * exactamente lo mismo. Eso no es esperar: es hacer perder el tiempo.
+   *
+   * Y se podía saber ANTES DE ABRIRLA, sin preguntar a nadie: la dirección de
+   * esta página y la de vuelta están las dos aquí. Si no son la misma app, la
+   * ventana no puede volver. Se dice, con los dos identificadores delante, y no
+   * se abre nada.
+   */
+  var idAqui   = _idDeDespliegue(location.href);
+  var idVuelta = _idDeDespliegue(_oauthRedirectUri);
+  if (idAqui && idVuelta && idAqui !== idVuelta) {
+    var st0 = document.getElementById('signInStatus');
+    if (st0) {
+      st0.style.color = 'var(--red)';
+      st0.textContent = 'Sign-in cannot work on this copy: it would send you back to a ' +
+        'different deployment of the app (' + idVuelta.substring(0, 10) + '… instead of ' +
+        idAqui.substring(0, 10) + '…), which no longer answers. An administrator can fix ' +
+        'it from the spreadsheet menu: Acopio → Advanced → Check this installation.';
+    }
+    return;
+  }
+
   var state = 'st_' + Math.random().toString(36).slice(2) + '_' + Date.now();
   var authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
     '?client_id='     + encodeURIComponent(_oauthClientId) +
@@ -22414,9 +22455,42 @@ function _startGoogleLogin() {
   var tries = 0;
   _loginPollTimer = setInterval(function(){
     tries++;
+    /* A LOS 30 SEGUNDOS SE DICE ALGO, y no a los cuatro minutos.
+     *
+     * Lo normal es que esto tarde menos de diez segundos: abrir, elegir cuenta,
+     * volver. Pasados treinta, lo más probable NO es que alguien esté leyendo
+     * despacio: es que la ventana se murió o se cerró. Decirlo ahí todavía deja
+     * margen para mirarla; decirlo a los cuatro minutos ya no sirve de nada. */
+    if (tries === 20 && status) {
+      status.textContent = 'Still waiting for the Google window. If it is showing ' +
+        '"Access blocked" or "redirect_uri_mismatch", the sign-in client is missing this ' +
+        'app\'s address — an administrator adds it in Google Cloud Console → Credentials ' +
+        '→ the OAuth client → Authorized redirect URIs.';
+    }
     if (tries > 160) { // ~4 minutes then give up
       clearInterval(_loginPollTimer);
-      if (status) status.textContent = 'Timed out. Please try again.';
+      if (status) {
+        status.style.color = 'var(--red)';
+        // "Timed out. Please try again." invitaba a repetir lo mismo sin saber
+        // nada. Si falla dos veces no es mala suerte, y esto dice dónde mirar.
+        /* LOS DOS MOTIVOS REALES, Y EL PRIMERO ES EL QUE COSTÓ UN DÍA.
+         *
+         * Jose, 2026-10-08: la ventana mostraba "Acceso bloqueado — Error 400:
+         * redirect_uri_mismatch", y esta pantalla no tenía forma de verlo: la
+         * ventana es de otro dominio y no se puede leer desde aquí. Su cliente
+         * de OAuth no tenía NINGUNA dirección en "Authorized redirect URIs".
+         *
+         * Cuál de los dos es no se puede saber desde aquí, así que se nombran
+         * los dos con su sitio exacto. Dos frases que se pueden comprobar valen
+         * más que una genérica que no lleva a ningún lado — que es lo que había
+         * ("Timed out. Please try again.") y lo que hizo perder el día. */
+        status.textContent = 'The Google window never came back. Two things cause this, and ' +
+          'an administrator can check both: (1) in Google Cloud Console → Credentials → the ' +
+          'OAuth client, this app\'s address must be listed under "Authorized redirect URIs" ' +
+          '— if it is not, the window shows "Access blocked / redirect_uri_mismatch"; and ' +
+          '(2) from the spreadsheet, Acopio → Advanced → Check this installation, in case the ' +
+          'return address points at an older copy of the app.';
+      }
       return;
     }
     google.script.run

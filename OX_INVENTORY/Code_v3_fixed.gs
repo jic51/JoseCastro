@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.51';
+var APP_VERSION = '12.52';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.51';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'de6a6a6e';
+var APP_BUILD = '0a6d1528';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -1629,6 +1629,34 @@ function redirectUri_() {
   return PropertiesService.getScriptProperties().getProperty('OAUTH_REDIRECT_URI')
       || savedWebAppUrl_()
       || ScriptApp.getService().getUrl();
+}
+
+/* ── EL IDENTIFICADOR DEL DESPLIEGUE QUE HAY DENTRO DE UNA DIRECCIÓN ─────────
+ *
+ * Toda dirección de una app de Apps Script lleva dentro el identificador de SU
+ * despliegue: `…/s/AKfycbz…/exec`. Dos direcciones con el mismo identificador
+ * son la misma app aunque el principio cambie —`/macros/`, `/a/macros/`,
+ * `/macros/u/0/`, que Google escribe de una forma u otra según con qué cuenta
+ * miras—. Dos con identificadores distintos son DOS APPS DISTINTAS, y da igual
+ * lo parecidas que se vean.
+ *
+ * Esa distinción es la que nos costó un día entero. Jose no podía entrar en la
+ * DEMO: la página estaba en `AKfycbzxKF659yaTtULpAYx4HngN…` y la ventanita de
+ * iniciar sesión volvía a `AKfycbzxQ1YeehasKAj2o1…`. La ventana moría con el
+ * error genérico de Drive y la pantalla esperaba, en silencio, un inicio de
+ * sesión que nunca iba a llegar.
+ *
+ * Y yo di dos diagnósticos equivocados antes de ése —la forma de la dirección,
+ * la autorización caducada— porque estaba comparando direcciones ENTERAS, que
+ * es justo lo que no se puede comparar. Comparar la parte que identifica, y no
+ * la que decora, es toda la diferencia.
+ *
+ * Devuelve '' si no encuentra uno, y quien llama entiende eso como "no sé" y
+ * no afirma nada.
+ */
+function idDeDespliegue_(url) {
+  var m = String(url || '').match(/\/s\/([A-Za-z0-9_-]{20,})(?:\/|$)/);
+  return m ? m[1] : '';
 }
 
 // Signed token = base64(email|expiry).base64(HMAC). Tamper-proof without the secret.
@@ -10504,6 +10532,24 @@ function selfActivateWebApp_() {
        * En try: publicar es lo importante, y que no se pueda anotar no puede
        * tumbar una publicación que ya ha salido bien. */
       try { saveWebAppUrl(url); } catch (e3) { Logger.log('saveWebAppUrl: ' + e3.message); }
+      /* Y LA DIRECCIÓN DE VUELTA, por exactamente la misma razón que la de
+       * arriba y aprendida dos veces. La v12.42 añadió `saveWebAppUrl` aquí
+       * porque ésta es la ÚNICA función que conoce la dirección buena de
+       * primera mano —acaba de crearla— y no la estaba apuntando donde todos la
+       * buscan. `OAUTH_REDIRECT_URI` tenía el mismo problema y se quedó fuera.
+       *
+       * Sólo se toca si YA había una y apunta a otro despliegue. Si no había,
+       * `redirectUri_` cae en `savedWebAppUrl_()`, que acaba de quedar bien. */
+      try {
+        var pr = PropertiesService.getScriptProperties();
+        var vueltaVieja = String(pr.getProperty('OAUTH_REDIRECT_URI') || '').trim();
+        if (vueltaVieja && idDeDespliegue_(vueltaVieja) &&
+            idDeDespliegue_(vueltaVieja) !== idDeDespliegue_(url)) {
+          pr.setProperty('OAUTH_REDIRECT_URI', url);
+          auditLog_(SpreadsheetApp.getActiveSpreadsheet(), 'OAUTH_REDIRECT_FIXED', 'system',
+            'Sign-in return address pointed at an older deployment', vueltaVieja, url);
+        }
+      } catch (e4) { Logger.log('OAUTH_REDIRECT_URI: ' + e4.message); }
       try {
         MailApp.sendEmail(Session.getActiveUser().getEmail(), '✅ Your ' + PRODUCT_NAME + ' system is ready',
           'Your warehouse system is live at:\n\n' + url +
@@ -11043,6 +11089,36 @@ function menuCheckInstallation() {
   if (url && !String(p.getProperty('OAUTH_REDIRECT_URI') || '').trim()) {
     p.setProperty('OAUTH_REDIRECT_URI', url);
     repaired.push('OAUTH_REDIRECT_URI — set from your saved app link');
+  }
+
+  /* ── PUESTA, PERO APUNTANDO A OTRA APP ─────────────────────────────────────
+   *
+   * La reparación de arriba sólo mira si FALTA. El caso que nos costó un día
+   * entero es el otro: estaba puesta, y apuntaba a un despliegue viejo. Al
+   * pulsar "Sign in with Google" la ventana volvía a una app muerta, moría con
+   * el error genérico de Drive, y la pantalla se quedaba esperando sin decir
+   * nada.
+   *
+   * Se desalinean solas en tres situaciones normales: al copiar la hoja, al
+   * crear un despliegue NUEVO en vez de actualizar el que había, y al cambiar
+   * el proyecto de Cloud. Ninguna avisa.
+   *
+   * Se repara, como las de arriba, porque el estado actual es seguro que está
+   * mal y `WEB_APP_URL` es la dirección viva. Pero el aviso DICE LO QUE FALTA
+   * POR HACER FUERA: el cliente de OAuth, en Cloud Console, tiene que tener
+   * esa misma dirección en su lista. Repararla aquí y callarse eso sería
+   * cambiar un fallo por otro, más difícil de ver.
+   */
+  var vuelta = String(p.getProperty('OAUTH_REDIRECT_URI') || '').trim();
+  var idApp = idDeDespliegue_(url), idVuelta = idDeDespliegue_(vuelta);
+  if (idApp && idVuelta && idApp !== idVuelta) {
+    p.setProperty('OAUTH_REDIRECT_URI', url);
+    repaired.push('OAUTH_REDIRECT_URI pointed at a DIFFERENT deployment (' +
+      idVuelta.substring(0, 12) + '… instead of ' + idApp.substring(0, 12) + '…), so ' +
+      'signing in opened a window that could never come back. Reset to your live app ' +
+      'link.\n      One thing left to check outside: in Google Cloud Console → ' +
+      'Credentials → your OAuth client, that same link must be listed under ' +
+      '"Authorized redirect URIs".');
   }
   // Setup is complete if there is an admin on the user list, whatever the flag says.
   if (String(p.getProperty('SETUP_COMPLETE') || '') !== 'true') {
