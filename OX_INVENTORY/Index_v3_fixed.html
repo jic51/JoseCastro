@@ -85,6 +85,96 @@
          element: opacity fades the whole subtree, which is what made the
          count badge and the ✕ unreadable. */
       --card-ghost:rgba(255,255,255,.52);--navy-ghost:rgba(27,42,74,.55);
+
+      /* ── LA ESCALA DE LETRA ─────────────────────────────────────────────
+       *
+       * Medido el 2026-10-09 sobre la v12.54: la app tenía CUARENTA tamaños
+       * de letra distintos repartidos en 338 sitios. Veintiséis de ellos
+       * caben entre 9,9 px y 14,4 px — veintiséis escalones en cuatro
+       * píxeles y medio, con 0,18 px de diferencia media entre uno y el
+       * siguiente. Nadie puede verlos distintos.
+       *
+       * No era que faltara un sistema: el :root de aquí arriba YA tenía
+       * `--radius` y `--shadow` escritos. Lo que faltaba era usarlos —
+       * `--radius` aparecía en 5 de 224 esquinas, `--shadow` en 6 de 61
+       * sombras—. Los tokens de COLOR sí se usan (--border 135 veces,
+       * --muted 108). Los de FORMA no. Mismo patrón que este repositorio ya
+       * tiene contado seis veces: algo escrito y nunca ejecutado.
+       *
+       * Jose eligió la opción A del mockup (mockups/estandarizacion.html):
+       * trece escalones, anclados en los tamaños que YA se usaban mucho para
+       * que casi nada se mueva. Los tres más usados —.72 (46 sitios), .78
+       * (35) y .85 (29)— no se mueven ni un píxel. En la banda donde vive el
+       * 90% del texto, nada se mueve más de 0,80 px.
+       *
+       * NO se tocan los `mm` de las etiquetas impresas: están medidos sobre
+       * papel y su comentario explica de dónde sale cada escalón.
+       */
+      --fs-2xs:.62rem;  /* códigos, sellos de hora, pies de tabla */
+      --fs-xs:.68rem;   /* cabeceras de tabla, etiquetas pequeñas */
+      --fs-sm:.72rem;   /* el más usado de la app */
+      --fs-md:.78rem;   /* filas de movimientos, texto de tabla */
+      --fs-base:.82rem; /* texto normal de formularios y botones */
+      --fs-lg:.85rem;   /* texto de lectura, párrafos de ajustes */
+      --fs-xl:.9rem;    /* subtítulos */
+      --fs-2xl:1rem;    /* títulos de sección */
+      --fs-3xl:1.05rem; /* títulos de ventana */
+      --fs-4xl:1.2rem;  /* títulos grandes */
+      --fs-5xl:1.4rem;  /* cifras del tablero */
+      --fs-6xl:1.8rem;  /* cifras grandes */
+      --fs-7xl:2.5rem;  /* la cifra suelta del tablero */
+
+      /* ── LOS BOTONES ────────────────────────────────────────────────────
+       *
+       * 147 reglas tocaban botones y entre ellas había 26 paddings, 9 radios
+       * y 16 tamaños de letra — mezclando unidades para lo mismo
+       * (`5px 9px` junto a `.35rem .85rem`).
+       *
+       * Un radio, tres tamaños. `--r-btn` es 6px porque era el más usado
+       * (12 reglas), no porque me gustara más: mover el valor más común es
+       * mover la mayor cantidad de pantalla.
+       *
+       * LAS ALTURAS NO SON GUSTO. Eran 34, 36, 38, 40 y 44 px. El mínimo
+       * para acertar con el dedo son 44, y la gente de Jose usa la app en el
+       * teléfono, dentro de la bodega, muchas veces con guantes. `--h-btn-lg`
+       * es el que va en todo lo que destruye algo.
+       */
+      --r-btn:6px;
+      --h-btn-sm:36px; --h-btn-md:40px; --h-btn-lg:44px;
+      /* El de dentro de una tabla es MENOR que el mínimo táctil a sabiendas:
+       * subir cada botón de fila a 44px duplicaría la altura de todas las
+       * filas. Tiene nombre propio para que se lea como una decisión y no
+       * como un número que alguien dejó ahí. Lo que destruye algo queda
+       * fuera de esta excepción — ver la regla de .btn-danger. */
+      --h-btn-tabla:34px;
+
+      /* ── LAS CELDAS: DOS DENSIDADES, NO OCHO ────────────────────────────
+       *
+       * Ocho reglas ponían padding a una celda y traían ocho valores
+       * distintos. Pero al mirarlos no eran ocho decisiones: eran DOS que
+       * nadie había nombrado —la tabla normal y las compactas— con medio
+       * píxel de ruido alrededor de cada una.
+       *
+       * El espaciado de celda es lo ÚNICO de esta tanda que cambia algo que
+       * se ve: mueve la altura de la fila, y con ella cuántas filas caben en
+       * la pantalla. Por eso los dos valores se eligieron para que nada se
+       * mueva más de 0,8 px por lado, no para que salieran redondos. */
+      --pad-celda:.55rem .75rem;      /* la tabla de movimientos y las de su tamaño */
+      --pad-celda-sm:.45rem .55rem;   /* las compactas: duplicados, registro, grupos */
+
+      /* ── Y LAS ALTURAS DE LÍNEA ─────────────────────────────────────────
+       *
+       * Catorce valores distintos en toda la app, pero siete de ellos caben
+       * entre 1,25 y 1,5 — y la altura de línea MULTIPLICA el tamaño de la
+       * letra, así que un 0,05 de diferencia son 0,7 px por línea. Tres
+       * párrafos y nadie nota nada.
+       *
+       * Esta tanda sólo pone las de TABLA. El `line-height:1` de las piezas
+       * de una sola línea —21 sitios— y el resto van en la tanda de ventanas
+       * y ajustes, porque ahí sí cambian el ritmo vertical de un párrafo que
+       * se lee entero. */
+      --lh-compacta:1.3; --lh-normal:1.4; --lh-amplia:1.5;
+      --px-btn-sm:12px; --px-btn-md:16px; --px-btn-lg:20px;
     }
     body{font-family:'Inter','DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;transition:background .25s,color .25s}
     button{font-family:inherit;cursor:pointer}
@@ -154,7 +244,7 @@
     .app-logo.logo-square{max-height:36px;max-width:36px}
     .app-logo.logo-tall{max-height:44px;max-width:34px}
     .nav{display:flex;gap:2px;background:var(--steel);padding:3px;border-radius:8px;flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}
-    .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem clamp(.4rem,1.5vw,1rem);border-radius:6px;font-size:clamp(.68rem,1.2vw,.8rem);font-weight:600;transition:.2s;white-space:nowrap}
+    .nav button{background:none;border:none;color:rgba(255,255,255,.6);padding:.45rem clamp(.4rem,1.5vw,1rem);border-radius:var(--r-btn);font-size:clamp(.68rem,1.2vw,.8rem);font-weight:600;transition:.2s;white-space:nowrap}
     .nav button:hover{color:#fff;background:rgba(255,255,255,.08)}
     .nav button.active{background:var(--accent);color:#fff}
     /* Trimmed from 4px/.7rem: this badge is the bottom of the brand stack, so
@@ -256,13 +346,25 @@
     .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
     .toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
     /* ── BUTTONS ── */
-    .btn{padding:.5rem 1rem;border:none;border-radius:6px;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:.35rem;justify-content:center;transition:.15s}
+    .btn{padding:.5rem 1rem;border:none;border-radius:var(--r-btn);font-size:var(--fs-lg);font-weight:600;display:inline-flex;align-items:center;gap:.35rem;justify-content:center;transition:.15s}
     .btn:hover{filter:brightness(.92)}
     .btn-primary{background:var(--accent);color:#fff}
-    .btn-danger{background:var(--red);color:#fff}
+    /* EL BORDE TRANSPARENTE NO ES ADORNO: ES LO QUE IGUALA LA CAJA.
+     *
+     * `.btn` declara `border:none` y `.btn-ghost` le pone `1px solid`. O sea
+     * que un botón gris y uno rojo puestos uno al lado del otro NO median lo
+     * mismo: el rojo salía 2 px más bajo y 2 px más estrecho, medido en el
+     * navegador (24 px contra 26).
+     *
+     * Jose pidió el Delete en rojo "del mismo tamaño que tiene ahora", y ésta
+     * es la forma de cumplirlo sin tocar el relleno: un borde que ocupa su
+     * sitio y no se ve. De paso alinea todos los `.btn-danger` con los grises
+     * que tienen al lado, que hasta hoy estaban 2 px desparejos en cada
+     * barra donde conviven. */
+    .btn-danger{background:var(--red);color:#fff;border:1px solid transparent}
     .btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
-    .btn-sm{padding:.3rem .65rem;font-size:.78rem}
-    .btn-icon{background:transparent;border:none;font-size:1rem;cursor:pointer;transition:.15s;padding:2px}
+    .btn-sm{padding:.3rem .65rem;font-size:var(--fs-md)}
+    .btn-icon{background:transparent;border:none;font-size:var(--fs-2xl);cursor:pointer;transition:.15s;padding:2px}
     .btn-icon:hover{transform:scale(1.15)}
     /* ── TABLES ── */
     .table-wrapper{overflow-x:auto;max-height:65vh;overflow-y:auto;position:relative}
@@ -271,9 +373,9 @@
        leaving thin gaps of the page background between header cells. Separate
        border model isn't subject to that bug and looks identical here since no
        cell defines side borders for collapse to visually merge in the first place. */
-    table{width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem}
-    thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:10;padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.1)}
-    td{padding:.55rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-base)}
+    thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:10;padding:var(--pad-celda);text-align:left;font-size:var(--fs-sm);text-transform:uppercase;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+    td{padding:var(--pad-celda);border-bottom:1px solid var(--border);vertical-align:middle}
     tbody tr:hover{background:#F8FAFC}
     tr.row-zero td{opacity:.5}
     tr.row-exit td:first-child{border-left:3px solid var(--red)}
@@ -458,7 +560,7 @@
     .rack-drawer.open{transform:translateX(0)}
     .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
-    .rack-drawer-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.85rem}
+    .rack-drawer-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:var(--r-btn);padding:3px 10px;cursor:pointer;font-size:var(--fs-lg)}
     .rack-drawer-body{flex:1;overflow-y:auto;padding:.5rem}
     .rdw-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;border-radius:7px;margin-bottom:3px;transition:background .12s}
     .rdw-item:hover{background:#F8FAFC}
@@ -471,8 +573,56 @@
     .rdw-rack-qty{font-size:.82rem;font-weight:700;color:var(--red);flex-shrink:0}
     .rdw-total-qty{font-size:.72rem;color:var(--muted);flex-shrink:0}
     .rdw-lock-badge{flex-shrink:0;font-size:.9rem;cursor:default}
-    .rdw-lock-btn{flex-shrink:0;font-size:.68rem;font-weight:700;background:var(--border);color:var(--text);border:none;border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap;transition:.15s}
+    .rdw-lock-btn{flex-shrink:0;font-size:var(--fs-xs);font-weight:700;background:var(--border);color:var(--text);border:none;border-radius:var(--r-btn);padding:2px 7px;cursor:pointer;white-space:nowrap;transition:.15s}
     .rdw-lock-btn:hover{background:var(--red);color:#fff}
+    /* ── EL NOMBRE DEL MATERIAL, QUE ERA LO ÚNICO QUE NO SE PODÍA LEER ──────
+     *
+     * Jose, 2026-10-12, con un vídeo del teléfono: los nombres salían como
+     * "P…", "L…", "LGI…", "KA…". Uno o tres caracteres.
+     *
+     * LA CAUSA ESTABA EN UNA LÍNEA. `.rdw-name` tiene `flex:1` —o sea que
+     * puede encogerse— y TODO lo demás de la fila lleva `flex-shrink:0`: el
+     * punto de color, la cantidad, el total y el botón de reservar. Cuando el
+     * cajón se estrecha, el nombre es lo ÚNICO que cede, y cede hasta
+     * desaparecer. En un teléfono el cajón mide unos 262 px y al nombre le
+     * quedaban unos 60.
+     *
+     * Y POR QUÉ IMPORTA MÁS DE LO QUE PARECE: ésta es la pantalla desde la
+     * que se pulsa «Exit». Se estaba sacando material del almacén sin poder
+     * leer cuál. El dato que decide la acción era el único invisible.
+     *
+     * El arreglo no es darle más sitio quitándoselo a otro —en 262 px no hay
+     * reparto que alcance— sino darle LA LÍNEA ENTERA y bajar lo demás. Una
+     * fila de dos líneas en un teléfono no cuesta nada; una equivocación de
+     * inventario sí.
+     *
+     * Sólo en pantalla estrecha. En el escritorio el cajón mide 400 px y ahí
+     * la fila de una línea entra bien y se lee entera. */
+    @media (max-width:560px){
+      /* EL ANCHO NO SE TOCA. Lo puse en 92vw y `test-responsive-polish.js` me
+         paró en seco: los dos tercios los decidió Jose en la v9.89, y el
+         comentario de esa prueba lo dice con todas las letras — "wider than
+         the other two on purpose (Jose's own distinction), not nearly the
+         whole screen either".
+         Y resulta que no hacía falta: apilando la fila, el nombre pasa de
+         ~60px a ~225px dentro de los mismos 262px del cajón. Mi cambio no
+         arreglaba nada que esto no arregle ya, y encima deshacía una decisión
+         suya. La prueba hizo exactamente su trabajo. */
+      .rdw-item{flex-wrap:wrap;row-gap:.3rem}
+      /* La línea entera para el nombre: con 100% menos lo que ocupa el punto,
+         empuja a los demás a la fila de abajo. */
+      /* 1.6rem y no 1.1: el punto mide 10px y el hueco entre elementos es
+         .5rem (8px), o sea 18px en total. Con `calc(100% - 1.1rem)` —17,6px—
+         me quedaba corto por cuatro décimas de píxel y el punto se caía a su
+         propia línea, encima del nombre. Medido en el navegador, no a ojo. */
+      .rdw-name{flex:1 0 calc(100% - 1.6rem);white-space:normal;overflow:visible;
+                text-overflow:clip;font-size:var(--fs-base)}
+      /* Y los números se alinean con el nombre, no con el punto. */
+      .rdw-rack-qty{margin-left:1.6rem}
+      /* El botón de reservar al final de su fila, para que la cantidad y el
+         total queden juntos y se lean como una sola cosa. */
+      .rdw-lock-btn,.rdw-lock-badge{margin-left:auto}
+    }
     .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:var(--z-drawer-back);background:rgba(0,0,0,.3)}
     .rack-drawer-overlay.open{display:block}
     /* ── ALERTS ── */
@@ -503,12 +653,12 @@
     .wiz-nav .btn{border:1px solid #E5E7EB;background:#fff;color:#374151}
     .wiz-nav .btn-primary{background:#3B7DD8;border-color:#3B7DD8;color:#fff}
     .wiz-preset{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
-    .wiz-preset button{flex:1;min-width:150px;padding:.85rem;border:2px solid #E5E7EB;border-radius:10px;background:#fff;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;color:#111827;transition:.15s;text-align:left}
+    .wiz-preset button{flex:1;min-width:150px;padding:.85rem;border:2px solid #E5E7EB;border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:var(--fs-lg);font-weight:600;color:#111827;transition:.15s;text-align:left}
     .wiz-preset button:hover,.wiz-preset button.sel{border-color:#3B7DD8;background:#EFF6FF}
     .wiz-preset span{display:block;font-size:.72rem;font-weight:400;color:#6B7280;margin-top:.2rem}
     .chip-box{display:flex;flex-wrap:wrap;gap:.4rem;padding:.6rem;border:1px solid #E5E7EB;border-radius:8px;min-height:52px;background:#F8FAFC}
     .chip{display:inline-flex;align-items:center;gap:.35rem;background:#DBEAFE;color:#2563EB;border-radius:16px;padding:3px 8px 3px 11px;font-size:.8rem;font-weight:600}
-    .chip button{border:none;background:none;color:#2563EB;cursor:pointer;font-size:.9rem;line-height:1;padding:0 2px;opacity:.6}
+    .chip button{border:none;background:none;color:#2563EB;cursor:pointer;font-size:var(--fs-xl);line-height:1;padding:0 2px;opacity:.6}
     .chip button:hover{opacity:1;color:#EF4444}
     .wiz-gen{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
     .wiz-userrow{display:grid;grid-template-columns:1fr 130px 34px;gap:.5rem;margin-bottom:.5rem;align-items:center}
@@ -533,12 +683,12 @@
     .setup-nudge.returning{animation:nudge-return 1.15s cubic-bezier(.22,.61,.36,1) both}
     .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:.4rem}
     .setup-nudge:hover .nudge-act{display:flex}
-    .setup-nudge button{border:none;border-radius:6px;padding:.3rem .6rem;font-size:.74rem;font-weight:600;cursor:pointer;font-family:inherit}
+    .setup-nudge button{border:none;border-radius:var(--r-btn);padding:.3rem .6rem;font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:inherit}
     @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:1.25rem}.wiz-gen{grid-template-columns:1fr}}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:var(--z-overlay);align-items:center;justify-content:center;padding:15px}
     .ri-photo-thumb{position:relative;width:52px;height:52px;flex-shrink:0}
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
-    .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:.65rem;cursor:pointer;line-height:1;padding:0}
+    .ri-photo-thumb button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:var(--fs-2xs);cursor:pointer;line-height:1;padding:0}
     .overlay.show{display:flex}
     /* ── An open window is the only thing you can touch ──────────────────────
        The dark backdrop already covers the screen, so the MOUSE was never the
@@ -631,7 +781,31 @@
        que girar signifique lo mismo en toda la app. */
     .top-banner .tb-spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.4);
       border-top-color:#fff;border-radius:50%;display:inline-block;animation:btnspin .7s linear infinite}
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:90vh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    /* ── EL TECLADO Y EL BOTÓN DE GUARDAR ───────────────────────────────────
+     *
+     * Jose, 2026-10-12, con vídeo del teléfono: abre el formulario de salida,
+     * toca un campo, sale el teclado y el botón de guardar no está por ningún
+     * lado. Hay que cerrar el teclado y buscarlo.
+     *
+     * Y NO ERA QUE FALTARA LA BARRA FIJA: `.modal-actions` es `position:sticky;
+     * bottom:…` desde hace versiones y funciona. El fallo estaba aquí, en una
+     * sola letra.
+     *
+     * `vh` en Android NO ENCOGE cuando sale el teclado. Es el "large viewport":
+     * mide la pantalla entera a propósito, para que una página no dé saltos
+     * cada vez que aparece y desaparece la barra del navegador. O sea que la
+     * ventana seguía midiendo el 90% de la pantalla COMPLETA, y su barra fija
+     * se quedaba pegada al fondo de una ventana que continúa por debajo del
+     * teclado. Fija, sí — pero fija donde no se ve.
+     *
+     * `dvh` es el "dynamic viewport": el que SÍ encoge con el teclado. Con él
+     * la ventana se recorta a lo que de verdad queda visible y su barra de
+     * botones vuelve a quedar donde tiene que estar, justo encima del teclado.
+     *
+     * Las dos líneas, y en este orden: un navegador que no entienda `dvh`
+     * ignora la segunda y se queda con `vh`, que es exactamente como se
+     * comporta hoy. No puede empeorar en ningún sitio. */
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:90vh;max-height:90dvh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
     /* Standardized size tiers (scale with viewport via min(), never grow past
        that from content) — every popup uses one of these three instead of an
        ad-hoc per-modal pixel value. Content still picks the tier that fits it
@@ -666,7 +840,7 @@
     .flash-hdr{animation:hdr-flash .55s ease}
     /* ── MOVE TYPE BAR ── */
     .modal-type-bar{display:flex;gap:4px;background:#F3F4F6;padding:4px;border-radius:8px;margin-bottom:1.25rem;flex-wrap:wrap}
-    .modal-type-bar button{flex:1;border:none;border-radius:6px;padding:.45rem .5rem;font-size:.78rem;font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
+    .modal-type-bar button{flex:1;border:none;border-radius:var(--r-btn);padding:.45rem .5rem;font-size:var(--fs-md);font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
     .modal-type-bar button:hover{background:rgba(0,0,0,.06);color:var(--text)}
     .modal-type-bar button.active-entry{background:var(--green-bg);color:var(--green)}
     .modal-type-bar button.active-exit{background:var(--red-bg);color:var(--red)}
@@ -735,7 +909,7 @@
        con la que llegaron. */
     .modal-actions .btn,
     .modal-actions .btn.btn-sm{min-width:7.5rem;flex:0 0 auto;
-      padding:.5rem 1rem;font-size:.85rem}
+      padding:.5rem 1rem;font-size:var(--fs-lg)}
     .btn{white-space:nowrap}
     /* ── NOTIFY SECTION ── */
     .notify-section{margin-top:1rem;padding:1rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
@@ -755,9 +929,9 @@
     .loc-row input[type="text"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
     .loc-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
     .loc-row input[type="number"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
-    .loc-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .loc-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .loc-row .btn-remove-loc:hover{background:var(--red);color:#fff}
-    .btn-add-loc{background:none;border:1px dashed #059669;color:var(--green);border-radius:6px;padding:.35rem .85rem;font-size:.8rem;font-weight:600;cursor:pointer;margin-top:.35rem;width:100%;transition:.15s}
+    .btn-add-loc{background:none;border:1px dashed #059669;color:var(--green);border-radius:var(--r-btn);padding:.35rem .85rem;font-size:var(--fs-base);font-weight:600;cursor:pointer;margin-top:.35rem;width:100%;transition:.15s}
     .btn-add-loc:hover{background:var(--green-bg)}
     /* ── MULTI-SOURCE (EXIT) ── */
     .multi-exit-section{margin-top:.75rem;padding:.85rem 1rem;background:#FFF5F5;border:1px solid #FECACA;border-radius:8px}
@@ -774,7 +948,7 @@
        "ok" state is a real number worth one-tapping into place. */
     .exit-avail.ok, .el-avail.ok, .mstock-avail.ok{cursor:pointer}
     .exit-avail.ok:hover, .el-avail.ok:hover{text-decoration:underline}
-    .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     /* ── MULTI-PAIR TRANSFER ── */
     .transfer-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
@@ -783,7 +957,7 @@
     .transfer-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
     .transfer-row input[type="number"]:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
     .transfer-row .exit-avail{flex:1.6;font-size:.78rem;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;min-width:80px}
-    .transfer-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:5px 9px;cursor:pointer;font-size:.85rem;font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
+    .transfer-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .transfer-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     .transfer-loc-chip.used{opacity:.4;cursor:default;pointer-events:none}
     /* ── The material box for TRANSFER / RETURN / WASTE ──
@@ -891,8 +1065,8 @@
     .pack-note.known{background:var(--green-bg);color:var(--green);border:1px solid #BBF7D0}
     .pack-note .pack-qty{width:5.5rem;padding:.25rem .45rem;border:1px solid var(--border);
                          border-radius:5px;font-family:inherit;font-size:.8rem}
-    .pack-note button{border:none;border-radius:5px;padding:.25rem .7rem;cursor:pointer;
-                      font-family:inherit;font-size:.76rem;font-weight:600;transition:.15s}
+    .pack-note button{border:none;border-radius:var(--r-btn);padding:.25rem .7rem;cursor:pointer;
+                      font-family:inherit;font-size:var(--fs-md);font-weight:600;transition:.15s}
     .pack-note .pack-save{background:var(--accent2);color:#fff}
     .pack-note .pack-save:hover{background:var(--accent)}
     .pack-note .pack-change{background:none;color:var(--green);text-decoration:underline;padding:.25rem .2rem}
@@ -1026,19 +1200,19 @@
        (that used to make it balloon huge in some places, thin in others).
        Caps to 40vw so it can't overflow a narrow/mobile viewport either. */
     .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;overflow-x:hidden;z-index:var(--z-suggest);background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
-    .inc-suggest-hdr{padding:.3rem .7rem;font-size:.68rem;font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
+    .inc-suggest-hdr{padding:.3rem .7rem;font-size:var(--fs-xs);font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
     /* ── EL CUADRO DE POSIBLE DUPLICADO ──────────────────────────────────────
        Dos columnas y una fila por campo, porque comparar dos entregas es leer
        de lado a lado. Dos tarjetas sueltas —que es lo primero que uno dibuja—
        obligan a saltar arriba y abajo para casar cada dato con el suyo. */
-    .dup-tabla{width:100%;border-collapse:collapse;font-size:.82rem}
-    .dup-tabla th{text-align:left;padding:.45rem .6rem;font-size:.7rem;font-weight:700;
+    .dup-tabla{width:100%;border-collapse:collapse;font-size:var(--fs-base)}
+    .dup-tabla th{text-align:left;padding:var(--pad-celda-sm);font-size:var(--fs-xs);font-weight:700;
       text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border)}
     .dup-tabla th.dup-col-vieja{color:var(--muted)}
     .dup-tabla th.dup-col-nueva{color:var(--accent)}
-    .dup-tabla td{padding:.4rem .6rem;border-bottom:1px solid var(--border);
+    .dup-tabla td{padding:var(--pad-celda-sm);border-bottom:1px solid var(--border);
       vertical-align:top;overflow-wrap:anywhere}
-    .dup-tabla td.dup-campo{color:var(--muted);font-size:.68rem;font-weight:700;
+    .dup-tabla td.dup-campo{color:var(--muted);font-size:var(--fs-xs);font-weight:700;
       text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;width:1%}
     /* Lo que DIFIERE se marca, no lo que coincide. Marcar las coincidencias
        pintaría de color casi toda la tabla justo cuando es un duplicado, que es
@@ -1049,12 +1223,12 @@
     .dup-acciones{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem;justify-content:flex-end}
     .dup-acciones button{flex:0 1 auto}
     @media (max-width:560px){ .dup-acciones button{flex:1 1 100%} }
-    .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:.2rem .5rem;transition:background .12s}
+    .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:var(--fs-base);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:.2rem .5rem;transition:background .12s}
     .inc-suggest-item:last-child{border-bottom:none}
     .inc-suggest-item:hover{background:#EFF6FF}
-    .inc-suggest-item .inc-tag{font-size:.68rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
+    .inc-suggest-item .inc-tag{font-size:var(--fs-xs);font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
     .inc-suggest-item>span:not(.inc-tag):not(.inc-meta){flex:1 1 100px;min-width:0;overflow-wrap:break-word;word-break:break-word}
-    .inc-suggest-item .inc-meta{font-size:.72rem;color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
+    .inc-suggest-item .inc-meta{font-size:var(--fs-sm);color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
     /* ── CONFIRM DIALOG ── */
     .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:1rem}
     .cconfirm-overlay.show{display:flex}
@@ -1065,7 +1239,7 @@
     .cconfirm-body h3{font-size:1.05rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
     .cconfirm-body p{font-size:.88rem;color:var(--muted);line-height:1.5;white-space:pre-line}
     .cconfirm-footer{padding:.85rem 1.25rem 1.25rem;display:flex;gap:.6rem;justify-content:center}
-    .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;transition:.15s}
+    .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:var(--r-btn);font-size:var(--fs-xl);font-weight:600;border:none;cursor:pointer;transition:.15s}
     .cconfirm-footer button:hover{filter:brightness(.9)}
     .cconfirm-cancel{background:var(--border);color:var(--text)}
     /* La X de salir. `position:relative` en el diálogo para que se ancle a él. */
@@ -1106,7 +1280,7 @@
     .el-avail.ok{color:var(--green)}.el-avail.warn{color:var(--red)}.el-avail.neutral{color:var(--muted)}
     .exit-loc-row .el-rm{background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;flex-shrink:0;line-height:1;padding:0 2px}
     .exit-mat-foot{display:flex;gap:.4rem;margin-top:.35rem}
-    .exit-mat-foot button{flex:1;font-size:.8rem;padding:.35rem .85rem;border-radius:6px;cursor:pointer;font-family:inherit;border:1px dashed;font-weight:600;transition:.15s;background:none}
+    .exit-mat-foot button{flex:1;font-size:var(--fs-base);padding:.35rem .85rem;border-radius:var(--r-btn);cursor:pointer;font-family:inherit;border:1px dashed;font-weight:600;transition:.15s;background:none}
     .exit-mat-foot .btn-add-exit-loc{border-color:var(--red);color:var(--red);background:none}
     .exit-mat-foot .btn-add-exit-loc:hover{background:var(--red-bg)}
     .exit-mat-foot .btn-autofill-exit{border-color:var(--accent);color:var(--accent);background:none}
@@ -1186,7 +1360,7 @@
        link and a bug button side by side, which is a lot of furniture to read
        past before getting to the inventory. */
     .acct-wrap{position:relative}
-    .acct-btn{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.28);background:var(--accent);color:#fff;font-size:.76rem;font-weight:800;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:box-shadow .15s,transform .15s;font-family:inherit}
+    .acct-btn{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.28);background:var(--accent);color:#fff;font-size:var(--fs-md);font-weight:800;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:box-shadow .15s,transform .15s;font-family:inherit}
     .acct-btn:hover{transform:scale(1.05)}
     .acct-btn.open{box-shadow:0 0 0 4px rgba(255,255,255,.16)}
     .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.26);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
@@ -1251,8 +1425,8 @@
     .lg-body li{margin:.25rem 0}
     .lg-body hr{border:none;border-top:1px solid var(--border);margin:1rem 0}
     .lg-body a{color:var(--accent);word-break:break-word}
-    .lg-table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.78rem}
-    .lg-table th,.lg-table td{border:1px solid var(--border);padding:.4rem .55rem;text-align:left;vertical-align:top}
+    .lg-table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:var(--fs-md)}
+    .lg-table th,.lg-table td{border:1px solid var(--border);padding:var(--pad-celda-sm);text-align:left;vertical-align:top}
     .lg-table th{background:var(--bg);font-weight:700}
     @media(max-width:640px){
       /* Jose: 3/4 of the screen, not nearly the whole thing (v9.89) — the
@@ -1319,7 +1493,7 @@
     .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
     .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;background:var(--navy);color:#fff;flex-shrink:0}
     .media-preview-hdr span{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:.75rem}
-    .media-preview-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.9rem;flex-shrink:0}
+    .media-preview-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:var(--r-btn);padding:3px 10px;cursor:pointer;font-size:var(--fs-xl);flex-shrink:0}
     .media-preview-hdr button:hover{background:rgba(255,255,255,.28)}
     .media-preview-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#111}
     .media-preview-body img{max-width:100%;max-height:80vh;object-fit:contain}
@@ -1335,7 +1509,7 @@
     .rack-photo-card .rpc-empty{width:52px;height:52px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.4rem;background:#f3f4f6;border:1px dashed var(--border);border-radius:5px}
     .rack-photo-card .rpc-name{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
     .rack-photo-card .rpc-qty{font-size:.58rem;font-weight:600;color:var(--accent2)}
-    .rack-photo-card .rpc-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:.6rem;cursor:pointer;line-height:1;padding:0;opacity:0;transition:.15s}
+    .rack-photo-card .rpc-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--navy);color:#fff;border:2px solid var(--card);font-size:var(--fs-2xs);cursor:pointer;line-height:1;padding:0;opacity:0;transition:.15s}
     .rack-photo-card:hover .rpc-btn,.rack-photo-card .rpc-btn:focus{opacity:1}
     .rack-photo-card .rpc-btn:hover{background:var(--accent)}
     @media (hover:none){.rack-photo-card .rpc-btn{opacity:1}}
@@ -1550,16 +1724,16 @@
       display:grid;grid-template-columns:46px 48px;gap:5px;align-items:baseline}
     #tableContainer td.mc-qty .qv{
       text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
-    #tableContainer td.mc-qty .qv.qty-lg{font-size:.82rem}
+    #tableContainer td.mc-qty .qv.qty-lg{font-size:var(--fs-base)}
     #tableContainer td.mc-qty .qu{
-      text-align:left;color:var(--muted);font-size:.78rem;
+      text-align:left;color:var(--muted);font-size:var(--fs-md);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
     /* Mismo alto, mismo ancho, mismo sitio: sólo cambia el color. */
     .btn.col-open{background:var(--accent);color:#fff;border-color:var(--accent)}
     .mov-act-sep{display:inline-flex;align-items:center;gap:.4rem;
       padding-left:.7rem;margin-left:.35rem;border-left:1px solid var(--border)}
-    .mov-sel-count{font-size:.74rem;color:var(--muted);min-width:5.5rem}
+    .mov-sel-count{font-size:var(--fs-sm);color:var(--muted);min-width:5.5rem}
     .mov-sel-cell{width:32px;text-align:center}
     .mov-select-cb{cursor:pointer}
     .mov-select-cb:disabled{cursor:not-allowed;opacity:.35}
@@ -1677,7 +1851,7 @@
     .cfg-item:last-child{border-bottom:none}
     .cfg-item-name{flex:1;font-weight:500}
     .cfg-item-input{flex:1;padding:.3rem .5rem;border:1px solid var(--accent);border-radius:5px;font-size:.85rem;font-family:inherit}
-    .cfg-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:.75rem;cursor:pointer;transition:.15s;white-space:nowrap}
+    .cfg-btn{background:none;border:1px solid var(--border);border-radius:var(--r-btn);padding:2px 8px;font-size:var(--fs-sm);cursor:pointer;transition:.15s;white-space:nowrap}
     .cfg-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
     .cfg-btn-danger{border-color:var(--red);color:var(--red)}
     .cfg-btn-danger:hover{background:var(--red);color:#fff;border-color:var(--red)}
@@ -1699,7 +1873,7 @@
     .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.1);margin-bottom:1rem;overflow:hidden}
     .stock-detail-panel.open{display:block}
     .stock-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--navy);color:#fff;font-size:.8rem;font-weight:700}
-    .stock-detail-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:1rem;cursor:pointer}
+    .stock-detail-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:var(--fs-2xl);cursor:pointer}
     .stock-detail-hdr button:hover{color:#fff}
     .stock-detail-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
     .sdp-section{padding:.75rem 1rem}
@@ -1712,7 +1886,7 @@
     .alert-banner{cursor:pointer;transition:opacity .15s}
     .alert-banner:hover{opacity:.88}
     .alert-banner-actions{display:flex;gap:.5rem;align-items:center;margin-left:auto;flex-shrink:0}
-    .alert-banner-actions button{background:rgba(0,0,0,.15);border:none;color:inherit;border-radius:6px;padding:2px 8px;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap}
+    .alert-banner-actions button{background:rgba(0,0,0,.15);border:none;color:inherit;border-radius:var(--r-btn);padding:2px 8px;font-size:var(--fs-sm);cursor:pointer;font-weight:600;white-space:nowrap}
     .alert-banner-actions button:hover{background:rgba(0,0,0,.28)}
     /* La oferta de crear el Entry, dentro de la ventana de la entrega. Se
        muestra sólo cuando el estado es Arrived: ofrecerla sobre algo que
@@ -1809,7 +1983,7 @@
        supplier desaparecería entero en vez de acortarse.
        Los dos llevan title, porque recortar en pantalla no puede ser perder el
        dato — el texto completo se lee pasando el mouse. */
-    .inc-item-name{font-size:.82rem;line-height:1.35;color:var(--text);
+    .inc-item-name{font-size:var(--fs-base);line-height:var(--lh-normal);color:var(--text);
                    display:flex;align-items:baseline;min-width:0;flex-wrap:nowrap}
     .inc-name-txt,.inc-name-sup{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .inc-name-txt{flex:1 1 auto;min-width:0}
@@ -1824,18 +1998,18 @@
     .inc-name-sup{flex:0 0 auto;max-width:55%;margin-left:.4rem;
                   background:var(--navy);color:#fff;
                   padding:.1rem .45rem;border-radius:20px;
-                  font-size:.7rem;font-weight:600;line-height:1.5}
+                  font-size:var(--fs-xs);font-weight:600;line-height:var(--lh-amplia)}
     /* El clip nunca encoge: es un objetivo de toque, no texto. */
     .inc-item-name > a{flex:none}
-    .inc-item-meta{color:var(--muted);font-size:.72rem;line-height:1.4;margin-top:.1rem;overflow-wrap:anywhere}
+    .inc-item-meta{color:var(--muted);font-size:var(--fs-sm);line-height:var(--lh-normal);margin-top:.1rem;overflow-wrap:anywhere}
     /* The right column never shrinks and never wraps its own contents: a
        quantity broken across two lines is unreadable, and the whole reason it
        is over here is to be scannable. */
     .inc-item-side{flex:none;display:flex;flex-direction:column;align-items:flex-end;
                    gap:.25rem;text-align:right;white-space:nowrap}
-    .inc-item-qty{font-weight:700;font-size:.82rem;line-height:1.35}
-    .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
-    .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700}
+    .inc-item-qty{font-weight:700;font-size:var(--fs-base);line-height:var(--lh-normal)}
+    .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700}
+    .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700}
     /* Dónde se puso: sólo aparece cuando la entrada existe de verdad. Ver
        _incEntryWhere — si no hay entrada, esta línea NO se dibuja, y ese hueco
        es la señal de que llegó material que todavía nadie registró.
@@ -1844,15 +2018,15 @@
        verde de aquí dice "llegó", y eso ya lo dice la etiqueta justo encima;
        repetirlo en el estante no añade nada y le quita fuerza al sitio donde sí
        significa algo. El estante es un dato que se lee, no un estado. */
-    .inc-item-where{font-size:.72rem;line-height:1.35;color:var(--text);font-weight:600}
+    .inc-item-where{font-size:var(--fs-sm);line-height:var(--lh-normal);color:var(--text);font-weight:600}
     /* EL "ARRIVED" MÁS GRANDE, Y SÓLO EN EL POPUP. Jose: "no quiero más grande
        el arrived aquí en incomings, sino más grande el arrived en el popup".
        En la pestaña de Incoming la etiqueta va en una tabla de muchas filas y
        crecer allí es ruido; en el popup son tres o cuatro renglones que se
        miran una vez, de pie, con el teléfono en la mano. Es la misma etiqueta
        leída en dos sitios distintos, no dos etiquetas. */
-    #morningPopupBody .inc-status-arrived{font-size:.82rem;padding:.18rem .7rem}
-    #morningPopupBody .inc-item-where{font-size:.78rem}
+    #morningPopupBody .inc-status-arrived{font-size:var(--fs-base);padding:.18rem .7rem}
+    #morningPopupBody .inc-item-where{font-size:var(--fs-md)}
     /* EL RECUADRO ES GRIS Y EL COLOR SE GUARDA PARA LO QUE LO NECESITA.
        Jose, con la captura: "no me gusta que todo esté en verde, y las letras
        verdes sobre verde no quedan bien. Haz el color de la tarjeta gris y que
@@ -1898,11 +2072,11 @@
     .ei-grid input:focus,.ei-grid select:focus{outline:none;border-color:var(--accent)}
     .ei-foot{display:flex;gap:.5rem;justify-content:flex-end;align-items:center;margin-top:.6rem}
     .ei-guess{font-size:.7rem;color:var(--yellow);font-weight:700;flex:1}
-    .inc-group-row td{background:var(--bg);padding:.45rem .75rem;border-top:2px solid var(--border)}
-    .inc-group-lbl{font-size:.76rem;font-weight:800;color:var(--text);letter-spacing:.01em}
-    .inc-group-count{font-size:.68rem;font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
-    .inc-group-note{font-size:.7rem;color:var(--muted);margin-left:.6rem;font-weight:400}
-    .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:.68rem;font-weight:700;text-decoration:line-through}
+    .inc-group-row td{background:var(--bg);padding:var(--pad-celda);border-top:2px solid var(--border)}
+    .inc-group-lbl{font-size:var(--fs-md);font-weight:800;color:var(--text);letter-spacing:.01em}
+    .inc-group-count{font-size:var(--fs-xs);font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
+    .inc-group-note{font-size:var(--fs-xs);color:var(--muted);margin-left:.6rem;font-weight:400}
+    .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700;text-decoration:line-through}
     /* ── MORNING POPUP ── */
     /* z-index 540 IS THE WHOLE FIX, and the number is not arbitrary.
        It was 2000 — tied with the setup wizard and 1450 above every modal in
@@ -1921,7 +2095,7 @@
     .morning-overlay.show .morning-popup{transform:translateY(0)}
     .morning-popup-hdr{background:var(--navy);color:#fff;padding:1.1rem 1.4rem;display:flex;align-items:center;justify-content:space-between;border-radius:14px 14px 0 0}
     .morning-popup-hdr h3{font-size:1rem;font-weight:700;margin:0}
-    .morning-popup-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:1.2rem;cursor:pointer;line-height:1;padding:0}
+    .morning-popup-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:var(--fs-4xl);cursor:pointer;line-height:1;padding:0}
     .morning-popup-body{overflow-y:auto;padding:1rem 1.4rem;flex:1}
     .morning-today{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
     .morning-today-label{font-size:.7rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:.4rem}
@@ -1930,7 +2104,7 @@
        .inc-item, the same as the week cards, so one delivery looks the same
        wherever it appears. */
     .morning-arrived{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;
-      padding:.2rem .5rem;font-size:.72rem;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
+      padding:.2rem .5rem;font-size:var(--fs-sm);font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
     .morning-arrived:hover{background:var(--accent);color:#fff}
     /* Briefly marks the one field a shortcut just changed on the reader's
        behalf, so nothing is altered invisibly. */
@@ -1998,12 +2172,12 @@
        de arriba es el que se busca con la vista —el nombre, el rol— y el de
        abajo el que se consulta cuando ya encontraste la fila. */
     .usr-two{display:flex;flex-direction:column;gap:.1rem;min-width:0}
-    .usr-top{font-size:.84rem;font-weight:600;line-height:1.25;
+    .usr-top{font-size:var(--fs-lg);font-weight:600;line-height:var(--lh-compacta);
              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     /* El correo se parte si hace falta: es lo único de esta tabla que puede ser
        larguísimo, y cortarlo con puntos suspensivos escondería justo la parte
        que distingue a dos personas de la misma empresa. */
-    .usr-sub{font-size:.72rem;color:var(--muted);line-height:1.3;
+    .usr-sub{font-size:var(--fs-sm);color:var(--muted);line-height:var(--lh-compacta);
              overflow-wrap:anywhere}
     .usr-bar{margin-bottom:.75rem}
     /* La casilla de uno mismo no se puede marcar, y tiene que NOTARSE que no
@@ -2118,16 +2292,82 @@
     /* Arriving from off-screen right. The card is already at its resting size
        when it lands, so it does not grow and slide at the same time — one
        movement at a time is what makes either of them readable. */
-    @keyframes deck-in-rest{from{transform:translateX(150%) scale(.88);opacity:0}to{transform:scale(.88);opacity:1}}
-    @keyframes deck-in-open{from{transform:translateX(150%);opacity:0}to{transform:none;opacity:1}}
-    .deck:not(.open) .deck-card.entering{animation:deck-in-rest var(--deck-in) var(--deck-ease) both}
-    .deck.open .deck-card.entering{animation:deck-in-open var(--deck-in) var(--deck-ease) both}
+    /* ── UNA ENTRADA, Y DOS SALIDAS QUE SIGNIFICAN COSAS DISTINTAS ──────────
+     *
+     * Jose, 2026-10-12: "hay 2 movimientos de entrada y 1 de salida, no debe
+     * ser asi". Tenía razón. Había DOS animaciones de entrada:
+     *
+     *     deck-in-rest   — con el mazo cerrado, acaba en scale(.88)
+     *     deck-in-open   — con el mazo abierto, acaba en scale(1)
+     *
+     * Existían porque la tarjeta descansa al 88% cerrada y al 100% abierta, y
+     * una animación de keyframes tiene que terminar en un sitio CONCRETO. Tres
+     * problemas salían de ahí:
+     *
+     *   · Dos cosas que tienen que coincidir sin que nada lo obligue — el
+     *     patrón que este repositorio ya tiene contado ocho veces.
+     *   · Si el mazo se ABRÍA mientras una tarjeta entraba, la regla que
+     *     aplica cambiaba a media animación y la tarjeta PEGABA UN SALTO.
+     *   · La entrada era `animation` y la salida `transition`. Dos mecanismos
+     *     para el mismo movimiento, y por eso entrar y salir no se sentían
+     *     igual aunque el tiempo fuera el mismo.
+     *
+     * AHORA ES UNA TRANSICIÓN, como la salida. La tarjeta nace desplazada a la
+     * derecha; al quitarle la clase en el cuadro siguiente transiciona hacia
+     * SU transform normal — `scale(.88)` cerrada, `none` abierta — porque la
+     * regla de reposo ya existe (`.deck:not(.open) .deck-card`). Un solo
+     * bloque sirve para los dos estados, así que no hay nada que pueda
+     * desincronizarse, y si el mazo se abre a media entrada la transición
+     * simplemente cambia de destino sin saltar: eso es lo que una transición
+     * hace y una animación no.
+     *
+     * Los dos selectores son para ganarle en especificidad a la regla de
+     * reposo (0-3-0). Son dos selectores de UN MISMO bloque, que no es lo
+     * mismo que dos bloques: no hay dos verdades que mantener de acuerdo. */
+    .deck:not(.open) .deck-card.llegando,
+    .deck.open .deck-card.llegando{transform:translateX(150%) scale(.88);opacity:0}
+
+    /* ── LA DIRECCIÓN DICE QUÉ PASÓ ─────────────────────────────────────────
+     *
+     * Idea de Jose, y el fundamento es correcto: hasta hoy la tarjeta se iba
+     * POR DONDE VINO —hacia la derecha— tanto si la aceptabas como si la
+     * descartabas. Irse hacia atrás se lee como "deshacer", que es justo lo
+     * contrario de lo que pasa cuando algo se guarda.
+     *
+     *   ACEPTADA  → sigue de largo hacia la IZQUIERDA, hacia dentro de la
+     *               app, mientras se desvanece. "Esto entró al sistema."
+     *   DESCARTADA → se desvanece SIN MOVERSE. "Esto no hizo nada."
+     *
+     *       se mueve = algo pasó  ·  no se mueve = no pasó nada
+     *
+     * MUEVE POCO, y es deliberado. Jose propuso que cruzara; una tarjeta
+     * volando media pantalla por encima del mapa de la bodega es ruido, y la
+     * dirección se lee igual de bien con un palmo que con media pantalla. Lo
+     * justo para entenderla.
+     *
+     * Y la descartada NO desaparece de golpe, que es lo que Jose propuso
+     * primero: una tarjeta que se borra en un cuadro, con las de abajo
+     * saltando a llenar el hueco, parece que la app se rompió en vez de que
+     * tomaste una decisión. Desvanecerse en su sitio conserva entera la
+     * distinción que él quería —se mueve / no se mueve— sin parecer una
+     * avería. Si al verlo prefiere el corte seco, es quitar la transición de
+     * opacidad de esta regla y ya está.
+     *
+     * Las dos devuelven su altura igual (margin-bottom negativo), para que lo
+     * de abajo suba con suavidad en los dos casos. Eso no es decoración: sin
+     * ello el resto del mazo da un salto. */
+    .deck-card.saliendo-aceptada,
+    .deck-card.saliendo-descartada{opacity:0;pointer-events:none;
+      margin-bottom:calc(-1 * (var(--card-h) + .45rem));transition-delay:0s!important}
+    .deck-card.saliendo-aceptada{transform:translateX(-22%) scale(.94)}
     /* Leaving. The card slides out to the right and gives its height back over
        the same beat, so everything below rises into the gap instead of jumping.
        margin-bottom is what moves the others: shrinking it by the card's own
        height pulls the whole column up, and because it is on the transition
        list above it does it over time rather than in one frame. */
-    .deck-card.leaving{opacity:0;transform:translateX(150%) scale(.9);margin-bottom:calc(-1 * (var(--card-h) + .45rem));pointer-events:none;transition-delay:0s!important}
+    /* `.leaving` se retiró en la v12.58. Era la salida ÚNICA —hacia la
+       derecha, por donde la tarjeta había venido— y la sustituyen las dos de
+       arriba, que dicen cosas distintas. */
     .sys-card{--card-h:112px;--card-w:352px;cursor:pointer}
 
     /* ── LA TARJETA DE ENTRADA PENDIENTE ──────────────────────────────────────
@@ -2277,7 +2517,7 @@
     .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
     .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
-    .cfg-card-acts button{border:none;border-radius:6px;padding:.28rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-card-acts button{border:none;border-radius:var(--r-btn);padding:.28rem .6rem;font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-card-add{background:var(--accent);color:#fff}
     .cfg-card-add:disabled{opacity:.6;cursor:default}
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
@@ -2309,7 +2549,7 @@
     .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);z-index:var(--z-bell);max-height:70vh;overflow-y:auto}
     .cfg-bell-panel.show{display:block}
     .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
-    .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:.95rem;cursor:pointer}
+    .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer}
     .cfg-bell-row{padding:.6rem .8rem;border-bottom:1px solid var(--border)}
     .cfg-bell-row:last-child{border-bottom:none}
     .cfg-bell-row .cfg-card-lbl{color:var(--muted)}
@@ -2373,7 +2613,7 @@
        until a mode is switched on, so a list reads as a list and deleting is
        something you have to mean. */
     .row-mode-bar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 .7rem}
-    .rm-btn{display:inline-flex;align-items:center;gap:.3rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:.3rem .7rem;font-size:.78rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.15s}
+    .rm-btn{display:inline-flex;align-items:center;gap:.3rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:var(--r-btn);padding:.3rem .7rem;font-size:var(--fs-md);font-weight:700;font-family:inherit;cursor:pointer;transition:.15s}
     .rm-btn:hover{border-color:var(--accent)}
     .rm-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
     .rm-btn.rm-del:hover{border-color:var(--red)}
@@ -2385,7 +2625,7 @@
        the instant a hint appeared. Text always renders below the buttons
        now, and the buttons themselves stay put since the bar's own width
        no longer grows with the hint's length. */
-    .rm-hint{font-size:.74rem;color:var(--muted);flex-basis:100%}
+    .rm-hint{font-size:var(--fs-sm);color:var(--muted);flex-basis:100%}
     .row-mode-bar.is-del .rm-hint{color:var(--red);font-weight:600}
     /* Only ever ADDS display:none — when the mode is on the rule stops matching
        and each control keeps whatever display it had. */
@@ -2412,7 +2652,7 @@
     .col-name-ro{font-weight:700}
     .col-eye,.col-lock{background:none;border:none;cursor:pointer;font-size:.78rem;margin-left:.3rem;padding:0}
     .col-lock{cursor:default;opacity:.6}
-    .cat-fix-btn{margin-top:.35rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.3rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cat-fix-btn{margin-top:.35rem;background:var(--accent);color:#fff;border:none;border-radius:var(--r-btn);padding:.3rem .55rem;font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:inherit}
     .cat-fix-btn:hover{filter:brightness(1.1)}
     /* Own tooltip instead of the browser's title bubble: that one cannot be
        styled at all — its shape, delay, colours and single-line wrapping are
@@ -2496,8 +2736,8 @@
     .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:.1rem}
     .ap-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem}
     .ap-btn{display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;
-      font-size:.72rem;font-weight:600;color:var(--accent);
-      border:1px solid var(--border);border-radius:7px;padding:.25rem .5rem;
+      font-size:var(--fs-sm);font-weight:600;color:var(--accent);
+      border:1px solid var(--border);border-radius:var(--r-btn);padding:.25rem .5rem;
       background:var(--bg);white-space:nowrap}
     .ap-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
@@ -2564,7 +2804,7 @@
        on the menu itself - hovering the button alone would close it the moment
        the pointer travelled down toward a choice. */
     .loc-plus-wrap:hover .loc-plus-menu,.loc-plus-menu:hover{display:block}
-    .loc-plus-menu button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:.8rem;font-family:inherit;padding:.5rem .7rem;cursor:pointer}
+    .loc-plus-menu button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:var(--fs-base);font-family:inherit;padding:.5rem .7rem;cursor:pointer}
     .loc-plus-menu button:first-child{border-radius:8px 8px 0 0}
     .loc-plus-menu button:last-child{border-radius:0 0 8px 8px;border-top:none}
     .loc-plus-menu button:hover{background:var(--bg)}
@@ -2593,7 +2833,7 @@
     .loc-group-archived .loc-group-hdr{background:var(--bg)}
     .loc-group-archived .loc-item{background:transparent;border-style:dashed;color:var(--muted)}
     .loc-arch-note{font-size:.66rem;color:var(--muted);margin-left:.4rem}
-    .loc-arch-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 0 0 .2rem;line-height:1}
+    .loc-arch-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:var(--fs-base);padding:0 0 0 .2rem;line-height:1}
     .loc-arch-btn:hover{color:var(--accent)}
     /* The bin is destructive, so it does not share the archive button's accent
        hover — a row with both must not read as two shades of the same action. */
@@ -2657,12 +2897,12 @@
     .cfg-new-ok{color:var(--green);font-weight:700}
     .doc-photo-bad{border:1.5px solid var(--red)!important;background:#FEF2F2!important}
     .doc-drive-row{display:flex;gap:.4rem;align-items:center;margin-top:.45rem}
-    .doc-drive-row input{flex:1;min-width:0;padding:.38rem .6rem;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;background:var(--card);color:var(--text);min-height:36px}
+    .doc-drive-row input{flex:1;min-width:0;padding:.38rem .6rem;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;background:var(--card);color:var(--text);min-height:var(--h-btn-sm)}
     .doc-drive-row input:focus{outline:none;border-color:var(--accent)}
-    .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:.38rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:36px}
+    .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:var(--r-btn);padding:.38rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
     .btn-camera:hover{filter:brightness(1.15)}
     .btn-camera:active{transform:scale(.97)}
-    .btn-gallery{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:7px;padding:.38rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:36px}
+    .btn-gallery{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:var(--r-btn);padding:.38rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
     .btn-gallery:hover{border-color:var(--accent);color:var(--accent)}
     .doc-photo-count{font-size:.72rem;color:var(--muted);font-weight:500;margin-left:auto}
     .doc-processing{font-size:.75rem;color:var(--purple);font-style:italic}
@@ -2672,7 +2912,7 @@
     .ai-field-row{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.8rem}
     .ai-field-row label{width:90px;color:var(--muted);font-size:.73rem;flex-shrink:0}
     .ai-field-row input,.ai-field-row select{flex:1;padding:.25rem .5rem;border:1px solid #C4B5FD;border-radius:4px;font-size:.8rem;background:#fff}
-    .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:6px;padding:.35rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:.5rem}
+    .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:var(--r-btn);padding:.35rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;margin-top:.5rem}
     .ai-accept-btn:hover{filter:brightness(.9)}
     /* ── DARK MODE ── */
     [data-theme="dark"]{
@@ -2767,7 +3007,7 @@
               border-radius:10px;padding:.7rem 1rem;
               box-shadow:0 8px 32px rgba(0,0,0,.25);
               border-left:4px solid var(--accent);
-              font-size:.84rem;font-weight:500;
+              font-size:var(--fs-lg);font-weight:500;
               min-width:250px;max-width:380px;
               animation:progIn .25s ease}
     #progWrap.show{display:flex}
@@ -2791,7 +3031,7 @@
     .btn-danger:active{filter:brightness(.88)}
     .nav button:active{transform:scale(.96)}
     /* ── TOUCH TARGET FIX ── */
-    .btn-icon{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-icon{min-width:var(--h-btn-sm);min-height:var(--h-btn-sm);display:inline-flex;align-items:center;justify-content:center}
     /* ── TAB FADE TRANSITION ── */
     .section.active{animation:tabFadeIn .18s ease}
     @keyframes tabFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -2857,19 +3097,41 @@
        layout, so the app looks the same and simply becomes usable. */
     @media (pointer: coarse){
       .toolbar input,.toolbar select,.toolbar button,
-      .btn,.btn-sm{min-height:44px}
+      .btn,.btn-sm{min-height:var(--h-btn-lg)}
       /* Inside a table row the buttons stay compact — 44px each would double
          the height of every row — but 22px is not a target either. */
-      td .btn-sm,td button,.cfg-btn{min-height:34px;min-width:34px}
-      .acct-btn{width:44px;height:44px;font-size:.85rem}
-      .cfg-bell{min-width:44px;min-height:44px}
-      .nav button{min-height:44px}
+      td .btn-sm,td button,.cfg-btn{min-height:var(--h-btn-tabla);min-width:var(--h-btn-tabla)}
+
+      /* ── SALVO LO QUE DESTRUYE ALGO ───────────────────────────────────────
+       *
+       * La excepción de arriba es correcta y se queda: subir TODOS los botones
+       * de tabla a 44px duplicaría la altura de cada fila, y eso lo decidió
+       * alguien mirando el problema de verdad.
+       *
+       * Pero no se aplica igual a los dos lados. Fallar un tap en «Edit»
+       * cuesta un toque más. Fallarlo en «Delete» borra algo. Cuando las dos
+       * consecuencias son tan distintas, el mismo tamaño para las dos es la
+       * decisión equivocada aunque la altura de fila lo pida.
+       *
+       * Y el contexto manda: la gente de Jose usa esto en el teléfono, dentro
+       * de la bodega, muchas veces con guantes. 34px con guante no es un
+       * objetivo, es una apuesta.
+       *
+       * Sólo las de borrar. Una fila con un botón de 44 y los demás de 34
+       * crece 10px; subirlos todos la duplicaría. */
+      .btn-danger,.btn-remove-loc,.cfg-btn-danger,.loc-del-btn,.packs-del,
+      td .btn-danger,td .rm-btn,td .btn-remove-loc,td .cfg-btn-danger
+        {min-height:var(--h-btn-lg);min-width:var(--h-btn-lg)}
+
+      .acct-btn{width:44px;height:44px;font-size:var(--fs-lg)}
+      .cfg-bell{min-width:var(--h-btn-lg);min-height:var(--h-btn-lg)}
+      .nav button{min-height:var(--h-btn-lg)}
       /* The ones with no class of their own — a bare <button> inherits none of
          the sizing above, which is exactly why these were the smallest things
          on the screen: the ✕ on the morning popup measured 16×19. */
       .alert-banner-actions button,.morning-popup-hdr button,.rack-drawer-hdr button,
-      .rm-btn,.sys-card-x,.cfg-card-add,.cfg-card-skip{min-height:36px;min-width:36px}
-      .rm-btn,.alert-banner-actions button{min-height:40px}
+      .rm-btn,.sys-card-x,.cfg-card-add,.cfg-card-skip{min-height:var(--h-btn-sm);min-width:var(--h-btn-sm)}
+      .rm-btn,.alert-banner-actions button{min-height:var(--h-btn-md)}
       /* The connection dot keeps its size and gains a 44px hit area around it.
          A pseudo-element with no paint of its own still takes the tap, so the
          design does not change at all — the target simply stops being the size
@@ -2877,19 +3139,53 @@
       .conn-btn{position:relative}
       .conn-btn::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%}
       /* Anything a finger has to land on inside a modal, too. */
-      .modal input,.modal select,.modal textarea,.modal-type-bar button{min-height:44px}
+      .modal input,.modal select,.modal textarea,.modal-type-bar button{min-height:var(--h-btn-lg)}
     }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
       .topbar{padding:.7rem 1rem .6rem}
-      .nav button{flex-grow:1;text-align:center;min-height:38px}
+
+      /* ── LA CABECERA SE ENCOGE AL BAJAR ─────────────────────────────────
+       *
+       * Jose, 2026-10-12, con vídeo del teléfono: medido sobre su captura, el
+       * logo + «OX Glass LLC.» + la insignia Acopio + las DOS filas de
+       * pestañas ocupan cerca del 28% de la pantalla, y están ahí siempre.
+       * Antes de ver un solo dato ya has perdido casi un tercio del teléfono.
+       *
+       * El modo compacto YA EXISTE (`.topbar.merged`) y está apagado a
+       * propósito por debajo de 769 px — ver `_syncBrandWidth`. Y con razón:
+       * mete la marca DENTRO de la fila de pestañas, y en un teléfono eso no
+       * cabe. Así que esto no lo enciende; hace otra cosa.
+       *
+       * QUÉ SE VA Y QUÉ SE QUEDA. Se van el nombre de la empresa y la
+       * insignia: los lees UNA vez al abrir y no vuelven a decirte nada. Se
+       * queda el logo, encogido — es lo que confirma de un vistazo que estás
+       * en la app correcta, que importa cuando tienes doce pestañas abiertas,
+       * como se ve en el vídeo.
+       *
+       * Vuelven al subir, porque subir es el gesto de «llévame al principio».
+       *
+       * `max-height` en vez de `display:none`: lo segundo no se puede animar y
+       * la cabecera daría un salto seco. Y `overflow:hidden` para que el texto
+       * no se desborde mientras encoge. */
+      .topbar{transition:padding .18s ease}
+      .topbar.compacta{padding-top:.35rem;padding-bottom:.35rem}
+      .topbar.compacta #appTitle,
+      .topbar.compacta .brand-mark{max-height:0;opacity:0;margin:0;overflow:hidden}
+      .topbar #appTitle,.topbar .brand-mark{max-height:60px;opacity:1;
+        transition:max-height .18s ease,opacity .14s ease}
+      .topbar.compacta .app-logo{transform:scale(.72);transform-origin:left center}
+      .topbar .app-logo{transition:transform .18s ease}
+      .nav button{flex-grow:1;text-align:center;min-height:var(--h-btn-sm)}
       .toolbar{flex-direction:column;align-items:stretch;width:100%}
       .toolbar input,.toolbar select,.toolbar button{width:100%}
       .form-grid{grid-template-columns:1fr}
       .modal{--mpad:1.25rem}
-      th,td{padding:.45rem .5rem}
+      /* En el teléfono las celdas van a la densidad compacta, que es lo que
+         este número ya hacía a mano. */
+      th,td{padding:var(--pad-celda-sm)}
       .charts-grid{grid-template-columns:1fr}
-      .modal-type-bar button{padding:.4rem .25rem;font-size:.72rem;min-height:40px}
+      .modal-type-bar button{padding:.4rem .25rem;font-size:var(--fs-sm);min-height:var(--h-btn-md)}
       /* EL AVISO EN EL TELÉFONO. Jose lo fotografió dos veces, y la segunda
          vez porque la primera lo arreglé a medias.
          Esta regla pone bottom/left/right pero NO anulaba las dos cosas que
@@ -3289,7 +3585,7 @@
       <span class="mov-act-sep" id="usrRowActions" style="visibility:hidden">
         <button class="btn btn-ghost btn-sm" id="btnUsrEdit" onclick="editSelectedUser()">✏️ Edit</button>
         <button class="btn btn-ghost btn-sm" id="btnUsrActive" onclick="toggleSelectedUsers()">🚫 Deactivate</button>
-        <button class="btn btn-ghost btn-sm" id="btnUsrDelete" onclick="deleteSelectedUser()">🗑 Delete</button>
+        <button class="btn btn-danger btn-sm" id="btnUsrDelete" onclick="deleteSelectedUser()">🗑 Delete</button>
         <span id="usrSelCount" class="mov-sel-count"></span>
       </span>
     </div>
@@ -3475,7 +3771,7 @@
         <span class="info-ic tip" tabindex="0" data-tip="Drag a heading to move it &#183; click the eye to hide it &#183; click a name to rename it for everyone. Your order and what you hide are yours; a renamed heading is the company's and everyone sees it.">i</span>
         <span class="mov-act-sep" id="movActBar" style="display:none">
           <button class="btn btn-ghost btn-sm" id="btnMovEdit" onclick="editSelectedMovement()" disabled>✏️ Edit</button>
-          <button class="btn btn-ghost btn-sm" id="btnMovDel"  onclick="deleteSelectedMovements()" disabled>🗑 Delete</button>
+          <button class="btn btn-danger btn-sm" id="btnMovDel"  onclick="deleteSelectedMovements()" disabled>🗑 Delete</button>
           <!-- IMPRIMIR ETIQUETAS DESPUÉS, no sólo al guardar. Jose: "debemos
                poner alguna forma de que el usuario seleccione un material o
                movimiento y la app imprima el label que él quiera." Hasta ahora
@@ -4561,7 +4857,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.54';
+var APP_VERSION = '12.58';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4573,7 +4869,7 @@ var APP_VERSION = '12.54';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '39f7c662';
+var APP_BUILD = '83a78ea1';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6656,6 +6952,45 @@ function _syncProductLinks(productName){
 // fixed pixel breakpoint keeps being wrong — this is a measure-then-verify
 // pass, not a guess, exactly like _tipPlace's edge avoidance elsewhere
 // in this file.
+/* ── EL BLOQUE DE MARCA SE RETIRA AL BAJAR, EN EL TELÉFONO ─────────────────
+ *
+ * Ver el comentario del CSS. Aquí sólo está el disparador, y tiene tres
+ * cuidados que no son adorno:
+ *
+ *  · SÓLO por debajo de 769 px. En el escritorio la cabecera no estorba y
+ *    `.topbar.merged` ya se ocupa de ella; encogerla también sería dos
+ *    sistemas peleando por lo mismo.
+ *  · HISTÉRESIS: se encoge pasando de 60 px y se despliega por debajo de 20,
+ *    no en el mismo número. Con un solo umbral, un dedo quieto a 60 px exactos
+ *    hace que la cabecera parpadee entre los dos estados — y como al encogerse
+ *    la página se acorta, el propio cambio mueve el scroll y se realimenta.
+ *  · requestAnimationFrame: el evento de scroll se dispara decenas de veces por
+ *    segundo y tocar clases en cada uno es trabajo tirado. Así se toca una vez
+ *    por cuadro pintado, que es todo lo que se puede ver.
+ */
+var _cabCompacta = false;
+function _syncCabecera(){
+  var tb = document.querySelector('.topbar');
+  if (!tb) return;
+  if (window.innerWidth >= 769){
+    if (_cabCompacta){ tb.classList.remove('compacta'); _cabCompacta = false; }
+    return;
+  }
+  var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+  if (!_cabCompacta && y > 60){ tb.classList.add('compacta');    _cabCompacta = true;  }
+  else if (_cabCompacta && y < 20){ tb.classList.remove('compacta'); _cabCompacta = false; }
+}
+(function(){
+  var pedido = false;
+  function alScroll(){
+    if (pedido) return;
+    pedido = true;
+    requestAnimationFrame(function(){ pedido = false; _syncCabecera(); });
+  }
+  window.addEventListener('scroll', alScroll, { passive: true });
+  window.addEventListener('resize', alScroll, { passive: true });
+})();
+
 function _syncBrandWidth(){
   var brandEl = document.querySelector('.topbar-brand');
   var topbarEl = document.querySelector('.topbar');
@@ -17293,10 +17628,11 @@ function _recomputeCfgDeck(){
 function _unqueueCfgAdd(type, value){
   var key = _cfgKey(type, value);
   var el  = document.querySelector('.cfg-card[data-key="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+  // Desde el aviso del formulario: el valor SÍ se registró, así que sale aceptada.
   _deckCardLeave(el, function(){
     _pendingCfgAdds = _pendingCfgAdds.filter(function(p){ return _cfgKey(p.type, p.value) !== key; });
     _renderCfgDeck();
-  });
+  }, 'aceptada');
 }
 
 // All of them — no cap here. The pile only ever shows _DECK_VISIBLE at a time,
@@ -17330,9 +17666,18 @@ var _deckSeenIds = {};
 // the ones below rise into the gap. Redrawing first would rebuild the pile and
 // leave nothing to animate, so the redraw waits for the movement to finish.
 var _DECK_LEAVE_ANIM_MS = 500;
-function _deckCardLeave(el, then){
+
+/* DOS SALIDAS, PORQUE SON DOS COSAS DISTINTAS. Ver el comentario largo del CSS.
+ *
+ *   'aceptada'  — se registró: sigue de largo hacia la izquierda y se desvanece
+ *   'descartada'— se ignoró: se desvanece sin moverse
+ *
+ * El `then` espera a que el movimiento termine. Redibujar antes reconstruiría
+ * el mazo y no quedaría nada que animar, que es el fallo que esta función
+ * existe para impedir. */
+function _deckCardLeave(el, then, modo){
   if (!el){ if (then) then(); return; }
-  el.classList.add('leaving');
+  el.classList.add(modo === 'aceptada' ? 'saliendo-aceptada' : 'saliendo-descartada');
   setTimeout(function(){ if (then) then(); }, _DECK_LEAVE_ANIM_MS);
 }
 
@@ -17384,8 +17729,15 @@ function _paintDeck(){
     var id = card.getAttribute('data-card-id') || card.getAttribute('data-key');
     if (!id || _deckSeenIds[id]) return;
     _deckSeenIds[id] = 1;
-    card.classList.add('entering');
-    card.addEventListener('animationend', function(){ card.classList.remove('entering'); }, { once: true });
+    /* Nace desplazada y se le quita la clase en el cuadro SIGUIENTE. Los dos
+     * requestAnimationFrame no son superstición: con uno solo el navegador
+     * puede no haber pintado todavía el estado inicial, y entonces no hay dos
+     * estados entre los que transicionar — la tarjeta aparece ya colocada y no
+     * se mueve nada. El primero espera al pintado, el segundo cambia. */
+    card.classList.add('llegando');
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){ card.classList.remove('llegando'); });
+    });
   });
 
   // The badge counts the WHOLE pile, including the cards held back from the
@@ -17564,6 +17916,38 @@ function _cfgAddAll(){
   });
 }
 
+/* ── LAS TARJETAS EN VUELO ─────────────────────────────────────────────────
+ *
+ * Jose, 2026-10-12, con vídeo: "mira lo que pasa al dar clic a mas de una de
+ * las tarjetas de proyectos".
+ *
+ * Lo que pasaba: pulsabas «+ Add to list» en la tarjeta A y en la B. Volvía la
+ * respuesta de A, el código redibujaba el mazo ENTERO con `innerHTML = …`, y
+ * el botón de B dejaba de decir «Adding…» porque su botón ya no existía: era
+ * uno nuevo recién creado, habilitado. Un segundo clic mandaba el MISMO
+ * proyecto dos veces al servidor.
+ *
+ * El botón «All 5» sí tenía guarda (`_cfgAddAllRunning`). La de una en una,
+ * no: a alguien se le ocurrió para el lote y no para el caso normal.
+ *
+ * ── POR QUÉ NO SE ARREGLA "RESPETANDO EL ESTADO AL REDIBUJAR" ──────────────
+ *
+ * Fue mi primera propuesta y es la peor. Jose preguntó lo correcto: ¿por qué
+ * hay que redibujar? Respuesta: redibujar NO cuesta ni una llamada al servidor
+ * —es todo local— pero SÍ hace falta, por una sola razón: en el mazo sólo caben
+ * `_DECK_VISIBLE` tarjetas, así que cuando una se va, la siguiente de la cola
+ * tiene que ocupar su sitio.
+ *
+ * Lo que sobra no es redibujar: es redibujar MIENTRAS algo está en vuelo. Así
+ * que el redibujo ESPERA a que no quede ninguna. Las tarjetas en vuelo no se
+ * tocan, y su estado sobrevive solo — sin código que lo guarde y lo reponga,
+ * que sería una tercera cosa que mantener de acuerdo con las otras dos.
+ *
+ * De paso se hace UN redibujo por tanda en vez de uno por tarjeta.
+ */
+var _cfgEnVuelo = {};
+function _cfgHayVuelo(){ for (var k in _cfgEnVuelo) if (_cfgEnVuelo[k]) return true; return false; }
+
 // One handler for both the desktop deck and the phone panel.
 function _cfgCardAction(act, key, btn){
   var p = null;
@@ -17573,27 +17957,56 @@ function _cfgCardAction(act, key, btn){
   if (!p) return;
 
   if (act === 'skip'){
+    if (_cfgEnVuelo[key]) return;        // se está registrando: no se descarta a medias
     _dismissCfgAdd(p.type, p.value);
     // Also drop it from the typed set, or the next keystroke in that field
     // would re-add what was just waved off.
     _typedCfgAdds = _typedCfgAdds.filter(function(t){ return _cfgKey(t.type, t.value) !== key; });
-    // Recompute rather than just splice: with only a handful rendered, the next
-    // unregistered value has to take the freed slot. Splicing alone emptied the
-    // deck after a few dismissals and nothing returned until a page reload.
-    _recomputeCfgDeck();
+    // Se desvanece en su sitio —no hizo nada— y SÓLO entonces se redibuja:
+    // reconstruir antes dejaría nada que animar.
+    var elSkip = document.querySelector('.cfg-card[data-key="' +
+                   (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+    _deckCardLeave(elSkip, function(){
+      // Recompute rather than just splice: with only a handful rendered, the next
+      // unregistered value has to take the freed slot. Splicing alone emptied the
+      // deck after a few dismissals and nothing returned until a page reload.
+      if (!_cfgHayVuelo()) _recomputeCfgDeck();
+    }, 'descartada');
     return;
   }
 
+  // EL SEGUNDO CLIC NO HACE NADA. Es la guarda que faltaba.
+  if (_cfgEnVuelo[key]) return;
+  _cfgEnVuelo[key] = 1;
+
+  // `_btnBusy` ya pone el aro girando Y esconde el «Not now» dejándole su hueco
+  // (visibility:hidden, no display:none — si desapareciera, el botón de al lado
+  // saltaría a ocupar su sitio justo cuando el dedo ya va en camino).
   if (btn){ _btnBusy(btn, 'Adding…'); }
+
+  // La línea de abajo a la izquierda, la misma de borrar movimientos. Se llama
+  // con 1 en cada clic: `_progStart` SUMA cuando ya hay una tanda viva con la
+  // misma etiqueta, y `_progPaint` esconde el contador mientras el total sea 1
+  // —"1 of 1" no le dice nada a nadie—. O sea que una sola tarjeta sólo enseña
+  // el aro de su botón, y a partir de dos aparece "2 of 3" sin código extra.
+  _progStart(1, 'Adding to your lists', _progFinListas);
+
   _cfgAddValue(p.type, p.value, function(ok, err){
-    if (ok){
-      // Sin aviso: la tarjeta sale del mazo, que es la respuesta.
-    } else {
+    delete _cfgEnVuelo[key];
+    _progStep(!!ok);
+    if (!ok){
       _btnLabel(btn, '+ Add to list');
       showToast('Could not add: ' + err, 'err', 5000);
       return;
     }
-    _recomputeCfgDeck();
+    // Se registró: sale hacia la izquierda, hacia dentro de la app.
+    var elOk = document.querySelector('.cfg-card[data-key="' +
+                 (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+    _deckCardLeave(elOk, function(){
+      // El redibujo espera a que no quede ninguna en vuelo, o destruiría el
+      // «Adding…» de las que siguen trabajando.
+      if (!_cfgHayVuelo()) _recomputeCfgDeck();
+    }, 'aceptada');
   });
 }
 
@@ -23052,10 +23465,11 @@ function _dismissSysCard(id){
   // jump into the gap with no motion at all, which is what made the deck feel
   // like a list rather than a stack of paper.
   var el = document.querySelector('[data-card-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  // La ✕ de una notificación es "ya lo leí", no "esto se guardó": descartada.
   _deckCardLeave(el, function(){
     _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
     _renderSysDeck();
-  });
+  }, 'descartada');
 }
 
 // A notification stays until somebody presses its ✕. It used to carry a
