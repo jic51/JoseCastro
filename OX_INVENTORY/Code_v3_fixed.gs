@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.52';
+var APP_VERSION = '12.54';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.52';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0a6d1528';
+var APP_BUILD = '39f7c662';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -494,7 +494,30 @@ function ensureCoreSheets_(ss) {
         'Archive Cutoff Months','Cost Category','Cost Material','Avg Cost'] },
     { name: SHEETS.RESERVATIONS, header: [
         'ID','Category','Name','Project','Qty','Reserved By','Date','Status','Release Date'] },
-    { name: SHEETS.AUDIT, header: ['Timestamp','Action','User','Details','Old Value','New Value'] },
+    /* ── `Old Value` / `New Value` SE LLAMAN AHORA `Detail 2` / `Detail 3` ───
+     *
+     * Punto 5 de los cinco sin riesgo, de la auditoría de columnas del 06/10.
+     * Contadas las 56 llamadas a `auditLog_` que hay en el archivo:
+     *
+     *     19 dejan las dos columnas VACÍAS
+     *     17 llenan UNA sola
+     *     20 las usan de verdad como antes → después
+     *
+     * O sea que en 36 de 56 los nombres describen algo que no está ahí. Y
+     * cuando se llenan sin ser un antes/después, lo que ponen es contexto:
+     * `'rows 4,9,17'` en la columna que dice `Old Value`, `'was 0 → now 240'`
+     * en la que dice `New Value`. Leído desde la hoja, eso parece un registro
+     * roto; leído por alguien que audita un borrado, parece que había un valor
+     * viejo que ya no está.
+     *
+     * No se cambia NI UNA llamada y no se mueve ni un dato: los 20 usos de
+     * antes→después siguen escribiendo en las mismas dos celdas y siguen
+     * leyéndose igual. Lo único que cambia es cómo se llama la columna, que es
+     * exactamente lo que estaba mal. Por eso está en las sin riesgo.
+     */
+    { name: SHEETS.AUDIT, header: ['Timestamp','Action','User','Details','Detail 2','Detail 3'],
+      renombrar: [ { col: 5, de: 'Old Value', a: 'Detail 2' },
+                   { col: 6, de: 'New Value', a: 'Detail 3' } ] },
     // Rebuilt wholesale (headers included) by refreshDerivedSheets_ — they only
     // need to exist.
     { name: SHEETS.LIVE, header: null },
@@ -517,6 +540,12 @@ function ensureCoreSheets_(ss) {
       // limpiándola.
       var n = fillMissingHeaders_(yaEsta, spec.header);
       if (n) repaired.push(spec.name + ' (' + n + ')');
+      // Y un renombrado, para la hoja que lo pida. `fillMissingHeaders_` sólo
+      // rellena HUECOS —a propósito: una cabecera con texto es de quien la
+      // escribió— así que un nombre que estaba mal desde el principio no se
+      // arregla nunca por esa vía.
+      var renom = renombrarCabeceras_(yaEsta, spec.renombrar);
+      if (renom.length) repaired.push(spec.name + ' (renamed: ' + renom.join(', ') + ')');
       return;
     }
     var sheet;
@@ -653,6 +682,37 @@ function gruposDeFormato_() {
   ];
 }
 
+/* ── UNA NOTA PROPIA PARA UNA HOJA SUELTA ────────────────────────────────────
+ *
+ * Punto 4 de los cinco sin riesgo. La nota de A1 la pone el GRUPO, y para
+ * `RESERVATIONS` el grupo dice algo que **no es verdad**: está en "calculada",
+ * así que su nota dice *"Rebuilt by Acopio from MASTER_ARCHIVE_V3 — edits here
+ * are overwritten"*. Ninguna de las dos frases se cumple. Nada la reconstruye y
+ * nada la pisa: la hoja existe, está vacía y **no la lee ni la escribe nadie**.
+ *
+ * Las reservas de verdad viven en `MATERIAL_LOCKS` desde la v10. `RESERVATIONS`
+ * es de una versión anterior, y `addReservation_`/`cancelReservation_` —los dos
+ * endpoints que escribían en ella— se borraron el 2026-09-20 por no tener un
+ * solo llamador en la interfaz.
+ *
+ * NO SE BORRA LA PESTAÑA, y es lo que la hace "sin riesgo": borrar una hoja es
+ * irreversible, y si mañana resulta que alguna instalación vieja guardó algo
+ * ahí, la nota se puede quitar y el dato no. Lo que se arregla es el daño real,
+ * que es una pestaña vacía cuya propia nota miente sobre por qué está vacía:
+ * quien la abra hoy concluye que la app borró sus reservas.
+ *
+ * Y una nota falsa es peor que ninguna, porque se lee como información.
+ */
+function notasPorHoja_() {
+  var n = {};
+  n[SHEETS.RESERVATIONS] =
+    'NOT USED. Reservations are kept in MATERIAL_LOCKS.\n' +
+    'This tab is from an earlier version of ' + PRODUCT_NAME + '. Nothing reads it,\n' +
+    'nothing writes to it, and it is kept empty on purpose — not deleted, in case\n' +
+    'an older installation left data here. Safe to ignore.';
+  return n;
+}
+
 /* Anchos del archivo POR CLASE DE CONTENIDO, no columna por columna: añadir una
  * columna deja de ser inventarse un número. Los que no están aquí se quedan
  * como estén — ensanchar una columna que nadie pidió tampoco es gratis. */
@@ -722,9 +782,13 @@ function aplicarFormatoEstandar_(ss, opciones) {
         // La nota vive en A1, que el código no lee y la persona ve al pasar el
         // ratón. Es la línea que evita que alguien "arregle" el stock a mano y
         // no entienda por qué vuelve.
-        if (g.nota) {
+        //
+        // La del grupo vale para casi todas; `notasPorHoja_` manda cuando una
+        // hoja concreta necesita decir otra cosa (ver RESERVATIONS allí).
+        var nota = notasPorHoja_()[nombre] || g.nota;
+        if (nota) {
           var a1 = sh.getRange(1, 1);
-          if (String(a1.getNote() || '') !== g.nota) { a1.setNote(g.nota); rep.notas++; }
+          if (String(a1.getNote() || '') !== nota) { a1.setNote(nota); rep.notas++; }
         }
 
         if (g.proteger && protegerConAviso_(sh)) rep.protegidas++;
@@ -810,6 +874,40 @@ function fillMissingHeaders_(sheet, header) {
   sheet.getRange(1, 1, 1, header.length).setValues([fila]).setFontWeight('bold');
   try { sheet.setFrozenRows(1); } catch (e) {}
   return faltan;
+}
+
+/* ── RENOMBRAR UNA CABECERA QUE ESTABA MAL DESDE EL PRINCIPIO ────────────────
+ *
+ * `fillMissingHeaders_` rellena huecos y NUNCA pisa texto, que es lo correcto:
+ * una cabecera escrita es de quien la escribió. Pero eso deja un caso sin
+ * cubrir — un nombre que lo pusimos nosotros y estaba equivocado. Ése no es del
+ * cliente y nadie lo va a arreglar solo.
+ *
+ * Tan estrecha como se puede hacer, y por eso es sin riesgo:
+ *
+ *   • SÓLO toca la celda si su texto es EXACTAMENTE el nombre viejo. Si el
+ *     cliente la renombró a mano, o ya tiene el nuevo, o está vacía (de eso se
+ *     ocupa `fillMissingHeaders_`), no se toca.
+ *   • NO MUEVE NI UN DATO. Es la fila 1 y nada más.
+ *   • Es reversible escribiendo el nombre viejo encima.
+ *
+ * Devuelve la lista de lo que cambió, para poder decirlo en el chequeo de
+ * instalación: un rename silencioso es alguien abriendo su hoja mañana y no
+ * encontrando una columna que tenía ayer.
+ */
+function renombrarCabeceras_(sheet, renombres) {
+  var hechos = [];
+  if (!sheet || !renombres || !renombres.length) return hechos;
+  renombres.forEach(function (r) {
+    try {
+      if (r.col > sheet.getMaxColumns()) return;
+      var celda = sheet.getRange(1, r.col);
+      if (String(celda.getValue() || '').trim() !== r.de) return;
+      celda.setValue(r.a).setFontWeight('bold');
+      hechos.push(r.de + ' → ' + r.a);
+    } catch (e) {}
+  });
+  return hechos;
 }
 
 function saveSetupWizard(data) {
@@ -2340,6 +2438,73 @@ function loadConfig() {
   
   if (!c.archiveCutoffMonths) c.archiveCutoffMonths = 12;
   return c;
+}
+
+/* ── LAS DOS COLUMNAS DE CONFIG QUE SÓLO SE LEEN EN LA FILA 2 ────────────────
+ *
+ * De la auditoría de columnas del 06/10, y es el punto 3 de los cinco sin
+ * riesgo. `CONFIG` es una hoja de LISTAS: cada columna es una lista que crece
+ * hacia abajo —proyectos, categorías, proveedores, ubicaciones, usuarios— y el
+ * bucle de `loadConfig` recoge TODAS las filas de todas ellas.
+ *
+ * Dos columnas no son listas y se leen distinto:
+ *
+ *     H  `Admin Email`            →  if (row[7]  && i === 1)
+ *     N  `Archive Cutoff Months`  →  if (row[13] && i === 1)
+ *
+ * `i === 1` es la PRIMERA FILA DE DATOS, o sea la fila 2 de la hoja. Lo que hay
+ * en la fila 3 hacia abajo de esas dos columnas **se ignora en silencio**.
+ *
+ * Y eso es un valor único metido en una hoja cuya forma dice "aquí van listas".
+ * Quien escriba un segundo correo de admin debajo del primero no está haciendo
+ * nada raro: está haciendo lo que la hoja le está pidiendo. Y nada —ni la app,
+ * ni la hoja, ni el log— le va a decir que ese correo no existe para nadie.
+ *
+ * NO SE CAMBIA EL COMPORTAMIENTO, y es deliberado: leer varias filas de `Admin
+ * Email` significaría decidir qué pasa con dos admins distintos, y leer varios
+ * `Archive Cutoff Months` significaría decidir qué pasa con 6 y 12 a la vez.
+ * Las dos decisiones son reales y ninguna es urgente. Lo que SÍ es gratis y
+ * arregla el daño de verdad es **decirlo**: ésta es la sexta vez este mes del
+ * patrón "dos cosas que tienen que coincidir sin que nada lo obligue", y la
+ * cura de las cinco anteriores fue siempre la misma — que alguien lo mire y
+ * avise, en la pantalla que la gente abre cuando algo va raro.
+ *
+ * Aparte de `loadConfig` para poder probarla sin una hoja de cálculo, y con el
+ * NÚMERO DE FILA en la respuesta porque "mira la columna H" en una hoja de
+ * cuatrocientas filas no es una instrucción: es un acertijo.
+ */
+var CONFIG_SOLO_FILA_2 = [
+  { idx: 7,  col: 'H', nombre: 'Admin Email',
+    para: 'the address the app treats as the owner' },
+  { idx: 13, col: 'N', nombre: 'Archive Cutoff Months',
+    para: 'how old a movement must be before it moves to the archive' }
+];
+
+function revisarConfigFila2_(ss) {
+  var fuera = [];
+  var cfg = ss && ss.getSheetByName(SHEETS.CONFIG);
+  if (!cfg || cfg.getLastRow() < 3) return fuera;   // sin fila 3 no hay nada que ignorar
+  var data = cfg.getDataRange().getValues();
+
+  CONFIG_SOLO_FILA_2.forEach(function (c) {
+    var filas = [];
+    // Desde i = 2 (fila 3 de la hoja): la fila 2 es la que SÍ se lee.
+    for (var i = 2; i < data.length; i++) {
+      var v = data[i][c.idx];
+      if (v !== '' && v !== null && v !== undefined) filas.push(i + 1);
+    }
+    if (filas.length) {
+      fuera.push({
+        col: c.col, nombre: c.nombre, para: c.para,
+        filas: filas,
+        enUso: (function () {
+          var v2 = data[1] ? data[1][c.idx] : '';
+          return (v2 === '' || v2 === null || v2 === undefined) ? '' : String(v2).trim();
+        })()
+      });
+    }
+  });
+  return fuera;
 }
 
 function normalizeString(str) {
@@ -4955,7 +5120,7 @@ function ensureWasteSheet_(ss) {
   var sheet = ss.getSheetByName(SHEETS.WASTE);
   if (!sheet) {
     sheet = ss.insertSheet(SHEETS.WASTE);
-    sheet.appendRow(['Category','Name','Qty','Unit','Last_Updated']);
+    sheet.appendRow(['Category','Name','Qty','Unit']);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
   }
@@ -7108,6 +7273,32 @@ function refreshDerivedSheets_(ss) {
   // this bug forever; every rebuild repairs it going forward automatically.
   var matIdFixes = []; // { sheet: archive|history, rowNum, correctMatId }
 
+  /* ── Y EL TOTAL, QUE ERA LA ÚNICA DE LAS TRES QUE NADIE VIGILABA ───────────
+   *
+   * De la auditoría de columnas del 06/10: `Total Cost` (columna V) es
+   * `Qty × Unit Cost`, siempre, sin excepción. Es la repetición más pura del
+   * archivo — dos columnas de la misma fila multiplicadas.
+   *
+   * Y es la ÚNICA de las tres columnas derivadas que no tenía quien la
+   * mirara. `Mat ID` se repara aquí mismo desde hace versiones y `Status`
+   * tiene la suya; si alguien corregía un `Unit Cost` a mano en la hoja,
+   * `Total Cost` se quedaba con el número viejo PARA SIEMPRE y ningún sitio
+   * de la app lo notaba. Quien suma esa columna —que es contabilidad— sumaba
+   * un número que ya no era verdad.
+   *
+   * No se quita la columna: contabilidad la selecciona entera y quitarla
+   * convierte "suma la V" en "escribe una fórmula". Lo que se arregla es que
+   * nadie la vigilaba.
+   *
+   * Se repara EN LA MISMA PASADA que el MatID, con el mismo criterio:
+   *   · sólo cuando hay un coste unitario de verdad. Una fila sin coste tiene
+   *     el total vacío A PROPÓSITO —el coste es opcional— y rellenarlo con un
+   *     cero sería inventarse un dato.
+   *   · con un margen de medio centavo, porque round2_ redondea y comparar dos
+   *     decimales con === encuentra diferencias que no existen.
+   */
+  var costFixes = [];
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     if (!row[AC.CATEGORY]) continue;
@@ -7145,6 +7336,24 @@ function refreshDerivedSheets_(ss) {
         when:  m.dateRec || '',
         kind:  m.moveType || ''
       });
+    }
+
+    /* El total, con el mismo criterio que el MatID de arriba. */
+    var uc = row[AC.UNIT_COST], tc = row[AC.TOTAL_COST];
+    var hayCoste = (uc !== '' && uc !== null && uc !== undefined && isFinite(Number(uc)));
+    if (hayCoste) {
+      var debeSer = round2_(Number(uc) * m.qty);
+      var ahora   = (tc === '' || tc === null || tc === undefined) ? null : Number(tc);
+      if (ahora === null || !isFinite(ahora) || Math.abs(ahora - debeSer) > 0.005) {
+        var esHist = i >= archiveData.length;
+        costFixes.push({
+          rowNum: esHist ? (i - archiveData.length + 2) : (i + 1),
+          isHistory: esHist,
+          debeSer: debeSer,
+          antes: (ahora === null ? '(blank)' : String(ahora)),
+          what: (m.category ? m.category + ' — ' : '') + (m.name || '(no name)')
+        });
+      }
     }
 
     if (!stock[key]) stock[key] = { cat: m.category, name: m.name, project: m.project, unit: m.unit || 'UNIT', locs: {}, siteProjs: {}, wasted: 0 };
@@ -7220,17 +7429,79 @@ function refreshDerivedSheets_(ss) {
       'was ' + matIdFixes[0].wasMatId + ' → now ' + matIdFixes[0].correctMatId);
   }
 
-  var now = new Date();
+  /* Y los totales, en la misma pasada y con la misma disciplina de escritura.
+   * Se anotan aparte del MatID porque son dos averías distintas y mezclarlas
+   * haría que el aviso no dijera cuál pasó. */
+  if (costFixes.length) {
+    costFixes.forEach(function (f) {
+      var hoja = f.isHistory ? history : archive;
+      hoja.getRange(f.rowNum, AC.TOTAL_COST + 1).setValue(f.debeSer);
+    });
+    var ej = costFixes[0];
+    /* Las filas del ARCHIVO y las del HISTÓRICO se anotan por separado, y no es
+     * cosmético: el botón "Show the movement" de la tarjeta del sistema lee el
+     * primer `rows N,N` que encuentra y abre ESAS filas del archivo. Mezclar
+     * aquí las dos numeraciones haría que el botón llevara a la fila 12 del
+     * archivo porque la 12 del histórico estaba mal — un movimiento distinto,
+     * señalado como si fuera el que se reparó. */
+    var enArchivo = costFixes.filter(function (f) { return !f.isHistory; })
+                             .map(function (f) { return f.rowNum; });
+    var enHist    = costFixes.filter(function (f) { return f.isHistory; })
+                             .map(function (f) { return f.rowNum; });
+    var donde = [];
+    if (enArchivo.length) donde.push('rows ' + enArchivo.join(','));
+    if (enHist.length)    donde.push('archive-history rows ' + enHist.join(','));
+    auditLog_(ss, 'AUTO_REPAIR_TOTAL_COST', 'system',
+      costFixes.length + ' row' + (costFixes.length === 1 ? '' : 's') +
+      ' had a Total Cost that was not Qty × Unit Cost — recalculated. First: ' + ej.what,
+      donde.join(' · '),
+      'was ' + ej.antes + ' → now ' + ej.debeSer);
+  }
+
+  /* Aquí vivía `var now = new Date()`. Lo único que lo usaba eran las tres
+   * columnas `Last_Updated` que se quitan justo debajo, así que se va con
+   * ellas: una variable que nadie lee es la forma más silenciosa de que un
+   * lector futuro crea que esta función hace algo con la hora. No lo hace. */
 
   // Batch-build arrays then write in ONE setValues call (much faster than appendRow loop)
-  var liveRows = [['Category','Name','Project','Location','Qty','Unit','Location_Type','Last_Updated']];
+  /* ── CINCO COLUMNAS QUE SE ESCRIBÍAN Y NO LEÍA NADIE ──────────────────────
+   *
+   * De la auditoría de columnas del 06/10, y Jose confirmó el 07/10 que nada
+   * fuera de la app lee estas hojas: *"nada externo las lee, QUÍTALAS"*.
+   *
+   *   LIVE_STOCK   G `Location_Type`  — el texto RACK, idéntico en TODAS las filas
+   *   LIVE_STOCK   H `Last_Updated`   — la misma hora repetida en todas
+   *   SITE_STOCK   F `Status`         — el texto "At Site", idéntico en todas
+   *   SITE_STOCK   G `Last_Updated`   — la misma hora repetida
+   *   WASTED_STOCK E `Last_Updated`   — la misma hora repetida
+   *
+   * Las dos primeras no eran ni datos: eran CONSTANTES escritas una vez por
+   * fila. Y `Last_Updated` es un valor DE LA HOJA escrito en cada FILA de la
+   * hoja: con 400 materiales, la misma hora 400 veces.
+   *
+   * Comprobado antes de quitarlas: `buildStockFromDerivedSheets_` —el único
+   * lector de estas tres hojas— lee `r[0..5]` de LIVE y `r[0],[1],[3],[4]` de
+   * SITE. Ninguna de las cinco entra ahí. Y `locationUsage_` lee LIVE por
+   * columnas D y E, que se quedan donde están.
+   *
+   * ES BARATO PORQUE ESTAS HOJAS SE REESCRIBEN ENTERAS en cada guardado: no
+   * hay dato que migrar. `clearContents()` deja las columnas sobrantes en
+   * blanco y la siguiente escritura ya tiene la forma nueva.
+   *
+   * SITE_STOCK columna C (`Project`) NO SE QUITA, y es la excepción razonada:
+   * la app no la lee hoy, pero es lo único que dice DE QUÉ OBRA es el material
+   * que está en obra. Una hoja que diga "hay 40 ventanas en obras" sin decir
+   * en cuál es peor que inútil. No está muerta: está esperando una pantalla
+   * que todavía no hicimos.
+   */
+  var liveRows = [['Category','Name','Project','Location','Qty','Unit']];
   for (var k in stock) {
     if (!stock.hasOwnProperty(k)) continue;
     var item = stock[k];
     for (var loc in item.locs) {
       if (!item.locs.hasOwnProperty(loc)) continue;
       var q = item.locs[loc];
-      if (q > 0) liveRows.push([item.cat, item.name, item.project, loc, q, item.unit, 'RACK', now]);
+      if (q > 0) liveRows.push([item.cat, item.name, item.project, loc, q, item.unit]);
     }
   }
   live.clearContents();
@@ -7239,33 +7510,33 @@ function refreshDerivedSheets_(ss) {
   // material called "3-4 TEMP" or a rack called "07-6329" would land here as a
   // date, and every screen reads THESE, not the archive. It heals on the next
   // rebuild, which is precisely what makes it hard to catch.
-  if (liveRows.length > 0) live.getRange(1, 1, liveRows.length, 8).setValues(liveRows.map(textSafeRow_));
+  if (liveRows.length > 0) live.getRange(1, 1, liveRows.length, 6).setValues(liveRows.map(textSafeRow_));
 
-  var siteRows = [['Category','Name','Project','Qty','Unit','Status','Last_Updated']];
+  var siteRows = [['Category','Name','Project','Qty','Unit']];
   for (var k2 in stock) {
     if (!stock.hasOwnProperty(k2)) continue;
     var item2 = stock[k2];
     for (var sp in item2.siteProjs) {
       if (!item2.siteProjs.hasOwnProperty(sp)) continue;
       var sq = item2.siteProjs[sp];
-      if (sq > 0) siteRows.push([item2.cat, item2.name, sp, sq, item2.unit, 'At Site', now]);
+      if (sq > 0) siteRows.push([item2.cat, item2.name, sp, sq, item2.unit]);
     }
   }
   site.clearContents();
-  if (siteRows.length > 0) site.getRange(1, 1, siteRows.length, 7).setValues(siteRows.map(textSafeRow_));
+  if (siteRows.length > 0) site.getRange(1, 1, siteRows.length, 5).setValues(siteRows.map(textSafeRow_));
 
   // Cumulative wasted qty per material — the only stock figure that had NO derived
   // sheet before, forcing getInitialData() to fall back to a full movement scan
   // just to know how much of something was wasted. Now precomputed here (once per
   // save) instead of recomputed on every login.
-  var wasteRows = [['Category','Name','Qty','Unit','Last_Updated']];
+  var wasteRows = [['Category','Name','Qty','Unit']];
   for (var k3 in stock) {
     if (!stock.hasOwnProperty(k3)) continue;
     var item3 = stock[k3];
-    if (item3.wasted > 0) wasteRows.push([item3.cat, item3.name, item3.wasted, item3.unit, now]);
+    if (item3.wasted > 0) wasteRows.push([item3.cat, item3.name, item3.wasted, item3.unit]);
   }
   waste.clearContents();
-  if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 5).setValues(wasteRows.map(textSafeRow_));
+  if (wasteRows.length > 0) waste.getRange(1, 1, wasteRows.length, 4).setValues(wasteRows.map(textSafeRow_));
 }
 
 // ─── RESERVAS ────────────────────────────────────────────────────────────────
@@ -8955,7 +9226,14 @@ var SYSTEM_EVENT_LABELS = {
   BACKUP_CREATED:    'Backup created',
   ARCHIVE_RECONCILE: 'Old movements archived',
   STOCK_REBUILD:     'Stock totals rebuilt',
-  AUTO_REPAIR_MATID: 'Movements re-linked to the right material'
+  AUTO_REPAIR_MATID: 'Movements re-linked to the right material',
+  // La reparación de `Total Cost` escribe en AUDIT_LOG como las demás. Sin su
+  // nombre aquí la fila se guarda y la app no la enseña nunca — y entonces es
+  // dinero corregido en silencio, que es justo lo que no se puede hacer con
+  // dinero. Es el mismo patrón que este archivo ya tiene contado cinco veces:
+  // una protección escrita y nunca ejecutada; aquí, una reparación hecha y
+  // nunca dicha.
+  AUTO_REPAIR_TOTAL_COST: 'Totals recalculated (Qty × Unit Cost)'
 };
 
 // Plain English for the notification card and the System tab.
@@ -9093,8 +9371,11 @@ function getSystemActivity_(limit, forEmail) {
     var ref = null;
     if (action === 'BACKUP_CREATED' && String(rows[i][5] || '').trim()) {
       ref = { kind: 'drive', id: String(rows[i][5]).trim(), label: 'Open the backup in Drive' };
-    } else if (action === 'AUTO_REPAIR_MATID') {
-      var m = String(rows[i][4] || '').match(/rows ([\d,]+)/);
+    } else if (action === 'AUTO_REPAIR_MATID' || action === 'AUTO_REPAIR_TOTAL_COST') {
+      // `^rows` y no `rows`: el aviso de los totales puede traer también
+      // `archive-history rows 12`, que son filas de OTRA hoja. Sin el ancla, el
+      // botón llevaría a la fila 12 del archivo — un movimiento que nadie tocó.
+      var m = String(rows[i][4] || '').match(/^rows ([\d,]+)/);
       if (m) ref = { kind: 'rows', rows: m[1].split(','), label: 'Show the movement' + (m[1].indexOf(',') === -1 ? '' : 's') };
     }
     out.push({
@@ -11236,8 +11517,29 @@ function menuCheckInstallation() {
       '. Open ⚙️ App Settings → Manage Users and switch off anyone who should not be there.');
   }
 
+  /* ── CONFIG H Y N, QUE SÓLO SE LEEN EN LA FILA 2 ─────────────────────────
+   * Ver `revisarConfigFila2_`. No se repara —cambiar el comportamiento es una
+   * decisión, no una limpieza— pero se DICE, con el número de fila. */
+  var cfgFila2 = [];
+  try { cfgFila2 = revisarConfigFila2_(SpreadsheetApp.getActiveSpreadsheet()); } catch (e) {}
+
   var lines = [];
   if (repaired.length) lines.push('REPAIRED AUTOMATICALLY\n  • ' + repaired.join('\n  • ') + '\n');
+  if (cfgFila2.length) {
+    lines.push('VALUES IN CONFIG THAT THE APP IS NOT READING');
+    cfgFila2.forEach(function (c) {
+      lines.push('  • CONFIG column ' + c.col + ' ("' + c.nombre + '") has something in row' +
+        (c.filas.length === 1 ? ' ' : 's ') + c.filas.slice(0, 8).join(', ') +
+        (c.filas.length > 8 ? ' …and ' + (c.filas.length - 8) + ' more' : '') + '.\n' +
+        '      Unlike the other columns, this one is read from ROW 2 ONLY — it is a single ' +
+        'setting, not a list.\n' +
+        '      In use right now: ' + (c.enUso ? '"' + c.enUso + '" (row 2)' : 'NOTHING — row 2 is empty') +
+        '.\n' +
+        '      Everything below row 2 is ignored, so it is ' + c.para + ' for nobody. ' +
+        'Move the value you want up to row 2 and clear the rest.');
+    });
+    lines.push('');
+  }
   if (usrChk && (usrChk.rolesDistintos.length || usrChk.corruptas.length)) {
     lines.push('THE USER LIST NEEDS A LOOK');
     usrChk.rolesDistintos.forEach(function (d) {

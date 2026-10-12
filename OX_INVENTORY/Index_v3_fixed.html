@@ -1068,6 +1068,19 @@
     .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;transition:.15s}
     .cconfirm-footer button:hover{filter:brightness(.9)}
     .cconfirm-cancel{background:var(--border);color:var(--text)}
+    /* La X de salir. `position:relative` en el diálogo para que se ancle a él. */
+    .cconfirm-dialog{position:relative}
+    .cconfirm-x{position:absolute;top:.5rem;right:.6rem;width:30px;height:30px;line-height:1;
+                border:none;background:transparent;color:var(--muted);font-size:1.05rem;
+                border-radius:8px;cursor:pointer;transition:.15s}
+    .cconfirm-x:hover{background:var(--border);color:var(--text)}
+    /* El detalle plegado: presente, y sin ocupar el aviso. */
+    .cconfirm-more{margin-top:.7rem;text-align:left;font-size:.8rem}
+    .cconfirm-more summary{cursor:pointer;color:var(--muted);list-style:none;
+                           display:inline-flex;align-items:center;gap:.3rem;padding:.2rem 0}
+    .cconfirm-more summary::-webkit-details-marker{display:none}
+    .cconfirm-more summary:hover{color:var(--text)}
+    .cconfirm-more p{margin:.45rem 0 0;color:var(--muted);line-height:1.5}
     .cprompt-input{width:100%;margin-top:.9rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.92rem;font-family:inherit;text-align:center}
     .cprompt-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
     .cprompt-list{margin-top:.7rem;max-height:170px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center}
@@ -3251,11 +3264,32 @@
 
          APAGADOS, NO ESCONDIDOS, igual que allí: un botón que aparece es un
          botón que mueve la página. -->
+<!-- LOS BOTONES DE FILA NO EXISTEN HASTA QUE HAY UNA FILA MARCADA.
+     Jose, 2026-10-09: *"no quiero ningún botón visible antes de seleccionar una
+     checkbox; al seleccionar un activo, aparecen edit, delete y desactivar; al
+     seleccionar un inactivo, aparecen edit, delete y reactivate."*
+
+     Hasta ahora salían apagados, que era la regla de esta app —"apagados, no
+     escondidos: un botón que aparece es un botón que mueve la página"—. Él
+     tiene razón en que aquí no se cumple: estos tres NO ACTÚAN SOBRE LA
+     PANTALLA, actúan sobre una fila, y sin fila marcada no son "no disponibles
+     ahora": es que no hay nada sobre lo que puedan actuar. Tres botones grises
+     permanentes son tres cosas que leer cada vez para descubrir que no hacen
+     nada.
+
+     Y para que la página no salte al aparecer, el hueco se reserva siempre
+     (`visibility`, no `display`): la tabla no se mueve ni un píxel.
+
+     ADD USER SE QUEDA SIEMPRE, y es la única excepción a lo que pidió. No es un
+     botón de fila: es el que CREA la primera. Escondiéndolo hasta que hubiera
+     alguien marcado, una instalación nueva —sin un solo usuario que marcar— no
+     tendría forma de dar de alta a nadie. -->
     <div class="col-bar usr-bar">
       <button class="btn btn-primary btn-sm" onclick="openUserForm()">➕ Add User</button>
-      <span class="mov-act-sep">
-        <button class="btn btn-ghost btn-sm" id="btnUsrEdit" onclick="editSelectedUser()" disabled>✏️ Edit</button>
-        <button class="btn btn-ghost btn-sm" id="btnUsrActive" onclick="toggleSelectedUsers()" disabled>🚫 Deactivate</button>
+      <span class="mov-act-sep" id="usrRowActions" style="visibility:hidden">
+        <button class="btn btn-ghost btn-sm" id="btnUsrEdit" onclick="editSelectedUser()">✏️ Edit</button>
+        <button class="btn btn-ghost btn-sm" id="btnUsrActive" onclick="toggleSelectedUsers()">🚫 Deactivate</button>
+        <button class="btn btn-ghost btn-sm" id="btnUsrDelete" onclick="deleteSelectedUser()">🗑 Delete</button>
         <span id="usrSelCount" class="mov-sel-count"></span>
       </span>
     </div>
@@ -3781,10 +3815,22 @@
 <!-- ══ CUSTOM CONFIRM DIALOG ══════════════════════════════════════════════════ -->
 <div class="cconfirm-overlay" id="confirmOverlay">
   <div class="cconfirm-dialog">
+    <!-- LA X DE ARRIBA, pedida por Jose el 09/10. Es la salida que la gente
+         busca sin pensar y la que el resto de ventanas de esta app ya tiene.
+         `aria-label` porque una X sin nombre no se puede leer en voz alta. -->
+    <button class="cconfirm-x" id="confirmXBtn" onclick="_confirmCancel()"
+            aria-label="Close">✕</button>
     <div class="cconfirm-icon-row" id="confirmIcon">⚠️</div>
     <div class="cconfirm-body">
       <h3 id="confirmTitle">Confirm</h3>
       <p id="confirmMessage"></p>
+      <!-- EL DETALLE, DEBAJO Y PLEGADO. Lo que antes alargaba el aviso hasta
+           que dejaba de leerse como un aviso. Sale sólo cuando hay algo que
+           contar. -->
+      <details class="cconfirm-more" id="confirmMore" hidden>
+        <summary>ⓘ <span id="confirmMoreLabel">More about this</span></summary>
+        <p id="confirmMoreText"></p>
+      </details>
     </div>
     <div class="cconfirm-footer">
       <button class="cconfirm-cancel" id="confirmCancelBtn" onclick="_confirmCancel()">Cancel</button>
@@ -4515,7 +4561,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.52';
+var APP_VERSION = '12.54';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4527,7 +4573,7 @@ var APP_VERSION = '12.52';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '0a6d1528';
+var APP_BUILD = '39f7c662';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -21881,7 +21927,26 @@ function _updateUsrActionBar(){
   var n    = sel.length;
   var edit = document.getElementById('btnUsrEdit');
   var act  = document.getElementById('btnUsrActive');
+  var del  = document.getElementById('btnUsrDelete');
   var cnt  = document.getElementById('usrSelCount');
+
+  /* SIN NADA MARCADO, EL GRUPO NO ESTÁ. Con `visibility` y no con `display`
+   * para que el hueco se mantenga y la tabla no dé un salto al marcar la
+   * primera casilla — un salto justo debajo del dedo es cómo se pulsa lo que
+   * no se quería. */
+  var grupo = document.getElementById('usrRowActions');
+  if (grupo) grupo.style.visibility = n ? 'visible' : 'hidden';
+
+  if (del){
+    /* BORRAR DE VERDAD ES DE UNO EN UNO, a propósito, y no por pereza: el
+     * aviso tiene que poder NOMBRAR a quien va a desaparecer. "¿Borrar 4
+     * usuarios?" es exactamente la pregunta que alguien contesta que sí sin
+     * leer, y esto no se deshace. */
+    del.disabled = n !== 1;
+    del.title = n === 1 ? 'Delete ' + sel[0].email + ' for good'
+              : n === 0 ? 'Tick a user first'
+              : 'Pick just one — deleting is one at a time on purpose';
+  }
 
   if (edit){
     // Uno solo: un formulario no puede decir la verdad sobre dos a la vez.
@@ -22135,16 +22200,17 @@ function deleteUserPermanently() {
   var correo = _editingUser;
   _showConfirm({
     icon: '🗑️', danger: true,
-    title: 'Delete this user row for good?',
-    message:
-      correo + '\n\n' +
-      '• Their access disappears, and so does the record of who gave it to them.\n' +
-      '• Everything they recorded stays exactly where it is — each movement carries ' +
-      'their email in its own row.\n' +
-      '• This cannot be undone from the app.\n\n' +
-      'If this is somebody who actually worked here, close this and use Deactivate ' +
-      'instead: that stops them signing in and keeps the trail.',
-    confirmText: 'Delete permanently',
+    title: 'Delete this user?',
+    /* UNA FRASE. Jose la escribió casi entera y es mejor que la mía: dice
+     * exactamente qué pasa y qué no, en el orden en que importa. */
+    message: correo + ' will be deleted. Everything they recorded stays in the app, ' +
+             'but they will not be able to sign in again.',
+    masLabel: 'What if they actually worked here?',
+    mas: 'Then close this and use Deactivate instead: that stops them signing in and ' +
+         'keeps the record of who gave them access and when. Deleting is for a row that ' +
+         'should never have existed — a typo, a duplicate — and it cannot be undone from ' +
+         'the app.',
+    confirmText: 'Delete',
     onConfirm: function(){
       var btn = document.getElementById('btnDeleteUser');
       _btnBusy(btn, 'Deleting…');
@@ -22171,6 +22237,16 @@ function deleteUserPermanently() {
         .processMovement('deleteUserRow', _h({ email: correo }));
     }
   });
+}
+
+/* Borrar desde la barra: la ficha ya tiene su propio botón, y éste es el mismo
+ * camino para quien no quiere abrirla. Se apoya en `_editingUser`, que es lo
+ * que `deleteUserPermanently` usa para saber a quién. */
+function deleteSelectedUser(){
+  var sel = _selectedUsers();
+  if (sel.length !== 1) return;
+  _editingUser = sel[0].email;
+  deleteUserPermanently();
 }
 
 function _mostrarInvitar(ver) {
@@ -24377,6 +24453,26 @@ function _showConfirm(opts) {
   if (cancelBtn) {
     cancelBtn.hidden = !!opts.soloAviso;
     cancelBtn.textContent = opts.cancelText || 'Cancel';
+  }
+  /* `mas` — el matiz que no cabe en un aviso sin dejar de ser un aviso.
+   *
+   * Jose, 2026-10-09, sobre el de borrar un usuario: *"la actual advertencia no
+   * me gusta, tiene mucho texto y no es directa y no parece una advertencia"*.
+   * Tenía razón: tres viñetas y un párrafo final no se leen, se saltan — y un
+   * aviso que se salta no avisa de nada.
+   *
+   * Lo que queda arriba es UNA frase: qué va a pasar. Lo demás baja aquí,
+   * plegado tras una ⓘ, disponible para quien dude y fuera del camino de quien
+   * no. */
+  var more = document.getElementById('confirmMore');
+  if (more) {
+    var hayMas = !!opts.mas;
+    more.hidden = !hayMas;
+    more.open = false;                 // siempre plegado al abrir
+    if (hayMas) {
+      document.getElementById('confirmMoreText').textContent  = opts.mas;
+      document.getElementById('confirmMoreLabel').textContent = opts.masLabel || 'More about this';
+    }
   }
   document.getElementById('confirmOverlay').classList.add('show');
 }
