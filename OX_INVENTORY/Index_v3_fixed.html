@@ -4857,7 +4857,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.58';
+var APP_VERSION = '12.60';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4869,7 +4869,7 @@ var APP_VERSION = '12.58';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '83a78ea1';
+var APP_BUILD = '98e6581e';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -6242,12 +6242,85 @@ function _userCellHtml(email){
          dentro + '</span>';
 }
 
-function getBase64(file){
+/* ── LA FOTO SE ENDEREZA ANTES DE SUBIRLA ───────────────────────────────────
+ *
+ * Jose, 2026-10-12, con dos capturas: *"todas las fotos que se hacen pdf salen
+ * mal, no ocupan toda la hoja, siempre hay una parte en blanco… y además la
+ * última imagen que subí se movió y sale en landscape"*.
+ *
+ * LAS DOS QUEJAS SON LA MISMA CAUSA, y verlas juntas es lo que la resuelve.
+ *
+ * Un teléfono casi nunca gira los píxeles al hacer una foto. Guarda el mapa de
+ * bits como salió del sensor —APAISADO— y añade una marca EXIF que dice
+ * «gírala 90° al enseñarla». Quien respeta esa marca la ve derecha. Y
+ * `appendImage` de Google Docs NO LA RESPETA: usa el mapa de bits crudo. De ahí
+ * salen las dos cosas a la vez:
+ *
+ *     entra apaisada                      → «sale en landscape»
+ *     apaisada en una hoja vertical       → limita por el ancho
+ *                                         → «siempre hay una parte en blanco»
+ *
+ * SE ARREGLA AQUÍ Y NO EN EL SERVIDOR, a propósito: ésta es la puerta por la
+ * que pasan TODAS las fotos de la app, así que enderezarlas aquí las endereza
+ * en el PDF, en la vista previa, en la miniatura del estante y en cualquier
+ * sitio que venga después. Arreglarlo en `photosToDocPdf_` habría arreglado
+ * sólo el PDF, y las otras dos pantallas seguirían torcidas.
+ *
+ * ── LOS CUATRO CUIDADOS, Y NINGUNO SOBRA ───────────────────────────────────
+ *
+ *  · SÓLO JPEG. Esta puerta también sube PDFs (ver `payload.docFile`) y PNGs.
+ *    Un PDF que pase por un canvas deja de ser un PDF. La marca de orientación
+ *    es cosa de JPEG/HEIC; el resto pasa intacto.
+ *  · SÓLO SI DE VERDAD GIRÓ. Si el mapa de bits ya venía derecho, volver a
+ *    codificarlo sería perder calidad a cambio de nada. Se compara el tamaño
+ *    que da el navegador respetando la marca con el crudo, y sólo se reescribe
+ *    cuando no coinciden.
+ *  · TODO DENTRO DE UN try, Y CON VUELTA AL ORIGINAL. Si el navegador no
+ *    conoce `createImageBitmap` con `imageOrientation`, o la imagen está rota,
+ *    o el canvas falla, se sube lo que había. Una foto torcida es un fastidio;
+ *    una foto que no se sube es trabajo perdido.
+ *  · CALIDAD 0.92. Alta, pero no 1: a 1 el JPEG pesa casi el doble sin que
+ *    nadie vea la diferencia, y estas fotos viajan en base64 dentro de una
+ *    llamada de Apps Script.
+ */
+function _leerBase64Crudo(file){
   return new Promise(function(res,rej){
     var r = new FileReader();
     r.readAsDataURL(file);
     r.onload = function(){ res(r.result.split(',')[1]); };
     r.onerror = rej;
+  });
+}
+
+function getBase64(file){
+  var tipo = String((file && file.type) || '').toLowerCase();
+  var esJpeg = tipo === 'image/jpeg' || tipo === 'image/jpg';
+  if (!esJpeg || typeof createImageBitmap !== 'function') return _leerBase64Crudo(file);
+
+  return new Promise(function(res){
+    var listo = function(b64){ res(b64); };
+    var alCrudo = function(){ _leerBase64Crudo(file).then(listo).catch(function(){ listo(''); }); };
+    try {
+      // Las dos lecturas: una respetando la marca y otra ignorándola. Si dan el
+      // mismo tamaño, la foto ya venía derecha y no hay nada que hacer.
+      Promise.all([
+        createImageBitmap(file, { imageOrientation: 'from-image' }),
+        createImageBitmap(file, { imageOrientation: 'none' })
+      ]).then(function(par){
+        var derecha = par[0], cruda = par[1];
+        if (derecha.width === cruda.width && derecha.height === cruda.height) {
+          try { derecha.close(); cruda.close(); } catch (e) {}
+          return alCrudo();                       // ya estaba bien: sin recodificar
+        }
+        var c = document.createElement('canvas');
+        c.width = derecha.width; c.height = derecha.height;
+        c.getContext('2d').drawImage(derecha, 0, 0);
+        try { derecha.close(); cruda.close(); } catch (e) {}
+        var url = c.toDataURL('image/jpeg', 0.92);
+        if (!url || url.indexOf(',') === -1) return alCrudo();
+        listo(url.split(',')[1]);
+      }).catch(alCrudo);
+    } catch (e) { alCrudo(); }
   });
 }
 
@@ -8568,9 +8641,43 @@ function renderMovements(){
      * exactamente igual que el desastre del 26/09. Decirle a alguien que su
      * almacén se rompió cuando sólo hay que pulsar un botón es casi tan malo
      * como no decirle nada cuando sí se rompió. */
-    rows = !_archivoVacioConStock
+    /* ── BUSCAR NO ALCANZABA EL ARCHIVO, Y NO LO DECÍA ───────────────────────
+     *
+     * Jose, 2026-10-12: *"buscas algo archivado y no aparece"*.
+     *
+     * La búsqueda sí mira el archivo —`allMovs` concatena `oldMovements`—
+     * PERO SÓLO SI ALGUIEN PULSÓ ANTES «Load Older History». Si no, mira la
+     * lista reciente y calla.
+     *
+     * Y lo grave no es que no busque: es que no lo dice. Buscas un PO del año
+     * pasado, no sale nada, y la conclusión razonable —la única posible con lo
+     * que la pantalla enseña— es «eso no existe». Sobre un sistema de
+     * inventario, eso es peor que un error: es una respuesta falsa con cara de
+     * respuesta buena.
+     *
+     * Jose eligió la salida (a) de las dos que le propuse: avisar y ofrecer, en
+     * vez de buscar siempre en los dos. El archivo se consulta pocas veces y
+     * una llamada por búsqueda —también cuando el dato está delante— sería
+     * cuota gastada casi siempre en nada. Así se gasta sólo cuando hace falta.
+     *
+     * Va ANTES de las otras ramas a propósito: cuando hay texto buscado y
+     * archivo sin mirar, ésta es la explicación verdadera y las demás no. */
+    var hayBusqueda = !!(q || tf || cf);
+    rows = (hayBusqueda && !_oldHistoryLoaded && _historicoFilas > 0)
+      ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📜</div>' +
+        '<p><b>Nothing here matches — but the archive has not been searched.</b></p>' +
+        '<p>' + _he(String(_historicoFilas)) + ' older movement' +
+        (_historicoFilas === 1 ? ' is' : 's are') + ' in the archived history, and ' +
+        'this search did not look there.</p>' +
+        '<button class="btn btn-sm" style="margin-top:.6rem" ' +
+        'onclick="_buscarTambienEnElArchivo()">📜 Search the archive too</button>' +
+        '</div></td></tr>'
+      : !_archivoVacioConStock
       ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📋</div>'+
-        '<p>No movements match your filters.</p></div></td></tr>'
+        '<p>No movements match your filters.</p>' +
+        (_oldHistoryLoaded && _historicoFilas > 0
+          ? '<p style="font-size:.82rem;opacity:.75">The archive was searched too.</p>' : '') +
+        '</div></td></tr>'
       : _historicoFilas > 0
         ? '<tr><td colspan="'+span+'"><div class="empty-state"><div class="empty-icon">📦</div>' +
           '<p><b>Nothing recent — all ' + _he(String(_historicoFilas)) +
@@ -8671,6 +8778,13 @@ function _rotuloHistorico(btn){
     ? '📜 Load ' + Math.min(300, _oldHistoryQuedan) + ' more (' + oldMovements.length + ' loaded, ' +
       _oldHistoryQuedan + ' older still there)'
     : '📜 All older history loaded (' + oldMovements.length + ')');
+}
+
+/* El botón del aviso de arriba. Carga el archivo y vuelve a pintar, con lo que
+ * la misma búsqueda que no encontró nada pasa a mirar también ahí. No hace una
+ * búsqueda distinta: hace que la de siempre alcance. */
+function _buscarTambienEnElArchivo(){
+  _loadOlderHistoryClicked();
 }
 
 function _loadOlderHistoryClicked() {
@@ -18853,21 +18967,68 @@ function releaseEmptyReservationsConfirm(){
   });
 }
 
+/* EL NAVEGADOR DEJA DE ADIVINAR.
+ *
+ * Antes cada soltada quitaba de `materialLocks` lo que el navegador CREÍA
+ * haber soltado. Si acertaba, bien; si no —y en el vídeo de Jose no acertaba—
+ * el cartel seguía ofreciendo soltar cosas ya sueltas, y al pulsarlas el
+ * servidor contestaba con la única explicación que conocía.
+ *
+ * Desde la v12.59 el servidor manda `locksAfter` con la lista REAL, leída de la
+ * hoja que acaba de escribir. Aquí sólo se obedece. Sin llamada extra: viaja
+ * dentro de la respuesta que ya venía.
+ *
+ * Con el `filter` de respaldo por si una versión vieja del servidor contesta
+ * sin `locksAfter` — durante un despliegue a medias las dos mitades no tienen
+ * por qué coincidir, y quedarse sin quitar nada sería peor que adivinar. */
+function _aplicarCandados(res, quitarIds){
+  if (res && Array.isArray(res.locksAfter)) {
+    materialLocks = res.locksAfter;
+  } else if (quitarIds && quitarIds.length) {
+    var fuera = {};
+    quitarIds.forEach(function(id){ fuera[id] = true; });
+    materialLocks = materialLocks.filter(function(l){ return !fuera[l.id]; });
+  }
+  _rebuildLocksIndex();
+}
+
 function _doUnlockMany(ids){
   google.script.run
     .withSuccessHandler(function(res){
-      var quitar = {};
-      ids.forEach(function(id){ quitar[id] = true; });
-      materialLocks = materialLocks.filter(function(l){ return !quitar[l.id]; });
-      _rebuildLocksIndex();
+      _aplicarCandados(res, ids);
       var n = (res && res.released) || 0;
-      // Que alguien se haya adelantado no es un fallo de quien pulsó: el mundo
-      // acabó como pedía. Se cuenta, no se disculpa. Misma regla que en
-      // unlockMaterial, y la misma razón.
-      showToast('🔓 Released ' + n + ' reservation' + (n === 1 ? '' : 's') +
-        (res && res.alreadyGone
-          ? ' — ' + res.alreadyGone + ' had already been released by someone else.'
-          : '.'), 'ok', 5000);
+      /* Que alguien se haya adelantado no es un fallo de quien pulsó: el mundo
+       * acabó como pedía. Se cuenta, no se disculpa. Misma regla que en
+       * unlockMaterial, y la misma razón.
+       *
+       * Y DESDE LA v12.59, QUIÉN. El mensaje decía «had already been released
+       * by someone else» y en el vídeo de Jose ese «someone else» era él. El
+       * servidor ahora separa las que soltó quien pregunta de las que soltó
+       * otro, así que se puede decir la verdad en vez de una deducción.
+       *
+       * Y «Released 0 reservations» a secas mientras la lista baja es lo mismo
+       * visto del otro lado: cada frase era cierta por separado y juntas sólo
+       * se podían leer como un fallo. Cuando no se soltó ninguna porque ya
+       * estaban todas sueltas, eso es lo que se dice — y no un cero. */
+      var yaTi    = (res && res.yaSoltadasPorTi)    || 0;
+      var yaOtros = (res && res.yaSoltadasPorOtros) || 0;
+      var cola = '';
+      if (yaTi && yaOtros)  cola = ' — ' + yaTi + ' you had already released, ' + yaOtros + ' someone else had.';
+      else if (yaTi)        cola = ' — the other ' + (yaTi === 1 ? 'one was' : yaTi + ' were') + ' already released by you.';
+      else if (yaOtros)     cola = ' — ' + (yaOtros === 1 ? 'one was' : yaOtros + ' were') + ' already released by somebody else.';
+      else if (res && res.alreadyGone) cola = ' — ' + res.alreadyGone + ' had already been released.';
+
+      var frase;
+      if (!n && (yaTi || yaOtros || (res && res.alreadyGone))) {
+        // Nada que soltar porque ya estaban todas. Decir "Released 0" aquí es
+        // contar un fracaso donde no lo hubo.
+        frase = yaTi && !yaOtros
+          ? '🔓 Nothing to do — you had already released ' + (yaTi === 1 ? 'that one' : 'those ' + yaTi) + '.'
+          : '🔓 Nothing to do — they were already released.';
+      } else {
+        frase = '🔓 Released ' + n + ' reservation' + (n === 1 ? '' : 's') + (cola || '.');
+      }
+      showToast(frase, 'ok', 5000);
       if (_openRackName) openRackDrawer(_openRackName);
       renderStock();
       renderWarehouseMap();
@@ -19400,9 +19561,30 @@ function openMediaPreview(url, label){
       hint.innerHTML = 'Preview of page 1 — use <strong>↗ Open</strong> above for the full document.';
       body.appendChild(hint);
 
+      /* ── POR QUÉ `margin:auto` Y NO `align-items:center` ────────────────────
+       *
+       * Jose, 2026-10-12, con captura: *"el header de la vista previa no deja
+       * ver todo el documento"*. En su captura falta la parte de arriba del
+       * Bill of Lading —el logo y la cabecera— Y HAY BARRA DE SCROLL, PERO NO
+       * SUBE.
+       *
+       * Y la cabecera no tenía la culpa. La culpa era esta línea.
+       *
+       * Centrar con `align-items:center` un hijo MÁS ALTO que su caja empuja su
+       * principio fuera del área visible, y el scroll NO LO ALCANZA: el
+       * desbordamiento por el lado del inicio no es alcanzable en flexbox. La
+       * barra aparece, baja, y lo de arriba queda inaccesible para siempre.
+       * Medido aparte: la vista previa de una imagen suelta no tiene este
+       * problema —720px en 720px— porque ahí nada desborda. Es sólo el camino
+       * del PDF, que mete la barra de aviso de más.
+       *
+       * `margin:auto` en el HIJO centra igual cuando cabe, y cuando no cabe
+       * deja de centrar en vez de recortar. Es la misma diferencia que
+       * `justify-content: safe center`, escrita de la forma que entienden todos
+       * los navegadores. */
       var holder = document.createElement('div');
-      holder.style.cssText = 'flex:1;min-height:0;width:100%;display:flex;align-items:center;' +
-        'justify-content:center;overflow:auto;padding:.75rem';
+      holder.style.cssText = 'flex:1;min-height:0;width:100%;display:flex;' +
+        'overflow:auto;padding:.75rem';
       holder.innerHTML = '<p style="color:#fff">Rendering preview…</p>';
       body.appendChild(holder);
 
@@ -19412,7 +19594,11 @@ function openMediaPreview(url, label){
           var pimg = document.createElement('img');
           pimg.src = bigUrl;
           pimg.alt = label || '';
-          pimg.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;' +
+          // `margin:auto` centra mientras cabe y se rinde cuando no — ver arriba.
+          // Y sin `max-height:100%`: dentro de un contenedor cuya altura sale de
+          // `flex:1` ese porcentaje no tiene contra qué resolverse, así que no
+          // limitaba nada y encima tapaba la regla de la hoja de estilos.
+          pimg.style.cssText = 'max-width:100%;object-fit:contain;margin:auto;' +
             'background:#fff;border-radius:4px';
           holder.appendChild(pimg);
         } else {
@@ -19619,16 +19805,29 @@ function _doUnlockMaterial(lockId){
   var lock = _lockById(lockId);
   google.script.run
     .withSuccessHandler(function(res){
-      materialLocks = materialLocks.filter(function(l){ return l.id !== lockId; });
-      _rebuildLocksIndex();
+      _aplicarCandados(res, [lockId]);
       // Si otro lo quitó primero, el resultado es el mismo, y se dice como lo
       // que es: una coincidencia, no un fallo de quien pulsó. Todo lo de abajo
       // —quitarlo de la lista y repintar el estante y el mapa— pasa igual, que
       // es justo lo que faltaba: antes este caso iba por el manejador de FALLO,
       // que sólo enseñaba un error, y por eso el candado se quedaba pintado.
       if (res && res.alreadyGone) {
-        showToast('🔓 Already released — someone else got there first. ' +
-                  'Nothing left to do.', 'info', 5000);
+        /* SE DICE LO QUE SE SABE, NO LO QUE SE DEDUCE.
+         *
+         * Decía «someone else got there first». Jose lo grabó el 05/10 estando
+         * SOLO: la reserva la había soltado él, segundos antes, en esa misma
+         * pantalla. El dato era cierto —ya no estaba— pero la explicación era
+         * inventada, y mandaba a buscar a un compañero que no tocó nada.
+         *
+         * Ahora el servidor manda `unlockedByYou` y `unlockedBy`, que los lee
+         * de la columna `UnlockedBy` de la hoja. Tres frases para tres cosas
+         * que de verdad se pueden saber, y ninguna acusa a nadie por descarte. */
+        var quienLo = res.unlockedByYou
+          ? '🔓 You already released this one. Nothing left to do.'
+          : (res.unlockedBy
+              ? '🔓 Already released by ' + _stripTags(res.unlockedBy) + '. Nothing left to do.'
+              : '🔓 This one was already released. Nothing left to do.');
+        showToast(quienLo, 'info', 5000);
       } else {
         showToast('🔓 Released' +
           (lock && lock.name ? ' — ' + lock.name + (lock.rack ? ' at ' + lock.rack : '') : '') +
