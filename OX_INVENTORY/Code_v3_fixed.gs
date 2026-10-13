@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.61';
+var APP_VERSION = '12.65';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.61';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '80499b02';
+var APP_BUILD = '64288996';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -459,7 +459,42 @@ function adminNotifyEmail_() {
 // and nobody else. That matters because the web app is reachable by anyone with
 // a Google account and the URL — without this check, whoever opened an
 // unconfigured copy first could make themselves its administrator.
+/* ── `getSetupState` ES LA ÚNICA QUE CORRE SIN IDENTIDAD, Y TIENE QUE SER ASÍ ──
+ *
+ * Hay que poder preguntar «¿esto está configurado?» ANTES de que exista nadie
+ * a quien identificar. Por eso no lleva guardia, y por eso el tope aquí no se
+ * puede llevar por persona como en las otras cinco.
+ *
+ * LA CLAVE DEL CONTADOR es el usuario activo cuando Apps Script lo ve —la
+ * gente del dominio del cliente— y un cubo compartido `anon` para el resto.
+ * Es el mismo reparto que ya hace `throttle_` con su `String(id || 'anon')`.
+ * No es perfecto: varios desconocidos comparten contador. Es lo mejor que se
+ * puede hacer con una puerta que por definición no sabe quién llama.
+ *
+ * 120 EN CINCO MINUTOS. La app la llama como mucho UNA vez por carga de
+ * página, y sólo por dos caminos: cuando la instalación no está configurada y
+ * quien mira es admin, y cuando a alguien se le niega la entrada. Veinte
+ * personas recargando a la vez un día malo no llegan. Un bucle sí, y pasa de
+ * miles por minuto a 24.
+ *
+ * Y SI EL TOPE SALTA NO SE CIERRA NADA: el camino de «no autorizado» enseña
+ * «access denied» en vez de «pídele a Fulano que termine la instalación». Es
+ * un mensaje peor, no una puerta cerrada. Esa es la razón de que un tope
+ * compartido sea aceptable aquí y no lo sería en una puerta de verdad.
+ *
+ * LO QUE DEVUELVE, REVISADO EL 2026-10-13 (SEGURIDAD-ESTADO.md 2.4). Con la
+ * instalación YA configurada devuelve dos cosas y nada más: el nombre del
+ * producto y `needsSetup:false`. Sólo cuando NO está configurada añade
+ * `ownerEmail` e `isOwner` — y el correo del dueño no es un descuido, es el
+ * mensaje: «pídele a Fulano que abra esta página y termine la instalación».
+ * Sin él, quien llega ve un «acceso denegado» verdadero e inútil. La ventana
+ * en la que eso es visible va del despliegue al final del asistente, y lo que
+ * la protege ahora es este tope. No se cambia lo que devuelve.
+ */
 function getSetupState() {
+  var quien = '';
+  try { quien = Session.getActiveUser().getEmail(); } catch (e) {}
+  requireQuota_('setup', quien, 120, 300);
   var cs = companySettings_();
   var out = { productName: PRODUCT_NAME, needsSetup: !cs.setupComplete };
   if (!out.needsSetup) return out;
@@ -13888,6 +13923,36 @@ function ensureIncomingSheet_(ss) {
   return sheet;
 }
 
+
+/* ── LOS TOPES DE LAS SEIS PUERTAS QUE NO LOS TENÍAN ──────────────────────────
+ *
+ * Apuntado en SEGURIDAD-ESTADO.md 2.3 el 2026-10-05 y comprobado función por
+ * función el 2026-10-13: `getIncoming`, `addIncoming`, `updateIncoming`,
+ * `deleteIncoming`, `getMonitoredMaterials` y `getSetupState` comprobaban
+ * IDENTIDAD pero no tenían ni un `requireQuota_` ni un `throttle_`, mientras
+ * `processMovement` y `getInitialData` sí los tenían.
+ *
+ * LO QUE PERMITÍAN NO ERA HACER NADA INDEBIDO: era agotar la CUOTA DIARIA de
+ * Apps Script de la instalación, y eso deja la app muerta para todos hasta el
+ * día siguiente. Una denegación de servicio barata, y que puede causar sin
+ * querer una pestaña olvidada en un bucle de reintentos.
+ *
+ * LOS NÚMEROS, Y DE DÓNDE SALEN. Ninguno es redondo por gusto: cada uno es
+ * dos órdenes de magnitud por encima del uso real medido, para que estorbe a
+ * un bucle y no a una persona.
+ *
+ *   lectura  180 / 300 s   el mismo que `getInitialData`, que es la lectura
+ *                          más pesada de la app. Una persona abre la pestaña
+ *                          de entrantes unas pocas veces por hora.
+ *   escritura 120 / 300 s  compartido entre las tres de Incoming, para que
+ *                          alternarlas no esquive el tope. 120 altas en cinco
+ *                          minutos no las hace nadie a mano; un bucle sí.
+ *   setup    120 / 300 s   ver la nota propia de `getSetupState`.
+ *
+ * Y `throttle_` NO ES ATÓMICO —Apps Script no tiene incremento atómico— así
+ * que cuenta de menos en una ráfaga. Está dicho donde se define y vale aquí:
+ * esto es un techo contra inundaciones, no un medidor exacto.
+ */
 function getIncoming(sessionToken) {
   // Apps Script exposes every top-level function to any web app visitor via
   // google.script.run, regardless of whether the app's own frontend calls it
@@ -13897,6 +13962,10 @@ function getIncoming(sessionToken) {
   // authentication. Now requires a real session.
   var auth = getUserRole(sessionToken);
   if (auth.role === 'DENIED' || auth.role === 'NO_SESSION') throw new Error('Not authenticated.');
+  // El tope va DESPUÉS de la identidad, a propósito: así se cuenta por persona
+  // y no por visitante anónimo, y un desconocido ni siquiera llega a gastar
+  // sitio en la caché de contadores.
+  requireQuota_('inc_read', auth.email || sessionToken, 180, 300);
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('INCOMING_V3');
   if (!sheet) return [];
@@ -13997,6 +14066,9 @@ function incomingStatus_(v) {
 function addIncoming(data) {
   var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  // Un solo cubo para las tres escrituras de Incoming: alternar alta, cambio y
+  // borrado no debe esquivar el tope.
+  requireQuota_('inc_write', auth.email, 120, 300);
   // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
   // del candado. Ver la nota de arriba.
   return withStockLock_(function(){
@@ -14075,6 +14147,7 @@ function uploadIncomingDoc_(docFile, name, po) {
 function updateIncoming(data) {
   var auth = getUserRole(data && data._sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  requireQuota_('inc_write', auth.email, 120, 300);
   // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
   // del candado. Ver la nota de arriba.
   return withStockLock_(function(){
@@ -14126,6 +14199,7 @@ function updateIncoming(data) {
 function deleteIncoming(id, sessionToken) {
   var auth = getUserRole(sessionToken);
   if (auth.role !== 'ADMIN') throw new Error('Admin only.');
+  requireQuota_('inc_write', auth.email, 120, 300);
   // Todo lo que sigue lee la hoja y escribe por número de fila: va dentro
   // del candado. Ver la nota de arriba.
   return withStockLock_(function(){
@@ -15351,6 +15425,7 @@ function parseEmailTextAsIncoming_(bodyText, subject, from, apiKey) {
 function getMonitoredMaterials(sessionToken) {
   var auth = getUserRole(sessionToken);
   if (auth.role === 'DENIED' || auth.role === 'NO_SESSION') throw new Error('Not authenticated.');
+  requireQuota_('mon_read', auth.email || sessionToken, 180, 300);
   var props = PropertiesService.getScriptProperties();
   var raw   = props.getProperty('WMS_MONITORED_MATERIALS');
   if (!raw) return null;

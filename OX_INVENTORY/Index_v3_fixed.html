@@ -226,6 +226,86 @@
        * se lee entero. */
       --lh-compacta:1.3; --lh-normal:1.4; --lh-amplia:1.5;
       --px-btn-sm:12px; --px-btn-md:16px; --px-btn-lg:20px;
+
+      /* ── LA ESCALA DE ESPACIADO ─────────────────────────────────────────
+       *
+       * Medido el 2026-10-12 sobre la v12.61: 697 declaraciones de
+       * `padding`, `margin` y `gap`, con 58 longitudes distintas y el 2% por
+       * token. La familia más grande de toda la deuda de forma.
+       *
+       * Y la misma enfermedad que tenía la letra, con la misma forma: entre
+       * 4,8 px y 12 px hay DIEZ valores con 30 usos o más cada uno, separados
+       * 0,8 px entre sí —.3, .35, .4, .45, .5, .55, .6, .65, .7, .75 rem—.
+       * 494 usos repartidos en diez escalones dentro de siete píxeles. Nadie
+       * puede ver 0,8 px de diferencia en un relleno.
+       *
+       * LOS PELDAÑOS SON LOS VALORES QUE YA SE USABAN MÁS, no un reparto
+       * bonito. Por eso los saltos no son regulares (2,4 · 1,6 · 1,6 · 2,4):
+       * cada peldaño se puso donde ya había mucha pantalla, para que esa
+       * pantalla no se mueva ni un píxel. Es el mismo método que la escala de
+       * letra, que Jose eligió del mockup.
+       *
+       * ESTA VERSIÓN SÓLO CONVIERTE LO QUE CAE EXACTO EN UN PELDAÑO —355
+       * declaraciones, 407 longitudes—. Movimiento cero por construcción: el
+       * valor calculado es el mismo que antes. Las 230 longitudes que están a
+       * 0,8 px de un peldaño SÍ se moverían, así que van en la tanda
+       * siguiente, que necesita medir la geometría antes y después.
+       *
+       * Y LOS `px` NO SE TOCAN, a propósito. `8px` y `.5rem` sólo miden lo
+       * mismo si el navegador está en su tamaño de letra por defecto; si el
+       * lector lo subió —la opción de texto grande del teléfono—, el rem
+       * crece y el px no. Cambiar uno por otro no es limpieza, es decidir si
+       * el espaciado debe crecer con la letra. Anotado en el BACKLOG.
+       */
+      --sp-1:.25rem;    /*  4,0 px · pegado: el aire mínimo que aún se ve */
+      --sp-2:.4rem;     /*  6,4 px · dentro de una pieza pequeña */
+      --sp-3:.5rem;     /*  8,0 px · el más usado de la app (112 sitios) */
+      --sp-4:.6rem;     /*  9,6 px · entre piezas hermanas */
+      --sp-5:.75rem;    /* 12,0 px · relleno de tarjeta, hueco entre campos */
+      --sp-6:1rem;      /* 16,0 px · entre bloques */
+      --sp-7:1.25rem;   /* 20,0 px · relleno de ventana */
+      --sp-8:1.5rem;    /* 24,0 px · entre secciones */
+      --sp-9:2rem;      /* 32,0 px · aire de respiro */
+      --sp-10:3rem;     /* 48,0 px · separación grande, una sola vez */
+
+      /* ── Y DOS TRABAJOS QUE NADIE HABÍA NOMBRADO ────────────────────────
+       *
+       * Al mirar los 105 usos por debajo de 4 px no era espaciado flojo: era
+       * la misma pieza repetida con números distintos.
+       *
+       * LA PÍLDORA. VEINTE reglas dibujan la misma cosa —una palabra corta o
+       * una cifra dentro de una cápsula de color— y entre las veinte hay
+       * CATORCE rellenos distintos, DIEZ tamaños de letra y SEIS radios. Los
+       * rellenos verticales solos son siete: 1px, 2px, 3px, .1rem, .15rem,
+       * .18rem y .2rem, o sea de 1 a 3,2 px para el mismo trabajo.
+       *
+       * El caso que lo retrata: `.inc-status-arrived` lleva `.1rem .5rem` en
+       * la tabla de entrantes y `.18rem .7rem` dentro del popup de la mañana.
+       * Es la MISMA etiqueta en dos pantallas y nada obligaba a que
+       * coincidieran — el noveno caso del patrón que este repositorio ya
+       * tiene contado ocho veces: dos cosas que tienen que coincidir sin que
+       * nada lo obligue.
+       *
+       * EL RADIO SALE GRATIS. Las píldoras miden entre 16 y 22 px de alto, y
+       * un radio de 10 px ya las redondea del todo: 10, 16, 20 y 999 px se
+       * ven IGUAL. Unificarlos en 999 px borra cuatro valores sin mover un
+       * píxel. Los que no entran son los tres que de verdad se ven cuadrados
+       * —4 px en `.ver-bad`, 6 px en `.tlc-qty` y en `.loc-resv`—: son
+       * contadores, no etiquetas, y se distinguen de un vistazo por eso.
+       *
+       * EL TAMAÑO DE LETRA NO ENTRA EN ESTA TANDA. Diez valores entre .62 y
+       * .8 rem, y cambiarlos mueve el ancho del texto dentro de la cápsula;
+       * va con la tanda de ventanas y ajustes, que ya tiene 268 declaraciones
+       * de letra a pelo esperando y la medida de geometría que hace falta.
+       *
+       * LA SUBLÍNEA. Catorce sitios separan una línea pequeña de la grande
+       * que tiene encima (`.stat .sub`, `.acct-email`, `.mc-sub`,
+       * `.todo-card-sub`, `.sys-card-when`…) con tres valores: .1 rem (3
+       * sitios), .15 rem (7) y .2 rem (4). Un trabajo, un valor.
+       */
+      --pad-pildora:.125rem var(--sp-3);  /* 2 px · 8 px, los dos más usados */
+      --r-pildora:999px;                  /* ya redondeaba del todo desde 10 px */
+      --gap-sublinea:.15rem;              /* 2,4 px · el más usado (7 de 14) */
     }
     body{font-family:'Inter','DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;transition:background .25s,color .25s}
     button{font-family:inherit;cursor:pointer}
@@ -236,7 +316,7 @@
        on a wide window and dropped below it on a narrower one — and the whole
        page shifted as it went. Now the tabs have a line of their own that they
        never leave; they just move toward the middle as the window grows. */
-    .topbar{background:var(--navy);padding:.7rem 1.5rem .6rem;display:flex;flex-direction:column;gap:.55rem;position:sticky;top:var(--tb-alto);z-index:var(--z-topbar);border-bottom:3px solid var(--accent)}
+    .topbar{background:var(--navy);padding:.7rem var(--sp-8) var(--sp-4);display:flex;flex-direction:column;gap:.55rem;position:sticky;top:var(--tb-alto);z-index:var(--z-topbar);border-bottom:3px solid var(--accent)}
     .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     /* Row two is the tabs and the account cluster TOGETHER, so the circle is
        always beside the tabs rather than stranded on the line above them. The
@@ -266,7 +346,7 @@
        enough not to be part of the branding. */
     .brand-mark{display:flex;flex-direction:column;align-items:center;gap:2px}
     .ver-tag{font-size:.55rem;font-weight:700;letter-spacing:.05em;line-height:1;color:rgba(255,255,255,.4)}
-    .ver-bad{color:#fff;background:rgba(255,0,0,.55);border-radius:4px;padding:2px 6px;font-size:.62rem}
+    .ver-bad{color:#fff;background:rgba(255,0,0,.55);border-radius:4px;padding:var(--pad-pildora);font-size:.62rem}
     /* The customer's name, set apart from the interface around it. Everything
        else on this page is Inter; this is the one string that belongs to THEM,
        and a different face is what makes it read as a name rather than another
@@ -301,7 +381,7 @@
     /* Trimmed from 4px/.7rem: this badge is the bottom of the brand stack, so
        every pixel it loses is a pixel of clearance from the blue edge it was
        crossing. It is a signature, not a heading — smaller suits it anyway. */
-    .author-badge{background:rgba(0,0,0,.2);padding:3px 9px;border-radius:20px;border:1px solid rgba(255,255,255,.1);font-size:.66rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
+    .author-badge{background:rgba(0,0,0,.2);padding:var(--pad-pildora);border-radius:var(--r-pildora);border:1px solid rgba(255,255,255,.1);font-size:.66rem;color:#a1b0cb;display:inline-flex;align-items:center;gap:5px}
     /* El nombre del producto, enlazado a la landing. En reposo se ve
        exactamente igual que antes de ser enlace —misma letra, mismo color, sin
        subrayado— y sólo se subraya al pasar por encima. Es una firma en una
@@ -370,7 +450,7 @@
          también establece bloque contenedor para descendientes absolutos, así
          que la fusión del header sigue intacta. El top:0 y el z-index se
          heredan de .topbar. Lo mide test-topbar-sticky.js haciendo scroll. */
-      .topbar.merged{position:sticky;min-height:max(78px, calc(var(--brand-h, 60px) + 26px));gap:.4rem 1.25rem}
+      .topbar.merged{position:sticky;min-height:max(78px, calc(var(--brand-h, 60px) + 26px));gap:var(--sp-2) var(--sp-7)}
       .topbar.merged .topbar-row1{position:absolute;left:1.5rem;top:50%;transform:translateY(-50%);z-index:1}
       /* row2 itself stays full-width (unpadded) so its centring math is
          still exactly "middle of the page" — the fix isn't in row2's box,
@@ -382,22 +462,22 @@
       .topbar.merged .topbar-row2{grid-template-columns:minmax(var(--brand-w,180px),1fr) minmax(0,auto) minmax(var(--brand-w,180px),1fr)}
     }
     /* ── LAYOUT ── */
-    .container{max-width:1400px;margin:0 auto;padding:1.25rem;flex-grow:1;width:100%}
+    .container{max-width:1400px;margin:0 auto;padding:var(--sp-7);flex-grow:1;width:100%}
     .section{display:none}.section.active{display:block}
     /* ── STAT CARDS ── */
-    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem;margin-bottom:1.5rem}
-    .stat{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
-    .stat label{font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:.25rem}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:var(--sp-6);margin-bottom:var(--sp-8)}
+    .stat{background:var(--card);border-radius:var(--radius);padding:var(--sp-7);box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+    .stat label{font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:600;display:block;margin-bottom:var(--sp-1)}
     .stat .val{font-size:1.8rem;font-weight:700}
-    .stat .sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+    .stat .sub{font-size:.72rem;color:var(--muted);margin-top:var(--gap-sublinea)}
     /* ── CARDS ── */
-    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem;display:flex;flex-direction:column}
-    .card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:var(--sp-8);display:flex;flex-direction:column}
+    .card-header{padding:var(--sp-6) var(--sp-7);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-5)}
     .card-header h2{font-size:1rem;font-weight:700}
-    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-    .toolbar input,.toolbar select{padding:.4rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
+    .toolbar{display:flex;gap:var(--sp-3);flex-wrap:wrap;align-items:center}
+    .toolbar input,.toolbar select{padding:var(--sp-2) var(--sp-5);border:1px solid var(--border);border-radius:6px;font-size:.8rem;background:#fff}
     /* ── BUTTONS ── */
-    .btn{padding:.5rem 1rem;border:none;border-radius:var(--r-btn);font-size:var(--fs-lg);font-weight:600;display:inline-flex;align-items:center;gap:.35rem;justify-content:center;transition:.15s}
+    .btn{padding:var(--sp-3) var(--sp-6);border:none;border-radius:var(--r-btn);font-size:var(--fs-lg);font-weight:600;display:inline-flex;align-items:center;gap:.35rem;justify-content:center;transition:.15s}
     .btn:hover{filter:brightness(.92)}
     .btn-primary{background:var(--accent);color:#fff}
     /* EL BORDE TRANSPARENTE NO ES ADORNO: ES LO QUE IGUALA LA CAJA.
@@ -436,7 +516,7 @@
     tr.row-waste td:first-child{border-left:3px solid #111827}
     tr.row-adjust td:first-child{border-left:3px solid var(--steel)}
     /* ── BADGES ── */
-    .badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:600;white-space:nowrap}
+    .badge{display:inline-block;padding:var(--pad-pildora);border-radius:var(--r-pildora);font-size:.7rem;font-weight:600;white-space:nowrap}
     .badge-green{background:var(--green-bg);color:var(--green)}
     .badge-red{background:var(--red-bg);color:var(--red)}
     .badge-blue{background:#DBEAFE;color:var(--accent2)}
@@ -455,30 +535,30 @@
        title de la celda, no en una burbuja aparte. */
     .sc-lock{font-size:.85rem;cursor:help}
     /* ── WAREHOUSE MAP ── */
-    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;padding:1.25rem}
+    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-6);padding:var(--sp-7)}
     /* ── WAREHOUSE MAP — RACK GRID ── */
-    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:.65rem;padding:.5rem}
+    .rack-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:.65rem;padding:var(--sp-3)}
     .rack-card{background:var(--card);border:2px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:border-color .15s,transform .12s,box-shadow .12s;position:relative}
     .rack-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 18px rgba(59,125,216,.18)}
     .rack-card.rack-empty-card{opacity:.55;cursor:default}
     .rack-card.rack-empty-card:hover{transform:none;border-color:var(--border);box-shadow:var(--shadow)}
-    .rack-name{font-size:.82rem;font-weight:700;color:var(--navy);padding:.5rem .65rem .2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rack-name{font-size:.82rem;font-weight:700;color:var(--navy);padding:var(--sp-3) .65rem .2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .rack-fill-bar{height:5px;background:var(--border);margin:0 .65rem .35rem;border-radius:3px;overflow:hidden}
     .rack-fill-inner{height:100%;border-radius:3px;transition:width .3s}
     .rack-fill-low{background:#10B981}.rack-fill-med{background:#F59E0B}.rack-fill-high{background:var(--accent)}
-    .rack-cats{display:flex;flex-wrap:wrap;gap:3px;padding:0 .6rem .45rem;min-height:22px}
+    .rack-cats{display:flex;flex-wrap:wrap;gap:3px;padding:0 var(--sp-4) .45rem;min-height:22px}
     .rack-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
     .rack-count-row{display:flex;justify-content:space-between;align-items:center;padding:.3rem .65rem .55rem;border-top:1px solid var(--border)}
     .rack-count-row .rc-items{font-size:.7rem;color:var(--muted)}
     .rack-count-row .rc-total{font-size:.78rem;font-weight:700;color:var(--accent2)}
-    .rack-empty{padding:2rem;text-align:center;color:var(--muted);font-size:.85rem}
+    .rack-empty{padding:var(--sp-9);text-align:center;color:var(--muted);font-size:.85rem}
     /* Structured warehouse map (grouped by letter + special areas) */
-    .wh-map{display:flex;flex-direction:column;gap:.5rem;width:100%}
+    .wh-map{display:flex;flex-direction:column;gap:var(--sp-3);width:100%}
     /* Aisles (A, B, C…) sit side by side as columns; each wraps to next line when out of room */
-    .map-letters{display:flex;flex-wrap:wrap;gap:1.5rem;align-items:flex-start}
+    .map-letters{display:flex;flex-wrap:wrap;gap:var(--sp-8);align-items:flex-start}
     .map-letter-col{flex:0 0 auto;width:300px;max-width:100%}
-    .map-letter-hdr{font-size:1.2rem;font-weight:800;color:var(--navy);padding:.4rem .25rem .15rem;border-bottom:2px solid var(--accent);margin-bottom:.5rem;letter-spacing:.02em}
-    .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem .25rem .1rem;margin-top:.6rem;border-bottom:1px dashed var(--border)}
+    .map-letter-hdr{font-size:1.2rem;font-weight:800;color:var(--navy);padding:var(--sp-2) var(--sp-1) .15rem;border-bottom:2px solid var(--accent);margin-bottom:var(--sp-3);letter-spacing:.02em}
+    .map-section-hdr{font-size:.92rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;padding:.45rem var(--sp-1) .1rem;margin-top:var(--sp-4);border-bottom:1px dashed var(--border)}
 
     /* ── LA TIRA DE RESERVAS ──────────────────────────────────────────────────
        Va encima del plano y se lee de un vistazo, así que es una REJILLA y no un
@@ -500,8 +580,8 @@
        Cortar con puntos suspensivos escondía justo el final de los nombres
        largos, que es donde están el A/B/C y el número que los distinguen. */
     .resv-strip{border:1px solid var(--yellow);border-radius:10px;background:var(--yellow-bg);
-      padding:.6rem .75rem;margin-bottom:.9rem}
-    .resv-strip-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+      padding:var(--sp-4) var(--sp-5);margin-bottom:.9rem}
+    .resv-strip-hdr{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
     /* La cabecera ES el botón de abrir y cerrar: toda ella, no un triangulito de
        diez píxeles. Quien quiere ver la lista apunta al renglón que la nombra. */
     /* flex:0 1 auto y no flex:1 — la ⓘ tiene que quedar PEGADA al texto, no
@@ -509,7 +589,7 @@
        hacia la derecha es el margen automático de la ⓘ, no el ancho del
        botón. */
     .resv-toggle{flex:0 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:center;
-      gap:.5rem;background:none;border:0;padding:.1rem 0;margin:0;cursor:pointer;
+      gap:var(--sp-3);background:none;border:0;padding:.1rem 0;margin:0;cursor:pointer;
       font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text);text-align:left}
     .resv-info{margin-right:auto}
     /* Lo único accionable de la cabecera, y por eso es lo único con color. */
@@ -522,10 +602,10 @@
     /* El botón de soltar las que no retienen nada. Va en la cabecera y no en
        cada fila porque es una acción sobre el CONJUNTO. */
     .resv-limpiar{flex-shrink:0;background:var(--card);border:1px solid var(--orange);
-      color:var(--orange);border-radius:6px;padding:.25rem .6rem;font-family:inherit;
+      color:var(--orange);border-radius:6px;padding:var(--sp-1) var(--sp-4);font-family:inherit;
       font-size:.72rem;font-weight:700;cursor:pointer}
     .resv-limpiar:hover{background:var(--orange);color:#fff}
-    .resv-rows{display:flex;flex-direction:column;gap:.25rem;margin-top:.45rem}
+    .resv-rows{display:flex;flex-direction:column;gap:var(--sp-1);margin-top:.45rem}
     /* `hidden` LO PONE EL NAVEGADOR CON display:none, Y ESTA REGLA LO PISABA.
        La hoja del navegador dice `[hidden]{display:none}`, que es un selector de
        un atributo; `.resv-rows` es uno de clase y gana. Resultado: la tira salía
@@ -537,7 +617,7 @@
     /* El envoltorio parte la fila en "lo que se lee" y "lo que se pulsa". Existe
        para que el botón de soltar no viva DENTRO del botón de abrir el estante:
        un botón dentro de otro no es HTML válido y el navegador lo desarma. */
-    .resv-row-wrap{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:.4rem;
+    .resv-row-wrap{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:var(--sp-2);
       align-items:stretch}
     .resv-row-wrap.sin-accion{grid-template-columns:minmax(0,1fr)}
     /* La columna del estante mide 120px POR MEDIDA, no por gusto: en esta
@@ -547,7 +627,7 @@
        manera y salía cortado con puntos suspensivos, que es justo lo que él no
        quería. Lo encontró la prueba de navegador, no el ojo. */
     .resv-row{display:grid;grid-template-columns:120px minmax(0,1.5fr) 104px minmax(0,2fr);
-      gap:.6rem;align-items:center;width:100%;text-align:left;cursor:pointer;
+      gap:var(--sp-4);align-items:center;width:100%;text-align:left;cursor:pointer;
       background:var(--card);border:1px solid var(--border);border-radius:7px;
       padding:.35rem .55rem;font-family:inherit;font-size:.76rem;color:var(--text)}
     .resv-row:hover{border-color:var(--yellow);background:var(--yellow-bg)}
@@ -592,13 +672,13 @@
     /* Each row is a grid of N equal columns → A1A A1B A1C always stay on ONE line. */
     .map-rack-row{display:grid;gap:.45rem;margin-bottom:.45rem}
     .map-rack-row > .rack-card{min-width:0}
-    .map-rack-row .rack-name{font-size:.86rem;font-weight:700;padding:.45rem .5rem .2rem;white-space:nowrap}
-    .map-rack-row .rack-fill-bar{margin:0 .5rem .35rem}
-    .map-rack-row .rack-cats{padding:0 .5rem .35rem;min-height:0}
-    .map-rack-row .rack-count-row{padding:.3rem .5rem .5rem;flex-wrap:wrap;gap:1px 4px}
+    .map-rack-row .rack-name{font-size:.86rem;font-weight:700;padding:.45rem var(--sp-3) .2rem;white-space:nowrap}
+    .map-rack-row .rack-fill-bar{margin:0 var(--sp-3) .35rem}
+    .map-rack-row .rack-cats{padding:0 var(--sp-3) .35rem;min-height:0}
+    .map-rack-row .rack-count-row{padding:.3rem var(--sp-3) var(--sp-3);flex-wrap:wrap;gap:1px 4px}
     .map-rack-row .rc-items{font-size:.62rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .map-rack-row .rc-total{font-size:.72rem}
-    .map-special-grid{display:flex;flex-wrap:wrap;gap:.5rem}
+    .map-special-grid{display:flex;flex-wrap:wrap;gap:var(--sp-3)}
     .map-special-grid > .rack-card{flex:0 1 190px;min-width:150px}
     .rack-card.rack-dim{opacity:.22}
     [data-theme="dark"] .map-letter-hdr{color:#cfe0ff}
@@ -612,15 +692,15 @@
     .rack-drawer-hdr{background:var(--navy);color:#fff;padding:.85rem 1.1rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
     .rack-drawer-hdr h3{font-size:1rem;font-weight:700;margin:0}
     .rack-drawer-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:var(--r-btn);padding:3px 10px;cursor:pointer;font-size:var(--fs-lg)}
-    .rack-drawer-body{flex:1;overflow-y:auto;padding:.5rem}
-    .rdw-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;border-radius:7px;margin-bottom:3px;transition:background .12s}
+    .rack-drawer-body{flex:1;overflow-y:auto;padding:var(--sp-3)}
+    .rdw-item{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) .65rem;border-radius:7px;margin-bottom:3px;transition:background .12s}
     .rdw-item:hover{background:#F8FAFC}
     .rdw-name{flex:1;font-size:.83rem;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
     .rdw-name:after{content:'▾';margin-left:.35rem;font-size:.7rem;color:var(--muted);display:inline-block;transition:transform .15s}
     .rdw-name.rdw-name-open:after{transform:rotate(180deg)}
     .rdw-item-wrap{margin-bottom:3px}
     .rdw-item-wrap .rdw-item{margin-bottom:0}
-    .rdw-actions{display:none;gap:.4rem;padding:.1rem .65rem .6rem 1.6rem;flex-wrap:wrap}
+    .rdw-actions{display:none;gap:var(--sp-2);padding:.1rem .65rem var(--sp-4) 1.6rem;flex-wrap:wrap}
     .rdw-rack-qty{font-size:.82rem;font-weight:700;color:var(--red);flex-shrink:0}
     .rdw-total-qty{font-size:.72rem;color:var(--muted);flex-shrink:0}
     .rdw-lock-badge{flex-shrink:0;font-size:.9rem;cursor:default}
@@ -677,8 +757,8 @@
     .rack-drawer-overlay{display:none;position:fixed;inset:0;z-index:var(--z-drawer-back);background:rgba(0,0,0,.3)}
     .rack-drawer-overlay.open{display:block}
     /* ── ALERTS ── */
-    .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:.6rem 1rem;margin-bottom:1rem;font-size:.82rem;color:var(--yellow);display:none}
-    .alert-banner.show{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+    .alert-banner{background:var(--yellow-bg);border:1px solid var(--yellow);border-radius:8px;padding:var(--sp-4) var(--sp-6);margin-bottom:var(--sp-6);font-size:.82rem;color:var(--yellow);display:none}
+    .alert-banner.show{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
     /* ── OVERLAY / MODAL ── */
     /* ── SETUP WIZARD ──
        Fixed light palette on purpose: the wizard runs before the user has any
@@ -686,37 +766,41 @@
        because several elements used literal light colours while the tokens
        around them flipped. Rather than audit every rule for both themes on a
        screen seen once, it commits to one look. */
-    .wiz-overlay{display:none;position:fixed;inset:0;background:#F1F5F9;z-index:var(--z-fullscreen);overflow-y:auto;padding:2rem 1rem;color:#111827}
+    .wiz-overlay{display:none;position:fixed;inset:0;background:#F1F5F9;z-index:var(--z-fullscreen);overflow-y:auto;padding:var(--sp-9) var(--sp-6);color:#111827}
     .wiz-overlay.show{display:block}
-    .wiz-box{background:#fff;border-radius:16px;box-shadow:var(--sh-4);max-width:640px;margin:0 auto;padding:2rem}
-    .wiz-steps{display:flex;gap:6px;margin-bottom:1.5rem}
+    .wiz-box{background:#fff;border-radius:16px;box-shadow:var(--sh-4);max-width:640px;margin:0 auto;padding:var(--sp-9)}
+    .wiz-steps{display:flex;gap:6px;margin-bottom:var(--sp-8)}
     .wiz-steps div{flex:1;height:4px;border-radius:2px;background:#E5E7EB;transition:background .25s}
     .wiz-steps div.done{background:#3B7DD8}
     .wiz-title{font-size:1.35rem;font-weight:800;color:#1B2A4A;margin-bottom:.3rem}
     .wiz-sub{font-size:.85rem;color:#6B7280;margin-bottom:1.4rem;line-height:1.5}
-    .wiz-body .field{margin-bottom:1rem}
+    .wiz-body .field{margin-bottom:var(--sp-6)}
     .wiz-body label{display:block;font-size:.75rem;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem}
     .wiz-body input[type=text],.wiz-body input[type=email],.wiz-body input[type=file],.wiz-body select,.wiz-body textarea{
-      width:100%;padding:.6rem .75rem;border:1px solid #E5E7EB;border-radius:8px;font-size:.9rem;font-family:inherit;background:#fff;color:#111827}
+      width:100%;padding:var(--sp-4) var(--sp-5);border:1px solid #E5E7EB;border-radius:8px;font-size:.9rem;font-family:inherit;background:#fff;color:#111827}
     .wiz-body input:focus,.wiz-body select:focus,.wiz-body textarea:focus{outline:none;border-color:#3B7DD8}
     .wiz-hint{font-size:.75rem;color:#6B7280;margin-top:.3rem;line-height:1.45}
-    .wiz-nav{display:flex;justify-content:space-between;align-items:center;margin-top:1.75rem;gap:.75rem}
+    .wiz-nav{display:flex;justify-content:space-between;align-items:center;margin-top:1.75rem;gap:var(--sp-5)}
     .wiz-nav .btn{border:1px solid #E5E7EB;background:#fff;color:#374151}
     .wiz-nav .btn-primary{background:#3B7DD8;border-color:#3B7DD8;color:#fff}
-    .wiz-preset{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
+    .wiz-preset{display:flex;gap:var(--sp-4);flex-wrap:wrap;margin-bottom:var(--sp-6)}
     .wiz-preset button{flex:1;min-width:150px;padding:.85rem;border:2px solid #E5E7EB;border-radius:var(--radius);background:#fff;cursor:pointer;font-family:inherit;font-size:var(--fs-lg);font-weight:600;color:#111827;transition:.15s;text-align:left}
     .wiz-preset button:hover,.wiz-preset button.sel{border-color:#3B7DD8;background:#EFF6FF}
-    .wiz-preset span{display:block;font-size:.72rem;font-weight:400;color:#6B7280;margin-top:.2rem}
-    .chip-box{display:flex;flex-wrap:wrap;gap:.4rem;padding:.6rem;border:1px solid #E5E7EB;border-radius:8px;min-height:52px;background:#F8FAFC}
-    .chip{display:inline-flex;align-items:center;gap:.35rem;background:#DBEAFE;color:#2563EB;border-radius:16px;padding:3px 8px 3px 11px;font-size:.8rem;font-weight:600}
+    .wiz-preset span{display:block;font-size:.72rem;font-weight:400;color:#6B7280;margin-top:var(--gap-sublinea)}
+    .chip-box{display:flex;flex-wrap:wrap;gap:var(--sp-2);padding:var(--sp-4);border:1px solid #E5E7EB;border-radius:8px;min-height:52px;background:#F8FAFC}
+    /* La única píldora que NO toma `--pad-pildora`: los 11 px de la izquierda
+       contra 8 de la derecha son a propósito, porque el ✕ vive a la derecha y
+       necesita menos aire por fuera que el texto. El radio sí entra: 16 px ya
+       la redondeaba del todo, igual que 999. */
+    .chip{display:inline-flex;align-items:center;gap:.35rem;background:#DBEAFE;color:#2563EB;border-radius:var(--r-pildora);padding:3px 8px 3px 11px;font-size:.8rem;font-weight:600}
     .chip button{border:none;background:none;color:#2563EB;cursor:pointer;font-size:var(--fs-xl);line-height:1;padding:0 2px;opacity:.6}
     .chip button:hover{opacity:1;color:#EF4444}
-    .wiz-gen{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
-    .wiz-userrow{display:grid;grid-template-columns:1fr 130px 34px;gap:.5rem;margin-bottom:.5rem;align-items:center}
+    .wiz-gen{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-4)}
+    .wiz-userrow{display:grid;grid-template-columns:1fr 130px 34px;gap:var(--sp-3);margin-bottom:var(--sp-3);align-items:center}
     .wiz-userrow .btn-icon{color:#EF4444}
-    .wiz-summary{background:#F8FAFC;border-radius:10px;padding:1rem 1.15rem;font-size:.85rem;line-height:1.9;color:#111827}
+    .wiz-summary{background:#F8FAFC;border-radius:10px;padding:var(--sp-6) 1.15rem;font-size:.85rem;line-height:1.9;color:#111827}
     .wiz-summary b{color:#1B2A4A}
-    .wiz-toggle{display:flex;align-items:flex-start;gap:.6rem;padding:.75rem;background:#D1FAE5;border-radius:8px;font-size:.85rem;margin-bottom:1rem;color:#111827}
+    .wiz-toggle{display:flex;align-items:flex-start;gap:var(--sp-4);padding:var(--sp-5);background:#D1FAE5;border-radius:8px;font-size:.85rem;margin-bottom:var(--sp-6);color:#111827}
     .wiz-progress{margin-top:1.1rem}
     .wiz-progress-track{height:8px;border-radius:4px;background:#E5E7EB;overflow:hidden}
     .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
@@ -732,10 +816,10 @@
       100%{opacity:1;transform:translateX(0)}
     }
     .setup-nudge.returning{animation:nudge-return 1.15s cubic-bezier(.22,.61,.36,1) both}
-    .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:.4rem}
+    .setup-nudge .nudge-act{display:none;margin-top:.55rem;gap:var(--sp-2)}
     .setup-nudge:hover .nudge-act{display:flex}
-    .setup-nudge button{border:none;border-radius:var(--r-btn);padding:.3rem .6rem;font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:inherit}
-    @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:1.25rem}.wiz-gen{grid-template-columns:1fr}}
+    .setup-nudge button{border:none;border-radius:var(--r-btn);padding:.3rem var(--sp-4);font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:inherit}
+    @media (max-width:640px){.setup-nudge{left:12px;right:12px;bottom:76px;max-width:none}.wiz-box{padding:var(--sp-7)}.wiz-gen{grid-template-columns:1fr}}
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:var(--z-overlay);align-items:center;justify-content:center;padding:15px}
     .ri-photo-thumb{position:relative;width:52px;height:52px;flex-shrink:0}
     .ri-photo-thumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
@@ -821,7 +905,7 @@
        navegación se pega justo debajo (`--tb-alto`, que escribe _barraArriba). */
     :root{--tb-alto:0px}
     #topBanners{position:sticky;top:0;left:0;right:0;z-index:99999;display:flex;flex-direction:column}
-    .top-banner{display:flex;align-items:center;justify-content:center;gap:.5rem;
+    .top-banner{display:flex;align-items:center;justify-content:center;gap:var(--sp-3);
       font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;color:#fff;
       box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .top-banner.warn{background:#b45309}
@@ -880,9 +964,9 @@
     .modal .form-grid>*,.modal .mat-line-grid>*{min-width:0}
     .modal input,.modal select,.modal textarea{width:100%;min-width:0;max-width:100%}
     .modal input[type="checkbox"],.modal input[type="radio"]{width:auto;min-width:auto}
-    .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
+    .modal h3{font-size:1.1rem;font-weight:700;margin-bottom:var(--sp-6)}
     /* Sticky modal header — stays pinned while the body scrolls, so the X is always reachable */
-    .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:.6rem;margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem 1rem .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
+    .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:var(--sp-4);margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem var(--sp-6) .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
     .mhdr h3{margin:0;font-size:1.05rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .modal-x{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:none;background:var(--border);color:var(--text);font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s}
     .modal-x:hover{background:var(--red);color:#fff}
@@ -890,8 +974,8 @@
     @keyframes hdr-flash{0%{box-shadow:inset 0 0 0 0 var(--accent)}30%{box-shadow:inset 0 0 0 3px var(--accent)}100%{box-shadow:inset 0 0 0 0 var(--accent)}}
     .flash-hdr{animation:hdr-flash .55s ease}
     /* ── MOVE TYPE BAR ── */
-    .modal-type-bar{display:flex;gap:4px;background:#F3F4F6;padding:4px;border-radius:8px;margin-bottom:1.25rem;flex-wrap:wrap}
-    .modal-type-bar button{flex:1;border:none;border-radius:var(--r-btn);padding:.45rem .5rem;font-size:var(--fs-md);font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
+    .modal-type-bar{display:flex;gap:4px;background:#F3F4F6;padding:4px;border-radius:8px;margin-bottom:var(--sp-7);flex-wrap:wrap}
+    .modal-type-bar button{flex:1;border:none;border-radius:var(--r-btn);padding:.45rem var(--sp-3);font-size:var(--fs-md);font-weight:600;background:transparent;color:var(--muted);transition:.18s;min-width:60px}
     .modal-type-bar button:hover{background:rgba(0,0,0,.06);color:var(--text)}
     .modal-type-bar button.active-entry{background:var(--green-bg);color:var(--green)}
     .modal-type-bar button.active-exit{background:var(--red-bg);color:var(--red)}
@@ -904,12 +988,12 @@
        lost — and it should not wear the colour of something going wrong. */
     .modal-type-bar button.active-adjust{background:#E2E8F0;color:var(--steel)}
     /* ── FORM ── */
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-6)}
     .form-grid.full{grid-template-columns:1fr}
     .field{display:flex;flex-direction:column;gap:.3rem}
     .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     #lockMatOverlay .field label{color:var(--text)}
-    .field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
+    .field input,.field select,.field textarea{padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
     .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* `flex-wrap:wrap` no es adorno: es lo que impide que los botones se
        solapen (Jose, imagen 1 del 2026-09-06). _btnBusy fija el `min-width` del
@@ -933,7 +1017,7 @@
        Los márgenes negativos lo llevan hasta los bordes de la ventana —la misma
        técnica que la cabecera— para que el contenido pase por DEBAJO y no por
        un lado. */
-    .modal-actions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;
+    .modal-actions{display:flex;flex-wrap:wrap;gap:var(--sp-3);justify-content:flex-end;
       /* `bottom` NEGATIVO, no 0: un elemento pegajoso se ancla al borde del área
        de desplazamiento, que INCLUYE el relleno de abajo de la ventana. Con
        bottom:0 el pie quedaba flotando 28px por encima del borde y se veía una
@@ -960,22 +1044,22 @@
        con la que llegaron. */
     .modal-actions .btn,
     .modal-actions .btn.btn-sm{min-width:7.5rem;flex:0 0 auto;
-      padding:.5rem 1rem;font-size:var(--fs-lg)}
+      padding:var(--sp-3) var(--sp-6);font-size:var(--fs-lg)}
     .btn{white-space:nowrap}
     /* ── NOTIFY SECTION ── */
-    .notify-section{margin-top:1rem;padding:1rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
+    .notify-section{margin-top:var(--sp-6);padding:var(--sp-6);background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
     .notify-section label.check-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--navy)}
     .notify-section label.check-label input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
-    .notify-fields{margin-top:.85rem;display:flex;flex-direction:column;gap:.75rem}
+    .notify-fields{margin-top:.85rem;display:flex;flex-direction:column;gap:var(--sp-5)}
     /* ── FILE ATTACH ── */
-    .file-section{margin-top:1rem;padding:.75rem;background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
-    .file-section label.sec-label{font-size:.72rem;font-weight:600;color:var(--accent2);text-transform:uppercase;display:block;margin-bottom:.5rem}
+    .file-section{margin-top:var(--sp-6);padding:var(--sp-5);background:#F8FAFC;border:1px dashed var(--border);border-radius:8px}
+    .file-section label.sec-label{font-size:.72rem;font-weight:600;color:var(--accent2);text-transform:uppercase;display:block;margin-bottom:var(--sp-3)}
     /* ── MULTI-LOCATION (ENTRY) ── */
-    .multi-loc-section{margin-top:.75rem;padding:.85rem 1rem;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px}
-    .multi-loc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .multi-loc-section{margin-top:var(--sp-5);padding:.85rem var(--sp-6);background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px}
+    .multi-loc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4)}
     .multi-loc-header label{font-size:.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em}
     .multi-loc-total{font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px}
-    .loc-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .loc-row{display:flex;gap:var(--sp-3);margin-bottom:var(--sp-2);align-items:center}
     .loc-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
     .loc-row input[type="text"]:focus{outline:none;border-color:var(--green);box-shadow:var(--ring-ok)}
     .loc-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
@@ -985,8 +1069,8 @@
     .btn-add-loc{background:none;border:1px dashed #059669;color:var(--green);border-radius:var(--r-btn);padding:.35rem .85rem;font-size:var(--fs-base);font-weight:600;cursor:pointer;margin-top:.35rem;width:100%;transition:.15s}
     .btn-add-loc:hover{background:var(--green-bg)}
     /* ── MULTI-SOURCE (EXIT) ── */
-    .multi-exit-section{margin-top:.75rem;padding:.85rem 1rem;background:#FFF5F5;border:1px solid #FECACA;border-radius:8px}
-    .exit-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .multi-exit-section{margin-top:var(--sp-5);padding:.85rem var(--sp-6);background:#FFF5F5;border:1px solid #FECACA;border-radius:8px}
+    .exit-row{display:flex;gap:var(--sp-3);margin-bottom:var(--sp-2);align-items:center}
     .exit-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
     .exit-row input[type="text"]:focus{outline:none;border-color:var(--red);box-shadow:var(--ring-bad)}
     .exit-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
@@ -1002,7 +1086,7 @@
     .exit-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .exit-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     /* ── MULTI-PAIR TRANSFER ── */
-    .transfer-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
+    .transfer-row{display:flex;gap:var(--sp-3);margin-bottom:var(--sp-2);align-items:center}
     .transfer-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
     .transfer-row input[type="text"]:focus{outline:none;border-color:var(--accent2);box-shadow:var(--ring-accent)}
     .transfer-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
@@ -1020,15 +1104,15 @@
 
        The tint sits on the box, not on the fields inside it: the inputs keep
        their normal white so they still look like things you type into. */
-    .move-mat-box{margin-top:.75rem;padding:.85rem 1rem;border-radius:8px;border:1px solid var(--border);background:#F8FAFC}
-    .move-mat-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .move-mat-box{margin-top:var(--sp-5);padding:.85rem var(--sp-6);border-radius:8px;border:1px solid var(--border);background:#F8FAFC}
+    .move-mat-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4)}
     .move-mat-lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
     .move-mat-total{font-size:.9rem;font-weight:700;padding:3px 12px;border-radius:20px;background:#E5E7EB;color:var(--muted);font-variant-numeric:tabular-nums}
     /* singleLocGrid and multiTransferSection carry a top margin from when they
        sat loose on the modal background; inside the box that reads as a gap
        nobody asked for. */
     .move-mat-box > #singleLocGrid,
-    .move-mat-box > #multiTransferSection{margin-top:.6rem}
+    .move-mat-box > #multiTransferSection{margin-top:var(--sp-4)}
     /* .btn-add-loc is the ENTRY green; inside a blue or purple or amber box it
        was the one thing on the screen still wearing another screen's colour. */
     .move-mat-box .btn-add-loc{border-color:currentColor}
@@ -1047,8 +1131,8 @@
         .move-mat-box.mm-adjust .move-mat-lbl{color:var(--steel)}
     .move-mat-box.mm-adjust .move-mat-total{background:#E2E8F0;color:var(--steel)}
     /* ── MULTI-MATERIAL ENTRY ── */
-    .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
-    .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:var(--sp-5);margin-bottom:.65rem;position:relative}
+    .mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4)}
     .mat-line-hdr .mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
     .mat-line-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
     .mat-line-remove:hover{background:var(--red);color:#fff}
@@ -1085,24 +1169,24 @@
        appear the instant it becomes usable. */
     .mat-locs-container .loc-row .btn-remove-loc,
     #transferRowsContainer .transfer-row .btn-remove-loc{transition-property:background,color}
-    .mat-line-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.5rem}
+    .mat-line-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-bottom:var(--sp-3)}
     .mat-line-lbl-sm{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
     /* La casilla de "quiero etiqueta" en la cabecera de cada material. Discreta
        a propósito: es una opción, no un campo obligatorio, y en la cabecera van
        ya el total y el botón de quitar. */
-    .mat-lbl-want{display:inline-flex;align-items:center;gap:.25rem;font-size:.7rem;
+    .mat-lbl-want{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:.7rem;
       font-weight:700;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
     .mat-lbl-want input{width:.85rem;height:.85rem;cursor:pointer;margin:0}
     .mat-lbl-want:hover{color:var(--accent)}
     .mat-lbl-want input:checked + span{color:var(--accent)}
-    .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
+    .mat-line-grid .field input,.mat-line-grid .field select{padding:var(--sp-3) .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* Price-change alert on ENTRY's Unit Cost — "this supplier charged 18%
        more than last time", the exact thing a manager only notices weeks
        later otherwise. Same shape as the stock-check warning elsewhere in
        this modal, so it reads as "the app is telling you something", not
        as a validation error. */
-    .mat-cost-alert{font-size:.78rem;padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
+    .mat-cost-alert{font-size:.78rem;padding:var(--sp-2) var(--sp-4);border-radius:6px;margin:-.15rem 0 var(--sp-3)}
     .mat-cost-alert.warn{background:#FEF3C7;color:var(--yellow)}
     .mat-cost-alert.info{background:#DBEAFE;color:var(--accent2)}
     /* ── The pack question ──
@@ -1110,23 +1194,23 @@
        because it is the same idea: react to what was already typed rather than
        interrogate. Appears only when a pack unit is chosen for a named
        material, so a warehouse whose every item is one unit never sees it. */
-    .pack-note{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.78rem;
-               padding:.4rem .6rem;border-radius:6px;margin:-.15rem 0 .5rem}
+    .pack-note{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;font-size:.78rem;
+               padding:var(--sp-2) var(--sp-4);border-radius:6px;margin:-.15rem 0 var(--sp-3)}
     .pack-note.ask{background:#EFF6FF;color:var(--accent2);border:1px dashed #BFDBFE}
     .pack-note.known{background:var(--green-bg);color:var(--green);border:1px solid #BBF7D0}
-    .pack-note .pack-qty{width:5.5rem;padding:.25rem .45rem;border:1px solid var(--border);
+    .pack-note .pack-qty{width:5.5rem;padding:var(--sp-1) .45rem;border:1px solid var(--border);
                          border-radius:5px;font-family:inherit;font-size:.8rem}
-    .pack-note button{border:none;border-radius:var(--r-btn);padding:.25rem .7rem;cursor:pointer;
+    .pack-note button{border:none;border-radius:var(--r-btn);padding:var(--sp-1) .7rem;cursor:pointer;
                       font-family:inherit;font-size:var(--fs-md);font-weight:600;transition:.15s}
     .pack-note .pack-save{background:var(--accent2);color:#fff}
     .pack-note .pack-save:hover{background:var(--accent)}
-    .pack-note .pack-change{background:none;color:var(--green);text-decoration:underline;padding:.25rem .2rem}
+    .pack-note .pack-change{background:none;color:var(--green);text-decoration:underline;padding:var(--sp-1) .2rem}
     /* Jose's orange box: changing a remembered factor changes money, so it
        says what it is changing FROM and makes you press again. */
     .pack-note .pack-warn{flex-basis:100%;background:#FEF3C7;color:var(--yellow);
                           border-radius:5px;padding:.35rem .55rem;font-weight:600}
-    .pack-math{display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--muted);
-               font-weight:600;padding:0 .1rem;margin:-.3rem 0 .5rem}
+    .pack-math{display:flex;align-items:center;gap:var(--sp-2);font-size:.78rem;color:var(--muted);
+               font-weight:600;padding:0 .1rem;margin:-.3rem 0 var(--sp-3)}
     /* The cost hint sits low in the form, so its bubble opens UPWARD — below
        it would be clipped by the modal's own scroll edge. */
     /* La regla que volteaba ESTE tooltip hacia arriba se quitó: usaba
@@ -1138,17 +1222,17 @@
        Blank is. Jose: at OX most things have no known cost, so this is the
        common case, not an edge one. */
     .cost-zero-hint{font-size:.76rem;background:#FEF3C7;color:var(--yellow);font-weight:600;
-                    border-radius:6px;padding:.35rem .6rem;margin:-.3rem 0 .5rem}
+                    border-radius:6px;padding:.35rem var(--sp-4);margin:-.3rem 0 var(--sp-3)}
     /* Settings → Materials, above the material list: every pack factor at once. */
-    .packs-panel{border:1px solid var(--border);border-radius:8px;padding:.7rem .85rem;margin-bottom:1rem;background:#F8FAFC}
-    .packs-hd{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem}
+    .packs-panel{border:1px solid var(--border);border-radius:8px;padding:.7rem .85rem;margin-bottom:var(--sp-6);background:#F8FAFC}
+    .packs-hd{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:.35rem}
     .packs-title{font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--navy)}
-    .packs-count{font-size:.75rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 9px}
-    .packs-note,.packs-empty{font-size:.78rem;color:var(--muted);margin:0 0 .5rem;line-height:1.45}
+    .packs-count{font-size:.75rem;font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:var(--r-pildora);padding:var(--pad-pildora)}
+    .packs-note,.packs-empty{font-size:.78rem;color:var(--muted);margin:0 0 var(--sp-3);line-height:1.45}
     .packs-empty{margin-bottom:0}
     .packs-list{display:flex;flex-direction:column;gap:.3rem}
-    .packs-row{display:flex;align-items:center;gap:.5rem;background:var(--card);border:1px solid var(--border);
-               border-radius:6px;padding:.35rem .5rem;flex-wrap:wrap}
+    .packs-row{display:flex;align-items:center;gap:var(--sp-3);background:var(--card);border:1px solid var(--border);
+               border-radius:6px;padding:.35rem var(--sp-3);flex-wrap:wrap}
     .packs-name{font-weight:600;font-size:.84rem;flex:1;min-width:8rem}
     .packs-fact{font-size:.8rem;color:var(--muted);white-space:nowrap}
     /* Does the latest backup carry the SETTINGS, or only the data? */
@@ -1160,19 +1244,19 @@
     .em-suggested{background:#FFFBEB !important;border-color:#FDE68A !important;
                   box-shadow:inset 3px 0 0 #F59E0B}
     .em-gap-note{font-size:.76rem;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;
-                 border-radius:6px;padding:.5rem .7rem;margin-top:.75rem;line-height:1.5}
+                 border-radius:6px;padding:var(--sp-3) .7rem;margin-top:var(--sp-5);line-height:1.5}
     /* ── The data check's findings ──
        One card per proposal. The kind is a chip at the top, colour-coded by
        how much the app actually knows: blue for "written two ways" (near
        certain), green for a value its own history agrees on, amber for a
        guess it will not act on. The amber is the one carrying information —
        it is the family with no button. */
-    .dq-list{margin-top:.75rem;display:flex;flex-direction:column;gap:.5rem;
-             max-height:420px;overflow-y:auto;padding-right:.25rem}
-    .dq-card{border:1px solid var(--border);border-radius:8px;padding:.6rem .75rem;background:var(--card)}
+    .dq-list{margin-top:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-3);
+             max-height:420px;overflow-y:auto;padding-right:var(--sp-1)}
+    .dq-card{border:1px solid var(--border);border-radius:8px;padding:var(--sp-4) var(--sp-5);background:var(--card)}
     .dq-card.dq-done{opacity:.6}
     .dq-kind{display:inline-block;font-size:.68rem;font-weight:700;letter-spacing:.03em;
-             text-transform:uppercase;padding:.15rem .45rem;border-radius:999px;margin-bottom:.35rem}
+             text-transform:uppercase;padding:var(--pad-pildora);border-radius:var(--r-pildora);margin-bottom:.35rem}
     .dq-kind.dq-spelling{background:#DBEAFE;color:var(--accent2)}
     .dq-kind.dq-gap{background:var(--green-bg);color:var(--green)}
     .dq-kind.dq-similar{background:var(--yellow-bg);color:var(--yellow)}
@@ -1182,11 +1266,11 @@
     .dq-kind.dq-negative{background:var(--red-bg);color:var(--red)}
     .dq-head{font-size:.86rem;margin-bottom:.2rem;word-break:break-word}
     .dq-body{font-size:.78rem;color:var(--muted);line-height:1.45}
-    .dq-act{margin-top:.5rem}
+    .dq-act{margin-top:var(--sp-3)}
     [data-theme="dark"] .dq-card{background:#1a2640}
-    .snap-ok{font-size:.73rem;color:var(--green);margin-top:.2rem}
+    .snap-ok{font-size:.73rem;color:var(--green);margin-top:var(--gap-sublinea)}
     .snap-warn{font-size:.75rem;background:#FEF3C7;color:var(--yellow);font-weight:600;
-               border-radius:6px;padding:.4rem .6rem;margin-top:.35rem;line-height:1.45}
+               border-radius:6px;padding:var(--sp-2) var(--sp-4);margin-top:.35rem;line-height:1.45}
     /* ── The location box ──
        Jose's rule, from comparing the five screens side by side: the material
        box itself stays NEUTRAL, and the movement's colour appears only around
@@ -1210,11 +1294,11 @@
        Three numbers on one line: what the app believes, what was counted, and
        the difference between them. The difference is the only one that gets
        saved, so it is the one that is loud. */
-    .adj-count{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end}
+    .adj-count{display:flex;flex-wrap:wrap;gap:var(--sp-4);align-items:flex-end}
     .adj-count .field{flex:1;min-width:120px}
     .adj-says{flex:1;min-width:120px}
     .adj-says-lbl{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;
-                  letter-spacing:.03em;display:block;margin-bottom:.25rem}
+                  letter-spacing:.03em;display:block;margin-bottom:var(--sp-1)}
     .adj-says-val{font-size:1.35rem;font-weight:700;color:var(--steel);font-variant-numeric:tabular-nums;
                   line-height:1.5}
     .adj-delta{margin-top:.55rem;font-size:.85rem;font-weight:600;border-radius:6px;
@@ -1224,7 +1308,7 @@
     .adj-delta.same{background:#E2E8F0;color:var(--steel)}
     .adj-delta.idle{background:#F1F5F9;color:var(--muted);font-weight:500}
     /* The header strip above the rows, same in all three. */
-    .loc-box-hdr{display:flex;gap:.4rem;margin-bottom:.25rem}
+    .loc-box-hdr{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-1)}
     .loc-box-hdr span{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase}
     /* Freezes a modal while its save is in flight — blocks EVERY click anywhere in
        the overlay (header, X, click-outside-to-close, a second click on Save) and
@@ -1239,7 +1323,7 @@
        pointer-events. closeIfOutside() also short-circuits while .busy so a
        click that lands on the backdrop doesn't flash the header either. */
     .overlay.busy .modal{pointer-events:none;cursor:wait}
-    .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
+    .multi-mat-add{background:none;border:1px dashed var(--accent);color:var(--accent);border-radius:6px;padding:var(--sp-2);font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-mat-add:hover{background:#DBEAFE}
     /* ── INCOMING SUGGESTION BOX ── */
     /* position:fixed, not absolute — the modal it lives in scrolls
@@ -1271,26 +1355,26 @@
     .dup-tabla tr.dup-dif td{background:var(--yellow-bg)}
     .dup-tabla tr.dup-dif td.dup-nuevo{font-weight:700}
     .dup-vacio{color:var(--muted)}
-    .dup-acciones{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem;justify-content:flex-end}
+    .dup-acciones{display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-top:var(--sp-6);justify-content:flex-end}
     .dup-acciones button{flex:0 1 auto}
     @media (max-width:560px){ .dup-acciones button{flex:1 1 100%} }
-    .inc-suggest-item{padding:.5rem .75rem;cursor:pointer;font-size:var(--fs-base);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:.2rem .5rem;transition:background .12s}
+    .inc-suggest-item{padding:var(--sp-3) var(--sp-5);cursor:pointer;font-size:var(--fs-base);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;align-items:center;gap:.2rem var(--sp-3);transition:background .12s}
     .inc-suggest-item:last-child{border-bottom:none}
     .inc-suggest-item:hover{background:#EFF6FF}
-    .inc-suggest-item .inc-tag{font-size:var(--fs-xs);font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:10px;padding:1px 7px;flex-shrink:0}
+    .inc-suggest-item .inc-tag{font-size:var(--fs-xs);font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:var(--r-pildora);padding:var(--pad-pildora);flex-shrink:0}
     .inc-suggest-item>span:not(.inc-tag):not(.inc-meta){flex:1 1 100px;min-width:0;overflow-wrap:break-word;word-break:break-word}
     .inc-suggest-item .inc-meta{font-size:var(--fs-sm);color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
     /* ── CONFIRM DIALOG ── */
-    .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:1rem}
+    .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:var(--sp-6)}
     .cconfirm-overlay.show{display:flex}
     .cconfirm-dialog{background:var(--card);border-radius:14px;box-shadow:var(--sh-4);width:100%;max-width:420px;overflow:hidden;animation:cconfirm-in .18s ease}
     @keyframes cconfirm-in{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
-    .cconfirm-icon-row{padding:1.5rem 1.5rem .5rem;text-align:center;font-size:2.2rem;line-height:1}
-    .cconfirm-body{padding:.25rem 1.5rem 1rem;text-align:center}
-    .cconfirm-body h3{font-size:1.05rem;font-weight:700;margin-bottom:.4rem;color:var(--text)}
+    .cconfirm-icon-row{padding:var(--sp-8) var(--sp-8) var(--sp-3);text-align:center;font-size:2.2rem;line-height:1}
+    .cconfirm-body{padding:var(--sp-1) var(--sp-8) var(--sp-6);text-align:center}
+    .cconfirm-body h3{font-size:1.05rem;font-weight:700;margin-bottom:var(--sp-2);color:var(--text)}
     .cconfirm-body p{font-size:.88rem;color:var(--muted);line-height:1.5;white-space:pre-line}
-    .cconfirm-footer{padding:.85rem 1.25rem 1.25rem;display:flex;gap:.6rem;justify-content:center}
-    .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem 1rem;border-radius:var(--r-btn);font-size:var(--fs-xl);font-weight:600;border:none;cursor:pointer;transition:.15s}
+    .cconfirm-footer{padding:.85rem var(--sp-7) var(--sp-7);display:flex;gap:var(--sp-4);justify-content:center}
+    .cconfirm-footer button{flex:1;max-width:160px;padding:.55rem var(--sp-6);border-radius:var(--r-btn);font-size:var(--fs-xl);font-weight:600;border:none;cursor:pointer;transition:.15s}
     .cconfirm-footer button:hover{filter:brightness(.9)}
     .cconfirm-cancel{background:var(--border);color:var(--text)}
     /* La X de salir. `position:relative` en el diálogo para que se ancle a él. */
@@ -1311,47 +1395,47 @@
     .cprompt-list{margin-top:.7rem;max-height:170px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:.3rem;justify-content:center}
     .cprompt-chip{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:.22rem .7rem;font-size:.75rem;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit}
     .cprompt-chip:hover{border-color:var(--accent);color:var(--accent)}
-    .cprompt-err{margin-top:.5rem;font-size:.76rem;color:var(--red);font-weight:600;min-height:1.1em}
+    .cprompt-err{margin-top:var(--sp-3);font-size:.76rem;color:var(--red);font-weight:600;min-height:1.1em}
     /* ── MULTI-EXIT MATERIAL LINES ── */
-    .exit-mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.65rem;position:relative}
-    .exit-mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+    .exit-mat-line{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:var(--sp-5);margin-bottom:.65rem;position:relative}
+    .exit-mat-line-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4)}
     .exit-mat-line-lbl{font-size:.82rem;font-weight:700;color:var(--navy)}
     .exit-mat-remove{background:var(--red-bg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-size:.82rem;font-weight:700;transition:.15s;line-height:1}
     .exit-mat-remove:hover{background:var(--red);color:#fff}
-    .exit-mat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem}
+    .exit-mat-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3)}
     .exit-mat-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
-    .exit-mat-grid .field input,.exit-mat-grid .field select{padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
+    .exit-mat-grid .field input,.exit-mat-grid .field select{padding:.45rem var(--sp-4);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
     .exit-mat-grid .field input:focus,.exit-mat-grid .field select:focus{outline:none;border-color:var(--red);box-shadow:var(--ring-bad)}
-    .exit-loc-hdr{display:flex;gap:.4rem;margin:0 0 .25rem}
+    .exit-loc-hdr{display:flex;gap:var(--sp-2);margin:0 0 var(--sp-1)}
     .exit-loc-hdr span{font-size:.67rem;font-weight:600;color:var(--muted);text-transform:uppercase}
-    .exit-loc-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.3rem}
+    .exit-loc-row{display:flex;gap:var(--sp-2);align-items:center;margin-bottom:.3rem}
     .exit-loc-row .el-rack{flex:2;padding:.38rem .55rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
     .exit-loc-row .el-qty{flex:1;padding:.38rem .55rem;border:1px solid var(--border);border-radius:5px;font-size:.82rem;font-family:inherit}
     .exit-loc-row .el-avail{flex:1.4;font-size:.72rem;font-weight:600;min-width:0}
     .el-avail.ok{color:var(--green)}.el-avail.warn{color:var(--red)}.el-avail.neutral{color:var(--muted)}
     .exit-loc-row .el-rm{background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;flex-shrink:0;line-height:1;padding:0 2px}
-    .exit-mat-foot{display:flex;gap:.4rem;margin-top:.35rem}
+    .exit-mat-foot{display:flex;gap:var(--sp-2);margin-top:.35rem}
     .exit-mat-foot button{flex:1;font-size:var(--fs-base);padding:.35rem .85rem;border-radius:var(--r-btn);cursor:pointer;font-family:inherit;border:1px dashed;font-weight:600;transition:.15s;background:none}
     .exit-mat-foot .btn-add-exit-loc{border-color:var(--red);color:var(--red);background:none}
     .exit-mat-foot .btn-add-exit-loc:hover{background:var(--red-bg)}
     .exit-mat-foot .btn-autofill-exit{border-color:var(--accent);color:var(--accent);background:none}
     .exit-mat-foot .btn-autofill-exit:hover{background:#DBEAFE}
-    .multi-exit-add{background:none;border:1px dashed var(--red);color:var(--red);border-radius:6px;padding:.4rem;font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
+    .multi-exit-add{background:none;border:1px dashed var(--red);color:var(--red);border-radius:6px;padding:var(--sp-2);font-size:.82rem;font-weight:600;cursor:pointer;width:100%;margin-top:.35rem;transition:.15s;display:block}
     .multi-exit-add:hover{background:var(--red-bg)}
     /* ── TRANSFER LOCATION PICKER ── */
     .transfer-loc-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.35rem}
-    .transfer-loc-chips{display:flex;flex-wrap:wrap;gap:.4rem}
-    .transfer-loc-chip{display:inline-flex;align-items:center;gap:.35rem;background:var(--card);border:2px solid var(--border);border-radius:8px;padding:.35rem .75rem;cursor:pointer;font-size:.82rem;font-weight:600;transition:.15s;color:var(--text)}
+    .transfer-loc-chips{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+    .transfer-loc-chip{display:inline-flex;align-items:center;gap:.35rem;background:var(--card);border:2px solid var(--border);border-radius:8px;padding:.35rem var(--sp-5);cursor:pointer;font-size:.82rem;font-weight:600;transition:.15s;color:var(--text)}
     .transfer-loc-chip:hover{border-color:var(--accent);background:#EFF6FF;color:var(--accent2)}
     .transfer-loc-chip.selected{border-color:var(--green);background:var(--green-bg);color:var(--green)}
-    .transfer-loc-chip .tlc-qty{font-size:.75rem;font-weight:700;background:rgba(0,0,0,.08);border-radius:6px;padding:1px 7px}
+    .transfer-loc-chip .tlc-qty{font-size:.75rem;font-weight:700;background:rgba(0,0,0,.08);border-radius:6px;padding:var(--pad-pildora)}
     /* ── EDIT MOVEMENT MODAL ── */
-    .edit-mov-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;margin-top:.6rem}
+    .edit-mov-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4) .9rem;margin-top:var(--sp-4)}
     .edit-mov-grid .field.full{grid-column:1/-1}
-    .edit-mov-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.25rem}
+    .edit-mov-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:var(--sp-1)}
     .edit-mov-grid .field input,.edit-mov-grid .field select,.edit-mov-grid .field textarea{width:100%;padding:.42rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit}
     .edit-mov-grid .field input:focus,.edit-mov-grid .field select:focus,.edit-mov-grid .field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
-    .edit-reason-box{margin-top:.75rem;padding:.75rem;background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px}
+    .edit-reason-box{margin-top:var(--sp-5);padding:var(--sp-5);background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px}
     .edit-reason-box label{font-size:.78rem;font-weight:700;color:var(--yellow);display:block;margin-bottom:.35rem}
     .edit-reason-box textarea{width:100%;padding:.45rem .65rem;border:1px solid #FDE68A;border-radius:6px;font-size:.84rem;font-family:inherit;background:#FFFBEB;resize:vertical}
     .edit-reason-box textarea:focus{outline:none;border-color:var(--yellow)}
@@ -1369,7 +1453,7 @@
        would work, but a checkbox reads as "part of a form I still have to
        submit", and this one acts the moment it moves. Built on a real
        <input type="checkbox"> so the keyboard and screen readers get it free. */
-    .sw{position:relative;display:inline-flex;align-items:center;gap:.6rem;cursor:pointer;user-select:none}
+    .sw{position:relative;display:inline-flex;align-items:center;gap:var(--sp-4);cursor:pointer;user-select:none}
     .sw input{position:absolute;opacity:0;width:44px;height:24px;margin:0;cursor:pointer}
     .sw-track{width:44px;height:24px;border-radius:999px;background:var(--border);transition:background .2s ease;flex:none;position:relative}
     .sw-track::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.28);transition:transform .2s cubic-bezier(.22,.61,.36,1)}
@@ -1447,36 +1531,94 @@
     html.acct-open{overflow:hidden}
     html.acct-open .deck{pointer-events:none}
     @keyframes acct-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-    .acct-head{padding:1.15rem 1rem .9rem;text-align:center;border-bottom:1px solid var(--border);position:relative}
+    .acct-head{padding:1.15rem var(--sp-6) .9rem;text-align:center;border-bottom:1px solid var(--border);position:relative}
     /* La marca dentro del menú de la cuenta, en la esquina que Jose marcó.
        Absoluta a propósito: el bloque de abajo (avatar, nombre, correo, roles)
        está centrado, y meter una palabra en el flujo lo descentraría. */
     .acct-brand{position:absolute;left:.85rem;top:.7rem;font-size:.66rem;font-weight:600;letter-spacing:.01em}
-    .acct-avatar{width:62px;height:62px;border-radius:50%;margin:0 auto .6rem;display:flex;align-items:center;justify-content:center;font-size:1.35rem;font-weight:800;color:#fff;background:var(--accent)}
+    .acct-avatar{width:62px;height:62px;border-radius:50%;margin:0 auto var(--sp-4);display:flex;align-items:center;justify-content:center;font-size:1.35rem;font-weight:800;color:#fff;background:var(--accent)}
     .acct-name{font-size:.96rem;font-weight:700;color:var(--text);line-height:1.3}
-    .acct-email{font-size:.76rem;color:var(--muted);margin-top:.15rem;word-break:break-all}
+    .acct-email{font-size:.76rem;color:var(--muted);margin-top:var(--gap-sublinea);word-break:break-all}
     .acct-tags{margin-top:.55rem;display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap}
-    .acct-tag{font-size:.64rem;font-weight:800;border-radius:10px;padding:2px 10px;letter-spacing:.04em}
+    .acct-tag{font-size:.64rem;font-weight:800;border-radius:var(--r-pildora);padding:var(--pad-pildora);letter-spacing:.04em}
     .acct-section{padding:.65rem 0 .35rem;border-bottom:1px solid var(--border);max-height:186px;overflow-y:auto}
-    .acct-section-lbl{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 1rem .4rem}
-    .acct-actions{padding:.4rem}
-    .acct-item{width:100%;display:flex;align-items:center;gap:.6rem;background:none;border:none;border-radius:10px;padding:.55rem .7rem;font-size:.85rem;font-weight:600;font-family:inherit;color:var(--text);cursor:pointer;text-align:left;transition:.12s}
+    .acct-section-lbl{font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 var(--sp-6) var(--sp-2)}
+    .acct-actions{padding:var(--sp-2)}
+    .acct-item{width:100%;display:flex;align-items:center;gap:var(--sp-4);background:none;border:none;border-radius:10px;padding:.55rem .7rem;font-size:.85rem;font-weight:600;font-family:inherit;color:var(--text);cursor:pointer;text-align:left;transition:.12s}
     .acct-item:hover{background:var(--bg)}
-    .acct-foot{padding:.55rem 1rem .7rem;text-align:center;font-size:.67rem;color:var(--muted);border-top:1px solid var(--border)}
-    .acct-legal{margin-top:.25rem;display:flex;gap:.35rem;justify-content:center;align-items:center}
+    /* ── LA VENTANA DE NOVEDADES ───────────────────────────────────────────
+     *
+     * Jose la pidió el 13/10, y la pidió DESPUÉS de que yo le dijera que no a
+     * otra cosa. Conviene dejar escrita la diferencia, porque desde fuera se
+     * parecen:
+     *
+     *   LO QUE DIJE QUE NO: un aviso cada cierto tiempo diciendo «hay
+     *   actualizaciones, contáctanos». Aparece PORQUE PASÓ EL TIEMPO. No
+     *   cambió nada para quien lo lee. Interrumpe su trabajo para pedirle algo
+     *   que nos conviene a nosotros. Eso es publicidad.
+     *
+     *   LO QUE ES ESTO: aparece el día que SU app cambió de versión, y cuenta
+     *   lo que cambió en la app que tiene delante. Aparece PORQUE LES PASÓ
+     *   ALGO, dice algo verdadero sobre lo que están mirando, y no pide nada.
+     *   Eso es un recibo.
+     *
+     * La pregunta que separa las dos: ¿sale porque algo les pasó a ellos, o
+     * porque pasó el tiempo para nosotros?
+     *
+     * Y LA PIEZA QUE LA HACE NO SER UNA INTERRUPCIÓN es la última que pidió
+     * Jose: se puede cerrar, pero queda en un sitio permanente. Se cierra sin
+     * pensar PRECISAMENTE porque se sabe dónde encontrarla. Un aviso que no se
+     * puede recuperar obliga a leerlo; uno que sí, se puede ignorar sin coste.
+     */
+    .nv-art{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:var(--sp-5) 0 var(--sp-6)}
+    .nv-fila{display:flex;align-items:flex-start;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);font-size:var(--fs-sm);line-height:var(--lh-normal)}
+    .nv-fila+.nv-fila{border-top:1px solid var(--border)}
+    .nv-marca{flex:0 0 auto;font-weight:800;font-size:var(--fs-xs);letter-spacing:.04em;
+              padding:var(--pad-pildora);border-radius:var(--r-pildora);white-space:nowrap}
+    .nv-antes .nv-marca{background:var(--red-bg);color:var(--red)}
+    .nv-antes  code,.nv-antes  span.nv-txt{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--red)}
+    .nv-ahora{background:var(--green-bg)}
+    .nv-ahora .nv-marca{background:var(--green);color:#fff}
+    .nv-ahora .nv-txt{color:var(--text);font-weight:600}
+    .nv-txt{overflow-wrap:anywhere}
+    /* 180 ms y seis píxeles. Lo que enseñan los reels: las cosas caras se
+     * mueven poco. Un «antes y después» que salta llama la atención sobre el
+     * movimiento en vez de sobre el cambio. */
+    .overlay.show .nv-ahora{animation:nv-entra .18s ease both .12s}
+    @keyframes nv-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){.overlay.show .nv-ahora{animation:none}}
+    .nv-lista{margin:0;padding-left:var(--sp-7);display:flex;flex-direction:column;gap:var(--sp-3)}
+    .nv-lista li{font-size:var(--fs-lg);line-height:var(--lh-amplia);color:var(--text)}
+    .nv-ver{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);
+            color:var(--muted);letter-spacing:.02em}
+    .nv-pie{margin-top:var(--sp-7);padding-top:var(--sp-5);border-top:1px solid var(--border);
+            font-size:var(--fs-sm);color:var(--muted);line-height:var(--lh-normal)}
+    .nv-pie a{color:var(--accent2);font-weight:600}
+    .nv-acciones{display:flex;gap:var(--sp-4);flex-wrap:wrap;align-items:center;margin-top:var(--sp-6)}
+    /* El punto de «sin leer». Va en el botón de la cuenta y en su línea del
+     * menú, porque el menú está cerrado la mayor parte del tiempo y un aviso
+     * que sólo se ve al abrir no avisa de nada. */
+    .nv-punto{display:inline-block;width:8px;height:8px;border-radius:50%;
+              background:var(--accent);flex:0 0 auto;margin-left:auto}
+    .acct-btn{position:relative}
+    .acct-btn.nv-hay::after{content:'';position:absolute;top:-2px;right:-2px;
+              width:10px;height:10px;border-radius:50%;background:#F59E0B;
+              border:2px solid var(--navy)}
+    .acct-foot{padding:.55rem var(--sp-6) .7rem;text-align:center;font-size:.67rem;color:var(--muted);border-top:1px solid var(--border)}
+    .acct-legal{margin-top:var(--sp-1);display:flex;gap:.35rem;justify-content:center;align-items:center}
     .acct-legal a{color:var(--muted);text-decoration:none;font-weight:600}
     .acct-legal a:hover{color:var(--accent);text-decoration:underline}
     /* Legal text, shown in the app rather than linked out: a customer running
        this inside their own Google account has nowhere to be sent, and a policy
        nobody can reach is the same as no policy. */
-    .lg-body{font-size:.84rem;line-height:1.6;color:var(--text);padding-bottom:1rem}
-    .lg-body h3{font-size:.92rem;font-weight:700;margin:1.15rem 0 .4rem;color:var(--text)}
-    .lg-body p{margin:.5rem 0}
-    .lg-body ul{margin:.5rem 0 .5rem 1.1rem}
-    .lg-body li{margin:.25rem 0}
-    .lg-body hr{border:none;border-top:1px solid var(--border);margin:1rem 0}
+    .lg-body{font-size:.84rem;line-height:1.6;color:var(--text);padding-bottom:var(--sp-6)}
+    .lg-body h3{font-size:.92rem;font-weight:700;margin:1.15rem 0 var(--sp-2);color:var(--text)}
+    .lg-body p{margin:var(--sp-3) 0}
+    .lg-body ul{margin:var(--sp-3) 0 var(--sp-3) 1.1rem}
+    .lg-body li{margin:var(--sp-1) 0}
+    .lg-body hr{border:none;border-top:1px solid var(--border);margin:var(--sp-6) 0}
     .lg-body a{color:var(--accent);word-break:break-word}
-    .lg-table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:var(--fs-md)}
+    .lg-table{width:100%;border-collapse:collapse;margin:var(--sp-4) 0;font-size:var(--fs-md)}
     .lg-table th,.lg-table td{border:1px solid var(--border);padding:var(--pad-celda-sm);text-align:left;vertical-align:top}
     .lg-table th{background:var(--bg);font-weight:700}
     @media(max-width:640px){
@@ -1485,25 +1627,25 @@
          explicitly wider than those, at his request. */
       .acct-menu{position:fixed;left:50%;right:auto;top:50%;transform:translate(-50%,-50%);width:75vw;max-width:420px;max-height:84vh;overflow-y:auto;animation:none}
     }
-    .presence-user{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;font-size:.78rem;border-bottom:1px solid var(--border)}
+    .presence-user{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-6);font-size:.78rem;border-bottom:1px solid var(--border)}
     .presence-user:last-child{border-bottom:none}
     .presence-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
     .presence-dot.active{background:#10B981;box-shadow:var(--ring-ok)}
     .presence-dot.away  {background:#F59E0B;box-shadow:var(--ring-warn)}
     .presence-email{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .presence-you{font-weight:700;color:var(--accent2)}
-    .presence-role{font-size:.68rem;background:#F3F4F6;color:var(--muted);border-radius:10px;padding:1px 7px;flex-shrink:0}
+    .presence-role{font-size:.68rem;background:#F3F4F6;color:var(--muted);border-radius:var(--r-pildora);padding:var(--pad-pildora);flex-shrink:0}
     .presence-time{font-size:.68rem;color:var(--muted);white-space:nowrap}
-    .presence-empty{padding:.75rem 1rem;font-size:.8rem;color:var(--muted);text-align:center}
+    .presence-empty{padding:var(--sp-5) var(--sp-6);font-size:.8rem;color:var(--muted);text-align:center}
     /* ── STOCK WARNING ── */
-    .stock-warn{padding:.5rem .75rem;border-radius:6px;font-size:.82rem;min-height:2rem;display:flex;align-items:center}
+    .stock-warn{padding:var(--sp-3) var(--sp-5);border-radius:6px;font-size:.82rem;min-height:2rem;display:flex;align-items:center}
     /* El aviso de "otro se llevó material mientras tenías esto abierto". Va
        dentro del formulario de salida, no en un toast: el toast aparece en otra
        esquina, dura unos segundos y se va, y para cuando se lee ya no está el
        número al lado. Ámbar y no rojo — nadie ha hecho nada mal. */
     .exit-live-warn{background:var(--yellow-bg);color:#92400E;border:1px solid var(--yellow);
-      border-radius:8px;padding:.55rem .75rem;font-size:.8rem;line-height:1.35;
-      margin-bottom:.6rem;display:flex;gap:.45rem;align-items:flex-start}
+      border-radius:8px;padding:.55rem var(--sp-5);font-size:.8rem;line-height:1.35;
+      margin-bottom:var(--sp-4);display:flex;gap:.45rem;align-items:flex-start}
     /* Un parpadeo corto en la fila que cambió, para que el ojo vaya ahí sin que
        haya que buscar cuál de las cinco filas se movió. */
     @keyframes exit-row-flash{0%{background:var(--yellow-bg)}100%{background:transparent}}
@@ -1534,23 +1676,23 @@
     /* ── STOCK ROW DETAIL (Photos | Documents split panel) ── */
     .stock-detail-row td{padding:0}
     .stock-detail-split{display:flex;flex-wrap:wrap}
-    .sd-col{flex:1 1 260px;min-width:240px;padding:.75rem 1rem}
+    .sd-col{flex:1 1 260px;min-width:240px;padding:var(--sp-5) var(--sp-6)}
     .sd-col + .sd-col{border-left:1px solid var(--border)}
-    .sd-col-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
+    .sd-col-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--sp-4)}
     [data-theme="dark"] .sd-col + .sd-col{border-color:var(--border)}
     /* ── MEDIA PREVIEW LIGHTBOX ── */
-    .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:var(--z-lightbox);align-items:center;justify-content:center;padding:2rem 1rem}
+    .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:var(--z-lightbox);align-items:center;justify-content:center;padding:var(--sp-9) var(--sp-6)}
     .media-preview-overlay.show{display:flex}
     .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--sh-4)}
-    .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;background:var(--navy);color:#fff;flex-shrink:0}
-    .media-preview-hdr span{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:.75rem}
+    .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:var(--sp-4) .9rem;background:var(--navy);color:#fff;flex-shrink:0}
+    .media-preview-hdr span{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:var(--sp-5)}
     .media-preview-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:var(--r-btn);padding:3px 10px;cursor:pointer;font-size:var(--fs-xl);flex-shrink:0}
     .media-preview-hdr button:hover{background:rgba(255,255,255,.28)}
     .media-preview-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#111}
     .media-preview-body img{max-width:100%;max-height:80vh;object-fit:contain}
     .media-preview-body iframe,.media-preview-body embed{width:100%;height:80vh;border:none}
     /* ── RACK PHOTO GALLERY ── */
-    .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem}
+    .rack-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--sp-5)}
     /* Compact rack photo chips — same footprint and rhythm as .doc-card, so the
        two columns of the expanded stock row read as one panel instead of a big
        4:3 photo box on the left and small chips on the right. */
@@ -1606,11 +1748,11 @@
        en gris — salvo el nombre del material, que es lo que la gente busca. */
     td.mc-when, td.mc-what{vertical-align:top}
     td.mc-when{white-space:nowrap}
-    .mc-sub{font-size:.72rem;color:var(--muted);margin-top:.15rem}
+    .mc-sub{font-size:.72rem;color:var(--muted);margin-top:var(--gap-sublinea)}
     /* Sin `max-width:22ch`: ahora el ancho lo pone la COLUMNA, no la celda. Un
        tope en ch dentro de una columna de ancho fijo son dos topes discutiendo,
        y gana el más pequeño de los dos sin que nadie lo haya decidido. */
-    .mc-main{font-weight:700;margin-top:.15rem;white-space:normal;overflow-wrap:anywhere}
+    .mc-main{font-weight:700;margin-top:var(--gap-sublinea);white-space:normal;overflow-wrap:anywhere}
 
     /* ══ LOS ANCHOS DE LA TABLA DE MOVIMIENTOS ═══════════════════════════════
        Jose, 2026-09-22, con dos vídeos: *"quiero quitar todos los saltos que da
@@ -1779,10 +1921,10 @@
     #tableContainer td.mc-qty .qu{
       text-align:left;color:var(--muted);font-size:var(--fs-md);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:.4rem}
+    .col-bar-right{margin-left:auto;display:inline-flex;align-items:center;gap:var(--sp-2)}
     /* Mismo alto, mismo ancho, mismo sitio: sólo cambia el color. */
     .btn.col-open{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .mov-act-sep{display:inline-flex;align-items:center;gap:.4rem;
+    .mov-act-sep{display:inline-flex;align-items:center;gap:var(--sp-2);
       padding-left:.7rem;margin-left:.35rem;border-left:1px solid var(--border)}
     .mov-sel-count{font-size:var(--fs-sm);color:var(--muted);min-width:5.5rem}
     .mov-sel-cell{width:32px;text-align:center}
@@ -1845,15 +1987,15 @@
     /* A quarter of the dialog, not a fixed 210px. On a narrow window that
        fixed width was eating half the screen and the settings themselves were
        reading through a slot. */
-    .settings-sidebar{width:25%;min-width:132px;max-width:230px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem .5rem;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-    .settings-sidebar-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.9rem .6rem .3rem}
+    .settings-sidebar{width:25%;min-width:132px;max-width:230px;flex-shrink:0;background:var(--bg);border-right:1px solid var(--border);padding:.85rem var(--sp-3);overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+    .settings-sidebar-label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.9rem var(--sp-4) .3rem}
     .settings-sidebar-label:first-child{padding-top:.2rem}
     /* display:flex so a tab's list/table can flex:1 to fill the fixed modal
        height exactly — before, .mat-list and the Error Log table had their own
        fixed max-height (320px / 45vh) left over from when the modal itself grew
        with content; now that the modal is a fixed size, those stale caps left a
        big empty gap below a short list instead of the list filling the box. */
-    .settings-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:1.25rem 1.5rem 1.5rem;display:flex;flex-direction:column}
+    .settings-content{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:var(--sp-7) var(--sp-8) var(--sp-8);display:flex;flex-direction:column}
     #settingsTabContent{display:flex;flex-direction:column;flex:1;min-height:0}
     /* Jose (v11.32): "poner un cuadro o separar cada area en settings
        encerrando en un cuadro cada cosa, el cuadro debe ser azul pero solo el
@@ -1877,7 +2019,7 @@
       position:relative;
       border:1px solid var(--accent);
       border-radius:8px;
-      padding:1.1rem 1rem .95rem;
+      padding:1.1rem var(--sp-6) .95rem;
       gap:.45rem;
     }
     #settingsTabContent > .field > label:first-child{
@@ -1886,73 +2028,73 @@
       left:.8rem;
       transform:translateY(-50%);
       background:var(--card);
-      padding:0 .4rem;
+      padding:0 var(--sp-2);
       color:var(--accent);
       /* The label is lifted onto the border line, so the box it sits on has to
          be the thing behind it — on a panel with any other background this
          would show a white notch. --card is what the settings panel paints. */
     }
-    .settings-tab{background:none;border:none;padding:.4rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+    .settings-tab{background:none;border:none;padding:var(--sp-2) .9rem;border-radius:6px;font-size:.8rem;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
     .settings-tab.active{background:var(--accent);color:#fff}
     .settings-tab:hover:not(.active){background:rgba(0,0,0,.06)}
     .settings-sidebar .settings-tab{display:flex;align-items:center;gap:.55rem;width:100%;text-align:left;padding:.55rem .7rem;font-size:.83rem}
     .settings-sidebar .settings-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
     .cfg-list{list-style:none;margin:0;padding:0}
-    .cfg-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-radius:6px;font-size:.85rem;border-bottom:1px solid var(--border)}
+    .cfg-item{display:flex;align-items:center;gap:var(--sp-3);padding:.45rem var(--sp-3);border-radius:6px;font-size:.85rem;border-bottom:1px solid var(--border)}
     .cfg-item:last-child{border-bottom:none}
     .cfg-item-name{flex:1;font-weight:500}
-    .cfg-item-input{flex:1;padding:.3rem .5rem;border:1px solid var(--accent);border-radius:5px;font-size:.85rem;font-family:inherit}
+    .cfg-item-input{flex:1;padding:.3rem var(--sp-3);border:1px solid var(--accent);border-radius:5px;font-size:.85rem;font-family:inherit}
     .cfg-btn{background:none;border:1px solid var(--border);border-radius:var(--r-btn);padding:2px 8px;font-size:var(--fs-sm);cursor:pointer;transition:.15s;white-space:nowrap}
     .cfg-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
     .cfg-btn-danger{border-color:var(--red);color:var(--red)}
     .cfg-btn-danger:hover{background:var(--red);color:#fff;border-color:var(--red)}
-    .cfg-add-row{display:flex;gap:.5rem;margin-top:.75rem}
-    .cfg-add-row input{flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .cfg-add-row{display:flex;gap:var(--sp-3);margin-top:var(--sp-5)}
+    .cfg-add-row input{flex:1;padding:var(--sp-2) var(--sp-4);border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
     /* Materials tab */
-    .mat-search-row{display:flex;gap:.5rem;margin-bottom:.75rem}
-    .mat-search-row input{flex:1;padding:.4rem .7rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
+    .mat-search-row{display:flex;gap:var(--sp-3);margin-bottom:var(--sp-5)}
+    .mat-search-row input{flex:1;padding:var(--sp-2) .7rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
     .mat-list{flex:1;min-height:0;overflow-y:auto}
-    .mat-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem;flex-wrap:wrap}
+    .mat-item{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-bottom:1px solid var(--border);font-size:.82rem;flex-wrap:wrap}
     .mat-item-name{flex:1;min-width:120px;font-weight:500}
     .mat-item-cat{font-size:.72rem;color:var(--muted)}
     /* ── CHARTS ── */
-    .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:1.5rem}
+    .charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--sp-8);margin-bottom:var(--sp-8)}
     /* ── COL TOGGLE ── */
     /* ── FOOTER ── */
-    .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
+    .system-footer{text-align:center;padding:var(--sp-8);color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
     /* ── STOCK DETAIL PANEL (alert bar expand) ── */
-    .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--sh-2);margin-bottom:1rem;overflow:hidden}
+    .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--sh-2);margin-bottom:var(--sp-6);overflow:hidden}
     .stock-detail-panel.open{display:block}
-    .stock-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--navy);color:#fff;font-size:.8rem;font-weight:700}
+    .stock-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:.65rem var(--sp-6);background:var(--navy);color:#fff;font-size:.8rem;font-weight:700}
     .stock-detail-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:var(--fs-2xl);cursor:pointer}
     .stock-detail-hdr button:hover{color:#fff}
     .stock-detail-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
-    .sdp-section{padding:.75rem 1rem}
-    .sdp-section h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem;color:var(--muted)}
-    .sdp-row{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);gap:.5rem;font-size:.8rem}
+    .sdp-section{padding:var(--sp-5) var(--sp-6)}
+    .sdp-section h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:var(--sp-3);color:var(--muted)}
+    .sdp-row{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border);gap:var(--sp-3);font-size:.8rem}
     .sdp-row:last-child{border-bottom:none}
     .sdp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
-    .sdp-qty{display:flex;gap:.5rem;align-items:center;white-space:nowrap}
-    .sdp-empty{color:var(--muted);font-size:.8rem;padding:.5rem 0}
+    .sdp-qty{display:flex;gap:var(--sp-3);align-items:center;white-space:nowrap}
+    .sdp-empty{color:var(--muted);font-size:.8rem;padding:var(--sp-3) 0}
     .alert-banner{cursor:pointer;transition:opacity .15s}
     .alert-banner:hover{opacity:.88}
-    .alert-banner-actions{display:flex;gap:.5rem;align-items:center;margin-left:auto;flex-shrink:0}
+    .alert-banner-actions{display:flex;gap:var(--sp-3);align-items:center;margin-left:auto;flex-shrink:0}
     .alert-banner-actions button{background:rgba(0,0,0,.15);border:none;color:inherit;border-radius:var(--r-btn);padding:2px 8px;font-size:var(--fs-sm);cursor:pointer;font-weight:600;white-space:nowrap}
     .alert-banner-actions button:hover{background:rgba(0,0,0,.28)}
     /* La oferta de crear el Entry, dentro de la ventana de la entrega. Se
        muestra sólo cuando el estado es Arrived: ofrecerla sobre algo que
        todavía no ha llegado sería ofrecer registrar una entrada falsa. */
-    .entry-offer{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;
+    .entry-offer{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-3);
       font-size:.8rem;color:var(--text);cursor:pointer;text-transform:none;
       font-weight:400;letter-spacing:0;
       background:#EFF6FF;border:1px solid var(--accent);border-radius:6px;
-      padding:.5rem .6rem}
+      padding:var(--sp-3) var(--sp-4)}
     .entry-offer input{margin:0;flex:none}
     /* La tarjeta de entrada pendiente NO se define aquí: sus reglas viven
        junto a .sys-card, después de .deck-card. Estuvieron aquí desde la v11.42
        y ese sitio era el fallo — ver el comentario largo allí. */
     /* ── INCOMING SECTION ── */
-    .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.5rem}
+    .incoming-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:var(--sp-8)}
     /* Jose lo dibujó encima de una captura: CUATRO arriba y TRES abajo, y las
        tarjetas "estables, como en Google Calendar, son siempre del mismo
        tamaño, pero al hacer scroll se pueden ver los que están más abajo".
@@ -1969,7 +2111,7 @@
        Cuatro columnas fijas dan 4 + 3, que es exactamente el reparto de una
        semana de siete días sin dejar huecos raros. Y la altura fija es lo que
        hace que la segunda fila empiece siempre en el mismo sitio. */
-    .incoming-week-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;padding:1rem 1.25rem}
+    .incoming-week-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5);padding:var(--sp-6) var(--sp-7)}
     /* La altura de la tarjeta y el scroll de dentro son la misma decisión: sin
        altura fija no hay nada que desbordar, y sin desbordar no hay scroll. */
     .day-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;
@@ -2011,10 +2153,10 @@
 
        Used by the week cards AND the morning popup, so the same delivery is
        the same shape wherever it appears. */
-    .inc-item{padding:.5rem 0;border-bottom:1px solid var(--border)}
+    .inc-item{padding:var(--sp-3) 0;border-bottom:1px solid var(--border)}
     .inc-item:last-child{border-bottom:none}
-    .inc-item-cat{margin-bottom:.25rem}
-    .inc-item-body{display:flex;align-items:flex-start;gap:.6rem}
+    .inc-item-cat{margin-bottom:var(--sp-1)}
+    .inc-item-body{display:flex;align-items:flex-start;gap:var(--sp-4)}
     /* min-width:0 so a long material name wraps instead of shoving the
        quantity column off the card. */
     .inc-item-main{flex:1;min-width:0}
@@ -2046,21 +2188,21 @@
        categoría, que es la que manda en la tarjeta.
        Sin guion delante: la forma de insignia ya dice que es otra cosa, y el
        guion era una separación que sobraba en cuanto hay caja. */
-    .inc-name-sup{flex:0 0 auto;max-width:55%;margin-left:.4rem;
+    .inc-name-sup{flex:0 0 auto;max-width:55%;margin-left:var(--sp-2);
                   background:var(--navy);color:#fff;
                   padding:.1rem .45rem;border-radius:20px;
                   font-size:var(--fs-xs);font-weight:600;line-height:var(--lh-amplia)}
     /* El clip nunca encoge: es un objetivo de toque, no texto. */
     .inc-item-name > a{flex:none}
-    .inc-item-meta{color:var(--muted);font-size:var(--fs-sm);line-height:var(--lh-normal);margin-top:.1rem;overflow-wrap:anywhere}
+    .inc-item-meta{color:var(--muted);font-size:var(--fs-sm);line-height:var(--lh-normal);margin-top:var(--gap-sublinea);overflow-wrap:anywhere}
     /* The right column never shrinks and never wraps its own contents: a
        quantity broken across two lines is unreadable, and the whole reason it
        is over here is to be scannable. */
     .inc-item-side{flex:none;display:flex;flex-direction:column;align-items:flex-end;
-                   gap:.25rem;text-align:right;white-space:nowrap}
+                   gap:var(--sp-1);text-align:right;white-space:nowrap}
     .inc-item-qty{font-weight:700;font-size:var(--fs-base);line-height:var(--lh-normal)}
-    .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700}
-    .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700}
+    .inc-status-pending{background:#FEF3C7;color:#92400E;border-radius:var(--r-pildora);padding:var(--pad-pildora);font-size:var(--fs-xs);font-weight:700}
+    .inc-status-arrived{background:var(--green-bg);color:var(--green);border-radius:var(--r-pildora);padding:var(--pad-pildora);font-size:var(--fs-xs);font-weight:700}
     /* Dónde se puso: sólo aparece cuando la entrada existe de verdad. Ver
        _incEntryWhere — si no hay entrada, esta línea NO se dibuja, y ese hueco
        es la señal de que llegó material que todavía nadie registró.
@@ -2076,7 +2218,11 @@
        crecer allí es ruido; en el popup son tres o cuatro renglones que se
        miran una vez, de pie, con el teléfono en la mano. Es la misma etiqueta
        leída en dos sitios distintos, no dos etiquetas. */
-    #morningPopupBody .inc-status-arrived{font-size:var(--fs-base);padding:.18rem .7rem}
+    /* Sólo la LETRA sube en el popup: se lee de más lejos que la tabla. El
+       relleno lo pone `--pad-pildora` como en todas las demás — antes este
+       override llevaba `.18rem .7rem` y era la misma etiqueta con dos
+       cápsulas distintas según la pantalla. */
+    #morningPopupBody .inc-status-arrived{font-size:var(--fs-base)}
     #morningPopupBody .inc-item-where{font-size:var(--fs-md)}
     /* EL RECUADRO ES GRIS Y EL COLOR SE GUARDA PARA LO QUE LO NECESITA.
        Jose, con la captura: "no me gusta que todo esté en verde, y las letras
@@ -2088,46 +2234,46 @@
        que menos hay que mirar. Sobre gris, el rótulo y la etiqueta se ven MÁS
        verdes que cuando todo lo era. */
     .morning-done{background:var(--bg);border:1px solid var(--border);border-radius:8px;
-                  padding:.75rem 1rem;margin-bottom:.75rem}
-    .morning-done-label{font-size:.7rem;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:.4rem}
+                  padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-5)}
+    .morning-done-label{font-size:.7rem;font-weight:700;color:var(--green);text-transform:uppercase;margin-bottom:var(--sp-2)}
     /* Lo que se esperaba antes de hoy y sigue sin marcar. Va arriba del todo, y
        con la misma receta: recuadro gris y el ámbar sólo en el rótulo. No es
        una alarma roja —puede que sólo falte marcarla— pero es lo primero que
        alguien tiene que mirar por la mañana. */
     .morning-late{background:var(--bg);border:1px solid var(--border);border-radius:8px;
-                  padding:.75rem 1rem;margin-bottom:.75rem}
-    .morning-late-label{font-size:.7rem;font-weight:700;color:#B45309;text-transform:uppercase;margin-bottom:.4rem}
+                  padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-5)}
+    .morning-late-label{font-size:.7rem;font-weight:700;color:#B45309;text-transform:uppercase;margin-bottom:var(--sp-2)}
     /* "¿También llegó esto?" — una fila por entrega, con su casilla.
        La casilla arriba y no centrada: una entrega con nombre largo ocupa dos
        renglones, y una casilla centrada contra dos renglones queda flotando
        lejos de la primera palabra, que es donde va el ojo. */
-    #alsoArrivedList{margin-top:.6rem;max-height:min(46vh,320px);overflow:auto;text-align:left}
-    .also-row{display:flex;align-items:flex-start;gap:.55rem;padding:.5rem .15rem;
+    #alsoArrivedList{margin-top:var(--sp-4);max-height:min(46vh,320px);overflow:auto;text-align:left}
+    .also-row{display:flex;align-items:flex-start;gap:.55rem;padding:var(--sp-3) .15rem;
       border-bottom:1px solid var(--border);cursor:pointer}
     .also-row:last-child{border-bottom:none}
     .also-row input{margin-top:.2rem;flex:none;width:16px;height:16px;cursor:pointer}
     .also-body{display:flex;flex-direction:column;min-width:0}
     .also-name{font-size:.82rem;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
-    .also-sub{font-size:.72rem;color:var(--muted);line-height:1.35;margin-top:.1rem;
+    .also-sub{font-size:.72rem;color:var(--muted);line-height:1.35;margin-top:var(--gap-sublinea);
       overflow-wrap:anywhere}
 
     /* Draft rows from an email — editable before anything is saved. */
-    .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--card)}
+    .ei-card{border:1px solid var(--border);border-radius:9px;padding:.7rem .8rem;margin-bottom:var(--sp-4);background:var(--card)}
     .ei-card.saved{border-color:var(--green);background:var(--green-bg)}
     .ei-card.skipped{opacity:.4}
-    .ei-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .7rem}
+    .ei-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3) .7rem}
     @media(max-width:560px){.ei-grid{grid-template-columns:1fr}}
     .ei-grid .field.full{grid-column:1/-1}
     .ei-grid label{font-size:.66rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.2rem}
-    .ei-grid input,.ei-grid select{width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.83rem;font-family:inherit;background:var(--card);color:var(--text)}
+    .ei-grid input,.ei-grid select{width:100%;padding:.38rem var(--sp-4);border:1px solid var(--border);border-radius:6px;font-size:.83rem;font-family:inherit;background:var(--card);color:var(--text)}
     .ei-grid input:focus,.ei-grid select:focus{outline:none;border-color:var(--accent)}
-    .ei-foot{display:flex;gap:.5rem;justify-content:flex-end;align-items:center;margin-top:.6rem}
+    .ei-foot{display:flex;gap:var(--sp-3);justify-content:flex-end;align-items:center;margin-top:var(--sp-4)}
     .ei-guess{font-size:.7rem;color:var(--yellow);font-weight:700;flex:1}
     .inc-group-row td{background:var(--bg);padding:var(--pad-celda);border-top:2px solid var(--border)}
     .inc-group-lbl{font-size:var(--fs-md);font-weight:800;color:var(--text);letter-spacing:.01em}
-    .inc-group-count{font-size:var(--fs-xs);font-weight:800;background:var(--border);color:var(--muted);border-radius:10px;padding:1px 8px;margin-left:.45rem}
-    .inc-group-note{font-size:var(--fs-xs);color:var(--muted);margin-left:.6rem;font-weight:400}
-    .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:20px;padding:.1rem .5rem;font-size:var(--fs-xs);font-weight:700;text-decoration:line-through}
+    .inc-group-count{font-size:var(--fs-xs);font-weight:800;background:var(--border);color:var(--muted);border-radius:var(--r-pildora);padding:var(--pad-pildora);margin-left:.45rem}
+    .inc-group-note{font-size:var(--fs-xs);color:var(--muted);margin-left:var(--sp-4);font-weight:400}
+    .inc-status-cancelled{background:#F3F4F6;color:#6B7280;border-radius:var(--r-pildora);padding:var(--pad-pildora);font-size:var(--fs-xs);font-weight:700;text-decoration:line-through}
     /* ── MORNING POPUP ── */
     /* z-index 540 IS THE WHOLE FIX, and the number is not arbitrary.
        It was 2000 — tied with the setup wizard and 1450 above every modal in
@@ -2147,21 +2293,21 @@
     .morning-popup-hdr{background:var(--navy);color:#fff;padding:1.1rem 1.4rem;display:flex;align-items:center;justify-content:space-between;border-radius:14px 14px 0 0}
     .morning-popup-hdr h3{font-size:1rem;font-weight:700;margin:0}
     .morning-popup-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:var(--fs-4xl);cursor:pointer;line-height:1;padding:0}
-    .morning-popup-body{overflow-y:auto;padding:1rem 1.4rem;flex:1}
-    .morning-today{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
-    .morning-today-label{font-size:.7rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:.4rem}
-    .morning-week-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .35rem}
+    .morning-popup-body{overflow-y:auto;padding:var(--sp-6) 1.4rem;flex:1}
+    .morning-today{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-5)}
+    .morning-today-label{font-size:.7rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:var(--sp-2)}
+    .morning-week-label{font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:var(--sp-5) 0 .35rem}
     /* The popup's own item styles are gone: it now draws each delivery with
        .inc-item, the same as the week cards, so one delivery looks the same
        wherever it appears. */
     .morning-arrived{background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;
-      padding:.2rem .5rem;font-size:var(--fs-sm);font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
+      padding:.2rem var(--sp-3);font-size:var(--fs-sm);font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:.15s}
     .morning-arrived:hover{background:var(--accent);color:#fff}
     /* Briefly marks the one field a shortcut just changed on the reader's
        behalf, so nothing is altered invisibly. */
     @keyframes field-flag{0%{box-shadow:0 0 0 3px rgba(59,130,246,.45)}100%{box-shadow:0 0 0 3px rgba(59,130,246,0)}}
     .field-flagged{animation:field-flag 2.6s ease-out both;border-color:var(--accent)!important}
-    .morning-popup-footer{padding:.75rem 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
+    .morning-popup-footer{padding:var(--sp-5) 1.4rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--sp-5)}
     /* ── MONITOR MODAL ── */
     /* Outer container: the ONLY scrollbar is vertical — overflow-x:hidden is the
        actual fix for the horizontal-scroll bug (setting overflow-y alone makes
@@ -2175,8 +2321,8 @@
        the category names to begin with; a category opens only when you pick it.
        A chip is grey — the same grey the app uses for anything switched off —
        until it is chosen, and then it takes its category's own colour. */
-    .mon-chips{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;padding:.25rem 0 .85rem;border-bottom:1px solid var(--border);margin-bottom:.6rem}
-    .mon-chip{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:999px;padding:.4rem .9rem;font-size:.76rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.18s;letter-spacing:.02em}
+    .mon-chips{display:flex;flex-wrap:wrap;gap:var(--sp-2);justify-content:center;padding:var(--sp-1) 0 .85rem;border-bottom:1px solid var(--border);margin-bottom:var(--sp-4)}
+    .mon-chip{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:999px;padding:var(--sp-2) .9rem;font-size:.76rem;font-weight:700;font-family:inherit;cursor:pointer;transition:.18s;letter-spacing:.02em}
     .mon-chip:hover{border-color:var(--accent);color:var(--text)}
     .mon-chip .mon-chip-n{font-weight:600;opacity:.7;margin-left:.3rem}
     /* Active: the badge colours the rest of the app already gives this category,
@@ -2190,19 +2336,19 @@
        to badge-gray, and grey is the OFF state — an unmapped category would
        have looked switched off while switched on. The accent is unambiguous. */
     .mon-chip.on.badge-green{background:var(--green)}    .mon-chip.on.badge-gray{background:var(--accent)}
-    .mon-picked-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:.6rem .15rem .35rem;margin-top:.5rem;border-bottom:1px solid var(--border)}
-    .mon-empty{padding:1.4rem .5rem;text-align:center;color:var(--muted);font-size:.82rem;line-height:1.6}
+    .mon-picked-hdr{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:var(--sp-4) .15rem .35rem;margin-top:var(--sp-3);border-bottom:1px solid var(--border)}
+    .mon-empty{padding:1.4rem var(--sp-3);text-align:center;color:var(--muted);font-size:.82rem;line-height:1.6}
     /* Min is dead until its checkbox is ticked — a threshold on a material
        nobody is watching is a number that does nothing. */
     .mon-min-inp:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;opacity:.6}
     .monitor-item.off{opacity:.72}
-    .monitor-grid{max-height:50vh;overflow-y:auto;overflow-x:hidden;padding:.25rem}
-    .monitor-cat-hdr{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.72rem;font-weight:700;color:var(--muted);padding:.5rem .15rem .35rem;margin-top:.4rem;border-bottom:1px solid var(--border)}
+    .monitor-grid{max-height:50vh;overflow-y:auto;overflow-x:hidden;padding:var(--sp-1)}
+    .monitor-cat-hdr{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);font-size:.72rem;font-weight:700;color:var(--muted);padding:var(--sp-3) .15rem .35rem;margin-top:var(--sp-2);border-bottom:1px solid var(--border)}
     .monitor-cat-hdr:first-child{margin-top:0}
     /* Fixed pixel columns (not 1fr) so every box is IDENTICAL width regardless of
        how many fit per row or how long a neighboring name is. */
-    .monitor-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,150px);justify-content:start;gap:.4rem;margin-bottom:.5rem}
-    .monitor-item{display:flex;flex-direction:column;gap:.25rem;width:150px;height:76px;padding:.4rem .5rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:.15s;box-sizing:border-box;overflow:hidden}
+    .monitor-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,150px);justify-content:start;gap:var(--sp-2);margin-bottom:var(--sp-3)}
+    .monitor-item{display:flex;flex-direction:column;gap:var(--sp-1);width:150px;height:76px;padding:var(--sp-2) var(--sp-3);border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:.15s;box-sizing:border-box;overflow:hidden}
     .monitor-item:hover{background:var(--bg);border-color:var(--accent)}
     .monitor-item-top{display:flex;align-items:center;justify-content:space-between;gap:.3rem;min-width:0}
     .monitor-item-wh{color:var(--muted);font-size:.68rem;font-family:monospace;white-space:nowrap;flex-shrink:0}
@@ -2214,9 +2360,9 @@
     .monitor-item label{cursor:pointer;flex:1}
     /* ── USER MANAGEMENT ── */
     .users-table td{vertical-align:middle}
-    .role-badge-admin{background:#EDE9FE;color:#6D28D9;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
-    .role-badge-warehouse{background:#DBEAFE;color:#1D4ED8;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
-    .role-badge-viewer{background:#F3F4F6;color:#6B7280;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+    .role-badge-admin{background:#EDE9FE;color:#6D28D9;font-size:.7rem;font-weight:700;padding:var(--pad-pildora);border-radius:var(--r-pildora)}
+    .role-badge-warehouse{background:#DBEAFE;color:#1D4ED8;font-size:.7rem;font-weight:700;padding:var(--pad-pildora);border-radius:var(--r-pildora)}
+    .role-badge-viewer{background:#F3F4F6;color:#6B7280;font-size:.7rem;font-weight:700;padding:var(--pad-pildora);border-radius:var(--r-pildora)}
     .user-inactive{opacity:.45}
     /* DOS DATOS EN UNA COLUMNA, como Date/Type y Category/Name en la tabla de
        movimientos. Jose: "así tenemos menos cosas ocupando tanto espacio". El
@@ -2230,34 +2376,34 @@
        que distingue a dos personas de la misma empresa. */
     .usr-sub{font-size:var(--fs-sm);color:var(--muted);line-height:var(--lh-compacta);
              overflow-wrap:anywhere}
-    .usr-bar{margin-bottom:.75rem}
+    .usr-bar{margin-bottom:var(--sp-5)}
     /* La casilla de uno mismo no se puede marcar, y tiene que NOTARSE que no
        es un descuido. Sin esto, marcas tres contigo dentro y la acción
        funciona a medias. */
     .usr-select-cb:disabled{opacity:.3;cursor:not-allowed}
-    .user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem}
+    .user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:var(--sp-5)}
     @media(max-width:520px){.user-form-grid{grid-template-columns:1fr}}
-    .user-invite{display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--text);
+    .user-invite{display:flex;align-items:center;gap:var(--sp-3);font-size:.82rem;color:var(--text);
       cursor:pointer;user-select:none;padding:.15rem 0}
     .user-invite input{width:1rem;height:1rem;accent-color:var(--accent2);cursor:pointer;margin:0}
     /* ── SIMILAR-MATERIAL HINT ── */
-    .similar-hint{display:none;margin-top:.3rem;padding:.3rem .6rem;background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px;font-size:.76rem;color:#92400E;align-items:center;gap:.4rem;flex-wrap:wrap}
+    .similar-hint{display:none;margin-top:.3rem;padding:.3rem var(--sp-4);background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px;font-size:.76rem;color:#92400E;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
     .similar-hint.show{display:flex}
     .similar-hint-use{background:#F59E0B;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap}
     .similar-hint-use:hover{filter:brightness(.9)}
     /* ── DOCUMENT BUILDER ── */
-    .doc-builder-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
-    .doc-group{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.65rem .75rem;margin-bottom:.5rem;position:relative}
-    .doc-group-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+    .doc-builder-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3)}
+    .doc-group{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:.65rem var(--sp-5);margin-bottom:var(--sp-3);position:relative}
+    .doc-group-hdr{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:.45rem}
     .doc-group-name{flex:1;border:1px solid var(--border);border-radius:6px;padding:.3rem .55rem;font-size:.85rem;font-weight:600;background:#fff;min-width:0}
     .doc-group-name:focus{outline:none;border-color:var(--accent)}
     .doc-group-remove{background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0}
     .doc-group-remove:hover{background:var(--red-bg);color:var(--red)}
-    .doc-photos-strip{display:flex;flex-wrap:wrap;gap:6px;min-height:44px;align-items:flex-start;margin-bottom:.4rem}
+    .doc-photos-strip{display:flex;flex-wrap:wrap;gap:6px;min-height:44px;align-items:flex-start;margin-bottom:var(--sp-2)}
     .doc-photo-thumb{position:relative;width:54px;height:54px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:#e5e7eb}
     .doc-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
     .doc-photo-thumb .remove-photo{position:absolute;top:1px;right:1px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
-    .doc-group-actions{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+    .doc-group-actions{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
     /* Floating deck of "you typed something new — register it?" suggestions,
        for the ones the inline prompt under the field didn't get used on.
        Sits above the 🐞 report button, same corner. Collapsed it is a deck:
@@ -2475,13 +2621,13 @@
        --card-h es correcto para todos los proveedores: es lo que convierte
        "cabe" en "cabe hoy". Con el corte, el contenido mide lo mismo pase lo
        que pase, y el alto se puede fijar de verdad. */
-    .todo-card-sub{font-size:.76rem;color:rgba(255,255,255,.92);margin-top:.15rem;
+    .todo-card-sub{font-size:.76rem;color:rgba(255,255,255,.92);margin-top:var(--gap-sublinea);
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     /* El gris que pidió Jose: el mismo blanco bajado de intensidad, no un gris
        de la paleta. Un #9CA3AF sobre naranja se ensucia; el blanco al 72% se
        lee como gris y conserva el contraste. */
     .todo-card-when{font-size:.7rem;color:rgba(255,255,255,.72);
-      margin-top:.15rem;margin-bottom:.55rem}
+      margin-top:var(--gap-sublinea);margin-bottom:.55rem}
     /* Los botones, releídos para fondo naranja: el azul de .cfg-card-add
        desaparecía encima. Blanco sólido para el que hace algo, contorno para
        el que aplaza. */
@@ -2567,8 +2713,8 @@
     .deck.dim:not(.open) .cfg-card-acts{opacity:0}
     .cfg-card-lbl{font-size:.63rem;text-transform:uppercase;letter-spacing:.05em;color:#a1b0cb;font-weight:700}
     .cfg-card-val{font-weight:700;margin:.15rem 0 .45rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .cfg-card-acts{display:flex;gap:.4rem;align-items:center}
-    .cfg-card-acts button{border:none;border-radius:var(--r-btn);padding:.28rem .6rem;font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-card-acts{display:flex;gap:var(--sp-2);align-items:center}
+    .cfg-card-acts button{border:none;border-radius:var(--r-btn);padding:.28rem var(--sp-4);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-card-add{background:var(--accent);color:#fff}
     .cfg-card-add:disabled{opacity:.6;cursor:default}
     .cfg-card-skip{background:rgba(255,255,255,.14);color:#dbe4f5}
@@ -2580,7 +2726,7 @@
     .deck.dim:not(.open) .sys-card-when,
     .deck.dim:not(.open) .sys-card-detail{opacity:.6}
     .sys-card-title{font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem}
-    .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:.15rem}
+    .sys-card-when{color:var(--muted);font-size:.72rem;margin-top:var(--gap-sublinea)}
     .sys-card-detail{color:var(--muted);font-size:.71rem;margin-top:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;line-height:1.32}
     .sys-card-more{position:absolute;right:.8rem;bottom:.5rem;font-size:.66rem;font-weight:700;color:var(--accent);opacity:0;transition:opacity .15s}
     .sys-card:hover .sys-card-more{opacity:1}
@@ -2599,9 +2745,9 @@
     .cfg-bell-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--navy)}
     .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-3);z-index:var(--z-bell);max-height:70vh;overflow-y:auto}
     .cfg-bell-panel.show{display:block}
-    .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
+    .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:var(--sp-4) .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
     .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer}
-    .cfg-bell-row{padding:.6rem .8rem;border-bottom:1px solid var(--border)}
+    .cfg-bell-row{padding:var(--sp-4) .8rem;border-bottom:1px solid var(--border)}
     .cfg-bell-row:last-child{border-bottom:none}
     .cfg-bell-row .cfg-card-lbl{color:var(--muted)}
     .cfg-bell-row .cfg-card-val{color:var(--text)}
@@ -2614,14 +2760,14 @@
     }
     @media (max-width:640px){.deck{right:16px;max-width:calc(100vw - 32px)}.deck-card{--card-w:250px}.sys-card{--card-w:calc(100vw - 60px)}}
     /* Manual merge picker */
-    .app-splash{position:fixed;inset:0;z-index:var(--z-fullscreen);background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:1.5rem}
+    .app-splash{position:fixed;inset:0;z-index:var(--z-fullscreen);background:var(--navy);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;transition:opacity .45s ease;padding:var(--sp-8)}
     .app-splash.gone{opacity:0;pointer-events:none}
-    .splash-mark{display:flex;align-items:center;gap:.6rem;font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
+    .splash-mark{display:flex;align-items:center;gap:var(--sp-4);font-size:1.7rem;font-weight:800;letter-spacing:.02em;text-align:center}
     .splash-logo{max-width:min(310px,68vw);max-height:96px;object-fit:contain;
       background:#F3F4F6;padding:14px 20px;border-radius:10px;box-sizing:content-box}
     /* Deliberately quiet: the customer's name is the headline, ours is a
        credit line under the bar. */
-    .splash-by{font-size:.68rem;color:#8fa0bd;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:.4rem}
+    .splash-by{font-size:.68rem;color:#8fa0bd;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:var(--sp-2)}
     .splash-by b{color:#fff;font-weight:800;letter-spacing:.02em;text-transform:none;font-size:1.05rem}
     .splash-bar{width:min(260px,70vw);height:5px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
     .splash-fill{height:100%;width:8%;background:#fff;border-radius:3px;transition:width .5s ease}
@@ -2641,7 +2787,7 @@
        distintas dentro de la misma lista. */
     .perm-row{padding:.55rem 0;border-bottom:1px solid var(--border)}
     .perm-row:last-child{border-bottom:none;padding-bottom:0}
-    .co-label{display:block;font-size:.78rem;font-weight:700;color:var(--text);margin:1rem 0 .3rem}
+    .co-label{display:block;font-size:.78rem;font-weight:700;color:var(--text);margin:var(--sp-6) 0 .3rem}
     .co-form .co-label:first-child{margin-top:0}
     .co-area .co-label:first-of-type{margin-top:.2rem}
     /* Y hay que devolverles su forma: `.field label` (0,1,1) le gana a
@@ -2652,18 +2798,18 @@
       text-transform:none;letter-spacing:0;
       color:var(--text);font-size:.78rem;font-weight:700}
     .co-opt{font-weight:400;color:var(--muted)}
-    .co-input{width:100%;padding:.5rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit}
+    .co-input{width:100%;padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.86rem;font-family:inherit}
     .co-input:focus{outline:none;border-color:var(--accent)}
     .co-hint{font-size:.73rem;color:var(--muted);margin:.35rem 0 0;line-height:1.45}
-    .co-logo-box{display:inline-flex;align-items:center;justify-content:center;min-width:150px;min-height:64px;padding:.5rem .75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+    .co-logo-box{display:inline-flex;align-items:center;justify-content:center;min-width:150px;min-height:64px;padding:var(--sp-3) var(--sp-5);border:1px solid var(--border);border-radius:8px;background:var(--bg)}
     .co-logo-box img{max-height:52px;max-width:240px;object-fit:contain}
     .co-logo-empty{color:var(--muted);font-size:.78rem}
-    .co-logo-acts{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
-    .co-save{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--border)}
+    .co-logo-acts{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-3)}
+    .co-save{margin-top:1.4rem;padding-top:var(--sp-6);border-top:1px solid var(--border)}
     /* One edit mode and one delete mode per screen. Rows carry no controls
        until a mode is switched on, so a list reads as a list and deleting is
        something you have to mean. */
-    .row-mode-bar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 .7rem}
+    .row-mode-bar{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;margin:0 0 .7rem}
     .rm-btn{display:inline-flex;align-items:center;gap:.3rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:var(--r-btn);padding:.3rem .7rem;font-size:var(--fs-md);font-weight:700;font-family:inherit;cursor:pointer;transition:.15s}
     .rm-btn:hover{border-color:var(--accent)}
     .rm-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
@@ -2684,7 +2830,7 @@
     [data-rowscope]:not(.mode-del)  [data-rowact="del"]{display:none!important}
     /* Delete mode is worth noticing from across the room. */
     [data-rowscope].mode-del{outline:1px solid var(--red);outline-offset:4px;border-radius:6px}
-    .col-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.15rem 0 .6rem}
+    .col-bar{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin:.15rem 0 var(--sp-4)}
     .col-edit-help{font-size:.74rem;color:var(--muted)}
     th.col-edit{cursor:grab;white-space:nowrap}
     th.col-edit.col-dragging{opacity:.4}
@@ -2697,7 +2843,7 @@
        asa, y el cursor de siempre en vez del de agarrar. */
     th.col-edit.col-fija{cursor:default;background:rgba(0,0,0,.28)}
     th.col-edit.col-fija .col-rename{cursor:text}
-    .col-drag{opacity:.6;margin-right:.25rem;cursor:grab}
+    .col-drag{opacity:.6;margin-right:var(--sp-1);cursor:grab}
     .col-rename{width:118px;padding:.2rem .35rem;border:1px solid rgba(255,255,255,.35);border-radius:5px;background:rgba(255,255,255,.12);color:#fff;font-size:.72rem;font-family:inherit;font-weight:700}
     .col-rename:focus{outline:none;border-color:#fff;background:rgba(255,255,255,.2)}
     .col-name-ro{font-weight:700}
@@ -2760,7 +2906,7 @@
        #acTip: un transform en cualquier antepasado se lleva a un fixed con él. */
     #acPerson{position:fixed;left:-9999px;top:-9999px;
       background:var(--card);color:var(--text);border:1px solid var(--border);
-      border-radius:10px;padding:.6rem .7rem;box-shadow:var(--sh-2);
+      border-radius:10px;padding:var(--sp-4) .7rem;box-shadow:var(--sh-2);
       /* SIEMPRE DEL MISMO TAMAÑO. Jose, 2026-09-16, con video: "quiero que el
          pop-up sea del mismo tamaño no importa el nombre y el correo... se
          mueve o aparece en un lugar diferente y de un largo diferente
@@ -2784,11 +2930,11 @@
     #acPerson.show{opacity:1;transform:translateY(0)}
     .ap-name,.ap-mail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .ap-name{font-size:.86rem;font-weight:700;line-height:1.3}
-    .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:.1rem}
+    .ap-mail{font-size:.74rem;color:var(--muted);line-height:1.35;margin-top:var(--gap-sublinea)}
     .ap-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem}
-    .ap-btn{display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;
+    .ap-btn{display:inline-flex;align-items:center;gap:var(--sp-1);text-decoration:none;
       font-size:var(--fs-sm);font-weight:600;color:var(--accent);
-      border:1px solid var(--border);border-radius:var(--r-btn);padding:.25rem .5rem;
+      border:1px solid var(--border);border-radius:var(--r-btn);padding:var(--sp-1) var(--sp-3);
       background:var(--bg);white-space:nowrap}
     .ap-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
@@ -2837,16 +2983,16 @@
     .lv-used {background:var(--accent)}
     .lv-waste{background:var(--red)}
 
-    .cat-badge{display:inline-block;margin-left:.6rem;font-size:.72rem;font-weight:700;
+    .cat-badge{display:inline-block;margin-left:var(--sp-4);font-size:.72rem;font-weight:700;
       letter-spacing:.03em;vertical-align:middle;
-      background:var(--accent2, #1E52A0);color:#fff;border-radius:999px;padding:.2rem .6rem}
-    .cfg-pick{margin-right:.5rem;flex-shrink:0;cursor:pointer}
-    .cfg-pickbar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:8px;padding:.5rem .7rem;margin-bottom:.75rem}
+      background:var(--accent2, #1E52A0);color:#fff;border-radius:var(--r-pildora);padding:var(--pad-pildora)}
+    .cfg-pick{margin-right:var(--sp-3);flex-shrink:0;cursor:pointer}
+    .cfg-pickbar{display:none;gap:var(--sp-3);align-items:center;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:8px;padding:var(--sp-3) .7rem;margin-bottom:var(--sp-5)}
     .cfg-pickbar.show{display:flex}
     .cfg-pick-count{font-size:.78rem;font-weight:700}
-    .cfg-pickbar select{font-size:.8rem;padding:.25rem .4rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:220px}
+    .cfg-pickbar select{font-size:.8rem;padding:var(--sp-1) var(--sp-2);border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);max-width:220px}
     /* Locations grouped by type, drag to reorder */
-    .loc-toolbar{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem}
+    .loc-toolbar{display:flex;align-items:flex-start;gap:var(--sp-5);margin-bottom:var(--sp-5)}
     .loc-plus-wrap{position:relative;flex-shrink:0}
     .loc-plus{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--accent);color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;font-family:inherit}
     .loc-plus:hover{filter:brightness(1.1)}
@@ -2855,19 +3001,19 @@
        on the menu itself - hovering the button alone would close it the moment
        the pointer travelled down toward a choice. */
     .loc-plus-wrap:hover .loc-plus-menu,.loc-plus-menu:hover{display:block}
-    .loc-plus-menu button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:var(--fs-base);font-family:inherit;padding:.5rem .7rem;cursor:pointer}
+    .loc-plus-menu button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:var(--fs-base);font-family:inherit;padding:var(--sp-3) .7rem;cursor:pointer}
     .loc-plus-menu button:first-child{border-radius:8px 8px 0 0}
     .loc-plus-menu button:last-child{border-radius:0 0 8px 8px;border-top:none}
     .loc-plus-menu button:hover{background:var(--bg)}
     .loc-group-default .loc-group-hdr{background:#DBEAFE}
     [data-theme="dark"] .loc-group-default .loc-group-hdr{background:#1E3A5F}
-    .loc-groups{display:flex;flex-direction:column;gap:.75rem}
+    .loc-groups{display:flex;flex-direction:column;gap:var(--sp-5)}
     .loc-group{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
-    .loc-group-hdr{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;background:var(--bg);border-bottom:1px solid var(--border)}
+    .loc-group-hdr{display:flex;align-items:center;gap:var(--sp-3);padding:.45rem .7rem;background:var(--bg);border-bottom:1px solid var(--border)}
     .loc-group-name{font-size:.78rem;font-weight:800;color:var(--text);letter-spacing:.03em}
     .loc-group-count{font-size:.68rem;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:0 .45rem}
     .loc-group-hdr .cfg-btn{margin-left:auto}
-    .loc-list{list-style:none;margin:0;padding:.4rem;min-height:44px;display:flex;flex-wrap:wrap;gap:.35rem}
+    .loc-list{list-style:none;margin:0;padding:var(--sp-2);min-height:44px;display:flex;flex-wrap:wrap;gap:.35rem}
     .loc-list.drop-target{background:rgba(59,125,216,.10);outline:2px dashed var(--accent);outline-offset:-4px}
     .loc-item{display:flex;align-items:center;gap:.35rem;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:.3rem .55rem;font-size:.78rem;color:var(--text);cursor:grab}
     .loc-item.dragging{opacity:.4}
@@ -2876,31 +3022,31 @@
        estado que se dice de tres colores distintos en tres pantallas es un
        estado que hay que aprenderse tres veces. */
     .loc-resv{flex-shrink:0;font-size:.7rem;font-weight:700;background:var(--yellow-bg);
-      color:var(--text);border-radius:6px;padding:1px 6px;cursor:help;
+      color:var(--text);border-radius:6px;padding:var(--pad-pildora);cursor:help;
       font-variant-numeric:tabular-nums}
     .loc-grip{color:var(--muted);font-size:.85rem;line-height:1}
-    .loc-empty{color:var(--muted);font-size:.75rem;padding:.35rem .5rem;font-style:italic}
+    .loc-empty{color:var(--muted);font-size:.75rem;padding:.35rem var(--sp-3);font-style:italic}
     .loc-group-archived{opacity:.85}
     .loc-group-archived .loc-group-hdr{background:var(--bg)}
     .loc-group-archived .loc-item{background:transparent;border-style:dashed;color:var(--muted)}
-    .loc-arch-note{font-size:.66rem;color:var(--muted);margin-left:.4rem}
+    .loc-arch-note{font-size:.66rem;color:var(--muted);margin-left:var(--sp-2)}
     .loc-arch-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:var(--fs-base);padding:0 0 0 .2rem;line-height:1}
     .loc-arch-btn:hover{color:var(--accent)}
     /* The bin is destructive, so it does not share the archive button's accent
        hover — a row with both must not read as two shades of the same action. */
     .loc-del-btn:hover{color:var(--red)}
     .loc-pick{margin-right:.15rem;cursor:pointer}
-    .loc-savebar{display:none;gap:.5rem;align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem .75rem;margin-top:.75rem;font-size:.8rem}
+    .loc-savebar{display:none;gap:var(--sp-3);align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem var(--sp-5);margin-top:var(--sp-5);font-size:.8rem}
     .loc-savebar.show{display:flex}
     /* Possible-duplicate groups in Settings → Projects / Suppliers */
-    .sim-box{background:var(--yellow-bg,#FEF9C3);border:1px solid #FDE68A;border-radius:10px;padding:.75rem .85rem;margin-bottom:1rem}
+    .sim-box{background:var(--yellow-bg,#FEF9C3);border:1px solid #FDE68A;border-radius:10px;padding:var(--sp-5) .85rem;margin-bottom:var(--sp-6)}
     [data-theme="dark"] .sim-box{background:#3B2F0B;border-color:#6B5B16}
-    .sim-hdr{font-size:.82rem;font-weight:800;color:var(--text);margin-bottom:.25rem}
-    .sim-sub{font-size:.74rem;color:var(--muted);margin-bottom:.6rem;line-height:1.45}
-    .sim-group{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.55rem .65rem;margin-bottom:.5rem}
+    .sim-hdr{font-size:.82rem;font-weight:800;color:var(--text);margin-bottom:var(--sp-1)}
+    .sim-sub{font-size:.74rem;color:var(--muted);margin-bottom:var(--sp-4);line-height:1.45}
+    .sim-group{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.55rem .65rem;margin-bottom:var(--sp-3)}
     .sim-group:last-child{margin-bottom:0}
     .sim-opt{display:flex;align-items:center;gap:.45rem;font-size:.8rem;color:var(--text);padding:.15rem 0;cursor:pointer}
-    .sim-acts{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+    .sim-acts{display:flex;gap:var(--sp-2);margin-top:var(--sp-3);flex-wrap:wrap}
     /* Storage bar. The percentage sits ON the bar rather than beside it, so
        the one number that matters is where the eye already is. Centred over
        the whole track, not over the filled part, so it stays readable at 2%
@@ -2914,7 +3060,7 @@
                       needs to stay legible against either. */
                    text-shadow:0 0 3px var(--card),0 0 3px var(--card),0 0 2px var(--card)}
     .sysact-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
-    .sysact-list li{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;font-size:.78rem}
+    .sysact-list li{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.45rem var(--sp-4);font-size:.78rem}
     .sysact-dot{color:var(--green);font-weight:800}
     .sysact-label{font-weight:700;color:var(--text)}
     .sysact-when{color:var(--muted);font-size:.74rem}
@@ -2923,11 +3069,11 @@
     .sysact-link:hover{text-decoration:underline}
     /* The full backup list, collapsed. ~30 near-identical rows on a healthy
        install: worth having, not worth opening the tab into. */
-    .bk-all{margin-top:.4rem}
+    .bk-all{margin-top:var(--sp-2)}
     .bk-all summary{font-size:.75rem;color:var(--accent);cursor:pointer;font-weight:700;list-style:revert}
     .bk-all summary:hover{text-decoration:underline}
-    .bk-list{list-style:none;margin:.4rem 0 0;padding:0;display:flex;flex-direction:column;gap:.2rem;max-height:260px;overflow-y:auto}
-    .bk-list li{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;justify-content:space-between;
+    .bk-list{list-style:none;margin:var(--sp-2) 0 0;padding:0;display:flex;flex-direction:column;gap:.2rem;max-height:260px;overflow-y:auto}
+    .bk-list li{display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap;justify-content:space-between;
       background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.35rem .55rem;font-size:.75rem}
     .bk-list a{color:var(--accent);text-decoration:none;min-width:0;overflow-wrap:anywhere}
     .bk-list a:hover{text-decoration:underline}
@@ -2942,28 +3088,28 @@
     .sysact-spot{animation:spotlight 6s ease-out both;border-radius:8px}
     tr.row-spotlight td{animation:spotlight var(--spot-ms,6s) ease-out both}
     .cfg-new-hint{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.3rem;font-size:.72rem;color:var(--muted)}
-    .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem .5rem;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
+    .cfg-new-add{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.22rem var(--sp-3);font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit}
     .cfg-new-add:hover{filter:brightness(1.1)}
     .cfg-new-add:disabled{opacity:.6;cursor:default}
     .cfg-new-ok{color:var(--green);font-weight:700}
     .doc-photo-bad{border:1.5px solid var(--red)!important;background:#FEF2F2!important}
-    .doc-drive-row{display:flex;gap:.4rem;align-items:center;margin-top:.45rem}
-    .doc-drive-row input{flex:1;min-width:0;padding:.38rem .6rem;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;background:var(--card);color:var(--text);min-height:var(--h-btn-sm)}
+    .doc-drive-row{display:flex;gap:var(--sp-2);align-items:center;margin-top:.45rem}
+    .doc-drive-row input{flex:1;min-width:0;padding:.38rem var(--sp-4);border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;background:var(--card);color:var(--text);min-height:var(--h-btn-sm)}
     .doc-drive-row input:focus{outline:none;border-color:var(--accent)}
-    .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:var(--r-btn);padding:.38rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
+    .btn-camera{background:var(--navy);color:#fff;border:none;border-radius:var(--r-btn);padding:.38rem var(--sp-5);font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
     .btn-camera:hover{filter:brightness(1.15)}
     .btn-camera:active{transform:scale(.97)}
-    .btn-gallery{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:var(--r-btn);padding:.38rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
+    .btn-gallery{background:#fff;color:var(--navy);border:1.5px solid var(--border);border-radius:var(--r-btn);padding:.38rem var(--sp-5);font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;flex-shrink:0;min-height:var(--h-btn-sm)}
     .btn-gallery:hover{border-color:var(--accent);color:var(--accent)}
     .doc-photo-count{font-size:.72rem;color:var(--muted);font-weight:500;margin-left:auto}
     .doc-processing{font-size:.75rem;color:var(--purple);font-style:italic}
     /* ── AI Extract review panel ── */
-    .ai-review-panel{background:var(--purple-bg);border:1px solid #C4B5FD;border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem}
-    .ai-review-panel h4{font-size:.8rem;font-weight:700;color:var(--purple);margin-bottom:.5rem}
-    .ai-field-row{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.8rem}
+    .ai-review-panel{background:var(--purple-bg);border:1px solid #C4B5FD;border-radius:8px;padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-5)}
+    .ai-review-panel h4{font-size:.8rem;font-weight:700;color:var(--purple);margin-bottom:var(--sp-3)}
+    .ai-field-row{display:flex;align-items:center;gap:var(--sp-3);padding:.2rem 0;font-size:.8rem}
     .ai-field-row label{width:90px;color:var(--muted);font-size:.73rem;flex-shrink:0}
-    .ai-field-row input,.ai-field-row select{flex:1;padding:.25rem .5rem;border:1px solid #C4B5FD;border-radius:4px;font-size:.8rem;background:#fff}
-    .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:var(--r-btn);padding:.35rem .75rem;font-size:var(--fs-md);font-weight:600;cursor:pointer;margin-top:.5rem}
+    .ai-field-row input,.ai-field-row select{flex:1;padding:var(--sp-1) var(--sp-3);border:1px solid #C4B5FD;border-radius:4px;font-size:.8rem;background:#fff}
+    .ai-accept-btn{background:var(--purple);color:#fff;border:none;border-radius:var(--r-btn);padding:.35rem var(--sp-5);font-size:var(--fs-md);font-weight:600;cursor:pointer;margin-top:var(--sp-3)}
     .ai-accept-btn:hover{filter:brightness(.9)}
     /* ── DARK MODE ── */
     [data-theme="dark"]{
@@ -3015,8 +3161,8 @@
     [data-theme="dark"] .ai-field-row input,[data-theme="dark"] .ai-field-row select{background:#0F172A;color:var(--text)}
     /* Dark mode toggle button */
     /* ── TOAST NOTIFICATIONS ── */
-    #toastContainer{position:fixed;top:1.25rem;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none}
-    .toast{background:var(--card);border-radius:10px;padding:.75rem 1.25rem;font-size:.84rem;font-weight:500;display:flex;align-items:flex-start;gap:.55rem;box-shadow:var(--sh-3);border-top:4px solid #94A3B8;min-width:300px;max-width:520px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
+    #toastContainer{position:fixed;top:1.25rem;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);pointer-events:none}
+    .toast{background:var(--card);border-radius:10px;padding:var(--sp-5) var(--sp-7);font-size:.84rem;font-weight:500;display:flex;align-items:flex-start;gap:.55rem;box-shadow:var(--sh-3);border-top:4px solid #94A3B8;min-width:300px;max-width:520px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
     .toast.ok  {border-top-color:var(--green)}
     .toast.err {border-top-color:var(--red)}
     .toast.warn{border-top-color:var(--yellow)}
@@ -3053,9 +3199,9 @@
        estorba basta un clic. Un rato largo sin salida es peor que uno corto. */
     #progWrap{position:fixed;left:1.25rem;bottom:1.25rem;z-index:var(--z-progress);
               cursor:pointer;
-              display:none;align-items:center;gap:.6rem;
+              display:none;align-items:center;gap:var(--sp-4);
               background:var(--card);color:var(--text);
-              border-radius:10px;padding:.7rem 1rem;
+              border-radius:10px;padding:.7rem var(--sp-6);
               box-shadow:var(--sh-3);
               border-left:4px solid var(--accent);
               font-size:var(--fs-lg);font-weight:500;
@@ -3075,7 +3221,7 @@
     /* ── SKELETON LOADING ── */
     .skeleton{background:linear-gradient(90deg,var(--border) 25%,rgba(255,255,255,.3) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;height:14px}
     @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    .skeleton-card{background:var(--card);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+    .skeleton-card{background:var(--card);border-radius:var(--radius);padding:var(--sp-7);box-shadow:var(--shadow);border-left:4px solid var(--border)}
     /* ── BUTTON PRESS STATES ── */
     .btn:active{transform:scale(.97)}
     .btn-primary:active{filter:brightness(.88)}
@@ -3087,8 +3233,8 @@
     .section.active{animation:tabFadeIn .18s ease}
     @keyframes tabFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     /* ── EMPTY STATE ── */
-    .empty-state{text-align:center;padding:3rem 1rem;color:var(--muted)}
-    .empty-state .empty-icon{font-size:2.5rem;margin-bottom:.5rem;opacity:.4}
+    .empty-state{text-align:center;padding:var(--sp-10) var(--sp-6);color:var(--muted)}
+    .empty-state .empty-icon{font-size:2.5rem;margin-bottom:var(--sp-3);opacity:.4}
     .empty-state p{font-size:.88rem}
     /* ── REDUCED MOTION ── */
     @media(prefers-reduced-motion:reduce){
@@ -3194,7 +3340,7 @@
     }
     /* ── RESPONSIVE ── */
     @media(max-width:768px){
-      .topbar{padding:.7rem 1rem .6rem}
+      .topbar{padding:.7rem var(--sp-6) var(--sp-4)}
 
       /* ── LA CABECERA SE ENCOGE AL BAJAR ─────────────────────────────────
        *
@@ -3236,7 +3382,7 @@
          este número ya hacía a mano. */
       th,td{padding:var(--pad-celda-sm)}
       .charts-grid{grid-template-columns:1fr}
-      .modal-type-bar button{padding:.4rem .25rem;font-size:var(--fs-sm);min-height:var(--h-btn-md)}
+      .modal-type-bar button{padding:var(--sp-2) var(--sp-1);font-size:var(--fs-sm);min-height:var(--h-btn-md)}
       /* EL AVISO EN EL TELÉFONO. Jose lo fotografió dos veces, y la segunda
          vez porque la primera lo arreglé a medias.
          Esta regla pone bottom/left/right pero NO anulaba las dos cosas que
@@ -3375,7 +3521,7 @@
 
     /* La vista previa dentro del cuadro: la etiqueta de verdad, encogida, para
        que se vea lo que va a salir antes de gastar papel. */
-    #labelPreview{display:flex;gap:.6rem;overflow-x:auto;padding:.5rem 0 .2rem}
+    #labelPreview{display:flex;gap:var(--sp-4);overflow-x:auto;padding:var(--sp-3) 0 .2rem}
     #labelPreview .lbl{flex:none;transform:scale(.42);transform-origin:top left;
       width:101.6mm;height:152.4mm;border:1px solid var(--border);border-radius:3mm;
       page-break-after:auto}
@@ -3384,7 +3530,7 @@
        cuadro en blanco debajo. */
     #labelPreview{height:calc(152.4mm * .42 + .7rem)}
     #labelPreview .lbl-wrap{flex:none;width:calc(101.6mm * .42);height:calc(152.4mm * .42)}
-    .lbl-row{display:flex;align-items:center;gap:.55rem;padding:.5rem .15rem;
+    .lbl-row{display:flex;align-items:center;gap:.55rem;padding:var(--sp-3) .15rem;
       border-bottom:1px solid var(--border)}
     .lbl-row:last-child{border-bottom:none}
     .lbl-row input[type=checkbox]{flex:none;width:16px;height:16px;cursor:pointer}
@@ -3398,7 +3544,7 @@
       font-size:.7rem;color:var(--accent);font-weight:600;cursor:pointer}
     .lbl-row-split input{width:.85rem;height:.85rem;flex-shrink:0;cursor:pointer}
     .lbl-row-n{flex:none;display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted)}
-    .lbl-row-n input{width:3.4rem;padding:.25rem .35rem;font-size:.8rem;
+    .lbl-row-n input{width:3.4rem;padding:var(--sp-1) .35rem;font-size:.8rem;
       border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)}
   </style>
 </head>
@@ -3531,6 +3677,12 @@
           <button class="acct-item" id="btnWeekSchedule" onclick="closeAccountMenu();openWeekSchedule()">☀️ <span>This week's arrivals</span></button>
           <button class="acct-item" id="btnSettings"  onclick="closeAccountMenu();openSettingsModal()" style="display:none">⚙️ <span>App Settings</span></button>
           <button class="acct-item" id="btnUsersMgmt" onclick="closeAccountMenu();openUsersModal()"    style="display:none">👥 <span>Manage Users</span></button>
+          <!-- Sin filtro de rol: lo que cambió en la app lo tiene que poder
+               leer quien la usa, no sólo quien la administra. Y el punto de
+               novedad vive AQUÍ y en el círculo de la cuenta, porque el menú
+               está cerrado casi siempre y un aviso que sólo se ve al abrir no
+               avisa de nada. -->
+          <button class="acct-item" id="btnNovedades" onclick="closeAccountMenu();abrirNovedades()">✨ <span>What's new</span><span class="nv-punto" id="nvPunto" style="display:none"></span></button>
           <button class="acct-item" id="btnReportIssue" onclick="closeAccountMenu();openReportIssueModal()">🐞 <span>Report a problem</span></button>
           <button class="acct-item" id="btnDarkMode" onclick="toggleDarkMode()"><span id="darkIcon">🌙</span> <span id="darkLabel">Dark mode</span></button>
           <button class="acct-item" id="acctSwitch" onclick="_signOut()" style="display:none">⇄ <span>Switch account</span></button>
@@ -3572,6 +3724,22 @@
      no shared address to send them to, and a policy nobody can open is the
      same as not having one. Source of truth is legal/*.md in the repo — change
      it there and re-generate. -->
+<!-- ══ WHAT'S NEW ════════════════════════════════════════════════════════════
+     El texto viaja DENTRO del archivo, no se descarga. Dos motivos y los dos
+     son de Jose: funciona sin internet, y nadie tiene que salir de la app para
+     enterarse de lo que cambió en la app. El enlace al final es opcional —para
+     quien quiera la nota entera— y apunta SÓLO a la versión de esta ventana,
+     no al historial desde el principio. -->
+<div class="overlay" id="novedadesOverlay">
+  <div class="modal modal-md">
+    <div class="mhdr">
+      <h3 id="nvTitulo">What's new</h3>
+      <button class="modal-x" onclick="cerrarNovedades()" title="Close">✕</button>
+    </div>
+    <div id="nvCuerpo"></div>
+  </div>
+</div>
+
 <div class="overlay" id="legalOverlay">
   <div class="modal modal-md">
     <div class="mhdr">
@@ -4908,7 +5076,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.61';
+var APP_VERSION = '12.65';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4920,7 +5088,7 @@ var APP_VERSION = '12.61';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '80499b02';
+var APP_BUILD = '64288996';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -7036,6 +7204,11 @@ function _setFavicon(href){
  * por su cuenta.
  */
 var PRODUCT_SITE = 'https://www.acopio.net';
+/* El correo al que se escribe por soporte. Vive aquí, al lado de la dirección
+ * del sitio, porque las dos cosas se enseñan bajo la misma condición: sólo
+ * mientras el producto siga llamándose como lo hicimos. Una sola copia para
+ * que no se queden distintas. */
+var ACOPIO_SOPORTE = 'joseisrael5101@gmail.com';
 
 function _syncProductLinks(productName){
   var custom = String(productName || '').trim();
@@ -10541,6 +10714,53 @@ function _ponerUbicacion(valor){
   showToast('Type ' + valor + ' in the location box and save again', 'info', 6000);
 }
 
+/* ── UN SOLO SITIO QUE DECIDE QUÉ HACER CON UN ERROR MARCADO ────────────────
+ *
+ * El servidor marca ciertos rechazos con tubería —`UNKNOWN_LOCATION|P|B`,
+ * `UNKNOWN_CATEGORY|…`, `INSUFFICIENT_STOCK|…`— para que la PANTALLA pueda
+ * ofrecer la salida en vez de enseñar un texto rojo. Lo de después de la
+ * tubería no se enseña nunca tal cual.
+ *
+ * ESO ERA LA INTENCIÓN. LO QUE PASABA ERA OTRA COSA, y Jose lo grabó el 13/10:
+ *
+ *     ✕ Error: UNKNOWN_LOCATION|P|B [ID: 3ce2353a]
+ *
+ * en un toast rojo de seis segundos, en el formulario de entrada con varios
+ * materiales. Parece que la app se rompió. No se rompió: rechazó bien y lo
+ * contó mal.
+ *
+ * LA CAUSA: la cadena de manejadores estaba escrita TRES VECES, una por cada
+ * camino de guardado, y sólo UNA de las tres la tenía completa.
+ *
+ *     addMovement     categoría · ubicación · stock corto     ← completa
+ *     addMultiEntry   sólo duplicado                          ← la del vídeo
+ *     addMultiExit    sólo stock corto
+ *
+ * Tres copias de una lista que tienen que coincidir sin que nada lo obligue.
+ * Es el décimo caso de este patrón en el proyecto.
+ *
+ * Y LO PEOR: ESTABA PREDICHO POR ESCRITO. El comentario del manejador de
+ * `addMultiEntry` decía, palabra por palabra: *"hoy ninguna acción de este
+ * camino lanza un error marcado, así que no se veía —pero la asimetría es la
+ * trampa, no el síntoma: el día que el servidor marque un error de entrada, el
+ * usuario leería SYSTEM_BUSY| en su pantalla"*. Llegó el día. No fue
+ * SYSTEM_BUSY, fue UNKNOWN_LOCATION. Alguien escribió el fallo exacto que iba
+ * a ocurrir y lo dejó escrito en vez de arreglarlo.
+ *
+ * Así que ahora la cadena vive AQUÍ, una vez. Los tres caminos la llaman. El
+ * cuarto que alguien añada la llamará también, o no compilará su intención:
+ * no hay lista que copiar y por tanto no hay lista que se quede corta.
+ *
+ * Devuelve true si se ha hecho cargo del error y no hay que enseñar nada más.
+ * `reintentar` es opcional: sólo los caminos que pueden volver a intentarlo
+ * solos lo pasan. */
+function _errorConocido(err, reintentar){
+  if (_categoriaDesconocida(err)) return true;
+  if (_ubicacionDesconocida(err, reintentar)) return true;
+  if (_shortStockFix(err)) return true;
+  return false;
+}
+
 function _shortStockFix(err){
   var info = _shortStockInfo(err);
   if (!info) return false;
@@ -11217,9 +11437,7 @@ async function submitMovement(){
         // ── Otro se llevó el material mientras esta ventana estaba abierta ─
         _btnReset(btn);
         _setModalBusy('moveOverlay', false);
-        if (_categoriaDesconocida(err)) return;
-        if (_ubicacionDesconocida(err, function(){ _doSubmit(force); })) return;
-        if (_shortStockFix(err)) return;
+        if (_errorConocido(err, function(){ _doSubmit(force); })) return;
         // ── Any other error ────────────────────────────────────────────────
         showToast('Error: ' + _stripTags(err), 'err', 6000);
       })
@@ -12485,7 +12703,7 @@ function submitMultiExit(){
         // Otro se llevó el material mientras esta ventana estaba abierta. Va
         // DESPUÉS del aviso de duplicado y antes del error genérico: los dos
         // son rechazos legítimos, pero éste trae el número bueno consigo.
-        if (_shortStockFix(err)) return;
+        if (_errorConocido(err, function(){ doSubmit(force); })) return;
         showToast('Error: '+_stripTags(err),'err',6000);
       })
       .processMovement('addMultiExit', _h({
@@ -12699,12 +12917,14 @@ function submitMultiEntry(){
           });
           return;
         }
-        // _stripTags, igual que la salida. Era la única de las dos que
-        // enseñaba el texto crudo: la entrada decía 'Error: ' + msg y la
-        // salida ya pasaba por aquí. Hoy ninguna acción de este camino lanza
-        // un error marcado, así que no se veía —pero la asimetría es la
-        // trampa, no el síntoma: el día que el servidor marque un error de
-        // entrada, el usuario leería SYSTEM_BUSY| en su pantalla.
+        /* ÉSTE ES EL CAMINO DEL VÍDEO DEL 13/10. El comentario que había aquí
+         * decía: *"hoy ninguna acción de este camino lanza un error marcado,
+         * así que no se veía —pero la asimetría es la trampa, no el síntoma:
+         * el día que el servidor marque un error de entrada, el usuario leería
+         * SYSTEM_BUSY| en su pantalla"*. Llegó el día, y lo que leyó fue
+         * `UNKNOWN_LOCATION|P|B`. La predicción estaba bien; lo que faltó fue
+         * actuar sobre ella. Ver `_errorConocido`. */
+        if (_errorConocido(err, function(){ _doMultiSubmit(force); })) return;
         showToast('Error: ' + _stripTags(err), 'err', 6000);
       })
       .processMovement('addMultiEntry', _h(payload));
@@ -18516,9 +18736,191 @@ function _cfgAddInline(type, value, hintEl){
   });
 }
 
-// 'change' rather than 'input': it fires on blur and on picking a datalist
-// suggestion, so the prompt appears once the value is settled instead of
-// flickering on every keystroke.
+/* ── LA UBICACIÓN QUE NO EXISTE, AVISADA MIENTRAS SE ESCRIBE ─────────────────
+ *
+ * Jose, 13/10, en vídeo: *"la app no avisa ni dice nada con una location que
+ * no existe, hasta que se trata de guardar, eso no es útil, debe informar que
+ * la locación no existe, y tal vez ofrecer crearla."*
+ *
+ * Y tenía razón por un motivo peor que el que dijo: en el vídeo el formulario
+ * llega a componer el CORREO DE AVISO —*"152 UNIT(s) of MIRRORS → p9a"*— con
+ * una ubicación que no existe. Todo el formulario se comporta como si `p9a`
+ * fuera un sitio real hasta el segundo en que se pulsa guardar.
+ *
+ * ESTE AVISO NO SUSTITUYE AL RECHAZO DEL SERVIDOR, y es importante decirlo: la
+ * lista de ubicaciones de aquí es una copia que puede estar vieja —alguien
+ * acaba de crear un estante en otra pestaña—, así que quien decide sigue
+ * siendo el servidor. Esto es cortesía temprana, no validación. Por eso NO
+ * bloquea el botón de guardar: si la copia local se equivoca, el servidor
+ * acepta y no ha estorbado nadie.
+ *
+ * SE PARECE AL «+ Add it» DE LOS PROYECTOS A PROPÓSITO: mismas clases, mismo
+ * sitio bajo el campo, mismo botón. Dos avisos que dicen «esto no está en tu
+ * lista» no deberían verse distintos según el campo.
+ *
+ * SE DISPARA EN `change` Y EN `focusout`, que es la pareja que le faltaba al
+ * de proyectos y que costó un vídeo descubrir: `change` solo no vuelve cuando
+ * entras y sales sin tocar el texto. */
+
+function _ubicacionesConocidas(){
+  var set = {};
+  ((config && config.locations) || []).forEach(function(l){
+    var k = String((l && l.name) || l || '').trim().toUpperCase();
+    if (k) set[k] = true;
+  });
+  return set;
+}
+
+/* La más parecida, para proponerla. Mismo criterio que `sugerirUbicacion_` del
+ * servidor en lo que importa —el caso real es `A1p` contra `A1A`, una letra
+ * distinta— sin traerse el algoritmo entero: aquí sólo hay que acertar lo
+ * evidente, y si no acierta, el aviso sigue sirviendo sin sugerencia. */
+function _ubicacionParecida(txt, conocidas){
+  var t = String(txt || '').trim().toUpperCase();
+  if (!t) return '';
+  var nombres = Object.keys(conocidas), mejor = '', mejorD = 99;
+  for (var i = 0; i < nombres.length; i++){
+    var n = nombres[i];
+    if (Math.abs(n.length - t.length) > 1) continue;
+    var d = 0, j = 0, k = 0;
+    while (j < t.length && k < n.length){
+      if (t[j] !== n[k]) d++;
+      j++; k++;
+    }
+    d += Math.abs(t.length - n.length);
+    if (d > 0 && d < mejorD){ mejorD = d; mejor = n; }
+  }
+  return mejorD <= 1 ? mejor : '';
+}
+
+function _esCampoDeUbicacion(el){
+  if (!el || el.tagName !== 'INPUT') return false;
+  if (el.id === 'lockAllowedDest') return false;   // lleva varias separadas por comas
+  var lista = el.getAttribute('list') || '';
+  if (lista === 'rackList' || lista === 'rackListDest') return true;
+  return !!(el.classList && (el.classList.contains('loc-rack') ||
+                             el.classList.contains('el-rack')));
+}
+
+function _quitarAvisoUbic(input){
+  var sig = input.nextElementSibling;
+  if (sig && sig.classList && sig.classList.contains('ubic-hint')) sig.remove();
+}
+
+function _avisarUbicacion(input){
+  _quitarAvisoUbic(input);
+  var val = String(input.value || '').trim();
+  if (!val) return;
+  var conocidas = _ubicacionesConocidas();
+  /* Sin lista cargada todavía no se opina: decir «no existe» porque aún no ha
+   * llegado la configuración sería mentir con cara de ayuda. */
+  if (!Object.keys(conocidas).length) return;
+  if (conocidas[val.toUpperCase()]) return;
+
+  var puede = (userRole === 'ADMIN') ||
+              (userRole === 'WAREHOUSE' && !!(rolePerms || {}).canManageCatalog);
+  var parecida = _ubicacionParecida(val, conocidas);
+
+  var hint = document.createElement('div');
+  hint.className = 'cfg-new-hint ubic-hint';
+  var txt = document.createElement('span');
+  txt.textContent = '📍 ' + val + ' is not a location in your warehouse yet.';
+  hint.appendChild(txt);
+
+  if (parecida){
+    var bUsar = document.createElement('button');
+    bUsar.type = 'button';
+    bUsar.className = 'cfg-new-add';
+    bUsar.textContent = 'Use ' + parecida;
+    bUsar.addEventListener('click', function(){
+      input.value = parecida;
+      _quitarAvisoUbic(input);
+      /* Los dos eventos a mano: cambiar `value` por código no los dispara, y de
+       * ellos cuelgan el total por ubicación y la vista previa del correo. */
+      input.dispatchEvent(new Event('input',  { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.focus();
+    });
+    hint.appendChild(bUsar);
+  }
+
+  if (puede){
+    var bNueva = document.createElement('button');
+    bNueva.type = 'button';
+    bNueva.className = 'cfg-new-add';
+    bNueva.textContent = '+ Create ' + val;
+    bNueva.addEventListener('click', function(){
+      _btnBusy(bNueva, 'Creating…');
+      _cfgAddValue('locations', val, function(ok, e2){
+        if (!ok){ _btnLabel(bNueva, '+ Create ' + val);
+                  showToast('Could not create it: ' + e2, 'err', 6000); return; }
+        /* La copia local primero, por lo mismo que en `_ubicacionDesconocida`:
+         * si no, el desplegable seguiría sin ofrecerla y el siguiente material
+         * volvería a chocar con lo que acabamos de arreglar. */
+        if (config && Array.isArray(config.locations) &&
+            !config.locations.some(function(l){
+              return String(l.name).toUpperCase() === val.toUpperCase(); })){
+          config.locations.push({ name: val, type: 'RACK' });
+          ['rackList', 'rackListDest'].forEach(function(id){
+            var dl = document.getElementById(id);
+            if (dl){ var op = document.createElement('option'); op.value = val; dl.appendChild(op); }
+          });
+        }
+        hint.innerHTML = '<span class="cfg-new-ok">✓ ' + _he(val) + ' added to your locations</span>';
+        setTimeout(function(){ if (hint.parentNode) hint.remove(); }, 2500);
+      });
+    });
+    hint.appendChild(bNueva);
+  } else {
+    var quien = document.createElement('span');
+    quien.textContent = 'Ask an admin to add it in App Settings → Locations.';
+    hint.appendChild(quien);
+  }
+
+  input.insertAdjacentElement('afterend', hint);
+}
+
+document.addEventListener('change', function(e){
+  if (_esCampoDeUbicacion(e.target)) _avisarUbicacion(e.target);
+});
+document.addEventListener('focusin', function(e){
+  if (_esCampoDeUbicacion(e.target)) _quitarAvisoUbic(e.target);
+});
+document.addEventListener('focusout', function(e){
+  if (_esCampoDeUbicacion(e.target)) _avisarUbicacion(e.target);
+});
+
+/* ── CUÁNDO APARECE Y CUÁNDO SE VA EL «+ Add it» ─────────────────────────────
+ *
+ * 'change' y no 'input': dispara al salir del campo y al elegir del
+ * desplegable, así que el cartel sale cuando el valor está decidido en vez de
+ * parpadear en cada tecla. Eso sigue bien.
+ *
+ * EL FALLO QUE JOSE GRABÓ EL 13/10, Y LA CAUSA EXACTA. Faltaba la pareja de
+ * `focusin`. La secuencia era:
+ *
+ *   1. escribes un proyecto nuevo y sales  → `change` dispara → sale el cartel
+ *   2. vuelves a pinchar en el casillero   → `focusin` lo borra
+ *   3. sales SIN tocar el texto            → `change` NO DISPARA, porque el
+ *                                            valor no cambió
+ *
+ * Y entonces no queda ningún evento que pueda traerlo de vuelta: `change` sólo
+ * volverá a disparar si el texto cambia otra vez. El cartel se iba **para
+ * siempre** en cuanto pinchabas dos veces en el mismo campo. La tarjeta del
+ * mazo seguía ahí —vive en `_typedCfgAdds`, que no se tocó— y por eso parecía
+ * que el proyecto se había creado a medias: el mazo lo ofrecía, el formulario
+ * no.
+ *
+ * Borrar al entrar está BIEN y se queda: un cartel que dice «proyecto nuevo»
+ * mientras estás editando el nombre habla de un valor que ya no es el que hay.
+ * Lo que faltaba era volver a mirar AL SALIR, pase lo que pase con el texto.
+ *
+ * `focusout` cubre los dos casos —cambió y no cambió— así que `change` queda
+ * casi de adorno. Se deja porque elegir del desplegable con el ratón da el
+ * cartel sin esperar a salir del campo, y eso se nota.
+ *
+ * `_maybeOfferCfgAdd` empieza por `_clearCfgHint`, así que que los dos eventos
+ * disparen seguidos no dibuja dos carteles. */
 document.addEventListener('change', function(e){
   var el = e.target;
   if (el && el.getAttribute && el.getAttribute('data-cfg-new')) _maybeOfferCfgAdd(el);
@@ -18526,6 +18928,10 @@ document.addEventListener('change', function(e){
 document.addEventListener('focusin', function(e){
   var el = e.target;
   if (el && el.getAttribute && el.getAttribute('data-cfg-new')) _clearCfgHint(el);
+});
+document.addEventListener('focusout', function(e){
+  var el = e.target;
+  if (el && el.getAttribute && el.getAttribute('data-cfg-new')) _maybeOfferCfgAdd(el);
 });
 
 function refreshDropdowns(){
@@ -20431,7 +20837,7 @@ function openIncomingModal(id) {
       var docLabel = (isEdit && item && item.name) ? item.name : 'Incoming document';
       prev.innerHTML = '<a href="javascript:void(0)" data-action="preview-media" data-url="'+_he(u)+'" data-label="'+_he(docLabel)+'" style="text-decoration:none">' +
         _privImgTag(u, 'style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'📄 View attached document\',style:\'font-size:.82rem\'}))"', docLabel) +
-        '<div style="font-size:.72rem;color:var(--accent);margin-top:.2rem">📎 Current document (uploading another replaces it)</div></a>';
+        '<div style="font-size:.72rem;color:var(--accent);margin-top:var(--gap-sublinea)">📎 Current document (uploading another replaces it)</div></a>';
     } else { prev.innerHTML = ''; }
   }
   // Una sola llamada, aquí, en vez de una detrás de cada sitio que escribe el
@@ -21128,7 +21534,7 @@ function _onIncFileChange(){
   if (/^image\//.test(f.type)){
     var url = URL.createObjectURL(f);
     prev.innerHTML = '<img src="'+_escAttr(url)+'" style="max-width:140px;max-height:140px;border-radius:8px;border:1px solid var(--border)">' +
-      '<div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">'+_he(f.name)+'</div>';
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:var(--gap-sublinea)">'+_he(f.name)+'</div>';
   } else {
     prev.innerHTML = '<div style="display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .7rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:.8rem">📄 '+_he(f.name)+'</div>';
   }
@@ -23461,6 +23867,12 @@ function loadDataFromGoogle(skipCache, quiet){
         try { checkMorningPopup();        } catch(e){ console.error('checkMorningPopup:', e); }
         try { _offerSetupIfUnconfigured(data); } catch(e){ console.error('_offerSetupIfUnconfigured:', e); }
         try { _showSetupNudge();          } catch(e){ console.error('_showSetupNudge:', e); }
+        /* La última de la cola, y a propósito: lo que llegó hoy a la bodega
+         * —el popup de la mañana— manda sobre lo que cambió en la app. Y
+         * `_nvAlArrancar` comprueba por sí misma que no haya ninguna ventana
+         * abierta antes de salir, así que llegar la última no basta: también
+         * se aparta si algo se abrió después. */
+        try { _nvAlArrancar();            } catch(e){ console.error('_nvAlArrancar:', e); }
       } catch(outerErr) {
         setConnStatus('offline');
         var sr2 = document.getElementById('statsRow');
@@ -24931,6 +25343,290 @@ var LEGAL_DOCS = {
 <p>Jose Castro — joseisrael5101@gmail.com</p>` }
 };
 /* ─── END GENERATED LEGAL HTML ─── */
+
+/* ══ WHAT'S NEW ═══════════════════════════════════════════════════════════════
+ *
+ * POR QUÉ EXISTE, Y POR QUÉ NO ES EL AVISO QUE RECHAZAMOS
+ *
+ * Escribimos dos notas por versión —inglés y español—, las publicamos, y
+ * dentro de la app había CERO enlaces que llevaran ahí: un cliente nunca se
+ * enteraba de lo que mejoraba. El soporte mensual se justifica justo con eso.
+ *
+ * Jose había propuesto antes un aviso periódico diciendo «hay actualizaciones,
+ * contáctanos», y le dije que no. La diferencia cabe en una pregunta:
+ *
+ *     ¿sale porque algo les pasó a ELLOS, o porque pasó el tiempo para
+ *     NOSOTROS?
+ *
+ * Lo primero es información. Lo segundo es publicidad. Esta ventana sale el
+ * día que SU app cambió de número de versión, cuenta lo que cambió en la app
+ * que tienen delante, y no pide nada. La línea de soporte va al final, en voz
+ * baja, porque en ese momento sí viene a cuento: «esto cambió; si necesitas
+ * ayuda con ello, aquí».
+ *
+ * LAS CUATRO REGLAS QUE LA HACEN SOPORTABLE
+ *
+ *  1. SÓLO SI HUBO UN CAMBIO DE VERSIÓN DE VERDAD. Se compara con la última
+ *     que vio ESTE navegador.
+ *  2. NUNCA EN LA PRIMERA VISITA. Sin versión guardada no se enseña nada: se
+ *     apunta la actual y se calla. Enseñarle «lo que cambió» a alguien que
+ *     entra por primera vez es contarle el final de una película que no ha
+ *     visto.
+ *  3. SE PUEDE CERRAR Y QUEDA EN UN SITIO FIJO. Ésta es la pieza que pidió
+ *     Jose y es la que la convierte en algo que no interrumpe: se cierra sin
+ *     pensar PRECISAMENTE porque se sabe dónde encontrarla. Menú de la cuenta
+ *     → What's new, siempre, con o sin novedad.
+ *  4. EL TEXTO VIAJA EN EL ARCHIVO. Funciona sin internet y nadie tiene que
+ *     salir de la app. El enlace de abajo es para quien quiera la nota entera,
+ *     y apunta a ESTA versión, no al historial desde el principio.
+ *
+ * MANTENIMIENTO: esta lista es una VENTANA DE LAS ÚLTIMAS CUATRO, no el
+ * historial. Al publicar una versión se añade arriba y se quita la de abajo.
+ * Si creciera sin fin, cada cliente se descargaría años de notas para leer
+ * una. `tools/test-novedades.js` comprueba que la primera entrada es la
+ * versión actual y que no hay más de cuatro.
+ *
+ * EL «ANTES Y DESPUÉS» NO ES UNA ILUSTRACIÓN: son las dos cadenas de verdad,
+ * la que salía y la que sale. Jose pidió que se viera algo de lo que cambió, y
+ * un dibujo bonito se separa del texto a la primera versión que nadie redibuja.
+ * Esto no puede separarse porque sale de la misma entrada.
+ */
+
+var NOVEDADES = [
+  { ver: '12.65',
+    titulo: 'The app finally tells you what changed',
+    puntos: [
+      'This window. It opens once when your version changes, and never again for that version.',
+      'It lives in the account menu under <b>What\'s new</b>, so closing it costs nothing — you always know where it went.',
+      'Four releases are kept here. The full note for each is one click away.'
+    ],
+    antes:  'No way to find out what improved, short of asking',
+    ahora:  'What\'s new, in the account menu, with a dot when there is one' },
+
+  { ver: '12.64',
+    titulo: 'A location that does not exist says so while you type',
+    puntos: [
+      'Type a rack that is not in your warehouse and the field says so when you leave it — not when you press Save.',
+      'It offers the one you probably meant, and offers to create it if you are allowed to.',
+      'It never blocks saving: your browser\'s list can be seconds out of date, so the server still decides.'
+    ],
+    antes:  'Error: UNKNOWN_LOCATION|P|B',
+    ahora:  'A1p is not a location in your warehouse yet — Use A1A' },
+
+  { ver: '12.63',
+    titulo: 'Six doors that checked who you are but not how often you knock',
+    puntos: [
+      'Six functions checked identity correctly but never counted calls — enough to burn the installation\'s daily Google quota and leave the app dead for everyone until the next day.',
+      'All six now have a ceiling, counted per person, so one jammed browser tab cannot shut the warehouse out.',
+      'And <b>+ Add it</b> for a new project stopped disappearing for good when you clicked back into the box.'
+    ],
+    antes:  'A forgotten tab in a retry loop could take the app down for the day',
+    ahora:  'A ceiling on every door, counted per person' },
+
+  { ver: '12.62',
+    titulo: 'The same label stops looking like two labels',
+    puntos: [
+      'Twenty rules drew the same coloured capsule with fourteen different paddings. Now there is one capsule.',
+      '&ldquo;Arrived&rdquo; in the incoming table and &ldquo;Arrived&rdquo; in the morning popup are finally the same shape.',
+      'Nothing moved more than two pixels, and all of them now match.'
+    ],
+    antes:  'Fourteen paddings, ten text sizes and six corner radii for one thing',
+    ahora:  'One capsule, everywhere' }
+];
+
+var NV_CLAVE = 'acopio_novedades_vista';
+
+function _nvVista(){
+  try { return localStorage.getItem(NV_CLAVE) || ''; } catch (e) { return ''; }
+}
+function _nvGuardar(v){
+  try { localStorage.setItem(NV_CLAVE, v); } catch (e) {}
+}
+
+/* Hay novedad cuando la versión de este archivo no es la última que vio este
+ * navegador. No se compara «mayor que»: una vuelta atrás a una versión
+ * anterior también es un cambio que conviene contar. */
+function _nvHayNovedad(){
+  var vista = _nvVista();
+  return !!vista && vista !== APP_VERSION;
+}
+
+function _nvPintarPunto(){
+  var hay = _nvHayNovedad();
+  var btn = document.getElementById('acctBtn');
+  var pt  = document.getElementById('nvPunto');
+  if (btn) btn.classList.toggle('nv-hay', hay);
+  if (pt)  pt.style.display = hay ? 'inline-block' : 'none';
+}
+
+/* El ancla de la nota publicada. Se construye con el número de versión y no se
+ * guarda escrita en cada entrada: una dirección escrita a mano al lado de un
+ * número es otra pareja que tiene que coincidir sin que nada lo obligue, y de
+ * ésas ya llevamos diez contadas. `tools/test-novedades.js` comprueba contra
+ * el changelog publicado que el ancla existe. */
+function _nvEnlace(ver){
+  return PRODUCT_SITE + '/changelog.html#v' + String(ver).replace('.', '-');
+}
+
+/* ── LA MARCA BLANCA MANDA TAMBIÉN AQUÍ ──────────────────────────────────────
+ *
+ * Si un cliente renombró el producto, su gente está usando algo que no se
+ * llama Acopio. Mandarles a acopio.net —o al correo de Jose— desde dentro de
+ * esa app sería contarles de dónde sale, que es justo lo que la marca blanca
+ * existe para no hacer. Es la misma regla que ya cumple `_syncProductLinks`
+ * con el nombre del header, y conviene que la cumplan las dos cosas o
+ * ninguna: una app renombrada con un enlace a acopio.net en una esquina es
+ * peor que una sin renombrar.
+ *
+ * LO QUE CAMBIÓ SÍ SE ENSEÑA IGUAL. Lo que desaparece es de dónde viene: la
+ * ventana queda con su título, su antes y después y su lista, sin enlace y sin
+ * correo. Quien quiera más, le pregunta a quien le vendió la app. */
+function _nvEsDeFabrica(){
+  var custom = String((window.company && company.productName) || '').trim();
+  return !custom || custom === PRODUCT;
+}
+
+function _nvFila(clase, marca, texto){
+  var d = document.createElement('div');
+  d.className = 'nv-fila ' + clase;
+  var m = document.createElement('span');
+  m.className = 'nv-marca';
+  m.textContent = marca;
+  var t = document.createElement('span');
+  t.className = 'nv-txt';
+  t.textContent = texto;
+  d.appendChild(m); d.appendChild(t);
+  return d;
+}
+
+function _nvPintar(entrada){
+  var cuerpo = document.getElementById('nvCuerpo');
+  if (!cuerpo || !entrada) return;
+  cuerpo.innerHTML = '';
+
+  var ver = document.createElement('div');
+  ver.className = 'nv-ver';
+  ver.textContent = 'Version ' + entrada.ver;
+  cuerpo.appendChild(ver);
+
+  var h = document.createElement('p');
+  h.style.cssText = 'font-size:var(--fs-4xl);font-weight:800;margin:.2rem 0 0;line-height:1.25';
+  h.textContent = entrada.titulo;
+  cuerpo.appendChild(h);
+
+  /* El antes y el después, que es «lo que se ve» que pidió Jose. */
+  if (entrada.antes && entrada.ahora){
+    var art = document.createElement('div');
+    art.className = 'nv-art';
+    art.appendChild(_nvFila('nv-antes', 'BEFORE', entrada.antes));
+    art.appendChild(_nvFila('nv-ahora', 'NOW',    entrada.ahora));
+    cuerpo.appendChild(art);
+  }
+
+  var ul = document.createElement('ul');
+  ul.className = 'nv-lista';
+  (entrada.puntos || []).forEach(function(txt){
+    var li = document.createElement('li');
+    li.innerHTML = txt;          /* texto nuestro, escrito aquí arriba */
+    ul.appendChild(li);
+  });
+  cuerpo.appendChild(ul);
+
+  var acc = document.createElement('div');
+  acc.className = 'nv-acciones';
+  var cerrar = document.createElement('button');
+  cerrar.className = 'btn';
+  cerrar.type = 'button';
+  cerrar.textContent = 'Got it';
+  cerrar.onclick = cerrarNovedades;
+  acc.appendChild(cerrar);
+  if (_nvEsDeFabrica()){
+    var leer = document.createElement('a');
+    leer.className = 'btn btn-ghost';
+    leer.href = _nvEnlace(entrada.ver);
+    leer.target = '_blank';
+    leer.rel = 'noopener noreferrer';
+    leer.textContent = 'Read the full note';
+    leer.style.textDecoration = 'none';
+    acc.appendChild(leer);
+  }
+  cuerpo.appendChild(acc);
+
+  if (_nvEsDeFabrica()){
+    var pie = document.createElement('div');
+    pie.className = 'nv-pie';
+    pie.textContent = 'Updates and support are the same subscription. Something not ' +
+                      'working, or something you wish it did? Write to ';
+    /* GMAIL, Y NO EL ESQUEMA DE CORREO DEL SISTEMA. Lo aprendimos con Jose
+     * delante: pulsó el botón ✉ Email, Windows le preguntó con qué app
+     * abrirlo, marcó «Always» sobre Outlook — y desde entonces ese botón sólo
+     * abría una app que no usa. Ese esquema depende de una configuración POR
+     * COMPUTADORA que nadie recuerda haber puesto; una dirección de Gmail no.
+     *
+     * Y ESTE COMENTARIO ESTÁ ESCRITO SIN NOMBRARLO A PROPÓSITO.
+     * `test-tanda-borrado.js` cuenta las apariciones de esa palabra en TODO el
+     * archivo, comentarios incluidos, y la primera versión de esta nota la
+     * decía tres veces: la prueba se puso roja por el texto que explicaba por
+     * qué no hay ninguno. Se podría haber aflojado la prueba para que no mire
+     * los comentarios, pero un recuento de cero en el archivo entero es
+     * trivial de verificar y un quitador de comentarios se atraganta con el
+     * `//` de cualquier URL. Más barato escribir la nota así. */
+    var a = document.createElement('a');
+    a.href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' +
+             encodeURIComponent(ACOPIO_SOPORTE) +
+             '&su=' + encodeURIComponent('Acopio ' + APP_VERSION + ' — ');
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = ACOPIO_SOPORTE;
+    pie.appendChild(a);
+    pie.appendChild(document.createTextNode('.'));
+    cuerpo.appendChild(pie);
+  }
+}
+
+function abrirNovedades(){
+  /* Siempre se puede abrir a mano, haya novedad o no: es el sitio fijo. Cuando
+   * la versión de este archivo no está en la lista —una instalación con un
+   * archivo más nuevo que esta ventana, o más viejo— se enseña la primera, que
+   * es la más reciente que el archivo conoce. Nunca se queda en blanco. */
+  var entrada = null;
+  for (var i = 0; i < NOVEDADES.length; i++){
+    if (NOVEDADES[i].ver === APP_VERSION){ entrada = NOVEDADES[i]; break; }
+  }
+  if (!entrada) entrada = NOVEDADES[0];
+  _nvPintar(entrada);
+  var ov = document.getElementById('novedadesOverlay');
+  if (ov) ov.classList.add('show');
+  /* Se marca como vista al ABRIR, no al cerrar: si alguien la cierra con la ✕,
+   * con Escape o cerrando la pestaña, ya la vio. Marcarla sólo en el botón
+   * «Got it» la haría volver a salir mañana a quien la leyó y cerró con la ✕,
+   * que es la forma más rápida de convertir esto en lo que no queríamos. */
+  _nvGuardar(APP_VERSION);
+  _nvPintarPunto();
+}
+
+function cerrarNovedades(){
+  var ov = document.getElementById('novedadesOverlay');
+  if (ov) ov.classList.remove('show');
+  _nvPintarPunto();
+}
+
+/* Al arrancar. Va detrás de que la app esté pintada —no compite con la carga—
+ * y detrás del popup de la mañana, que sí es urgente: lo que llegó hoy a la
+ * bodega manda sobre lo que cambió en la app. */
+function _nvAlArrancar(){
+  var vista = _nvVista();
+  if (!vista){ _nvGuardar(APP_VERSION); _nvPintarPunto(); return; }  /* primera visita */
+  if (vista === APP_VERSION){ _nvPintarPunto(); return; }
+  _nvPintarPunto();
+  setTimeout(function(){
+    /* Si hay cualquier otra ventana abierta, no se apila encima: dos ventanas
+     * una sobre otra es el error que costó la v11.29. Se queda el punto, y la
+     * persona la abre cuando quiera. */
+    if (document.querySelector('.overlay.show')) return;
+    abrirNovedades();
+  }, 2500);
+}
 
 function openLegal(which){
   var doc = LEGAL_DOCS[which];
