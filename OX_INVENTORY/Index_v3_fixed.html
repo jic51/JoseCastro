@@ -139,6 +139,57 @@
        * teléfono, dentro de la bodega, muchas veces con guantes. `--h-btn-lg`
        * es el que va en todo lo que destruye algo.
        */
+      /* ── LA ELEVACIÓN: CUATRO ESCALONES, NO VEINTICUATRO ────────────────
+       *
+       * Medido el 2026-10-12: 61 declaraciones de `box-shadow` con 45 valores
+       * distintos. Pero al separarlas aparecieron DOS SISTEMAS metidos en el
+       * mismo saco, y verlo cambió lo que había que hacer:
+       *
+       *   23 usos · 16 valores  ANILLOS — `0 0 0 Npx`, sin desenfoque ni
+       *                         desplazamiento. No son sombras: son halos de
+       *                         foco y de selección. Tienen sus propios tokens
+       *                         justo debajo.
+       *   27 usos · 24 valores  ELEVACIÓN — sombras de verdad, de 3 a 60 px de
+       *                         desenfoque. Éstas son las de aquí.
+       *
+       * LOS ESCALONES SALEN DE DONDE ESTABAN LAS SOMBRAS, no de una progresión
+       * bonita. Y se eligió el más cercano POR PROPORCIÓN y no por diferencia
+       * absoluta, porque así es como se percibe un desenfoque: de 40 a 32 se
+       * nota lo mismo que de 20 a 16, aunque uno sean 8 px y el otro 4.
+       * Resultado: peor cambio 8 px sobre desenfoques de 44-60, o sea un 15%.
+       *
+       * ── LO QUE APRENDIMOS DE LOS REELS, Y DÓNDE NO APLICA ────────────────
+       *
+       * El reel de Linear dice «borders, not shadows»: 1px al 8% y
+       * `box-shadow:none`, separando superficies por color de fondo. Es una
+       * gran regla Y NO SE APLICA AQUÍ TAL CUAL, y conviene decir por qué en
+       * vez de copiarla: Linear es oscuro y llena la pantalla de tarjetas en
+       * reposo dentro de una lista. Acopio es claro, y casi todo lo que lleva
+       * sombra aquí FLOTA DE VERDAD —menús, ventanas, avisos, el mazo—. Para
+       * algo que flota sobre contenido, la sombra no es decoración: es lo que
+       * dice que está por encima.
+       *
+       * Lo que sí nos llevamos del reel es la otra mitad, y resulta que ya la
+       * hacíamos en tres sitios sin haberle puesto nombre: TEÑIR la sombra con
+       * el color del elemento en vez de negro. Una sombra negra bajo una
+       * tarjeta naranja parece pegada con cinta; teñida parece del mismo
+       * material. Esas tres se quedan como están, a propósito.
+       */
+      --sh-1:0 2px 12px rgba(0,0,0,.12);   /* apoyado: tarjetas del mazo en reposo */
+      --sh-2:0 4px 20px rgba(0,0,0,.16);   /* flotando: globos, sugerencias, el mazo abierto */
+      --sh-3:0 8px 32px rgba(0,0,0,.24);   /* panel: avisos, línea de progreso, campana */
+      --sh-4:0 16px 52px rgba(0,0,0,.30);  /* encima de todo: ventanas y menús */
+
+      /* ── Y LOS ANILLOS, QUE NO SON SOMBRAS ──────────────────────────────
+       * `0 0 0 Npx` sin desenfoque es un BORDE dibujado por fuera sin ocupar
+       * sitio —por eso se hace con box-shadow y no con border: no mueve nada
+       * de su lugar al aparecer—. Dieciséis valores para seis colores, que son
+       * los mismos seis estados que ya tiene la app. */
+      --ring-accent:0 0 0 2px rgba(59,125,216,.15);
+      --ring-ok:0 0 0 2px rgba(5,150,105,.12);
+      --ring-bad:0 0 0 2px rgba(220,38,38,.12);
+      --ring-warn:0 0 0 2px rgba(245,158,11,.25);
+
       --r-btn:6px;
       --h-btn-sm:36px; --h-btn-md:40px; --h-btn-lg:44px;
       /* El de dentro de una tabla es MENOR que el mínimo táctil a sabiendas:
@@ -637,7 +688,7 @@
        screen seen once, it commits to one look. */
     .wiz-overlay{display:none;position:fixed;inset:0;background:#F1F5F9;z-index:var(--z-fullscreen);overflow-y:auto;padding:2rem 1rem;color:#111827}
     .wiz-overlay.show{display:block}
-    .wiz-box{background:#fff;border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,.18);max-width:640px;margin:0 auto;padding:2rem}
+    .wiz-box{background:#fff;border-radius:16px;box-shadow:var(--sh-4);max-width:640px;margin:0 auto;padding:2rem}
     .wiz-steps{display:flex;gap:6px;margin-bottom:1.5rem}
     .wiz-steps div{flex:1;height:4px;border-radius:2px;background:#E5E7EB;transition:background .25s}
     .wiz-steps div.done{background:#3B7DD8}
@@ -671,7 +722,7 @@
     .wiz-progress-fill{height:100%;width:0%;background:#3B7DD8;border-radius:4px;transition:width .3s ease}
     .wiz-progress-label{font-size:.78rem;color:#6B7280;margin-top:.45rem;text-align:center}
     /* Nudge shown after setup when an optional step was skipped */
-    .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:var(--z-nudge);background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:290px}
+    .setup-nudge{position:fixed;bottom:22px;left:22px;z-index:var(--z-nudge);background:#1B2A4A;color:#fff;border-radius:10px;padding:.7rem .9rem;font-size:.8rem;box-shadow:var(--sh-2);max-width:290px}
     /* Coming back is not the same as arriving. A reminder that pops into place
        reads as an alarm; this one walks in from off the left edge, invisible,
        and colours up as it travels to where it was sitting. Slow on purpose. */
@@ -805,7 +856,7 @@
      * Las dos líneas, y en este orden: un navegador que no entienda `dvh`
      * ignora la segunda y se queda con `vh`, que es exactamente como se
      * comporta hoy. No puede empeorar en ningún sitio. */
-    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:90vh;max-height:90dvh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+    .modal{--mpad:1.75rem;background:var(--card);border-radius:14px;padding:0 var(--mpad) var(--mpad);width:100%;max-width:min(640px,92vw);max-height:90vh;max-height:90dvh;overflow-y:auto;scrollbar-gutter:stable;box-shadow:var(--sh-3)}
     /* Standardized size tiers (scale with viewport via min(), never grow past
        that from content) — every popup uses one of these three instead of an
        ad-hoc per-modal pixel value. Content still picks the tier that fits it
@@ -859,7 +910,7 @@
     .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     #lockMatOverlay .field label{color:var(--text)}
     .field input,.field select,.field textarea{padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
-    .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* `flex-wrap:wrap` no es adorno: es lo que impide que los botones se
        solapen (Jose, imagen 1 del 2026-09-06). _btnBusy fija el `min-width` del
        botón al ancho que tenía ANTES de cambiarle la etiqueta —puesto ahí para
@@ -926,9 +977,9 @@
     .multi-loc-total{font-size:.9rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:3px 12px;border-radius:20px}
     .loc-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
     .loc-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
-    .loc-row input[type="text"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
+    .loc-row input[type="text"]:focus{outline:none;border-color:var(--green);box-shadow:var(--ring-ok)}
     .loc-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
-    .loc-row input[type="number"]:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(5,150,105,.12)}
+    .loc-row input[type="number"]:focus{outline:none;border-color:var(--green);box-shadow:var(--ring-ok)}
     .loc-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .loc-row .btn-remove-loc:hover{background:var(--red);color:#fff}
     .btn-add-loc{background:none;border:1px dashed #059669;color:var(--green);border-radius:var(--r-btn);padding:.35rem .85rem;font-size:var(--fs-base);font-weight:600;cursor:pointer;margin-top:.35rem;width:100%;transition:.15s}
@@ -937,9 +988,9 @@
     .multi-exit-section{margin-top:.75rem;padding:.85rem 1rem;background:#FFF5F5;border:1px solid #FECACA;border-radius:8px}
     .exit-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
     .exit-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
-    .exit-row input[type="text"]:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-row input[type="text"]:focus{outline:none;border-color:var(--red);box-shadow:var(--ring-bad)}
     .exit-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
-    .exit-row input[type="number"]:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-row input[type="number"]:focus{outline:none;border-color:var(--red);box-shadow:var(--ring-bad)}
     .exit-row .exit-avail{flex:1.6;font-size:.78rem;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;min-width:80px}
     .exit-avail.ok{color:var(--green);background:var(--green-bg)}
     .exit-avail.warn{color:var(--red);background:var(--red-bg)}
@@ -953,9 +1004,9 @@
     /* ── MULTI-PAIR TRANSFER ── */
     .transfer-row{display:flex;gap:.5rem;margin-bottom:.4rem;align-items:center}
     .transfer-row input[type="text"]{flex:2;padding:.45rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit}
-    .transfer-row input[type="text"]:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+    .transfer-row input[type="text"]:focus{outline:none;border-color:var(--accent2);box-shadow:var(--ring-accent)}
     .transfer-row input[type="number"]{flex:1;padding:.45rem .55rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:inherit;min-width:60px}
-    .transfer-row input[type="number"]:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(59,130,246,.12)}
+    .transfer-row input[type="number"]:focus{outline:none;border-color:var(--accent2);box-shadow:var(--ring-accent)}
     .transfer-row .exit-avail{flex:1.6;font-size:.78rem;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;min-width:80px}
     .transfer-row .btn-remove-loc{background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-btn);padding:5px 9px;cursor:pointer;font-size:var(--fs-lg);font-weight:700;line-height:1;transition:.15s;flex-shrink:0}
     .transfer-row .btn-remove-loc:hover{background:var(--red);color:#fff}
@@ -1045,7 +1096,7 @@
     .mat-lbl-want:hover{color:var(--accent)}
     .mat-lbl-want input:checked + span{color:var(--accent)}
     .mat-line-grid .field input,.mat-line-grid .field select{padding:.5rem .65rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
-    .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .mat-line-grid .field input:focus,.mat-line-grid .field select:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* Price-change alert on ENTRY's Unit Cost — "this supplier charged 18%
        more than last time", the exact thing a manager only notices weeks
        later otherwise. Same shape as the stock-check warning elsewhere in
@@ -1199,7 +1250,7 @@
        stretches to match whatever ancestor happens to be position:relative
        (that used to make it balloon huge in some places, thin in others).
        Caps to 40vw so it can't overflow a narrow/mobile viewport either. */
-    .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;overflow-x:hidden;z-index:var(--z-suggest);background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+    .inc-suggest-box{position:absolute;width:260px;max-width:40vw;max-height:280px;overflow-y:auto;overflow-x:hidden;z-index:var(--z-suggest);background:var(--card);border:1px solid var(--accent);border-radius:8px;box-shadow:var(--sh-2)}
     .inc-suggest-hdr{padding:.3rem .7rem;font-size:var(--fs-xs);font-weight:700;color:var(--accent2);background:#EFF6FF;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #DBEAFE}
     /* ── EL CUADRO DE POSIBLE DUPLICADO ──────────────────────────────────────
        Dos columnas y una fila por campo, porque comparar dos entregas es leer
@@ -1232,7 +1283,7 @@
     /* ── CONFIRM DIALOG ── */
     .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:1rem}
     .cconfirm-overlay.show{display:flex}
-    .cconfirm-dialog{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:420px;overflow:hidden;animation:cconfirm-in .18s ease}
+    .cconfirm-dialog{background:var(--card);border-radius:14px;box-shadow:var(--sh-4);width:100%;max-width:420px;overflow:hidden;animation:cconfirm-in .18s ease}
     @keyframes cconfirm-in{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
     .cconfirm-icon-row{padding:1.5rem 1.5rem .5rem;text-align:center;font-size:2.2rem;line-height:1}
     .cconfirm-body{padding:.25rem 1.5rem 1rem;text-align:center}
@@ -1270,7 +1321,7 @@
     .exit-mat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem}
     .exit-mat-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:.3rem}
     .exit-mat-grid .field input,.exit-mat-grid .field select{padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.84rem;width:100%}
-    .exit-mat-grid .field input:focus,.exit-mat-grid .field select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.12)}
+    .exit-mat-grid .field input:focus,.exit-mat-grid .field select:focus{outline:none;border-color:var(--red);box-shadow:var(--ring-bad)}
     .exit-loc-hdr{display:flex;gap:.4rem;margin:0 0 .25rem}
     .exit-loc-hdr span{font-size:.67rem;font-weight:600;color:var(--muted);text-transform:uppercase}
     .exit-loc-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.3rem}
@@ -1299,7 +1350,7 @@
     .edit-mov-grid .field.full{grid-column:1/-1}
     .edit-mov-grid .field label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.25rem}
     .edit-mov-grid .field input,.edit-mov-grid .field select,.edit-mov-grid .field textarea{width:100%;padding:.42rem .65rem;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit}
-    .edit-mov-grid .field input:focus,.edit-mov-grid .field select:focus,.edit-mov-grid .field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.12)}
+    .edit-mov-grid .field input:focus,.edit-mov-grid .field select:focus,.edit-mov-grid .field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     .edit-reason-box{margin-top:.75rem;padding:.75rem;background:var(--yellow-bg);border:1px solid #FDE68A;border-radius:8px}
     .edit-reason-box label{font-size:.78rem;font-weight:700;color:var(--yellow);display:block;margin-bottom:.35rem}
     .edit-reason-box textarea{width:100%;padding:.45rem .65rem;border:1px solid #FDE68A;border-radius:6px;font-size:.84rem;font-family:inherit;background:#FFFBEB;resize:vertical}
@@ -1363,7 +1414,7 @@
     .acct-btn{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.28);background:var(--accent);color:#fff;font-size:var(--fs-md);font-weight:800;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:box-shadow .15s,transform .15s;font-family:inherit}
     .acct-btn:hover{transform:scale(1.05)}
     .acct-btn.open{box-shadow:0 0 0 4px rgba(255,255,255,.16)}
-    .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.26);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
+    .acct-menu{display:none;position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--sh-4);width:320px;max-width:calc(100vw - 24px);z-index:600;overflow:hidden;animation:acct-in .16s ease}
     .acct-menu.open{display:block}
     /* ── EL MENÚ DEL AVATAR, ABIERTO: LAS TRES COSAS QUE PIDIÓ JOSE ─────────
      *
@@ -1437,8 +1488,8 @@
     .presence-user{display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;font-size:.78rem;border-bottom:1px solid var(--border)}
     .presence-user:last-child{border-bottom:none}
     .presence-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-    .presence-dot.active{background:#10B981;box-shadow:0 0 0 2px rgba(16,185,129,.25)}
-    .presence-dot.away  {background:#F59E0B;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
+    .presence-dot.active{background:#10B981;box-shadow:var(--ring-ok)}
+    .presence-dot.away  {background:#F59E0B;box-shadow:var(--ring-warn)}
     .presence-email{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .presence-you{font-weight:700;color:var(--accent2)}
     .presence-role{font-size:.68rem;background:#F3F4F6;color:var(--muted);border-radius:10px;padding:1px 7px;flex-shrink:0}
@@ -1467,7 +1518,7 @@
     .stock-detail-row.open{display:table-row}
     .doc-panel{padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
     .doc-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;text-decoration:none;color:inherit;transition:.15s;cursor:pointer}
-    .doc-card:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .doc-card:hover{border-color:var(--accent);box-shadow:var(--ring-accent)}
     .doc-card img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6}
     .doc-card .doc-label{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
     .doc-card .doc-date{font-size:.58rem;color:var(--muted);text-align:center}
@@ -1490,7 +1541,7 @@
     /* ── MEDIA PREVIEW LIGHTBOX ── */
     .media-preview-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:var(--z-lightbox);align-items:center;justify-content:center;padding:2rem 1rem}
     .media-preview-overlay.show{display:flex}
-    .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .media-preview-box{background:var(--card);border-radius:12px;overflow:hidden;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--sh-4)}
     .media-preview-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;background:var(--navy);color:#fff;flex-shrink:0}
     .media-preview-hdr span{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:.75rem}
     .media-preview-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:var(--r-btn);padding:3px 10px;cursor:pointer;font-size:var(--fs-xl);flex-shrink:0}
@@ -1504,7 +1555,7 @@
        two columns of the expanded stock row read as one panel instead of a big
        4:3 photo box on the left and small chips on the right. */
     .rack-photo-card{position:relative;background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 6px;width:84px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.15s}
-    .rack-photo-card:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,125,216,.15)}
+    .rack-photo-card:hover{border-color:var(--accent);box-shadow:var(--ring-accent)}
     .rack-photo-card .rpc-img{width:52px;height:52px;object-fit:cover;border-radius:5px;border:1px solid var(--border);background:#f3f4f6;display:block;cursor:pointer}
     .rack-photo-card .rpc-empty{width:52px;height:52px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:1.4rem;background:#f3f4f6;border:1px dashed var(--border);border-radius:5px}
     .rack-photo-card .rpc-name{font-size:.63rem;font-weight:600;color:var(--text);text-align:center;word-break:break-word;line-height:1.2;max-width:72px}
@@ -1870,7 +1921,7 @@
     /* ── FOOTER ── */
     .system-footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;border-top:1px solid var(--border);background:#e5e7eb}
     /* ── STOCK DETAIL PANEL (alert bar expand) ── */
-    .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.1);margin-bottom:1rem;overflow:hidden}
+    .stock-detail-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--sh-2);margin-bottom:1rem;overflow:hidden}
     .stock-detail-panel.open{display:block}
     .stock-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--navy);color:#fff;font-size:.8rem;font-weight:700}
     .stock-detail-hdr button{background:none;border:none;color:rgba(255,255,255,.7);font-size:var(--fs-2xl);cursor:pointer}
@@ -2091,7 +2142,7 @@
        the stack was wrong. */
     .morning-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:var(--z-morning);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
     .morning-overlay.show{opacity:1;pointer-events:all}
-    .morning-popup{background:var(--card);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:520px;width:95%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(24px);transition:transform .25s}
+    .morning-popup{background:var(--card);border-radius:14px;box-shadow:var(--sh-4);max-width:520px;width:95%;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(24px);transition:transform .25s}
     .morning-overlay.show .morning-popup{transform:translateY(0)}
     .morning-popup-hdr{background:var(--navy);color:#fff;padding:1.1rem 1.4rem;display:flex;align-items:center;justify-content:space-between;border-radius:14px 14px 0 0}
     .morning-popup-hdr h3{font-size:1rem;font-weight:700;margin:0}
@@ -2276,7 +2327,7 @@
        scale transition even started — which is exactly the "jump toward the
        middle, then grow" Jose caught on video. One constant anchor for every
        state is what makes a card grow from the corner it actually sits in. */
-    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:0 6px 20px rgba(0,0,0,.22);transform-origin:bottom right;transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),opacity var(--deck-out) ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
+    .deck-card{position:relative;--card-h:96px;--card-w:270px;width:var(--card-w);max-width:100%;height:var(--card-h);flex-shrink:0;border-radius:11px;padding:.62rem .8rem;font-size:.78rem;box-shadow:var(--sh-2);transform-origin:bottom right;transition:margin var(--deck-in) var(--deck-ease),transform var(--deck-in) var(--deck-ease),opacity var(--deck-out) ease,background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease}
     /* Fanning out: all at once, each a beat behind the one in front, so the pile
        reads as paper being spread rather than a list appearing. --i is written
        by _paintDeck, counting back from the card on top. Unconditional now —
@@ -2287,7 +2338,7 @@
     /* Open, the cards need air between them and a lighter shadow. The resting
        shadow is tuned for ONE card lifting off the page; repeated down a fan it
        lands in the gap between two white cards and reads as a dark bar. */
-    .deck.open .deck-card{box-shadow:0 4px 14px rgba(0,0,0,.13)}
+    .deck.open .deck-card{box-shadow:var(--sh-1)}
     .deck.open .deck-card + .deck-card{margin-top:.7rem}
     /* Arriving from off-screen right. The card is already at its resting size
        when it lands, so it does not grow and slide at the same time — one
@@ -2510,7 +2561,7 @@
 
     /* A suggestion: dark card, asks a question, answered with its buttons. */
     .cfg-card{background:var(--navy);color:#fff;border:1px solid transparent}
-    .deck.dim:not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+    .deck.dim:not(.open) .cfg-card{background:var(--navy-ghost);color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.12);box-shadow:var(--sh-1)}
     .deck.dim:not(.open) .cfg-card .cfg-card-lbl,
     .deck.dim:not(.open) .cfg-card .cfg-card-val{color:rgba(255,255,255,.72)}
     .deck.dim:not(.open) .cfg-card-acts{opacity:0}
@@ -2524,7 +2575,7 @@
 
     /* A notification: light card, reports a fact, dismissed with its ✕. */
     .sys-card{background:var(--card);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--green)}
-    .deck.dim:not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .deck.dim:not(.open) .sys-card{background:var(--card-ghost);border-color:rgba(0,0,0,.06);border-left-color:var(--border);box-shadow:var(--sh-1)}
     .deck.dim:not(.open) .sys-card .sys-card-title{color:var(--muted)}
     .deck.dim:not(.open) .sys-card-when,
     .deck.dim:not(.open) .sys-card-detail{opacity:.6}
@@ -2546,7 +2597,7 @@
     /* ── Phone/tablet: bell in the topbar instead of the hover deck ── */
     .cfg-bell{display:none;position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:38px;height:34px;font-size:1rem;cursor:pointer;align-items:center;justify-content:center}
     .cfg-bell-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:var(--accent);color:#fff;font-size:.62rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--navy)}
-    .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);z-index:var(--z-bell);max-height:70vh;overflow-y:auto}
+    .cfg-bell-panel{display:none;position:fixed;top:60px;right:12px;left:12px;max-width:380px;margin-left:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh-3);z-index:var(--z-bell);max-height:70vh;overflow-y:auto}
     .cfg-bell-panel.show{display:block}
     .cfg-bell-hdr{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:700;color:var(--text);position:sticky;top:0;background:var(--card)}
     .cfg-bell-hdr button{background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer}
@@ -2675,7 +2726,7 @@
     #acTip{position:fixed;left:-9999px;top:-9999px;
       background:var(--navy);color:#fff;font-size:.74rem;font-weight:600;line-height:1.45;
       letter-spacing:0;text-transform:none;text-align:left;
-      padding:.55rem .7rem;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.28);
+      padding:.55rem .7rem;border-radius:10px;box-shadow:var(--sh-2);
       white-space:pre-line;width:max-content;max-width:min(280px,88vw);
       opacity:0;pointer-events:none;visibility:hidden;
       transition:opacity .15s ease,transform .15s ease;transform:translateY(-4px);
@@ -2709,7 +2760,7 @@
        #acTip: un transform en cualquier antepasado se lleva a un fixed con él. */
     #acPerson{position:fixed;left:-9999px;top:-9999px;
       background:var(--card);color:var(--text);border:1px solid var(--border);
-      border-radius:10px;padding:.6rem .7rem;box-shadow:0 8px 24px rgba(0,0,0,.18);
+      border-radius:10px;padding:.6rem .7rem;box-shadow:var(--sh-2);
       /* SIEMPRE DEL MISMO TAMAÑO. Jose, 2026-09-16, con video: "quiero que el
          pop-up sea del mismo tamaño no importa el nombre y el correo... se
          mueve o aparece en un lugar diferente y de un largo diferente
@@ -2965,7 +3016,7 @@
     /* Dark mode toggle button */
     /* ── TOAST NOTIFICATIONS ── */
     #toastContainer{position:fixed;top:1.25rem;left:50%;transform:translateX(-50%);z-index:var(--z-toast);display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none}
-    .toast{background:var(--card);border-radius:10px;padding:.75rem 1.25rem;font-size:.84rem;font-weight:500;display:flex;align-items:flex-start;gap:.55rem;box-shadow:0 8px 32px rgba(0,0,0,.25);border-top:4px solid #94A3B8;min-width:300px;max-width:520px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
+    .toast{background:var(--card);border-radius:10px;padding:.75rem 1.25rem;font-size:.84rem;font-weight:500;display:flex;align-items:flex-start;gap:.55rem;box-shadow:var(--sh-3);border-top:4px solid #94A3B8;min-width:300px;max-width:520px;pointer-events:all;animation:toastIn .25s ease;color:var(--text)}
     .toast.ok  {border-top-color:var(--green)}
     .toast.err {border-top-color:var(--red)}
     .toast.warn{border-top-color:var(--yellow)}
@@ -3005,7 +3056,7 @@
               display:none;align-items:center;gap:.6rem;
               background:var(--card);color:var(--text);
               border-radius:10px;padding:.7rem 1rem;
-              box-shadow:0 8px 32px rgba(0,0,0,.25);
+              box-shadow:var(--sh-3);
               border-left:4px solid var(--accent);
               font-size:var(--fs-lg);font-weight:500;
               min-width:250px;max-width:380px;
@@ -4857,7 +4908,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.60';
+var APP_VERSION = '12.61';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -4869,7 +4920,7 @@ var APP_VERSION = '12.60';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '98e6581e';
+var APP_BUILD = '80499b02';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
