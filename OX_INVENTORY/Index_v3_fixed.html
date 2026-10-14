@@ -905,6 +905,46 @@
        navegación se pega justo debajo (`--tb-alto`, que escribe _barraArriba). */
     :root{--tb-alto:0px}
     #topBanners{position:sticky;top:0;left:0;right:0;z-index:99999;display:flex;flex-direction:column}
+
+    /* ── LAS QUE FLOTAN, Y POR QUÉ NO TODAS ────────────────────────────────
+     *
+     * Jose, 14/10, con vídeo: *"funciona bien, pero me gustaría hacerlo menos
+     * invasivo y más profesional"*. Y tenía razón: lo que molesta no es el
+     * color, es que la franja OCUPA SITIO. Al aparecer empuja la app entera
+     * hacia abajo y al irse la sube — el contenido salta dos veces por un
+     * aviso de cinco segundos.
+     *
+     * PERO NO SE PUEDEN FLOTAR TODAS, y el comentario de arriba dice por qué:
+     * una versión anterior flotaba, y en un teléfono el aviso se comía la
+     * barra de navegación entera — los botones quedaban DEBAJO y no se podían
+     * pulsar. Lo cazó `test-responsive-polish` a 375 px.
+     *
+     * La diferencia está en QUÉ aviso:
+     *
+     *  · EL DE VERSIONES se queda ocupando su sitio. Vive meses, es la única
+     *    señal de que los dos archivos no son del mismo juego, y no puede
+     *    taparse ni perderse.
+     *  · LOS DE CONEXIÓN flotan. Son de estado y no llevan nada que pulsar
+     *    —sólo texto y un aro—, así que con `pointer-events:none` lo de debajo
+     *    SIGUE SIENDO PULSABLE. Eso es lo que mata el fallo viejo: el aviso ya
+     *    no es una pared, es una pegatina.
+     *
+     * Y la forma: ancho máximo, esquinas redondeadas y centrado, en vez de
+     * franja de borde a borde. Jose pidió que se vieran «como los toast que
+     * aparecen frente a la pantalla en la parte de arriba». */
+    /* `--tb-alto` es lo que reservó la pila que SÍ ocupa sitio. Sin esto, la
+     * píldora flotante se pone encima del aviso de versiones y lo tapa — que
+     * es exactamente lo que no puede pasarle a ése. Lo cazó
+     * `test-barra-conexion`, que comprueba que las dos van una debajo de la
+     * otra y sin solaparse. */
+    #topToasts{position:fixed;top:calc(var(--tb-alto) + 10px);left:0;right:0;z-index:var(--z-toast);
+      display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);
+      pointer-events:none;padding:0 var(--sp-5)}
+    #topToasts .top-banner{border-radius:999px;padding:.55rem 1.1rem;
+      max-width:min(560px,100%);box-shadow:var(--sh-3);
+      animation:tt-entra .18s ease both}
+    @keyframes tt-entra{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){#topToasts .top-banner{animation:none}}
     .top-banner{display:flex;align-items:center;justify-content:center;gap:var(--sp-3);
       font-size:.8rem;font-weight:600;text-align:center;padding:8px 36px;color:#fff;
       box-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -5129,7 +5169,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.68';
+var APP_VERSION = '12.69';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5141,7 +5181,7 @@ var APP_VERSION = '12.68';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fd7f8cca';
+var APP_BUILD = '6ad26205';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -24667,11 +24707,15 @@ function _applyWarehouseRoleLabel(){
  * Devuelve el elemento, o lo quita si `html` viene vacío. Idempotente: llamarla
  * cien veces con el mismo texto no parpadea ni reinicia nada, que es lo que
  * hace falta cuando quien llama es un latido que corre cada veinte segundos. */
-function _barraArriba(id, tono, html, segundos) {
-  var pila = document.getElementById('topBanners');
+function _barraArriba(id, tono, html, segundos, flotante) {
+  /* `flotante` manda el aviso a la pila que NO ocupa sitio. Ver la nota larga
+   * de `#topToasts` en el CSS: sólo pueden flotar los avisos sin nada que
+   * pulsar, porque lo que los hace inofensivos es `pointer-events:none`. */
+  var pilaId = flotante ? 'topToasts' : 'topBanners';
+  var pila = document.getElementById(pilaId);
   if (!pila) {
     pila = document.createElement('div');
-    pila.id = 'topBanners';
+    pila.id = pilaId;
     // AL PRINCIPIO del body, no al final: si va al final, ocupa su sitio DEBAJO
     // de toda la página y el aviso aparece al pie, donde nadie lo mira.
     document.body.insertBefore(pila, document.body.firstChild);
@@ -24682,8 +24726,12 @@ function _barraArriba(id, tono, html, segundos) {
   if (!bar) {
     bar = document.createElement('div');
     bar.id = id;
-    pila.appendChild(bar);
   }
+  /* Se reubica SIEMPRE, no sólo al crearla. Si un aviso cambia de pila entre
+   * dos llamadas —porque alguien le pase `flotante` de forma distinta— la
+   * primera versión lo dejaba donde nació: flotando cuando debía empujar, o al
+   * revés. Mover un nodo que ya está donde toca no cuesta nada. */
+  if (bar.parentNode !== pila) pila.appendChild(bar);
   // Sólo se reescribe si de verdad cambió: tocar innerHTML en cada latido
   // reinicia la animación del aro y la barra "tiembla".
   if (bar._acTono !== tono) { bar.className = 'top-banner ' + tono; bar._acTono = tono; }
@@ -25785,12 +25833,25 @@ function setConnStatus(status){
    *    segundos. */
   var estabaCaida = (_connUltimo === 'offline');
   if (status === 'offline') {
+    /* FLOTANDO, desde la v12.69, y el texto acortado porque una píldora
+     * centrada no es una franja de borde a borde.
+     *
+     * PERO NO SE PUEDE ACORTAR HASTA PERDER INFORMACIÓN, y mi primer intento
+     * lo hizo: quitó «the app keeps retrying» y `test-barra-conexion` se puso
+     * roja con el motivo escrito —«para que nadie recargue a lo loco»—. Quien
+     * lee que no se guarda nada y no sabe que la app reintenta sola, recarga.
+     * Las dos frases se quedan; lo que se va es el relleno. */
     _barraArriba('connBanner', 'bad',
-      '<span class="tb-spin"></span> You are offline — nothing you type can be saved ' +
-      'until the connection comes back. The app keeps retrying on its own.');
+      '<span class="tb-spin"></span> Offline — nothing you type can be saved. ' +
+      'Still retrying.',
+      0, true);
   } else if (status === 'online') {
-    if (estabaCaida) _barraArriba('connBanner', 'good', '✓ Back online', 5);
-    else _barraArriba('connBanner', 'good', '');
+    /* SEIS SEGUNDOS y no cinco. Jose: «deben permanecer varios segundos, para
+     * que se noten». Un aviso que flota es más fácil de pasar por alto que uno
+     * que empujaba la página entera, así que lo que se gana en no estorbar hay
+     * que devolverlo en tiempo. */
+    if (estabaCaida) _barraArriba('connBanner', 'good', '✓ Back online', 6, true);
+    else _barraArriba('connBanner', 'good', '', 0, true);
   }
   _connUltimo = status;
 }
@@ -26055,6 +26116,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.69',
+    titulo: 'The offline notice stops pushing the app around',
+    puntos: [
+      'The red and green connection messages now <b>float over the top</b> instead of taking space. The page no longer jumps down and back up for a five-second notice.',
+      'What is underneath stays clickable — the tabs and your account button keep working while the notice is on screen.',
+      'The notice about two files not matching still takes its space. That one lives for months and must never be covered.'
+    ],
+    antes:  'The whole app jumped down, then back up, for a five-second notice',
+    ahora:  'A pill that floats over the top and touches nothing' },
+
   { ver: '12.68',
     titulo: 'Labels for your racks, not just your material',
     puntos: [
@@ -26083,17 +26154,7 @@ var NOVEDADES = [
       'Reading them with the phone camera to fill in an exit is the next step.'
     ],
     antes:  'A dotted box printed on every label, saying QR / barcode',
-    ahora:  'A code that scans, printed at 30 mm on the same 4x6 label' },
-
-  { ver: '12.65',
-    titulo: 'The app finally tells you what changed',
-    puntos: [
-      'This window. It opens once when your version changes, and never again for that version.',
-      'It lives in the account menu under <b>What\'s new</b>, so closing it costs nothing — you always know where it went.',
-      'Four releases are kept here. The full note for each is one click away.'
-    ],
-    antes:  'No way to find out what improved, short of asking',
-    ahora:  'What\'s new, in the account menu, with a dot when there is one' }
+    ahora:  'A code that scans, printed at 30 mm on the same 4x6 label' }
 
 ];
 
