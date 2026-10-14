@@ -3526,6 +3526,40 @@
 
     /* La vista previa dentro del cuadro: la etiqueta de verdad, encogida, para
        que se vea lo que va a salir antes de gastar papel. */
+    /* ── LA ETIQUETA DE UBICACIÓN ──────────────────────────────────────────
+     *
+     * TODO EN PORCENTAJES, ni un milímetro. Ésa es la diferencia con la de
+     * material y el motivo está en el comentario de `_locLabelHtml`: la
+     * impresora de Jose sólo ofrece A4, así que la página no se puede elegir y
+     * lo único que se puede hacer es llenarla, sea la que sea.
+     *
+     * La hoja usa `100vw`/`100vh` y no `100%`: en impresión, el porcentaje se
+     * mide contra el padre —que arrastra los márgenes de body— mientras que
+     * las unidades de ventana se miden contra la PÁGINA. Es la diferencia
+     * entre llenar el papel y llenar lo que quede después de los márgenes. */
+    .lloc-hoja{width:100vw;height:100vh;display:flex;flex-direction:column;
+      box-sizing:border-box;padding:3%;background:#fff;overflow:hidden}
+    .lloc-hoja + .lloc-hoja{page-break-before:always;break-before:page}
+    /* Cada etiqueta, un tercio exacto. `flex:1 1 0` y no `height:33.33%`: con
+     * altura en porcentaje, tres redondeos hacia arriba desbordan la hoja y la
+     * tercera etiqueta se va a una página de sobra. */
+    .lloc{flex:1 1 0;min-height:0;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:1.5%;overflow:hidden}
+    .lloc-vacia{visibility:hidden}
+    /* El QR manda sobre el alto, y el `aspect-ratio` lo mantiene cuadrado: un
+     * QR estirado no lo lee nadie. 70% del alto de la celda son ~36 mm en una
+     * hoja de 4×6, que es lo medido. */
+    .lloc-qr{height:70%;aspect-ratio:1;flex:0 0 auto;line-height:0}
+    .lloc-qr svg{width:100%;height:100%;display:block}
+    /* El nombre, pequeño por decisión de Jose del 14/10, sabiendo que un QR de
+     * 36 mm se lee a un brazo y no desde el pasillo. Los racks ya están
+     * rotulados a lo grande; esto es la confirmación de que la pegatina es de
+     * ese rack, no el rótulo.
+     * En `em` sobre el alto de la celda no se puede, así que va en `vh`: así
+     * crece y mengua con la página igual que el código. */
+    .lloc-name{font-size:2.4vh;font-weight:800;letter-spacing:.08em;
+      text-align:center;line-height:1.1;max-width:94%;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .lbl-papel{margin:var(--sp-3) 0 0;font-size:var(--fs-xs);color:var(--muted);
       line-height:var(--lh-normal);text-align:left}
     #labelPreview{display:flex;gap:var(--sp-4);overflow-x:auto;padding:var(--sp-3) 0 .2rem}
@@ -5095,7 +5129,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.67';
+var APP_VERSION = '12.68';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5107,7 +5141,7 @@ var APP_VERSION = '12.67';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '8b814038';
+var APP_BUILD = 'fd7f8cca';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -14944,7 +14978,7 @@ function _renderSettingsTab(tab) {
       // "CLIFTONPLACEBLDNGH". Catching those automatically would need matching
       // loose enough to also group genuinely different jobs, and a wrong merge
       // rewrites history, so the judgement stays with a person.
-      (mergeable ? '<input type="checkbox" class="cfg-pick" data-val="'+_he(v)+'" title="Select to merge">' : '') +
+      (mergeable ? '<input type="checkbox" class="cfg-pick" data-val="'+_he(v)+'" title="Select to print a label, or to merge">' : '') +
       '<span class="cfg-item-name" id="cfgName-'+tab+'-'+i+'">'+v+'</span>' +
       '<div id="cfgEdit-'+tab+'-'+i+'" style="display:none;flex:1;display:none;gap:.35rem;align-items:center">' +
         '<input class="cfg-item-input" id="cfgInp-'+tab+'-'+i+'" value="'+_he(v)+'">' +
@@ -15152,7 +15186,7 @@ function _renderLocGroup(type, use){
         ? items.map(function(l){
             var why = _locWhyKept(l.name, use);
             return '<li class="loc-item" draggable="true" data-name="' + _he(l.name) + '">' +
-              '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to merge">' +
+              '<input type="checkbox" class="loc-pick" data-name="' + _he(l.name) + '" title="Select to print a label, or to merge">' +
               '<span class="loc-grip">⠿</span><span>' + _he(l.name) + '</span>' +
               // LAS RESERVAS, SITIO 3 DE 3 (Settings → Locations). Aquí se
               // razona POR UBICACIÓN —qué hay en este estante, se puede borrar,
@@ -15386,22 +15420,55 @@ function _wireLocMerge(){
       function(cb){ return cb.getAttribute('data-name'); });
   }
 
+  function todas(){
+    return Array.prototype.map.call(document.querySelectorAll('.loc-pick'),
+      function(cb){ return cb; });
+  }
+
   function draw(){
     var sel = picked();
-    if (sel.length < 2){ bar.innerHTML = ''; bar.classList.remove('show'); return; }
+    /* ── DESDE UNA, NO DESDE DOS ──────────────────────────────────────────
+     * Esta barra nació para FUSIONAR, que necesita dos, así que no aparecía
+     * con una marcada. Imprimir no necesita dos — y dije en su momento que
+     * eso lo hacía coherente, lo cual era quedarse corto: Jose preguntó *"¿y
+     * si el cliente quiere imprimir todas de una vez? ¿debe hacerlo una por
+     * una?"*. No hay ninguna razón para limitarlo.
+     *
+     * Así que la barra sale desde UNA, con imprimir siempre, y el bloque de
+     * fusionar sólo cuando hay dos o más. Fusionar sí necesita dos; imprimir
+     * no necesita ninguna excusa. */
+    if (!sel.length){ bar.innerHTML = ''; bar.classList.remove('show'); return; }
     bar.classList.add('show');
+    var marcables = todas().length;
     bar.innerHTML =
-      '<span class="cfg-pick-count">' + sel.length + ' selected — keep which one?</span>' +
-      '<select id="locMergeKeep">' +
-        sel.map(function(v){ return '<option value="' + _he(v) + '">' + _he(v) + '</option>'; }).join('') +
-      '</select>' +
-      '<button class="btn btn-primary btn-sm" id="locMergeBtn">Merge</button>' +
+      '<span class="cfg-pick-count">' + sel.length + ' selected</span>' +
+      '<button class="btn btn-primary btn-sm" id="locPrintBtn">🏷 Print labels</button>' +
+      (sel.length < marcables
+        ? '<button class="btn btn-ghost btn-sm" id="locPickAll">Select all</button>' : '') +
+      (sel.length >= 2
+        ? '<span class="cfg-pick-count">keep which one?</span>' +
+          '<select id="locMergeKeep">' +
+            sel.map(function(v){ return '<option value="' + _he(v) + '">' + _he(v) + '</option>'; }).join('') +
+          '</select>' +
+          '<button class="btn btn-sm" id="locMergeBtn">Merge</button>'
+        : '') +
       '<button class="btn btn-ghost btn-sm" id="locMergeClear">Clear</button>';
+
+    document.getElementById('locPrintBtn').addEventListener('click', function(){
+      _locLabelsPrint(picked());
+    });
+
+    var todasBtn = document.getElementById('locPickAll');
+    if (todasBtn) todasBtn.addEventListener('click', function(){
+      todas().forEach(function(cb){ cb.checked = true; });
+      draw();
+    });
 
     document.getElementById('locMergeClear').addEventListener('click', function(){
       document.querySelectorAll('.loc-pick:checked').forEach(function(cb){ cb.checked = false; });
       draw();
     });
+    if (sel.length < 2) return;
 
     document.getElementById('locMergeBtn').addEventListener('click', function(){
       var into = document.getElementById('locMergeKeep').value;
@@ -22707,6 +22774,128 @@ function _labelHtml(r){
     '</div>';
 }
 
+/* ══ LA ETIQUETA DE UBICACIÓN ════════════════════════════════════════════════
+ *
+ * Jose, 14/10. Es la OTRA mitad de poder escanear: la etiqueta del material va
+ * pegada al bulto, ésta va pegada al estante. Con las dos se puede decir «este
+ * bulto va a ese sitio» sin teclear nada.
+ *
+ * ── POR QUÉ NO SE PARECE EN NADA A LA DE MATERIAL ──────────────────────────
+ *
+ * Jose: *"no deben ser igual que las etiquetas de los materiales, deben
+ * diferenciarse"*, y yo añadí que debían ser IMPOSIBLES de confundir, no sólo
+ * distintas: dos papeles blancos con un QR acaban pegados al revés algún día.
+ * Por eso ésta es APAISADA (ancha y baja) y la de material es vertical. Se
+ * distinguen de lejos y sin leer.
+ *
+ * ── LA REGLA QUE MÁS IMPORTA: AQUÍ NO VA NADA QUE CADUQUE ──────────────────
+ *
+ * Ni cantidad, ni fecha, ni PO, ni qué material hay ahí. Una etiqueta de rack
+ * se pega una vez y vive años; si llevara el contenido, estaría mintiendo al
+ * día siguiente. Sólo el nombre y el código. La de material es justo lo
+ * contrario: es la foto de un bulto en un momento.
+ *
+ * ── EL TAMAÑO DEL CÓDIGO, Y LA DISCUSIÓN QUE HUBO ──────────────────────────
+ *
+ * La distancia a la que se lee un QR son unas DIEZ VECES su ancho. A 36 mm se
+ * lee desde unos 36 cm — un brazo. Jose quería que «se leyeran de lejos», y le
+ * dije que para leer a dos metros haría falta un QR de 20 cm, más grande que
+ * la propia hoja de 4×6. Decidió dejar el nombre pequeño sabiendo eso: los
+ * racks ya están rotulados a lo grande, así que quien busca el estante no usa
+ * esta pegatina — la usa quien ya está delante, con el teléfono en la mano.
+ *
+ * 36 mm son 1,09 mm por módulo: casi el triple del suelo de 0,40 al que un
+ * teléfono empieza a fallar, y 8 puntos por módulo a 203 ppp.
+ *
+ * ── «EN PROPORCIÓN DE PÁGINA», QUE ES LA PARTE QUE NO SE VE ────────────────
+ *
+ * La hoja NO se dibuja en milímetros. Se dibuja en fracciones: cada etiqueta
+ * ocupa el ancho entero y un tercio del alto, sea cual sea la página.
+ *
+ * El motivo es la impresora de Jose: su servicio de Android ofrece UN SOLO
+ * tamaño de papel, ISO A4. Con medidas fijas pasaban dos encogidos seguidos
+ * —la etiqueta quedaba de sello en medio de una A4, y después la impresora
+ * encogía esa A4 entera para meterla en la pegatina de 4×6—. En proporción
+ * sólo hay un encogido, y el contenido viaja con él.
+ *
+ * EL MARGEN DE SEGURIDAD del 6% es por lo único que no sabemos: si ese
+ * servicio ESCALA la A4 a la pegatina o la RECORTA. Si escala, el margen
+ * sobra y no molesta. Si recorta, el margen es lo que salva el contenido. Una
+ * impresión de prueba lo dirá; mientras tanto se paga el seguro barato. */
+
+function _locLabelQrTexto(nombre){
+  /* Mismo criterio que la etiqueta de material: la primera línea es la versión
+   * del formato, y es `ACPL1` y no `ACP1` para que el lector sepa de un vistazo
+   * si lo que tiene delante es un bulto o un sitio. Y por líneas, porque un
+   * nombre de ubicación puede llevar espacios y guiones pero nunca un salto. */
+  return 'ACPL1\n' + String(nombre || '');
+}
+
+function _locLabelHtml(nombre){
+  var txt = String(nombre || '');
+  var qr  = '';
+  try { qr = qrSvg(_locLabelQrTexto(txt), '100%'); }
+  catch (e) { try { console.warn('location QR:', e && e.message); } catch (e2) {} }
+  return '<div class="lloc">' +
+           '<div class="lloc-qr">' + qr + '</div>' +
+           '<div class="lloc-name">' + _he(txt) + '</div>' +
+         '</div>';
+}
+
+/* Las hojas, de tres en tres. Devuelve el HTML entero del taco a imprimir.
+ * Si la última hoja va a medias se rellena con huecos VACÍOS y no con nada:
+ * sin ellos las dos etiquetas de la última hoja se estirarían a la mitad de la
+ * página cada una, que es el tamaño que no tiene el adhesivo. */
+var LOC_POR_HOJA = 3;
+
+function _locSheetHtml(nombres){
+  var hojas = [];
+  for (var i = 0; i < nombres.length; i += LOC_POR_HOJA){
+    var trozo = nombres.slice(i, i + LOC_POR_HOJA);
+    var celdas = trozo.map(_locLabelHtml);
+    while (celdas.length < LOC_POR_HOJA) celdas.push('<div class="lloc lloc-vacia"></div>');
+    hojas.push('<div class="lloc-hoja">' + celdas.join('') + '</div>');
+  }
+  return hojas.join('');
+}
+
+/** Imprime las etiquetas de las ubicaciones que se pasen. Reutiliza
+ *  `#labelSheet` y su regla de impresión —lo demás del <body> desaparece— que
+ *  ya está probada; lo único propio es lo que se mete dentro. */
+function _locLabelsPrint(nombres){
+  nombres = (nombres || []).filter(function(n){ return String(n || '').trim(); });
+  if (!nombres.length) return;
+  var hoja = document.getElementById('labelSheet');
+  if (!hoja) return;
+
+  var paginas = Math.ceil(nombres.length / LOC_POR_HOJA);
+  _showConfirm({
+    icon: '🏷️',
+    title: 'Print ' + nombres.length + ' location label' + (nombres.length === 1 ? '' : 's'),
+    /* Se dice CUÁNTAS HOJAS antes de imprimir, no después. Sesenta racks son
+     * veinte hojas de adhesivo, y enterarse cuando ya están saliendo es tarde:
+     * el papel térmico viene en rollo y no se devuelve. */
+    message: nombres.length + ' label' + (nombres.length === 1 ? '' : 's') +
+             ', ' + LOC_POR_HOJA + ' per sheet — ' + paginas + ' sheet' +
+             (paginas === 1 ? '' : 's') + '.\n\n' +
+             'Paper size: 4×6 in (101.6 × 152.4 mm). On a phone, check Paper size ' +
+             'in the print dialog before you print.',
+    confirmText: '🖨 Print',
+    onConfirm: function(){
+      hoja.innerHTML = _locSheetHtml(nombres);
+      hoja.classList.add('hoja-ubicaciones');
+      setTimeout(function(){
+        try { window.print(); }
+        catch (e) { showToast('Could not open the print dialog.', 'err'); }
+        setTimeout(function(){
+          hoja.innerHTML = '';
+          hoja.classList.remove('hoja-ubicaciones');
+        }, 1000);
+      }, 60);
+    }
+  });
+}
+
 function _openLabels(rows, alCerrar){
   _labelAfter = alCerrar || null;
   _labelRows  = rows || [];
@@ -25866,6 +26055,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.68',
+    titulo: 'Labels for your racks, not just your material',
+    puntos: [
+      'Pick one location, several, or all of them in <b>Settings → Locations</b>, and print their labels. Three per sheet.',
+      'They look nothing like a material label on purpose: these are <b>landscape</b>, the material ones are upright. Two white stickers with a code on them get stuck in the wrong place sooner or later.',
+      'A rack label carries the name and the code and <b>nothing that can go out of date</b> — no quantity, no date, no PO. It gets stuck on once and lives for years.'
+    ],
+    antes:  'Only the bundle had a code. The shelf had nothing',
+    ahora:  'Scan the bundle, then scan the shelf — the app knows both' },
+
   { ver: '12.67',
     titulo: 'The print dialog tells you the paper size',
     puntos: [
@@ -25894,17 +26093,7 @@ var NOVEDADES = [
       'Four releases are kept here. The full note for each is one click away.'
     ],
     antes:  'No way to find out what improved, short of asking',
-    ahora:  'What\'s new, in the account menu, with a dot when there is one' },
-
-  { ver: '12.64',
-    titulo: 'A location that does not exist says so while you type',
-    puntos: [
-      'Type a rack that is not in your warehouse and the field says so when you leave it — not when you press Save.',
-      'It offers the one you probably meant, and offers to create it if you are allowed to.',
-      'It never blocks saving: your browser\'s list can be seconds out of date, so the server still decides.'
-    ],
-    antes:  'Error: UNKNOWN_LOCATION|P|B',
-    ahora:  'A1p is not a location in your warehouse yet — Use A1A' }
+    ahora:  'What\'s new, in the account menu, with a dot when there is one' }
 
 ];
 
