@@ -3526,6 +3526,8 @@
 
     /* La vista previa dentro del cuadro: la etiqueta de verdad, encogida, para
        que se vea lo que va a salir antes de gastar papel. */
+    .lbl-papel{margin:var(--sp-3) 0 0;font-size:var(--fs-xs);color:var(--muted);
+      line-height:var(--lh-normal);text-align:left}
     #labelPreview{display:flex;gap:var(--sp-4);overflow-x:auto;padding:var(--sp-3) 0 .2rem}
     #labelPreview .lbl{flex:none;transform:scale(.42);transform-origin:top left;
       width:101.6mm;height:152.4mm;border:1px solid var(--border);border-radius:3mm;
@@ -4388,6 +4390,18 @@
       </div>
       <div id="labelsList" style="max-height:min(38vh,260px);overflow:auto;text-align:left;margin-top:.3rem"></div>
       <div id="labelPreview"></div>
+      <!-- ── EL TAMAÑO DE PAPEL, DICHO ANTES DE IMPRIMIR ───────────────────
+           Jose, 13/10, con un vídeo de cuatro minutos: su impresora térmica SÍ
+           sale en el cuadro de impresión de Android —«Jadens Printer»— pero el
+           tamaño de papel estaba en **ISO A4**, así que la etiqueta salía del
+           tamaño correcto en medio de una hoja enorme. No era un fallo de la
+           app ni de Chrome: era un desplegable.
+
+           Este aviso existe porque ese desplegable está a dos toques de
+           distancia y nadie lo mira hasta que ya gastó papel. En el móvil se
+           dice entero; en el ordenador basta recordar la medida, porque ahí el
+           tamaño se elige una vez y se queda. -->
+      <p class="lbl-papel" id="labelsPaper"></p>
     </div>
     <div class="cconfirm-footer">
       <button class="cconfirm-cancel" id="labelsSkip" onclick="_labelsClose()">Not now</button>
@@ -5081,7 +5095,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.66';
+var APP_VERSION = '12.67';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5093,7 +5107,7 @@ var APP_VERSION = '12.66';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'fdcfa529';
+var APP_BUILD = '8b814038';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -22718,6 +22732,7 @@ function _openLabels(rows, alCerrar){
   var lead = document.getElementById('labelsLead');
   var list = document.getElementById('labelsList');
   if (!lead || !list){ _labelsDone(); return; }
+  _labelsPintarPapel();
   lead.textContent = _labelRows.length === 1
     ? 'One label, 4"×6". Untick it if this one does not need one.'
     : _labelRows.length + ' labels, 4"×6" — one per rack. Untick the ones that ' +
@@ -22849,6 +22864,22 @@ function _labelsAll(si){
   if (!list) return;
   list.querySelectorAll('input[data-lbl]').forEach(function(cb){ cb.checked = !!si; });
   _labelsRedraw();
+}
+
+/* El aviso del papel. En una pantalla pequeña se asume teléfono y se dice
+ * dónde está el ajuste; en una grande, sólo la medida. No se mira el sistema
+ * operativo sino el ancho, por lo mismo de siempre: lo que cambia la respuesta
+ * es el cuadro de impresión que vas a ver, y el de Android sale en pantallas
+ * pequeñas. */
+function _labelsPintarPapel(){
+  var el = document.getElementById('labelsPaper');
+  if (!el) return;
+  var movil = window.innerWidth < 769;
+  el.textContent = movil
+    ? 'Paper size must be 4×6 in (101.6 × 152.4 mm). On a phone, open Paper ' +
+      'size in the print dialog and pick it — it usually opens on A4, and then ' +
+      'the label prints small in the middle of a big page.'
+    : 'Paper size: 4×6 in (101.6 × 152.4 mm).';
 }
 
 function _labelsPrint(){
@@ -25835,6 +25866,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.67',
+    titulo: 'The print dialog tells you the paper size',
+    puntos: [
+      'Labels print at <b>4×6 in (101.6 × 152.4 mm)</b>, and the Print window now says so before you spend a sheet.',
+      'On a phone it says where to change it: the Android print dialog usually opens on A4, and then the label comes out the right size in the middle of a big page.',
+      'Nothing was broken — not the app and not Chrome. It was a dropdown nobody looks at until the paper is gone.'
+    ],
+    antes:  'Paper size: ISO A4 — the label printed small, in the middle of a sheet',
+    ahora:  'Paper size: 4x6 in (101.6 x 152.4 mm), said before you print' },
+
   { ver: '12.66',
     titulo: 'Every label now carries a QR code',
     puntos: [
@@ -25863,17 +25904,7 @@ var NOVEDADES = [
       'It never blocks saving: your browser\'s list can be seconds out of date, so the server still decides.'
     ],
     antes:  'Error: UNKNOWN_LOCATION|P|B',
-    ahora:  'A1p is not a location in your warehouse yet — Use A1A' },
-
-  { ver: '12.63',
-    titulo: 'Six doors that checked who you are but not how often you knock',
-    puntos: [
-      'Six functions checked identity correctly but never counted calls — enough to burn the installation\'s daily Google quota and leave the app dead for everyone until the next day.',
-      'All six now have a ceiling, counted per person, so one jammed browser tab cannot shut the warehouse out.',
-      'And <b>+ Add it</b> for a new project stopped disappearing for good when you clicked back into the box.'
-    ],
-    antes:  'A forgotten tab in a retry loop could take the app down for the day',
-    ahora:  'A ceiling on every door, counted per person' }
+    ahora:  'A1p is not a location in your warehouse yet — Use A1A' }
 
 ];
 
