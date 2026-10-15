@@ -2873,7 +2873,7 @@ var _movPage     = 1;
 var _MOV_PAGE_SZ = 75;    
 var chartsReady = false;
 var APP_VERSION = '12.70';
-var APP_BUILD = '4bda6eb8';
+var APP_BUILD = '7a64bc2d';
 var userRole = 'WAREHOUSE';
 var rolePerms = { canSeeCosts:false, canEditMovements:false, canManageCatalog:false, canExportData:true };
 var warehouseRoleLabel = 'Warehouse';
@@ -16393,9 +16393,12 @@ function _nvPintar(entrada){
     pie.textContent = 'Updates and support are the same subscription. Something not ' +
                       'working, or something you wish it did? Write to ';
     var a = document.createElement('a');
-    a.href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' +
+    var DOSBARRAS = String.fromCharCode(47, 47);
+    var AMP       = String.fromCharCode(38);
+    a.href = 'https:' + DOSBARRAS + 'mail.google.com/mail/' +
+             '?view=cm' + AMP + 'fs=1' + AMP + 'to=' +
              encodeURIComponent(ACOPIO_SOPORTE) +
-             '&su=' + encodeURIComponent('Acopio ' + APP_VERSION + ' — ');
+             AMP + 'su=' + encodeURIComponent('Acopio ' + APP_VERSION + ' - ');
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.textContent = ACOPIO_SOPORTE;
