@@ -1,5 +1,5 @@
 var APP_VERSION = '12.70';
-var APP_BUILD = 'e51256dc';
+var APP_BUILD = '4bda6eb8';
 var ACOPIO_FAVICON_URL = 'https://lh3.googleusercontent.com/d/1taYWwdJzwbArrSVjtTideDrJyNOyenOq#.png';
 var SHEETS = {
   ARCHIVE: 'MASTER_ARCHIVE_V3',

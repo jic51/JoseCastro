@@ -1667,15 +1667,27 @@
 <script>(function(){
   var SEGUNDOS = 8;
   window.__acopioArranco = false;
+  var fallo = null;
+  window.addEventListener('error', function(e){
+    if (!fallo && e) fallo = {
+      msg: String(e.message || 'error'),
+      linea: e.lineno || 0,
+      col: e.colno || 0
+    };
+  }, true);
   setTimeout(function(){
     if (window.__acopioArranco) return;           
     var nuestro = !!(window.google && window.google.script);
-    var titulo = nuestro
-      ? 'This copy of the app did not start.'
-      : 'Could not reach Google.';
-    var detalle = nuestro
-      ? 'The page loaded but its code never ran, which almost always means the ' +
-        'file was pasted incompletely. Paste Index.html again, whole, and deploy.'
+    var titulo = fallo ? 'The app stopped while loading.'
+               : nuestro ? 'This copy of the app did not start.'
+               : 'Could not reach Google.';
+    var detalle = fallo
+      ? 'Its code stopped at line ' + fallo.linea + ', column ' + fallo.col +
+        ' — ' + fallo.msg + '. Send this screen to support: the line ' +
+        'number is what identifies the problem. Your data is untouched.'
+      : nuestro
+      ? 'The page loaded but its code never ran. The most likely cause is a ' +
+        'file pasted incompletely — paste Index.html again, whole, and deploy.'
       : 'The page loaded but the Google script library did not. Check the ' +
         'connection and reload. Nothing is wrong with your data.';
     var nota = document.getElementById('splashNote');
@@ -2861,7 +2873,7 @@ var _movPage     = 1;
 var _MOV_PAGE_SZ = 75;    
 var chartsReady = false;
 var APP_VERSION = '12.70';
-var APP_BUILD = 'e51256dc';
+var APP_BUILD = '4bda6eb8';
 var userRole = 'WAREHOUSE';
 var rolePerms = { canSeeCosts:false, canEditMovements:false, canManageCatalog:false, canExportData:true };
 var warehouseRoleLabel = 'Warehouse';
