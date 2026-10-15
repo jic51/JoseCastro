@@ -127,7 +127,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.71';
+var APP_VERSION = '12.72';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +139,7 @@ var APP_VERSION = '12.71';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '30d4609d';
+var APP_BUILD = '4d000894';
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -247,14 +247,51 @@ var AC = {
   //
   // With a name of its own, a movement can be pointed at from anywhere, and
   // its position is free to change as much as it likes.
-  MOV_ID:22
+  MOV_ID:22,
+
+  // ── EL BONEYARD, Y POR QUÉ SON DOS COLUMNAS Y NO UNA ──────────────────────
+  //
+  // Jose, 15/10: *"en esta bodega tenemos boneyard, que son materiales que no
+  // se usaron en el proyecto que se suponía que deberían haberse usado... eso
+  // nos dice qué sobró de qué proyecto y dónde se lo usó"*.
+  //
+  // El movimiento RETURN ya existía y ya hacía lo correcto con el stock —resta
+  // del sitio y suma a la bodega—. Lo que faltaba era el DATO: el formulario de
+  // RETURN pedía el origen como texto libre («From (Site / Project / Address)»)
+  // y escondía el campo de proyecto a propósito. Así que el origen SÍ se
+  // escribía, pero en una columna de ubicación y sin atarse a la lista de
+  // proyectos, así que ningún informe podía agruparlo.
+  //
+  // ORIGIN_PROJECT — DE DÓNDE VOLVIÓ ESTA CANTIDAD.
+  // En un RETURN, el proyecto del que sobró. En el EXIT que después se lleva
+  // esa sobra a otra obra, el MISMO valor, copiado: así una salida dice a la
+  // vez a dónde va (PROJECT) y de dónde salió el material (ORIGIN_PROJECT),
+  // que son las dos preguntas de Jose en una sola fila.
+  //
+  // FROM_MOV — EL PUNTERO AL MOVIMIENTO DEL QUE VIENE.
+  // Un RETURN apunta al EXIT que deshace; un EXIT de boneyard apunta al RETURN
+  // del que sale. Con eso la cadena se recorre hacia atrás:
+  //
+  //   ENTRY (PO, proveedor, precio) → EXIT a A → RETURN de A → EXIT a B
+  //
+  // y «¿de dónde salió esta ventana de LAKESHORE?» termina en un PO y un
+  // precio. Es además lo que hace que los lotes y el FIFO —que están en la
+  // lista para más adelante— sean construir encima en vez de rehacer.
+  //
+  // ¿POR QUÉ LAS DOS, SI EL PROYECTO SE PODRÍA DEDUCIR DEL PUNTERO? Porque
+  // deducirlo obliga a recorrer la cadena en cada informe, y porque el
+  // movimiento al que apunta puede estar archivado o borrado —el archivador de
+  // las 3am mueve historia vieja— y entonces el paseo se corta y la respuesta
+  // desaparece. El puntero es la CADENA; el proyecto es el HECHO, y el hecho de
+  // esta fila no puede depender de que otra fila siga existiendo.
+  ORIGIN_PROJECT:23, FROM_MOV:24
 };
 // The archive row's true width. Every fixed-size read or write of the whole
 // row uses this constant, not a literal — four different places in this file
 // used to each spell out `20` by hand, which is exactly the kind of duplicated
 // magic number that gets fixed in three places and shipped broken in the
 // fourth. One constant, so adding a column here again means changing ONE line.
-var AC_WIDTH = 23;
+var AC_WIDTH = 25;
 
 // A deleted movement is the movement's OWN row, unchanged, with three columns
 // added on the end saying what happened to it. The row is copied verbatim so a
@@ -517,12 +554,30 @@ function getSetupState() {
 //
 // Existing sheets are never touched: this only fills in what is missing, so it
 // is safe on an installation that already has data.
+/* LAS DOS ÚLTIMAS COLUMNAS DEL ARCHIVO, Y UNA NOTA SOBRE DÓNDE VA ESTA NOTA.
+ *
+ * «Left Over From» y «From Movement» llegaron en la v12.72 con el boneyard, y
+ * las cazó `test-movement-id`: la fila pasó a 25 columnas y la cabecera se
+ * quedó en 23, así que en la hoja habrían salido dos columnas con datos y sin
+ * título. Una columna sin nombre en un documento que el cliente abre a mano no
+ * es un detalle de estilo: es un dato que nadie sabe leer, justo al lado de los
+ * que sí. «Left Over From» y no «Origin Project» porque quien abre la hoja es
+ * un jefe de bodega, no quien escribió el esquema.
+ *
+ * Y ESTE COMENTARIO VA FUERA DE LA LISTA A PROPÓSITO. Primero lo puse DENTRO,
+ * entre los títulos, y rompió dos pruebas de golpe: las dos sacan la cabecera
+ * del código —para no reescribirla y acabar probando la copia— y las dos la
+ * parten por comas. Las comas de la prosa contaban como columnas. Se puede
+ * endurecer el parseo, y en una de ellas se hizo; pero la causa era meter
+ * texto con comas dentro de un literal que medio repositorio lee como lista,
+ * y la causa se arregla una vez. */
 function ensureCoreSheets_(ss) {
   var SPEC = [
     { name: SHEETS.ARCHIVE, header: [
         'System Date','Type','Name','GC','PO#','Qty','Unit','Date Received','Source Location',
         'Supplier','Comments','Status','Received By','Project','Mat ID','Doc Links','User Email',
-        'Destination Location','MoveType','PM','Unit Cost','Total Cost','Movement ID'] },
+        'Destination Location','MoveType','PM','Unit Cost','Total Cost','Movement ID',
+        'Left Over From','From Movement'] },
     { name: SHEETS.CONFIG, header: [
         'Projects','Categories','Suppliers','Locations','Location Type','User Email','User Role',
         'Admin Email','Truck','Truck Person','Truck Status','Min Stock Material','Min Stock Qty',
@@ -3046,7 +3101,11 @@ function parseArchiveRow(row, rowIdx) {
     userEmail:   String(row[AC.USER_EMAIL] || ''),
     pm:          String(row[AC.PM]         || ''),
     unitCost:    (row[AC.UNIT_COST]  === '' || row[AC.UNIT_COST]  === null || row[AC.UNIT_COST]  === undefined) ? null : Number(row[AC.UNIT_COST]),
-    totalCost:   (row[AC.TOTAL_COST] === '' || row[AC.TOTAL_COST] === null || row[AC.TOTAL_COST] === undefined) ? null : Number(row[AC.TOTAL_COST])
+    totalCost:   (row[AC.TOTAL_COST] === '' || row[AC.TOTAL_COST] === null || row[AC.TOTAL_COST] === undefined) ? null : Number(row[AC.TOTAL_COST]),
+    /* El boneyard. Vacío en toda la historia anterior, y eso está bien: una
+     * fila sin origen es material normal, que es lo que era. */
+    originProject: String(row[AC.ORIGIN_PROJECT] || '').trim(),
+    fromMov:       String(row[AC.FROM_MOV]       || '').trim()
   };
 }
 
@@ -3080,6 +3139,21 @@ function calculateStock(movements, locksMap) {
         totalQty:     0,
         reservedQty:  0,
         availableQty: 0,
+        /* ── EL BONEYARD, CONTADO POR PROYECTO DE ORIGEN ──────────────────
+         *
+         * `{ 'BLACK HOUSE 2': 40, 'SUMMIT VIEW': 12 }` — cuántas unidades de
+         * ESTE material hay en bodega que sobraron de cada obra.
+         *
+         * Es un mapa y no un número porque la pregunta de Jose es «qué sobró
+         * de QUÉ proyecto». Un total de boneyard diría «40 son sobras» y se
+         * callaría lo único que hace falta para usarlas.
+         *
+         * Y es un ESTADO, no una categoría: el material sigue siendo
+         * WINDOW SCREEN. Lo que cambia es que 40 de sus unidades saben de
+         * dónde vinieron. Así el stock no se parte en dos y añadir una
+         * categoría nueva no obliga a crearle una gemela de boneyard —que
+         * sería otra pareja que tiene que coincidir sin que nada lo obligue. */
+        boneyard:     {},
         unit:         m.unit || 'UNIT',
         _errors:      []
       };
@@ -3112,6 +3186,21 @@ function calculateStock(movements, locksMap) {
       }
       s.warehouseQty = Math.max(0, s.warehouseQty - qty);
       s.siteQty     += qty;   // FIX #3: goes to siteQty, not a separate withInstallerQty
+      /* Y SI SALIÓ DEL BONEYARD, se descuenta de la obra de la que había
+       * sobrado. Ésta es la otra mitad de la pregunta de Jose: la fila dice a
+       * dónde va en PROJECT y de dónde salió en ORIGIN_PROJECT, así que «qué
+       * sobró de dónde» y «dónde se usó» son la misma fila leída por dos
+       * columnas distintas.
+       *
+       * Con tope en cero y sin apuntar error: a diferencia de un estante, el
+       * boneyard de una obra puede quedarse corto por historia legítima —una
+       * devolución borrada, una salida registrada a mano antes de que esto
+       * existiera— y un «NEG@» por eso llenaría el informe de calidad de
+       * avisos sobre algo que nadie hizo mal. */
+      if (m.originProject && s.boneyard[m.originProject]) {
+        s.boneyard[m.originProject] = Math.max(0, s.boneyard[m.originProject] - qty);
+        if (!s.boneyard[m.originProject]) delete s.boneyard[m.originProject];
+      }
 
     } else if (mt === 'TRANSFER') {
       if (m.sourceLoc) {
@@ -3131,6 +3220,14 @@ function calculateStock(movements, locksMap) {
       var retRack = m.destLoc || 'UNASSIGNED';
       s.warehouseLocs[retRack] = (s.warehouseLocs[retRack] || 0) + qty;
       s.warehouseQty += qty;
+      /* Y ENTRA AL BONEYARD, con el nombre de la obra de la que sobró. Sin
+       * origen no entra: una devolución de antes de la v12.72 —o una que
+       * alguien guarde sin elegir proyecto— es material que vuelve, y eso ya
+       * está contado arriba. Meterla en el boneyard con la clave vacía
+       * inventaría un proyecto llamado «» y lo enseñaría en la pantalla. */
+      if (m.originProject) {
+        s.boneyard[m.originProject] = (s.boneyard[m.originProject] || 0) + qty;
+      }
 
     } else if (mt === 'WASTE') {
       var wSrc = m.sourceLoc || findFirstWarehouseLoc(s.warehouseLocs, qty);
@@ -4540,6 +4637,27 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       // handed one that exists — and each draw is added to that list, so the
       // rows of one batch cannot collide with each other either.
       row[AC.MOV_ID]      = uniqueMovId_(takenIds, newRows.length, now);
+
+      /* ── EL BONEYARD ─────────────────────────────────────────────────────
+       *
+       * Sólo lo llevan los movimientos a los que SIGNIFICA algo: el RETURN que
+       * trae la sobra y el EXIT que después se la lleva a otra obra. En una
+       * entrada de proveedor o en un traslado entre estantes no hay origen que
+       * contar, y escribirlo ahí sería ruido con cara de dato.
+       *
+       * Se normaliza con la misma función que el proyecto —`normalizeString`,
+       * que es lo que usa `proj` arriba— y NO con `cleanDisplay_`: los dos
+       * campos guardan nombres de proyecto y tienen que poder compararse entre
+       * ellos. Dos normalizaciones distintas sobre la misma clase de dato son
+       * dos cosas que tienen que coincidir sin que nada lo obligue, y eso en
+       * este proyecto ya ha salido caro once veces. */
+      if (mt === 'RETURN' || mt === 'EXIT') {
+        row[AC.ORIGIN_PROJECT] = d.originProject ? normalizeString(d.originProject) : '';
+        row[AC.FROM_MOV]       = String(d.fromMov || '').trim();
+      } else {
+        row[AC.ORIGIN_PROJECT] = '';
+        row[AC.FROM_MOV]       = '';
+      }
 
       newRows.push(row);
       rowMeta.push({

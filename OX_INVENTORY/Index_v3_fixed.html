@@ -525,6 +525,15 @@
     .badge-purple{background:var(--purple-bg);color:var(--purple)}
     .badge-gray{background:#F3F4F6;color:#6B7280}
     .badge-dark{background:#1F2937;color:#F9FAFB}
+    /* ── LA MARCA DE BONEYARD ──────────────────────────────────────────────
+     * Sublínea bajo el nombre, con el mismo tamaño y el mismo aire que la del
+     * proyecto que ya vivía ahí — son hermanas y tienen que leerse como tales.
+     * Lo único distinto es el color: ámbar, que en esta app significa «algo
+     * que mirar», no «algo que está mal». Rojo sería mentira: una sobra no es
+     * un problema, es material pagado esperando obra. */
+    .bone-marca{display:inline-block;margin-top:2px;font-size:.72rem;
+      color:#b45309;font-weight:600}
+    :root[data-theme="dark"] .bone-marca{color:#fbbf24}
     .badge-slate{background:#E2E8F0;color:var(--steel)}
     .badge-teal{background:#CCFBF1;color:#0F766E}
     .badge-pink{background:#FCE7F3;color:#BE185D}
@@ -5141,6 +5150,35 @@
         <input type="text" id="mProj" list="projList" data-cfg-new="projects">
         <datalist id="projList"></datalist>
       </div>
+      <!-- ── DE QUÉ OBRA VUELVE (RETURN), Y POR QUÉ ES UN CAMPO APARTE ──────
+           Jose, 15/10: *"eso nos dice qué sobró de qué proyecto y dónde se lo
+           usó"*.
+
+           El RETURN ya existía y ya hacía lo correcto con el stock. Lo que no
+           existía era el dato: el formulario pedía el origen como texto libre
+           en «From (Site / Project / Address)» —una columna de UBICACIÓN— y
+           escondía el proyecto a propósito. El origen se escribía y no se podía
+           agrupar.
+
+           NO SE REUTILIZA `mProj`, y el motivo es de significado, no de
+           comodidad: `mProj` es «la obra PARA la que es este movimiento», y una
+           devolución no es PARA una obra, es DE una obra. Si se guardaran en la
+           misma columna, el motor de stock —que hace `s.project = m.project`—
+           etiquetaría el material con la obra de la que volvió, cuando lo que
+           pasa es justo lo contrario: ya está en bodega y sin asignar.
+
+           Y en una SALIDA los dos conviven: `mProj` dice a dónde va y esto de
+           dónde salió. Una fila, las dos preguntas de Jose. -->
+      <div class="field" id="mOrigProjField" style="display:none">
+        <label id="origProjLabel">Came back from (project)</label>
+        <input type="text" id="mOrigProj" list="projList" data-cfg-new="projects">
+        <!-- La lista de la SALIDA es distinta de la de la devolución, y a
+             propósito: al devolver, el origen puede ser cualquier obra; al
+             sacar, sólo las obras de las que QUEDA algo, con cuánto queda al
+             lado. Ofrecer las 25 obras cuando sólo dos tienen sobras es
+             invitar a elegir una que no existe. -->
+        <datalist id="boneList"></datalist>
+      </div>
       <div class="field" id="mRespFieldWrap">
         <label id="respLabel">Received By</label>
         <input type="text" id="mResp">
@@ -5393,7 +5431,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.71';
+var APP_VERSION = '12.72';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5405,7 +5443,7 @@ var APP_VERSION = '12.71';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '30d4609d';
+var APP_BUILD = '4d000894';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -8757,7 +8795,7 @@ function renderStock(){
     // row can never drift out of step with the header it sits under.
     var cells = {
       category:     '<td class="sc-category">'+catBadge(s.category)+'</td>',
-      name:         '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+'</td>',
+      name:         '<td class="sc-name"><strong>'+_he(s.name)+'</strong>'+(s.project&&s.project!=='GENERIC'?'<br><span style="font-size:.72rem;color:var(--muted)">'+_he(s.project)+'</span>':'')+_boneyardMarca(s)+'</td>',
       levels:       _levelsCell(s),
       location:     '<td class="sc-location" style="color:var(--muted);font-size:.78rem;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(locTip)+'">'+lockMark+_he(locTxt)+'</td>',
       status:       '<td class="sc-status">'+stockBadge(s)+'</td>',
@@ -9107,7 +9145,25 @@ function renderMovements(){
       locFlow:  '<td class="mc-locFlow" style="font-size:.78rem;color:var(--muted)">'+_he(locDisplay)+'</td>',
       rawLoc:   '<td class="mc-rawLoc" style="font-size:.75rem;color:var(--muted)">'+_he(srcDest)+'</td>',
       gc:       '<td class="mc-gc" style="font-size:.78rem">'+_he(m.gc||'—')+'</td>',
-      project:  '<td class="mc-project" style="font-size:.78rem">'+_he(m.project||'—')+'</td>',
+      /* ── «DÓNDE SE USÓ» Y «DE DÓNDE SALIÓ», EN LA MISMA CELDA ────────────
+       *
+       * La columna de proyecto dice a dónde va. Si la cantidad salió del
+       * boneyard, debajo y en pequeño dice de qué obra sobró. Una fila
+       * contesta las dos preguntas de Jose a la vez, que es justo por lo que
+       * son dos columnas en la hoja y no una.
+       *
+       * En una DEVOLUCIÓN no hay destino —vuelve a la bodega— así que la
+       * celda enseña sólo el origen, y la flecha hacia atrás dice de qué se
+       * trata sin gastar una palabra. */
+      project:  (function(){
+        var destino = m.project || '';
+        var origen  = m.originProject || '';
+        if (!origen) return '<td class="mc-project" style="font-size:.78rem">'+_he(destino||'—')+'</td>';
+        var arriba = destino ? _he(destino) : '<span style="color:var(--muted)">—</span>';
+        return '<td class="mc-project" style="font-size:.78rem">' + arriba +
+          '<br><span class="bone-marca" title="Left over from this project">↩ ' +
+          _he(origen) + '</span></td>';
+      })(),
       supplier: '<td class="mc-supplier" style="font-size:.78rem">'+_he(m.supplier||'—')+'</td>',
       resp:     '<td class="mc-resp" style="font-size:.78rem">'+_he(m.responsible||'—')+'</td>',
       comment:  '<td class="mc-comment" style="font-size:.78rem;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_escAttr(m.comments||'')+'">'+_he(m.comments||'—')+'</td>',
@@ -10297,6 +10353,12 @@ function openMoveModal(type){
   // returns, once it has its own material to prefill.
   _rdwPrefillActive = null;
 
+  /* Y sin puntero de boneyard de la apertura anterior, por el mismo motivo que
+   * la tarjeta de entrantes de ahí abajo: un puntero que sobrevive a la
+   * ventana que lo eligió acabaría colgado del siguiente movimiento, diciendo
+   * que una salida cualquiera viene de una devolución que nadie mencionó. */
+  _boneyardOrigenMov = '';
+
   // Y sin tarjeta pendiente colgando de la apertura anterior. Mismo motivo que
   // la línea de arriba, y aquí importa más: si alguien abre la entrada desde
   // una tarjeta, la cierra sin guardar y más tarde registra OTRA entrada
@@ -10363,6 +10425,108 @@ function openMoveModal(type){
   _focusMoveName();
 }
 
+/* LA MARCA DE BONEYARD EN LA TABLA — «qué sobró de dónde», de un vistazo.
+ *
+ * Va debajo del nombre, como la sublínea del proyecto que ya estaba ahí, y no
+ * en una columna nueva: es un dato que la mayoría de los materiales no tiene,
+ * y una columna vacía en el 95% de las filas cuesta ancho a todas para servir
+ * a unas pocas.
+ *
+ * Y ES UN ESTADO, NO UNA CATEGORÍA. El material sigue siendo WINDOW SCREEN;
+ * lo que dice la marca es que 40 de sus unidades sobraron de BLACK HOUSE 2.
+ * Si fuera una categoría, el mismo window screen estaría partido en dos filas
+ * y el total de la pantalla no sería el total de la bodega. */
+function _boneyardMarca(s){
+  var b = (s && s.boneyard) || {};
+  var obras = Object.keys(b).filter(function(p){ return b[p] > 0; });
+  if (!obras.length) return '';
+  /* La de más unidades primero: si hay que cortar, que lo que se vea sea lo
+   * que más pesa. */
+  obras.sort(function(a, c){ return b[c] - b[a]; });
+  var total = obras.reduce(function(a, p){ return a + b[p]; }, 0);
+  var detalle = obras.map(function(p){ return p + ': ' + b[p]; }).join(' · ');
+  var texto = obras.length === 1
+    ? total + ' left over from ' + obras[0]
+    : total + ' left over from ' + obras.length + ' projects';
+  return '<br><span class="bone-marca" title="' + _escAttr(detalle) + '">↩ ' +
+         _he(texto) + '</span>';
+}
+
+/* ── EL BONEYARD EN LA SALIDA ───────────────────────────────────────────────
+ *
+ * Jose, 15/10: *"eso nos dice qué sobró de qué proyecto y DÓNDE SE LO USÓ"*.
+ * La primera mitad la contesta el RETURN; ésta es la segunda.
+ *
+ * El puntero al movimiento del que sale. Se busca entre los movimientos que el
+ * navegador ya tiene, así que no cuesta ni una llamada al servidor: la
+ * devolución más reciente de ESE material con ESE origen. Con él, «¿de dónde
+ * salió esta ventana de LAKESHORE?» sube por la cadena hasta el PO y el precio.
+ *
+ * Vive fuera de la función porque lo lee `submitMovement` al armar el envío, y
+ * se limpia en cada apertura del modal — un puntero que sobrevive a la ventana
+ * que lo eligió acabaría colgado del movimiento siguiente. */
+var _boneyardOrigenMov = '';
+
+/* Cuántas sobras hay de un material, por obra de origen. Devuelve `{}` si no
+ * hay ninguna, que es el caso normal y por eso es el barato. */
+function _boneyardDe(cat, name){
+  if (!cat || !name) return {};
+  var k = _normKey(cat) + '|||' + _normKey(name);
+  return (stockData[k] && stockData[k].boneyard) || {};
+}
+
+/* Enciende o apaga el campo según lo que haya. Se la llama al elegir material
+ * y al cambiar de tipo: las dos cosas pueden hacer que la respuesta cambie. */
+function _boneyardSync(){
+  if (currentMoveType !== 'EXIT') return;
+  var cat  = (document.getElementById('mType') || {}).value || '';
+  var name = (document.getElementById('mName') || {}).value || '';
+  var bone = _boneyardDe(cat, name);
+  var obras = Object.keys(bone);
+  if (!obras.length){ _origProjMostrar(false); return; }
+
+  /* La lista con la CANTIDAD al lado, no sólo el nombre. Quien está sacando
+   * material necesita saber si le alcanza antes de elegir, no después de
+   * guardar — y el aviso de «te pasaste» llega cuando ya escribió todo. */
+  var dl = document.getElementById('boneList');
+  if (dl){
+    dl.innerHTML = obras.map(function(p){
+      return '<option value="' + _he(p) + '">' + _he(p) + ' — ' + bone[p] + ' available</option>';
+    }).join('');
+  }
+  _origProjMostrar(true, 'Taken from boneyard (leave blank if it is normal stock)');
+}
+
+/* EL CAMPO DE «DE QUÉ OBRA VIENE», ENCENDIDO EN UN SOLO SITIO.
+ *
+ * Lo usan dos pantallas con etiquetas distintas —la devolución dice «came back
+ * from», la salida de boneyard dice «taken from»— y las dos tienen que poder
+ * apagarlo. Una función en vez de cuatro líneas repetidas por rama, porque
+ * cuatro líneas repetidas por rama son cuatro sitios donde olvidarse de una. */
+function _origProjMostrar(on, etiqueta){
+  var campo = document.getElementById('mOrigProjField');
+  var lbl   = document.getElementById('origProjLabel');
+  var inp   = document.getElementById('mOrigProj');
+  if (!campo) return;
+  campo.style.display = on ? 'flex' : 'none';
+  if (on && etiqueta && lbl) lbl.textContent = etiqueta;
+  if (on && inp) {
+    /* La lista depende de la pantalla. En la SALIDA sólo las obras que tienen
+     * sobras de este material; en la DEVOLUCIÓN, la lista de proyectos entera
+     * —y con `data-cfg-new` puesto, porque se puede devolver de una obra que
+     * todavía no está en la lista y hay que poder añadirla sin salir—. */
+    var salida = (currentMoveType === 'EXIT');
+    inp.setAttribute('list', salida ? 'boneList' : 'projList');
+    if (salida) inp.removeAttribute('data-cfg-new');
+    else        inp.setAttribute('data-cfg-new', 'projects');
+  }
+  /* Al apagarlo se VACÍA. Si no, el valor escrito en una devolución viajaría
+   * escondido hasta el siguiente guardado de otro tipo — un campo invisible
+   * con contenido es la forma más silenciosa de escribir un dato que nadie
+   * eligió. */
+  if (!on) { var inp = document.getElementById('mOrigProj'); if (inp) inp.value = ''; }
+}
+
 function setModalType(type){
   currentMoveType = type.toUpperCase();
 
@@ -10405,6 +10569,12 @@ function setModalType(type){
   gcField.style.display  = 'flex';
   poField.style.display  = 'flex';
   projField.style.display = 'flex';
+  /* El de origen vuelve a esconderse en CADA cambio de tipo, igual que todo lo
+   * demás de este bloque. El comentario de ahí abajo sobre el «Reason for
+   * Waste» que no se renombraba cuenta exactamente lo que pasa cuando algo de
+   * aquí se enciende y nadie lo apaga: una pantalla hereda el campo de la
+   * anterior y pide algo que no tiene sentido pedirle. */
+  _origProjMostrar(false);
   fileSection.style.display = 'none';
   notifySection.style.display = 'none';
   entryLocsSection.style.display = 'none';
@@ -10489,6 +10659,11 @@ function setModalType(type){
     respLabel.textContent = 'Taken By / Given To';
     mStatus.value = 'Out';
     _initMultiExitSection();
+    /* El campo de boneyard en la SALIDA no se enciende aquí sino cuando se
+     * elige el material: hasta entonces no se sabe si ese material tiene
+     * sobras, y un campo que pregunta por algo que no existe es un campo que
+     * se contesta mal. Lo hace `_boneyardSync`, colgada del nombre. */
+    _boneyardSync();
 
   } else if (type === 'TRANSFER'){
     // TRANSFER uses the multi-pair rows section instead of the single src/dest fields
@@ -10508,13 +10683,20 @@ function setModalType(type){
 
   } else if (type === 'RETURN'){
     srcField.style.display  = 'flex';
-    srcLabel.textContent    = 'From (Site / Project / Address)';
+    /* La etiqueta deja de decir «Project» porque el proyecto ya tiene su
+     * propio campo debajo. Pedir lo mismo en dos sitios con nombres parecidos
+     * es cómo se consigue que la mitad de las devoluciones lo escriban en el
+     * campo que no agrupa — que es exactamente lo que llevaba pasando. */
+    srcLabel.textContent    = 'From (site or address)';
     destField.style.display = 'flex';
     destLabel.textContent   = 'Return to Rack';
     supField.style.display  = 'none';
     gcField.style.display   = 'none';
     poField.style.display   = 'none';
     projField.style.display = 'none';
+    /* Y EL QUE SÍ AGRUPA. Es lo único que esta versión añade al RETURN, y es
+     * todo lo que hacía falta para contestar «qué sobró de qué obra». */
+    _origProjMostrar(true, 'Came back from (project)');
     dateLabel.textContent = 'Date Returned';
     respLabel.textContent = 'Returned By';
     mStatus.value = 'In Stock';
@@ -11459,6 +11641,35 @@ async function submitMovement(){
   var name = (document.getElementById('mName').value || '').trim();
   if (!name){ alert('Please enter a material name'); return; }
 
+  /* ── LA DEVOLUCIÓN TIENE QUE DECIR DE DÓNDE VUELVE ────────────────────────
+   *
+   * Obligatorio, y es una decisión, no un descuido: si se deja opcional la
+   * mitad de las devoluciones se guardan en blanco y el dato no sirve para
+   * nada —que es exactamente la situación que esta versión viene a arreglar—.
+   * Y quien está devolviendo material SIEMPRE sabe de dónde viene; es lo único
+   * que tiene delante.
+   *
+   * El campo acepta texto libre además de la lista, así que una obra que no
+   * esté dada de alta, o una dirección suelta, se escriben igual. Lo que no se
+   * puede es no contestar.
+   *
+   * Se comprueba AQUÍ y no en el servidor a propósito: es calidad de dato, no
+   * seguridad. Una llamada directa a la API podría saltárselo, y eso está
+   * bien — el importador de historia vieja entra por ahí y sus filas no tienen
+   * origen que poner. Bloquearlo en el servidor rompería la importación para
+   * defender una estadística. */
+  if (currentMoveType === 'RETURN'){
+    var _op = ((document.getElementById('mOrigProj') || {}).value || '').trim();
+    if (!_op){
+      alert('Which project is this coming back from?\n\n' +
+            'This is what lets the app tell you later what was left over from ' +
+            'where, and where it ended up being used.');
+      var _opEl = document.getElementById('mOrigProj');
+      if (_opEl) _opEl.focus();
+      return;
+    }
+  }
+
   // ── ENTRY: gather multi-location rows (legacy path — no longer reached) ───
   var entryLocations = [];
   if (currentMoveType === 'ENTRY'){
@@ -11642,6 +11853,44 @@ async function submitMovement(){
 
   var proj = (document.getElementById('mProj').value || '').trim();
 
+  /* ── EL BONEYARD, RESUELTO JUSTO ANTES DE ENVIAR ──────────────────────────
+   *
+   * Dos cosas pasan aquí y las dos tienen que pasar AHORA, con el formulario
+   * ya completo: avisar si se está sacando más sobra de la que hay, y buscar
+   * el puntero al movimiento del que sale.
+   *
+   * El aviso NO bloquea. Puede haber sobras legítimas que la app no contó —
+   * devoluciones de antes de la v12.72, o historia importada— y negarse a
+   * guardar por una cuenta que la propia app sabe incompleta sería impedir
+   * trabajar por culpa de un dato nuestro. Avisa y deja decidir, igual que el
+   * aviso de «te pasaste del estante» que ya existe unas líneas más arriba. */
+  var origProj = ((document.getElementById('mOrigProj') || {}).value || '').trim();
+  _boneyardOrigenMov = '';
+  if (origProj && currentMoveType === 'EXIT') {
+    var bone = _boneyardDe(cat, name);
+    var hay  = bone[_normKey(origProj)] || bone[origProj.toUpperCase()] || bone[origProj] || 0;
+    if (hay && qty > hay) {
+      if (!confirm('You are taking ' + qty + ' but only ' + hay +
+                   ' are recorded as left over from ' + origProj +
+                   '.\n\nSave anyway? The rest will be counted as normal stock.')) return;
+    }
+    /* El puntero: la devolución MÁS RECIENTE de este material con este origen.
+     * Se busca en lo que el navegador ya tiene, así que no cuesta una llamada.
+     * Si no se encuentra —historia archivada— se manda vacío: el proyecto de
+     * origen, que es el HECHO, se guarda igual. Ésa es la razón de que sean
+     * dos columnas y no una. */
+    var kMat = _normKey(cat) + '|||' + _normKey(name);
+    for (var bi = movements.length - 1; bi >= 0; bi--) {
+      var bm = movements[bi];
+      if (bm.moveType !== 'RETURN') continue;
+      if (!bm.movId) continue;
+      if ((_normKey(bm.category) + '|||' + _normKey(bm.name)) !== kMat) continue;
+      if (_normKey(bm.originProject || '') !== _normKey(origProj)) continue;
+      _boneyardOrigenMov = bm.movId;
+      break;
+    }
+  }
+
   // Build the payload once; _doSubmit can be called with forceSubmit=true on retry
   var payload = {
     moveType:         currentMoveType,
@@ -11659,6 +11908,12 @@ async function submitMovement(){
     locations:         currentMoveType === 'ENTRY'    ? entryLocations    : null,
     exitLocations:     currentMoveType === 'EXIT'     ? exitLocations     : null,
     transferLocations: currentMoveType === 'TRANSFER' ? transferLocations : null,
+    /* El boneyard. Se manda siempre y el servidor decide si significa algo:
+     * sólo lo guarda en RETURN y EXIT. Filtrar aquí ADEMÁS de allí serían dos
+     * sitios que tienen que decidir lo mismo, y el que se quedara viejo lo
+     * haría en silencio. */
+    originProject:    (document.getElementById('mOrigProj') || {}).value || '',
+    fromMov:          _boneyardOrigenMov || '',
     supplier:         document.getElementById('mSup').value,
     comments:         comments,
     status:           document.getElementById('mStatus').value,
@@ -26303,8 +26558,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Modal fields
   _safeOn('mType','change', function(){ updateMatList(); checkStock(); });
-  _safeOn('mName','input',  function(){ checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); triggerSimilarCheck(); });
-  _safeOn('mType','change', function(){ validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); });
+  _safeOn('mName','input',  function(){ checkStock(); updateNotifyPreview(); validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); triggerSimilarCheck(); _boneyardSync(); });
+  _safeOn('mType','change', function(){ validateExitRows(); autoFillExitRows(); renderTransferLocPicker(); validateTransferRows(); _boneyardSync(); });
   _safeOn('mQty','input',   updateNotifyPreview);
   _safeOn('mUnit','change', updateNotifyPreview);
   _safeOn('mProj','input',  updateNotifyPreview);
@@ -26785,6 +27040,17 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.72',
+    titulo: 'What was left over, from which job, and where it ended up',
+    puntos: [
+      'A <b>Return</b> now asks which project the material is coming back from. That one answer is what lets the app tell you later what was left over from where.',
+      'Leftovers show under the material in the stock table: <b>28 left over from BLACK HOUSE 2</b>. The material stays what it is \u2014 a window screen is still a window screen.',
+      'When you send leftovers out to another job, the app offers them and shows how many are available. The movement then reads both ways: where it went, and which job it was left over from.',
+      'Nothing is counted twice. A return is not a purchase, so your inventory value does not inflate.'
+    ],
+    antes:  'Leftovers filed under a BONEYARD category, with no idea whose they were',
+    ahora:  'The material keeps its name, and the leftovers remember their job' },
+
   { ver: '12.71',
     titulo: 'Scan from where you work, and a notice that keeps its word',
     puntos: [
@@ -26806,16 +27072,6 @@ var NOVEDADES = [
     ],
     antes:  'Typing the material and the shelf by hand, every time',
     ahora:  'Point the camera at the label and confirm' },
-
-  { ver: '12.69',
-    titulo: 'The offline notice stops pushing the app around',
-    puntos: [
-      'The red and green connection messages now <b>float over the top</b> instead of taking space. The page no longer jumps down and back up for a five-second notice.',
-      'What is underneath stays clickable — the tabs and your account button keep working while the notice is on screen.',
-      'The notice about two files not matching still takes its space. That one lives for months and must never be covered.'
-    ],
-    antes:  'The whole app jumped down, then back up, for a five-second notice',
-    ahora:  'A pill that floats over the top and touches nothing' },
 
   { ver: '12.68',
     titulo: 'Labels for your racks, not just your material',
