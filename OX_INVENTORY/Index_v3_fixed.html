@@ -5431,7 +5431,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.72';
+var APP_VERSION = '12.73';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5443,7 +5443,7 @@ var APP_VERSION = '12.72';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '4d000894';
+var APP_BUILD = '610b8d38';
 var userRole = 'WAREHOUSE';
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
@@ -23531,6 +23531,38 @@ function _escSePuede(){
   if (typeof BarcodeDetector === 'undefined') return 'sin-lector';
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return 'sin-camara';
   if (!window.isSecureContext) return 'sin-https';
+  /* ── Y LA QUE FALTABA: QUE ADEMÁS DE EXISTIR, ESTÉ PERMITIDA ─────────────
+   *
+   * Jose, 15/10, con vídeo: el botón salía en su teléfono, la ventana se abría
+   * con su mira dibujada, decía «Point the camera at a label»… y el recuadro
+   * estaba NEGRO. Chrome no llegó a pedir permiso de cámara.
+   *
+   * Las tres comprobaciones de arriba miran si las APIs EXISTEN. Y existen: el
+   * teléfono tiene `BarcodeDetector`, tiene `getUserMedia` y la conexión es
+   * segura. Lo que no hay es PERMISO, y ésa era la pregunta.
+   *
+   * Apps Script sirve esta página dentro de un iframe de otro origen
+   * (googleusercontent.com). Desde Chrome 64, un iframe de otro origen no
+   * tiene cámara salvo que la página que lo incrusta se la conceda con
+   * `allow="camera"` — y quien incrusta este iframe es Google, no nosotros.
+   * La llamada falla con `NotAllowedError`, el mismo error que si el usuario
+   * hubiera dicho que no, y por eso parecía un problema de permisos del
+   * teléfono cuando no lo era.
+   *
+   * `allowsFeature('camera')` lo contesta ANTES de encender nada, así que el
+   * botón puede esconderse y el mensaje puede decir la verdad en vez de
+   * enseñar un rectángulo negro con un texto que pide apuntar la cámara.
+   *
+   * Se consulta con cuidado: el nombre de la API cambió —`featurePolicy` en
+   * los Chrome viejos, `permissionsPolicy` en los nuevos— y en los navegadores
+   * donde no existe ninguna de las dos no se concluye nada. Dar por bloqueado
+   * lo que no se pudo preguntar apagaría la función en sitios donde sí anda. */
+  var pol = document.permissionsPolicy || document.featurePolicy;
+  try {
+    if (pol && typeof pol.allowsFeature === 'function' && !pol.allowsFeature('camera')) {
+      return 'iframe-sin-camara';
+    }
+  } catch (e) {}
   return 'si';
 }
 
@@ -23540,6 +23572,18 @@ function _escMensajeNo(motivo){
            'that is where scanning works today. You can still type the material in by hand.';
   if (motivo === 'sin-camara')
     return 'No camera available on this device.';
+  /* EL MENSAJE QUE DICE LA VERDAD. Antes, en este caso, no había mensaje: se
+   * abría la ventana con un rectángulo negro y «Point the camera at a label».
+   * La persona miraba su teléfono buscando el permiso que nunca le pidieron.
+   *
+   * No se le pide que arregle nada porque NO PUEDE: lo bloquea la página de
+   * Google que contiene a la app. Decir «dale permiso a la cámara» mandaría a
+   * alguien a pelearse diez minutos con los ajustes de Chrome para nada. */
+  if (motivo === 'iframe-sin-camara')
+    return 'The camera cannot be used here. Google runs this app inside a frame ' +
+           'that does not allow camera access, and that is not something you or ' +
+           'the app can change from this screen. Type the material in by hand for ' +
+           'now — a way to scan that works around this is being built.';
   return 'Scanning needs a secure connection (https).';
 }
 
@@ -27040,6 +27084,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.73',
+    titulo: 'Why the camera does not open, said plainly',
+    puntos: [
+      'Scanning opened a black box that asked you to point the camera. It could never have worked: <b>Google runs this app inside a frame that does not allow camera access</b>, and nothing you or the app can do from that screen changes it.',
+      'The app now checks before opening anything. Where the camera is blocked the button stays away and the message says who is blocking it \u2014 instead of sending you to fight with your phone settings for nothing.',
+      'The reader itself is built and works. What it needs is a different way in, and that is the next piece.'
+    ],
+    antes:  'A black rectangle asking you to point a camera that was never allowed to turn on',
+    ahora:  'It tells you what is in the way, and stops wasting your time' },
+
   { ver: '12.72',
     titulo: 'What was left over, from which job, and where it ended up',
     puntos: [
@@ -27061,17 +27115,6 @@ var NOVEDADES = [
     ],
     antes:  'The green notice left in six seconds, with the data still on its way',
     ahora:  'It waits for the data, and then tells you' },
-
-  { ver: '12.70',
-    titulo: 'Scan a label with the phone camera',
-    puntos: [
-      '<b>Scan</b> in the account menu opens the camera. Point it at a label — material or rack — and the app offers what you can do with it: take it out, move it, or see what is on that shelf.',
-      'Scan a material <b>and</b> a rack and it offers the move, with the destination already filled in.',
-      'Scanning never saves anything on its own. It fills the form and you check it before it goes in.',
-      'And if the app ever fails to start, the loading screen now says so and why, instead of saying <b>Connecting</b> forever.'
-    ],
-    antes:  'Typing the material and the shelf by hand, every time',
-    ahora:  'Point the camera at the label and confirm' },
 
   { ver: '12.68',
     titulo: 'Labels for your racks, not just your material',

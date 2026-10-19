@@ -1,0 +1,72 @@
+<!-- LA VENTANA DE LA PRUEBA.
+     Mide el sitio que Sheets le dio de verdad y lo enseña en grande, para que
+     se pueda fotografiar de un vistazo. Y deja un botón que escribe una fila,
+     que es lo que comprueba que el permiso pequeño alcanza para trabajar. -->
+<style>
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,sans-serif;color:#14181f;
+       background:#f4f5f3}
+  .caja{padding:18px 20px}
+  h2{font-size:17px;margin:0 0 14px}
+  .med{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .t{background:#fff;border:1px solid #dfe2dd;border-radius:4px;padding:10px 14px;
+     min-width:120px}
+  .t span{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+          color:#5c6572}
+  .t b{display:block;font:600 30px/1.1 ui-monospace,Menlo,monospace;color:#b45309;
+       margin-top:2px}
+  .nota{font-size:13px;color:#5c6572;max-width:60ch}
+  button{font:600 15px system-ui;padding:10px 16px;border-radius:4px;
+         border:1px solid #14181f;background:#14181f;color:#fff;cursor:pointer}
+  #res{margin-top:12px;font-size:14px;min-height:22px}
+  .ok{color:#15803d;font-weight:600}
+  .mal{color:#b42318;font-weight:600}
+  .regla{margin-top:18px;border-top:1px solid #dfe2dd;padding-top:12px}
+</style>
+
+<div class="caja">
+  <h2>Prueba de la instalación de un clic</h2>
+
+  <!-- PREGUNTA 2: el tamaño. Se pidieron 2000×2000; esto dice qué dieron. -->
+  <div class="med">
+    <div class="t"><span>Ancho real</span><b id="w">—</b></div>
+    <div class="t"><span>Alto real</span><b id="h">—</b></div>
+    <div class="t"><span>Pantalla</span><b id="p">—</b></div>
+  </div>
+  <p class="nota">Se pidieron <b>2000 × 2000</b>. Lo de arriba es lo que Sheets
+     dio de verdad. <b>Ésta es la foto que hace falta.</b></p>
+
+  <div class="regla">
+    <!-- PREGUNTA 4: escribir con el permiso pequeño. -->
+    <button id="btn" type="button">Escribir una fila en la hoja</button>
+    <div id="res"></div>
+    <p class="nota">Si esto escribe, <code>spreadsheets.currentonly</code> alcanza
+       para todo lo que hace la versión básica.</p>
+  </div>
+</div>
+
+<script>
+  // El tamaño se mide DESPUÉS de pintar: antes, el navegador todavía no sabe
+  // cuánto le tocó.
+  function medir(){
+    document.getElementById('w').textContent = window.innerWidth;
+    document.getElementById('h').textContent = window.innerHeight;
+    document.getElementById('p').textContent = screen.width + '×' + screen.height;
+  }
+  window.addEventListener('load', medir);
+  window.addEventListener('resize', medir);
+
+  document.getElementById('btn').addEventListener('click', function(){
+    var r = document.getElementById('res');
+    r.textContent = 'Escribiendo…';
+    r.className = '';
+    google.script.run
+      .withSuccessHandler(function(msg){ r.textContent = '✓ ' + msg; r.className = 'ok'; })
+      .withFailureHandler(function(e){
+        /* El mensaje COMPLETO, sin acortar: si falta un permiso, Google lo dice
+           con el nombre exacto, y ése es el dato. */
+        r.textContent = '✗ ' + (e && e.message ? e.message : e);
+        r.className = 'mal';
+      })
+      .escribirFilaDePrueba('hola desde la ventana');
+  });
+</script>
