@@ -6,7 +6,7 @@
 
 // ╔══ ÍNDICE ══ generado por tools/test-indice.js — no editar a mano ══════════╗
 //
-//  Las 68 secciones de este archivo, en el orden en que están.
+//  Las 69 secciones de este archivo, en el orden en que están.
 //  Para saltar a una: Ctrl+F con su texto, tal cual aparece aquí.
 //
 //  NO SE EDITA A MANO. Lo genera (y lo comprueba) tools/test-indice.js a
@@ -14,74 +14,75 @@
 //  otra lista que tiene que coincidir con algo sin que nada lo obligue, y de
 //  esas este código ya se ha cazado dos.
 //
-//   1  THE `#.png` ON THE END IS LOAD-BEARING. DO NOT TIDY IT AWAY.
-//   2  UNA SOLA CARPETA MAESTRA
-//   3  ROUTING
-//   4  PRIVATE DOCUMENT ACCESS
-//   5  GOOGLE SIGN-IN (hybrid, for users outside the company's Workspace)
-//   6  PAID ADD-ON: GMAIL DELIVERY SCANNER
-//   7  THE AI KEY, SET FROM INSIDE THE APP
-//   8  RATE LIMITING
-//   9  AUTH
-//  10  AUTHORIZATION GATE
-//  11  PER-INSTALLATION PERMISSIONS
-//  12  CONFIG LOADER
-//  13  TEXT THAT STAYS TEXT
-//  14  INITIAL DATA
-//  15  STOCK CALCULATION
-//  16  PROCESS MOVEMENT
-//  17  BATCH MOVEMENT ENGINE
-//  18  THE STOCK LOCK
-//  19  ADD MULTI-ENTRY
-//  20  MULTI-MATERIAL EXIT
-//  21  FRESH STOCK QUERY (reads Archive directly, no cache)
-//  22  PACKS: HOW MANY UNITS COME IN A BOX
-//  23  ARCHIVING OLD MOVEMENTS
-//  24  THE TRASH
-//  25  AUTOMATIC BACKUP
-//  26  HOW FULL IS THE SPREADSHEET
-//  27  CHECK-IN — CATCH A STUCK CUSTOMER BEFORE THEY QUIETLY LEAVE
-//  28  REFRESH DERIVED SHEETS
-//  29  RESERVAS
-//  30  MATERIAL LOCKS
-//  31  PM DIRECTORY
-//  32  DOCUMENT UPLOAD
-//  33  RACK PHOTOS
-//  34  DUPLICATE MOVEMENT DETECTION
-//  35  ATTACH AN EXISTING DRIVE FILE
-//  36  MULTI-PHOTO NAMED DOCUMENT GROUPS
-//  37  ADMIN ACTIONS
-//  38  BULK IMPORT (CSV)
-//  39  NO TWO MOVEMENTS MAY SHARE A NAME
-//  40  GIVING EVERY EXISTING MOVEMENT A NAME
-//  41  AUDIT LOG
-//  42  WHAT THE SYSTEM DID ON ITS OWN
-//  43  ERROR LOG
-//  44  NOTIFICATIONS
-//  45  EXPORT
-//  46  CUSTOM MENU
-//  47  THE ACCEPT BUTTON
-//  48  BEGIN GENERATED LEGAL TEXT — node tools/sync-legal.js
-//  49  END GENERATED LEGAL TEXT
-//  50  PROGRAMMATIC DEPLOYMENT — ADVANCED / OWNER-ONLY
-//  51  INSTALLATION CHECK
-//  52  WHICH WAY AN ADJUSTMENT WENT
-//  53  PRESENCE / HEARTBEAT
-//  54  LOCKING
-//  55  USER MANAGEMENT
-//  56  SETTINGS / CONFIG MANAGEMENT
-//  57  COLUMN LABELS AND VISIBILITY
-//  58  COMPANY NAME, DOMAIN AND LOGO
-//  59  WHAT MAKES A LOCATION SAFE TO DELETE
-//  60  WHY ONLY CATEGORIES ARE REWRITTEN INTO THE ARCHIVE
-//  61  MATERIAL MANAGEMENT
-//  62  INCOMING MATERIALS
-//  63  APPLYING ONE FINDING
-//  64  READ AN EMAIL INTO EXPECTED DELIVERIES
-//  65  GMAIL SCANNER
-//  66  MODIFY MOVEMENT
-//  67  MONITORED MATERIALS
-//  68  AI DOCUMENT EXTRACTION
+//   1  APAGAR UNA FUNCIÓN EN LA VERSIÓN BÁSICA
+//   2  THE `#.png` ON THE END IS LOAD-BEARING. DO NOT TIDY IT AWAY.
+//   3  UNA SOLA CARPETA MAESTRA
+//   4  ROUTING
+//   5  PRIVATE DOCUMENT ACCESS
+//   6  GOOGLE SIGN-IN (hybrid, for users outside the company's Workspace)
+//   7  PAID ADD-ON: GMAIL DELIVERY SCANNER
+//   8  THE AI KEY, SET FROM INSIDE THE APP
+//   9  RATE LIMITING
+//  10  AUTH
+//  11  AUTHORIZATION GATE
+//  12  PER-INSTALLATION PERMISSIONS
+//  13  CONFIG LOADER
+//  14  TEXT THAT STAYS TEXT
+//  15  INITIAL DATA
+//  16  STOCK CALCULATION
+//  17  PROCESS MOVEMENT
+//  18  BATCH MOVEMENT ENGINE
+//  19  THE STOCK LOCK
+//  20  ADD MULTI-ENTRY
+//  21  MULTI-MATERIAL EXIT
+//  22  FRESH STOCK QUERY (reads Archive directly, no cache)
+//  23  PACKS: HOW MANY UNITS COME IN A BOX
+//  24  ARCHIVING OLD MOVEMENTS
+//  25  THE TRASH
+//  26  AUTOMATIC BACKUP
+//  27  HOW FULL IS THE SPREADSHEET
+//  28  CHECK-IN — CATCH A STUCK CUSTOMER BEFORE THEY QUIETLY LEAVE
+//  29  REFRESH DERIVED SHEETS
+//  30  RESERVAS
+//  31  MATERIAL LOCKS
+//  32  PM DIRECTORY
+//  33  DOCUMENT UPLOAD
+//  34  RACK PHOTOS
+//  35  DUPLICATE MOVEMENT DETECTION
+//  36  ATTACH AN EXISTING DRIVE FILE
+//  37  MULTI-PHOTO NAMED DOCUMENT GROUPS
+//  38  ADMIN ACTIONS
+//  39  BULK IMPORT (CSV)
+//  40  NO TWO MOVEMENTS MAY SHARE A NAME
+//  41  GIVING EVERY EXISTING MOVEMENT A NAME
+//  42  AUDIT LOG
+//  43  WHAT THE SYSTEM DID ON ITS OWN
+//  44  ERROR LOG
+//  45  NOTIFICATIONS
+//  46  EXPORT
+//  47  CUSTOM MENU
+//  48  THE ACCEPT BUTTON
+//  49  BEGIN GENERATED LEGAL TEXT — node tools/sync-legal.js
+//  50  END GENERATED LEGAL TEXT
+//  51  PROGRAMMATIC DEPLOYMENT — ADVANCED / OWNER-ONLY
+//  52  INSTALLATION CHECK
+//  53  WHICH WAY AN ADJUSTMENT WENT
+//  54  PRESENCE / HEARTBEAT
+//  55  LOCKING
+//  56  USER MANAGEMENT
+//  57  SETTINGS / CONFIG MANAGEMENT
+//  58  COLUMN LABELS AND VISIBILITY
+//  59  COMPANY NAME, DOMAIN AND LOGO
+//  60  WHAT MAKES A LOCATION SAFE TO DELETE
+//  61  WHY ONLY CATEGORIES ARE REWRITTEN INTO THE ARCHIVE
+//  62  MATERIAL MANAGEMENT
+//  63  INCOMING MATERIALS
+//  64  APPLYING ONE FINDING
+//  65  READ AN EMAIL INTO EXPECTED DELIVERIES
+//  66  GMAIL SCANNER
+//  67  MODIFY MOVEMENT
+//  68  MONITORED MATERIALS
+//  69  AI DOCUMENT EXTRACTION
 //
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
@@ -127,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.73';
+var APP_VERSION = '12.76';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -139,7 +140,125 @@ var APP_VERSION = '12.73';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '610b8d38';
+var APP_BUILD = 'e3e54d6d';
+
+// ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
+//
+// `false` = Acopio Pro, lo de siempre.  `true` = la versión básica y gratuita.
+//
+// Jose, 15/10: *"quiero crear una versión básica y gratuita de la app para
+// regalar en la landing... sé que habías dicho que mantener 2 código no es bueno
+// pero mi idea es crear el archivo base y no cambiarle nada de nada"*.
+//
+// ── POR QUÉ UNA CONSTANTE Y NO UN SEGUNDO ARCHIVO ────────────────────────────
+//
+// La mitad que Jose quería se cumple igual: las FUNCIONES quedan congeladas,
+// nadie le mete cosas de Pro a la gratis. Lo que no conviene congelar son las
+// CORRECCIONES. El agujero del RETURN que está apuntado en docs/BACKLOG.md
+// —devolver material que nunca salió crea existencias de la nada— viviría para
+// siempre dentro de un archivo congelado que usan quinientos desconocidos.
+//
+// Congelar funciones sí. Congelar errores no.
+//
+// Y hay una razón más fuerte, que es de Jose y es la que decide el diseño de
+// abajo. Jose, 18/10: *"aun si el usuario decide usar acopio basico, la app debe
+// guardar en el sheet toda la informacion como la guarda actualmente, con todos
+// los datos, porque si el cliente decide en algun momento pasarse a la version
+// pro, la app debe mostrar todos los datos ya desde el momento que se actualice
+// la app, sino, pasaremos mucho tiempo arreglando todo"*.
+//
+// Tiene razón, y la consecuencia es exacta: si la versión gratis escribiera un
+// formato reducido, pasar a Pro dejaría de ser cambiar el código y pasaría a ser
+// escribir una MIGRACIÓN — que además habría que acordarse de ampliar cada vez
+// que Pro ganara una columna. Otra lista que tiene que coincidir con otra sin
+// que nada lo obligue, de las que este archivo ya lleva doce cazadas.
+//
+// ── LO QUE ESTA CONSTANTE PUEDE Y LO QUE NO ──────────────────────────────────
+//
+//   SÍ:  esconder pestañas y botones; cerrar las puertas del servidor de lo que
+//        se quitó; cambiar lo que se ve.
+//
+//   NO:  tocar `AC` (el mapa de columnas), `AC_WIDTH`, `appendRow`, los
+//        encabezados de las hojas, ni el motor de existencias.
+//
+// Así «la gratis escribe igual que Pro» deja de ser una promesa que hay que
+// recordar y pasa a ser que NO EXISTE otro código que pudiera escribir distinto.
+// Lo vigila tools/test-gratis-escribe-igual.js, que falla si esta constante
+// aparece en el camino de escritura.
+//
+// ── QUIÉN HACE DE PORTERO EN LA VERSIÓN GRATIS ───────────────────────────────
+//
+// Nadie, dentro de la app — y es deliberado. La versión básica no lleva
+// detección de usuarios, porque `userinfo.email` es uno de los permisos que hay
+// que quitar para que no salga la pantalla de «Google no ha verificado esta
+// aplicación» (medido el 17/10, ver docs/prueba-un-clic/web/PASOS.md).
+//
+// El portero es EL DESPLIEGUE: la versión gratis se publica con
+// `"access": "MYSELF"`, así que Google sólo deja entrar al dueño de la copia.
+// Eso no cuesta ningún permiso y no hay sesión que falsificar.
+//
+// Y de paso el límite técnico y el comercial vuelven a ser el mismo, que es lo
+// que hacía elegante este modelo: GRATIS = sólo tú puedes abrirla; PRO = tu
+// equipo puede. No hay que inventar una restricción artificial ni vigilar que
+// nadie se la salte.
+//
+// Ver docs/VERSION-BASICA.md y el manifiesto appsscript.basic.json.
+var ACOPIO_BASIC = false;
+
+// ─── APAGAR UNA FUNCIÓN EN LA VERSIÓN BÁSICA ─────────────────────────────────
+//
+// LO QUE NO SE PUEDE HACER, Y SE DESCUBRIÓ MIDIENDO.
+//
+// La idea obvia era poner `if (ACOPIO_BASIC) throw` en las puertas: las 102
+// funciones globales sin guión bajo, que son las que el navegador puede llamar.
+// Se hizo el recorrido de llamadas para saber cuáles tocan un servicio que la
+// versión básica no tiene permiso para usar, y salieron **60 de 102** — con
+// `processMovement`, `addMultiEntry` y `getInitialData` dentro.
+//
+// O sea: los permisos fuertes no viven en un rincón de funciones aparte, están
+// ENHEBRADOS por el centro de la app. `processMovement` registra un movimiento
+// —que la versión gratis tiene que hacer— y de camino puede adjuntar un
+// documento y mandar un aviso. Cerrar esa puerta no apagaría una función de
+// lujo: apagaría el producto.
+//
+// Así que el apagado va en las HOJAS, donde de verdad se toca el servicio, y
+// tiene TRES formas, no una. Elegir mal la forma es lo que rompe la app:
+//
+//   1. CALLAR   — lo que simplemente no pasa: correos, respaldos, disparadores,
+//                 el menú. `if (basicApagado_()) return;` y nadie se entera.
+//                 Un movimiento se registra igual; lo único que no ocurre es el
+//                 aviso que nadie iba a leer, porque sólo hay una persona.
+//
+//   2. NEGAR    — las puertas de lo que se quitó a propósito y no debería ni
+//                 poder llamarse: el lector de correos, subir fotos, usuarios.
+//                 `basicNiega_('Rack photos')` y sale un mensaje nuestro.
+//
+//   3. CONTESTAR OTRA COSA — las que deciden si la app abre siquiera.
+//                 `getUserRole` no puede preguntar quién eres: `userinfo.email`
+//                 es uno de los permisos que se quitaron. En la versión básica
+//                 sólo hay una persona —el dueño de la copia, y lo garantiza
+//                 Google con `access: MYSELF`—, así que contesta ADMIN sin
+//                 preguntar.
+//
+// La forma 1 es la que importa entender: si se usara NEGAR donde toca CALLAR,
+// la versión gratis fallaría al guardar un movimiento por no poder mandar un
+// correo que a nadie le hacía falta.
+function basicApagado_() { return ACOPIO_BASIC === true; }
+
+/**
+ * Negarse, con un mensaje nuestro.
+ *
+ * En inglés porque la app es 100% inglés (lo vigila test-solo-ingles.js), y
+ * diciendo qué falta y dónde está, que es lo único útil cuando alguien se
+ * topa con esto.
+ */
+function basicNiega_(queEs) {
+  if (!ACOPIO_BASIC) return;
+  throw new Error(queEs + ' is not part of Acopio Basic. ' +
+                  'The free edition only asks for permission to use this one ' +
+                  'spreadsheet, and this feature needs more. It is included in ' +
+                  'Acopio Pro.');
+}
 
 // The browser-tab icon every installation gets unless it sets FAVICON_URL.
 // See the note in doGet for why one shared mark rather than each customer's
@@ -318,6 +437,40 @@ function newMovId_(seq, when) {
 // short, and writing a short row into a full-width range throws. Every sheet
 // that has ever existed is narrower than the current AC_WIDTH the moment a
 // column is added, so this is the normal case on an upgrade, not the odd one.
+/**
+ * QUIÉN HIZO EL MOVIMIENTO, CUANDO LA EDICIÓN NO TIENE USUARIOS.
+ *
+ * La versión básica no lleva detección de usuarios: `userinfo.email` es uno de
+ * los permisos que hay que quitar para que no salga la pantalla de «Google no
+ * ha verificado esta aplicación». Así que `getUserRole` contesta ADMIN con el
+ * correo vacío, a propósito, y esa fila llegaría aquí sin autor.
+ *
+ * VACÍO ESTÁ MAL, y no por estética. Jose, 18/10: la versión gratis tiene que
+ * escribir lo mismo que Pro para que actualizar sea cambiar el código y no una
+ * migración. El día que ese cliente pase a Pro, su historial enseñaría una
+ * columna de autores con huecos — y un hueco parece un fallo nuestro, no un
+ * dato. `BASIC` dice la verdad: *esto se registró donde no había usuarios*.
+ *
+ * ── POR QUÉ ESTA FUNCIÓN NO SABE QUÉ EDICIÓN ES, Y ES DELIBERADO ────────────
+ *
+ * El primer intento fue poner `ACOPIO_BASIC ? 'BASIC' : auth.email` en el
+ * escritor de filas. `tools/test-gratis-escribe-igual.js` lo rechazó, que es
+ * justo para lo que existe: si el camino de escritura puede preguntar en qué
+ * edición está, puede empezar a escribir distinto.
+ *
+ * Y resulta que no hace falta preguntarlo. La condición de verdad no es «¿es
+ * la versión básica?», es «¿hay autor?» — y eso se ve en el propio dato.
+ *
+ * LO QUE SE DA POR SUPUESTO, dicho para que se pueda comprobar: en la versión
+ * de pago un movimiento NO llega hasta aquí sin autenticar, así que `email`
+ * vacío sólo ocurre en una edición sin usuarios. Si algún día Pro pudiera
+ * guardar sin autor, esa fila se etiquetaría mal — y el arreglo sería que Pro
+ * no lo permita, no que esta función mire la edición.
+ */
+function autorDeLaFila_(email) {
+  return String(email || '').trim() || 'BASIC';
+}
+
 function padRow_(row, width) {
   var out = (row || []).slice(0, width);
   while (out.length < width) out.push('');
@@ -529,6 +682,20 @@ function adminNotifyEmail_() {
  * la protege ahora es este tope. No se cambia lo que devuelve.
  */
 function getSetupState() {
+  /* CONTESTAR OTRA COSA en la versión básica, y ésta corre AL ARRANCAR.
+   *
+   * Pregunta quién eres dos veces y compara, para saber si quien mira es el
+   * dueño y enseñarle el asistente de instalación. Las dos lecturas necesitan
+   * `userinfo.email`, que la versión básica no pide.
+   *
+   * Y el asistente sobra entero: lo que hace es crear carpetas en Drive y
+   * registrar usuarios, que son justo las dos cosas que la versión básica no
+   * tiene. La hoja que se regala ya viene con sus pestañas hechas.
+   *
+   * `needsSetup: false` es lo que hace que la app abra directa en el
+   * inventario, que es lo único que queremos que vea quien acaba de instalar
+   * desde un vídeo. */
+  if (basicApagado_()) return { productName: PRODUCT_NAME, needsSetup: false };
   var quien = '';
   try { quien = Session.getActiveUser().getEmail(); } catch (e) {}
   requireQuota_('setup', quien, 120, 300);
@@ -1655,6 +1822,8 @@ function getAiStatus(auth) {
 }
 
 function setAiKey(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('The AI assistant');
   auth = requireAuth_('ADMIN');
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var key = String((data && data.key) || '').trim();
@@ -2195,6 +2364,8 @@ function rolePerms_() {
 }
 
 function setRolePerms(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Users and roles');
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var next = {};
   Object.keys(DEFAULT_ROLE_PERMS).forEach(function (k) { next[k] = !!(data && data[k]); });
@@ -2271,6 +2442,18 @@ function requirePerm_(auth, permKey) {
 // the owner while getActiveUser() is the caller (or '' for external accounts) —
 // so this refuses every google.script.run call from another user.
 function requireOwnerContext_() {
+  /* CONTESTAR OTRA COSA en la versión básica.
+   *
+   * Esto compara el usuario efectivo con el activo para dejar pasar sólo al
+   * dueño. Las dos lecturas necesitan `userinfo.email`, que la versión básica
+   * no pide — así que las dos darían '' y la comparación echaría al dueño de
+   * su propia app.
+   *
+   * Y no hay nada que comprobar: la versión básica se despliega con
+   * `access: MYSELF`, o sea que Google ya garantizó, antes de llegar aquí, que
+   * quien está es el dueño de la copia. Volver a comprobarlo sin permiso para
+   * mirar sólo serviría para equivocarse. */
+  if (basicApagado_()) return 'basic';
   var eff = '', act = '';
   try { eff = Session.getEffectiveUser().getEmail(); } catch (e) {}
   try { act = Session.getActiveUser().getEmail();    } catch (e) {}
@@ -2281,6 +2464,22 @@ function requireOwnerContext_() {
 }
 
 function getUserRole(sessionToken) {
+  /* CONTESTAR OTRA COSA en la versión básica, y ésta decide si la app abre.
+   *
+   * No se puede preguntar quién eres: `Session.getActiveUser()` necesita
+   * `userinfo.email`, que es uno de los permisos que hay que quitar para que
+   * no salga la pantalla de «Google no ha verificado esta aplicación». Sin el
+   * permiso, la llamada da '' y la línea de abajo devolvería NO_SESSION — o
+   * sea, la pantalla de inicio de sesión, para siempre, en una edición que no
+   * tiene usuarios que elegir.
+   *
+   * En la versión básica sólo hay una persona y Google ya la comprobó: el
+   * despliegue es `access: MYSELF`. Así que es ADMIN, sin correo y sin nombre.
+   *
+   * Sin correo A PROPÓSITO, y no es un descuido que haya que arreglar luego:
+   * es lo que hace que `AC.USER_EMAIL` se escriba como `BASIC` en vez de
+   * inventarse un autor. Ver docs/VERSION-BASICA.md. */
+  if (basicApagado_()) return { role: 'ADMIN', email: '', name: '' };
   var email = '';
   // 1. Company users (same Workspace domain) → identified automatically.
   //    NOTE: do NOT fall back to getEffectiveUser() — under "Execute as: Me" that
@@ -2737,13 +2936,15 @@ function getInitialData(sessionToken) {
     if (auth.role === 'NO_SESSION') {
       var oc = oauthCfg_();
       return { accessStatus: 'NO_SESSION', userEmail: '', userRole: 'NO_SESSION',
-               serverVersion: APP_VERSION, company: publicCompany_(),
+               serverVersion: APP_VERSION, basic: ACOPIO_BASIC,
+               company: publicCompany_(),
                oauthClientId: oc.clientId, oauthRedirectUri: redirectUri_() };
     }
     // Authenticated but not registered in CONFIG
     if (auth.role === 'DENIED') {
       return { accessStatus: 'DENIED', userEmail: auth.email, userRole: 'DENIED',
-               serverVersion: APP_VERSION, company: publicCompany_() };
+               serverVersion: APP_VERSION, basic: ACOPIO_BASIC,
+               company: publicCompany_() };
     }
 
     /* EL SELLO SE LEE AQUÍ, ANTES QUE LOS DATOS. NUNCA DESPUÉS.
@@ -2903,6 +3104,15 @@ function getInitialData(sessionToken) {
     return {
       serverVersion:      APP_VERSION,
       serverBuild:        APP_BUILD,
+      // QUÉ EDICIÓN ES ÉSTA. Va en el mismo viaje que la versión, y por el mismo
+      // motivo: el navegador no la declara por su cuenta.
+      //
+      // Si `Index` tuviera su propia copia de esta constante, serían DOS líneas
+      // que hay que cambiar a la vez para hacer una versión gratis, sin que
+      // nada obligue a cambiar las dos. Cambiar sólo una da una app que esconde
+      // los botones pero deja las puertas abiertas, o al revés — y las dos
+      // mitades fallan en silencio. Una sola fuente, y la otra se entera.
+      basic:              ACOPIO_BASIC,
       // Sent with the first load so the ENTRY form can offer a material's packs
       // the moment its name is filled in, without a round trip per line.
       materialPacks:      (function(){ try { return readPacks_(ss); } catch (e) { return {}; } })(),
@@ -4623,7 +4833,7 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
       row[AC.PROJECT]     = proj;
       row[AC.MAT_ID]      = matId;
       row[AC.DOC_LINKS]   = '';
-      row[AC.USER_EMAIL]  = auth.email;
+      row[AC.USER_EMAIL]  = autorDeLaFila_(auth.email);
       row[AC.DEST_LOC]    = dest;
       row[AC.MOVETYPE]    = mt;
       row[AC.PM]          = String(d.pm || '').trim();
@@ -6115,6 +6325,8 @@ function escribirHojaCompleta_(sheet, filas, colCount) {
  * tape al que lo provocó, y este ayudante se llama desde dentro de un `catch`.
  * Se deja rastro en el registro pase lo que pase. */
 function avisarFalloDeArchivo_(ss, mensaje) {
+  // CALLAR en la versión básica: no hay a quién avisar: sólo hay una persona y es la que está mirando.
+  if (basicApagado_()) return;
   try {
     auditLog_(ss, 'ARCHIVE_ALERT', 'system', mensaje, '', '');
   } catch (e) {}
@@ -6154,6 +6366,8 @@ function archiveOldMovementsTrigger() {
 // Idempotent — installs the daily trigger once. Called the first time an admin
 // saves an archive cutoff so it's self-serve (no manual Apps Script setup step).
 function ensureArchiveTrigger_() {
+  // CALLAR en la versión básica: los disparadores necesitan `script.scriptapp`.
+  if (basicApagado_()) return;
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'archiveOldMovementsTrigger') return;
@@ -6709,6 +6923,8 @@ function _findMostRecentBackup_() {
 }
 
 function setBackupEnabled(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Automatic backup');
   auth = requireAuth_('ADMIN');
   var on = !!(data && data.enabled);
   if (on) {
@@ -6732,12 +6948,16 @@ function setBackupEnabled(data, auth) {
 // different decisions, and the menu version conflating them is why an admin
 // could have the schedule running without ever having chosen it.
 function runBackupOnDemand(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Automatic backup');
   auth = requireAuth_('ADMIN');
   var res = runBackupNow_();
   return { status: 'success', name: res && res.name ? res.name : '' };
 }
 
 function ensureBackupTrigger_() {
+  // CALLAR en la versión básica: los disparadores necesitan `script.scriptapp`.
+  if (basicApagado_()) return;
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'dailyBackupTrigger') return;
@@ -6774,6 +6994,8 @@ function ensureBackupTrigger_() {
 var CHECKIN_MILESTONE_DAYS = [3, 7];
 
 function ensureCheckinTrigger_() {
+  // CALLAR en la versión básica: los disparadores necesitan `script.scriptapp`.
+  if (basicApagado_()) return;
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'dailyCheckinTrigger') return;
@@ -8287,6 +8509,8 @@ function getRackPhotosUncached_() {
 // Uploads/replaces the reference photo for one rack. WAREHOUSE + ADMIN only
 // (VIEWER is already blocked before reaching here — see processMovement's role gate).
 function uploadRackPhoto(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Rack photos');
   // Writes a file into the owner's Drive — must never be reachable without a
   // verified, write-capable identity.
   auth = requireAuth_('WRITE');
@@ -8596,6 +8820,8 @@ function uploadDocGroups_(docGroups, materialName) {
 // Creates a Google Doc with one photo per page, exports it as PDF, trashes the Doc.
 // Returns the Drive URL of the saved PDF.
 function photosToDocPdf_(photos, docName, targetFolder) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Document upload');
   // Create a temporary Google Doc
   var tempTitle = 'WMS_TMP_' + new Date().getTime();
   var doc  = DocumentApp.create(tempTitle);
@@ -9763,6 +9989,8 @@ var ERROR_MAIL_PER_ACTION_SEC = 3600;
 var ERROR_MAIL_DAILY_CAP      = 12;
 
 function notifyAdminOfError_(action, userEmail, message, requestId) {
+  // CALLAR en la versión básica: sin correo y sin administradores, esto no tiene destinatario.
+  if (basicApagado_()) return;
   var p = PropertiesService.getScriptProperties();
   if (p.getProperty('ERROR_ALERTS_ENABLED') === 'false') return;   // opt-out
 
@@ -10000,6 +10228,8 @@ function reportIssue(data) {
 // via the modal checkbox and handled directly in addMovementsBatch_() /
 // sendBatchNotifyEmail_().
 function checkNotifications_(ss, data, moveType, qty, userEmail) {
+  // CALLAR en la versión básica: los avisos por correo son de Pro.
+  if (basicApagado_()) return;
   try {
     var cfg       = loadConfig();
     var recipient = adminNotifyEmail_();
@@ -10032,6 +10262,10 @@ function checkNotifications_(ss, data, moveType, qty, userEmail) {
 
 // ─── CUSTOM MENU ─────────────────────────────────────────────────────────────
 function onOpen() {
+  // CALLAR en la versión básica: el menú de la hoja necesita `container.ui`, que la versión básica no pide.
+  // Sin esto, abrir la hoja le enseñaría un error al cliente en su primer minuto.
+  // La entrada a la app es la pestaña «START HERE», que no necesita permisos.
+  if (basicApagado_()) return;
   var cs = companySettings_();
 
   // "Advanced" groups tools a brand-new customer never needs: two are one-time
@@ -12342,6 +12576,8 @@ function getUsers(auth) {
 }
 
 function addUser(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Users and roles');
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var email = String(data.email || '').toLowerCase().trim();
   var name  = String(data.name  || '').trim();
@@ -12478,6 +12714,8 @@ function invitarUsuario_(ss, email, name, role, auth) {
  *      últimas columnas de AUDIT_LOG y ésta es exactamente su razón de ser.
  */
 function updateUser(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Users and roles');
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   var email = String(data.email || '').toLowerCase().trim();
   if (!email) throw new Error('Email required.');
@@ -12540,6 +12778,8 @@ function updateUser(data, auth) {
 }
 
 function removeUser(email, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('Users and roles');
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
   email = String(email || '').toLowerCase().trim();
   if (!email) throw new Error('Email required.');
@@ -15279,6 +15519,8 @@ function testGemini_() {
 }
 
 function scanGmailForDeliveries(data, auth) {
+  // NEGAR en la versión básica: se quitó a propósito, y con ella su permiso.
+  basicNiega_('The inbox scanner');
   auth = requireAuth_('ADMIN');   // ignores any caller-supplied `auth` — see requireAuth_
 
   if (!isGmailScanEnabled()) throw new Error(

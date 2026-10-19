@@ -531,6 +531,11 @@
      * Lo único distinto es el color: ámbar, que en esta app significa «algo
      * que mirar», no «algo que está mal». Rojo sería mentira: una sobra no es
      * un problema, es material pagado esperando obra. */
+    /* El botón de la foto, dentro de la ventana de escanear. Ancho entero
+       porque es la acción principal cuando no hay vídeo, y con aire arriba
+       para que no se pegue al recuadro de la cámara cuando sí lo hay. */
+    .sc-foto{margin-top:var(--sp-5);display:flex}
+    .sc-foto .btn{flex:1}
     .bone-marca{display:inline-block;margin-top:2px;font-size:.72rem;
       color:#b45309;font-weight:600}
     :root[data-theme="dark"] .bone-marca{color:#fbbf24}
@@ -1064,6 +1069,14 @@
     .field{display:flex;flex-direction:column;gap:.3rem}
     .field label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     #lockMatOverlay .field label{color:var(--text)}
+    /* EL CANDADO. Un botón normal, no uno apagado: se puede pulsar y contesta.
+       Apagarlo con `disabled` lo dejaría gris y mudo, que es justo lo que no
+       queremos — la gracia es que al pulsarlo cuente qué hace esa función. */
+    .pro-lock{position:relative;opacity:.72}
+    .pro-lock:hover{opacity:1}
+    .pro-lock::after{content:'🔒';font-size:.7em;margin-left:var(--sp-1);opacity:.85}
+    #proOverlay .modal-actions{display:flex;gap:var(--sp-3);justify-content:flex-end;align-items:center}
+    #proOverlay a.btn{text-decoration:none;display:inline-flex;align-items:center}
     .field input,.field select,.field textarea{padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
     .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* `flex-wrap:wrap` no es adorno: es lo que impide que los botones se
@@ -3400,12 +3413,45 @@
       .alert-banner-actions button,.morning-popup-hdr button,.rack-drawer-hdr button,
       .rm-btn,.sys-card-x,.cfg-card-add,.cfg-card-skip{min-height:var(--h-btn-sm);min-width:var(--h-btn-sm)}
       .rm-btn,.alert-banner-actions button{min-height:var(--h-btn-md)}
-      /* The connection dot keeps its size and gains a 44px hit area around it.
-         A pseudo-element with no paint of its own still takes the tap, so the
-         design does not change at all — the target simply stops being the size
-         of the dot. */
-      .conn-btn{position:relative}
-      .conn-btn::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%}
+      /* ── EL PUNTO DE CONEXIÓN Y SU ÁREA DE TOQUE ──────────────────────
+       *
+       * Jose, 15/10: *"el botón verde al lado del avatar siempre está muy
+       * lejos y se traslapa con las pestañas al hacer la pantalla más
+       * pequeña, no me gusta"*.
+       *
+       * Lo del traslape era esto. El punto mide 10 px y ganaba un área de
+       * toque de 44 px con un `::after` ABSOLUTO, o sea pintado FUERA del
+       * sitio que el elemento ocupa: sobresalía unos 17 px por cada lado y
+       * robaba los toques de lo que tuviera al lado. En una pantalla estrecha
+       * lo que tiene al lado son las pestañas.
+       *
+       * El arreglo es dejar de robar sitio y RESERVARLO: el botón mide 44 px
+       * de verdad, con fondo transparente, y el punto de 10 px lo pinta un
+       * `::before` en el centro. Se ve exactamente igual, el dedo tiene los
+       * mismos 44 px, y ahora el hueco está en el reparto — así que nada se
+       * le puede poner debajo.
+       *
+       * Lo de «muy lejos» es otra cosa y es de diseño: el punto debería vivir
+       * PEGADO al avatar, como la bolita de presencia de cualquier app de
+       * mensajería, en vez de flotar entre las pestañas y la cuenta. Eso
+       * mueve una pieza de sitio y está anotado en la lista para decidirlo. */
+      .conn-btn{position:relative;width:44px;height:44px;background:transparent}
+      .conn-btn::before{content:'';position:absolute;top:50%;left:50%;
+        transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;
+        background:inherit;transition:background .3s,box-shadow .3s}
+      /* El color vive en el punto, no en la caja: la caja es transparente y de
+         44 px, y pintarla la convertiría en un círculo verde enorme. */
+      .conn-btn.online::before {background:#10B981}
+      .conn-btn.stale::before  {background:#F59E0B}
+      .conn-btn.loading::before{background:#9CA3AF}
+      .conn-btn.offline::before{background:#EF4444}
+      .conn-btn.online,.conn-btn.stale,.conn-btn.loading,.conn-btn.offline{background:transparent}
+      /* La animación se la queda el punto; en la caja de 44 px latiría un
+         círculo invisible y no se vería nada. */
+      .conn-btn.stale  {animation:none}
+      .conn-btn.offline{animation:none}
+      .conn-btn.stale::before  {animation:pulse-stale 1.5s ease-in-out infinite}
+      .conn-btn.offline::before{animation:pulse-offline 1s ease-in-out infinite}
       /* Anything a finger has to land on inside a modal, too. */
       .modal input,.modal select,.modal textarea,.modal-type-bar button{min-height:var(--h-btn-lg)}
     }
@@ -4019,6 +4065,25 @@
            el vídeo sin un gesto más. -->
       <video id="scanVideo" playsinline muted autoplay></video>
       <div class="sc-mira"></div>
+    </div>
+    <!-- ── LA FOTO, QUE ES EL CAMINO QUE SÍ FUNCIONA ───────────────────────
+         Jose, 15/10: *"pero si puedo tomar fotos a los documentos para
+         escanearlos, ¿cómo no se puede usar la app para escanear un código
+         QR?"*. Tenía razón y yo había concluido de más.
+
+         `getUserMedia` —el vídeo en vivo— SÍ está bloqueado por el iframe de
+         Apps Script. Pero esto es otra cosa: un `input type=file` con
+         `capture`, que entrega el trabajo a la CÁMARA NATIVA del teléfono y
+         devuelve un archivo. No pasa por la política de permisos del iframe
+         porque no pide la cámara: pide un archivo. La app ya lo usa desde hace
+         versiones para las fotos de los documentos y de «Report a problem».
+
+         Y lo de después ya estaba: `BarcodeDetector.detect()` acepta una
+         imagen igual que un vídeo, y el repuesto —jsQR— lee de un canvas, que
+         es justo lo que hace `test-qr` para comprobar nuestras etiquetas. -->
+    <div class="sc-foto">
+      <button class="btn btn-primary" id="scanFotoBtn" type="button">📸 Take a photo of the label</button>
+      <input type="file" id="scanFotoInput" accept="image/*" capture="environment" style="display:none">
     </div>
     <div id="scanLeido" class="sc-leido"></div>
     <div id="scanAcciones" class="sc-acciones"></div>
@@ -5218,7 +5283,7 @@
       </div>
       <!-- Doc groups rendered here by JS -->
       <div id="docGroupsContainer"></div>
-      <button class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
+      <button id="btnAddDoc" class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
       <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
       <!-- Hidden file input (kept for AI extract compatibility) -->
       <input type="file" id="legacyFileInput" class="mFile" accept="image/*,.pdf,video/*" style="display:none">
@@ -5331,6 +5396,27 @@
 <input type="file" id="rackPhotoFileInput" accept="image/*" style="display:none">
 
 <!-- ══ LOCK MATERIAL (ADMIN) ═══════════════════════════════════════════════════ -->
+<!-- ── LA VENTANA DEL CANDADO ─────────────────────────────────────────────────
+     Sólo aparece en la versión básica. No es un muro, es una oferta: dice qué
+     hace la función y dónde está, con palabras de lo que se gana y no de lo que
+     falta. Ver BASIC_PRO. -->
+<div class="overlay" id="proOverlay">
+  <div class="modal modal-sm">
+    <div class="mhdr">
+      <h3 id="proTitulo">Acopio Pro</h3>
+      <button class="modal-x" onclick="closeModal('proOverlay')" title="Close">✕</button>
+    </div>
+    <p id="proTexto" style="font-size:.9rem;color:var(--text);margin:.1rem 0 .6rem;line-height:1.5"></p>
+    <p style="font-size:.8rem;color:var(--muted);margin:0 0 1rem">
+      Everything you have recorded so far stays exactly where it is. Nothing to move, nothing to convert.
+    </p>
+    <div class="modal-actions" style="margin-top:1.25rem">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('proOverlay')">Not now</button>
+      <a id="proEnlace" class="btn btn-primary btn-sm" href="https://www.acopio.net/" target="_blank" rel="noopener">See what Acopio Pro does</a>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="lockMatOverlay">
   <div class="modal modal-sm">
     <div class="mhdr">
@@ -5431,7 +5517,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.73';
+var APP_VERSION = '12.76';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5443,8 +5529,15 @@ var APP_VERSION = '12.73';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '610b8d38';
+var APP_BUILD = 'e3e54d6d';
 var userRole = 'WAREHOUSE';
+/* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
+ * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
+ * en Code.gs, serían dos líneas que hay que cambiar a la vez para hacer una
+ * versión gratis sin que nada obligue a cambiar las dos — y fallar sólo una da
+ * una app que esconde los botones pero deja las puertas del servidor abiertas,
+ * o al revés. Las dos mitades fallarían en silencio. Ver ACOPIO_BASIC. */
+var APP_BASIC = false;
 // Toggles ADMIN turned on for the WAREHOUSE role — see Code_v3_fixed.gs's
 // DEFAULT_ROLE_PERMS for what each one defaults to and why. Never trusted for
 // anything that matters: every action this gates in the UI is re-checked by
@@ -8073,6 +8166,10 @@ function _activeTab() {
 }
 
 function showTab(tab, btnId){
+  /* UNA PESTAÑA ESCONDIDA TAMPOCO SE ABRE. Ver `_basicPestanaFuera`: la
+   * pestaña activa sobrevive en `sessionStorage`, así que sin esto se puede
+   * llegar a una sección cuyo botón ya no existe y quedarse ahí. */
+  if (_basicPestanaFuera(tab)) { tab = 'movements'; btnId = 'btn-movements'; }
   _clearRowModes();     // Edit / Delete never survive leaving the screen they were armed on
   // Y la selección de movimientos tampoco, por el mismo motivo y con las mismas
   // palabras. Es la línea que faltaba: en la v11.59 las casillas SUSTITUYERON a
@@ -20760,6 +20857,10 @@ function _handleRackPhotoFileChange(){
 
 // ── Material Locks (ADMIN) ───────────────────────────────────────────────────
 function openLockModal(matId, cat, name, rack){
+  /* Apartar material es de Pro. Esto no es un botón fijo —se llega desde una
+   * fila de la tabla de existencias— así que el candado va aquí, donde se abre
+   * la ventana, y no en una lista de identificadores. */
+  if (APP_BASIC) { _proPitch('reservas'); return; }
   document.getElementById('lockMatId').value      = matId;
   document.getElementById('lockMatCat').value     = cat;
   document.getElementById('lockMatName').value    = name;
@@ -23579,11 +23680,16 @@ function _escMensajeNo(motivo){
    * No se le pide que arregle nada porque NO PUEDE: lo bloquea la página de
    * Google que contiene a la app. Decir «dale permiso a la cámara» mandaría a
    * alguien a pelearse diez minutos con los ajustes de Chrome para nada. */
+  /* EL TEXTO CAMBIÓ EN LA v12.74, Y LO PROVOCÓ UNA PREGUNTA DE JOSE.
+   *
+   * Decía que la cámara no se podía usar aquí y que se escribiera a mano. Era
+   * verdad a medias, y la mitad que faltaba era la importante: lo bloqueado es
+   * el VÍDEO EN VIVO; la FOTO funciona y lee las mismas etiquetas. */
   if (motivo === 'iframe-sin-camara')
-    return 'The camera cannot be used here. Google runs this app inside a frame ' +
-           'that does not allow camera access, and that is not something you or ' +
-           'the app can change from this screen. Type the material in by hand for ' +
-           'now — a way to scan that works around this is being built.';
+    return 'The live camera cannot run here: Google serves this app inside a ' +
+           'frame that does not allow it, and nothing you or the app can do from ' +
+           'this screen changes that. Use the photo button instead — it opens ' +
+           'your phone camera and reads the same labels.';
   return 'Scanning needs a secure connection (https).';
 }
 
@@ -23607,21 +23713,52 @@ function _escPintarBoton(){
    * Exit, así que a quien tiene prohibido guardar no se le ofrece el atajo
    * para llegar al formulario: sería un camino que acaba en una puerta
    * cerrada. Es la misma regla que esconde Entry y Exit a su lado. */
-  var puede = (_escSePuede() === 'si') && (userRole !== 'VIEWER');
+  /* BASTA CON QUE HAYA LECTOR. Antes exigía `=== 'si'`, o sea vídeo en vivo, y
+   * eso escondía el botón justo donde la app vive —dentro del iframe de Apps
+   * Script, que bloquea el vídeo— aunque la FOTO funcione perfectamente ahí.
+   * Un botón escondido por una puerta cerrada cuando la de al lado está
+   * abierta es peor que no tener el botón: quita lo que sí se puede hacer. */
+  var puede = (_escSePuede() !== 'sin-lector') && (userRole !== 'VIEWER');
   b.style.display = puede ? '' : 'none';
 }
 
 function _escAbrir(){
   var motivo = _escSePuede();
-  if (motivo !== 'si'){
+
+  /* ── DOS PUERTAS, NO UNA ──────────────────────────────────────────────────
+   *
+   * Antes esto se cerraba en banda ante cualquier impedimento, y eso cerraba
+   * también la puerta que SÍ funciona. Jose lo vio de inmediato: *"si puedo
+   * tomar fotos a los documentos, ¿cómo no se puede escanear un QR?"*.
+   *
+   *   · VÍDEO EN VIVO (`getUserMedia`) — lee solo, apuntando. Es mejor, y es
+   *     lo que el iframe de Apps Script bloquea.
+   *   · FOTO (`input type=file` con `capture`) — tres toques, y NO pasa por la
+   *     política del iframe, porque no pide la cámara: pide un archivo.
+   *
+   * Lo único que impide las dos a la vez es no tener lector de códigos. Todo
+   * lo demás deja abierta la segunda, así que la ventana se abre igual y lo
+   * que cambia es qué se enseña dentro. */
+  if (motivo === 'sin-lector'){
     _showConfirm({ icon: '📷', title: 'Cannot scan here',
                    message: _escMensajeNo(motivo), confirmText: 'OK', soloAviso: true });
     return;
   }
+
   _escReset();
   _escPintar();
   var ov = document.getElementById('scanOverlay');
   if (ov) ov.classList.add('show');
+
+  var cam = document.querySelector('.sc-cam');
+  if (motivo !== 'si'){
+    /* Sin vídeo: se esconde el recuadro en vez de dejarlo en negro pidiendo que
+     * apuntes la cámara, que es exactamente lo que grabó Jose. */
+    if (cam) cam.style.display = 'none';
+    _escPintar(_escMensajeNo(motivo));
+    return;
+  }
+  if (cam) cam.style.display = '';
 
   navigator.mediaDevices.getUserMedia({
     /* La trasera. Sin esto, un teléfono abre la frontal y hay que darle la
@@ -23636,12 +23773,12 @@ function _escAbrir(){
     _escDetector = new BarcodeDetector({ formats: ['qr_code'] });
     _escLatido();
   }).catch(function(e){
-    _escCerrar();
-    _showConfirm({ icon: '📷', title: 'Camera not available',
-                   message: 'Acopio could not open the camera. If the browser asked ' +
-                            'for permission and it was denied, allow it in the site ' +
-                            'settings and try again.',
-                   confirmText: 'OK', soloAviso: true });
+    /* YA NO SE CIERRA LA VENTANA. Antes un fallo de cámara la cerraba entera y
+     * se llevaba por delante el botón de la foto, que sigue funcionando. Se
+     * apaga el vídeo, se dice por qué, y queda lo que sí sirve. */
+    if (cam) cam.style.display = 'none';
+    _escPintar('The live camera could not start. Use the photo button below — ' +
+               'that reads the same labels.');
     try { console.warn('scan:', e && e.message); } catch (e2) {}
   });
 }
@@ -23668,6 +23805,91 @@ function _escLatido(){
   }).catch(function(){}).then(function(){
     _escTimer = setTimeout(_escLatido, ESC_MS);
   });
+}
+
+/* ── LEER DESDE UNA FOTO ────────────────────────────────────────────────────
+ *
+ * El camino que funciona dentro de Apps Script, y lo encontró Jose preguntando
+ * lo evidente: *"si puedo tomar fotos a los documentos, ¿cómo no se puede
+ * escanear un QR?"*.
+ *
+ * Yo había concluido de más. Lo que está bloqueado es `getUserMedia` —el vídeo
+ * en vivo— porque la app corre en un iframe de otro origen y Google no le
+ * concede la cámara. Un `input type=file` con `capture` NO pide la cámara:
+ * pide un ARCHIVO, y de abrir la cámara se encarga el teléfono por su cuenta.
+ * La app ya lo usaba para las fotos de documentos; nadie se dio cuenta de que
+ * era también la puerta de los códigos.
+ *
+ * LO QUE SE PIERDE Y LO QUE SE GANA. El vídeo en vivo lee solo, apuntando; esto
+ * son tres toques por lectura. Para treinta seguidas es peor. Para las que se
+ * hacen de verdad en una bodega, funciona HOY y sin montar nada fuera.
+ *
+ * El vídeo en vivo se queda en el código: donde la política SÍ lo permita
+ * —fuera del iframe, el día que la app viva en otro sitio— sigue siendo mejor.
+ * Los dos caminos acaban en `_escRecibir`, que es donde está toda la decisión. */
+function _escFoto(file){
+  if (!file) return;
+  _escPintar('Reading the photo…');
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function(){
+    /* A un tamaño de trabajo: una foto de teléfono son doce megapíxeles y
+     * decodificar eso entero tarda y no hace falta. 1400 px de lado largo deja
+     * módulos de sobra para un código impreso a 30 mm. */
+    var esc = Math.min(1, 1400 / Math.max(img.width, img.height));
+    var cv = document.createElement('canvas');
+    cv.width  = Math.max(1, Math.round(img.width  * esc));
+    cv.height = Math.max(1, Math.round(img.height * esc));
+    var cx = cv.getContext('2d');
+    cx.drawImage(img, 0, 0, cv.width, cv.height);
+    URL.revokeObjectURL(url);
+    _escDeLaImagen(cv);
+  };
+  img.onerror = function(){
+    URL.revokeObjectURL(url);
+    _escPintar('That file is not a photo this app can read.');
+  };
+  img.src = url;
+}
+
+/* El lector, sobre el canvas de la foto. Es el MISMO `BarcodeDetector` que usa
+ * el vídeo en vivo: `detect()` acepta una imagen igual que acepta un vídeo, así
+ * que los dos caminos leen con lo mismo y acaban en `_escRecibir`. Si se
+ * separaran, una etiqueta podría leerse por un camino y no por el otro y nadie
+ * sabría por qué.
+ *
+ * NO HAY REPUESTO, Y ESO ES UNA DECISIÓN. Escribí uno con jsQR y lo quité al
+ * darme cuenta de que jsQR NO está en la app: habría sido una protección
+ * escrita y nunca ejecutada, que es el fallo que llevamos toda la semana
+ * persiguiendo. Y no se puede añadir sin romper una regla que está escrita
+ * arriba, junto al codificador: esta app es UN SOLO ARCHIVO a propósito,
+ * porque se instala copiando y pegando. Una etiqueta `<script src>` rompe eso,
+ * y acabamos de pasar dos días con un pegado roto.
+ *
+ * Qué significa en la práctica: donde no hay `BarcodeDetector` —hoy, sobre
+ * todo Safari— no se escanea, y `_escSePuede` lo dice ANTES con un mensaje que
+ * manda a Chrome. Eso es honesto; un repuesto que no existe, no. */
+function _escDeLaImagen(cv){
+  function entregar(textos){
+    var algo = false;
+    (textos || []).forEach(function(t){
+      if (!t) return;
+      algo = true;
+      var r = _escRecibir(t);
+      if (r.estado === 'nuevo'){ _escPintar(); _escPitar(); }
+      else if (r.estado === 'ajeno') _escPintar('That code is not an Acopio label.');
+    });
+    /* El mensaje dice QUÉ HACER, no sólo que no salió. Las tres causas de una
+     * foto ilegible son siempre las mismas y las tres tienen arreglo en el
+     * siguiente intento. */
+    if (!algo) _escPintar('No code found in that photo. Get closer, hold the phone ' +
+                          'steady, and keep the whole code inside the picture.');
+  }
+  try {
+    new BarcodeDetector({ formats: ['qr_code'] }).detect(cv).then(function(res){
+      entregar((res || []).map(function(c){ return c.rawValue; }));
+    }).catch(function(){ entregar([]); });
+  } catch (e) { entregar([]); }
 }
 
 /* Un pitido corto al leer. En una bodega con guantes y ruido, la confirmación
@@ -25303,6 +25525,7 @@ function loadDataFromGoogle(skipCache, quiet){
   if (cached && cached.userRole) {
     _applyData(cached);
     userRole  = cached.userRole  || userRole;
+    if (cached.basic === true) APP_BASIC = true;
     userEmail = cached.userEmail || userEmail;
     _setAccountIdentity(cached.userName, userEmail, userRole, true);   // stale: fresh data still on the way
     applyRoleUI();
@@ -25527,6 +25750,9 @@ function _applyData(data) {
   stockData          = data.stock              || {};
   config             = data.config             || config;
   _ordenarCatalogos(config);
+  /* ANTES que el rol, y antes de pintar nada: `applyRoleUI` ya decide qué se ve
+   * y necesita saber en qué edición está cuando llegue. */
+  APP_BASIC          = (data.basic === true);
   userRole           = data.userRole           || 'WAREHOUSE';
   if (data.rolePerms) rolePerms = data.rolePerms;
   if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;
@@ -26596,6 +26822,18 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('btnEntry','click', function(){ openMoveModal('ENTRY'); });
   _safeOn('btnExit','click',  function(){ openMoveModal('EXIT'); });
   _safeOn('btnEscanearMov','click', function(){ _escAbrir(); });
+  /* El botón abre el selector y el selector hace el trabajo. `value=''` al
+   * final para que sacar DOS fotos seguidas de la misma etiqueta vuelva a
+   * disparar `change`: sin eso, la segunda foto idéntica no avisa de nada y
+   * parece que la app se quedó colgada. */
+  _safeOn('scanFotoBtn','click', function(){
+    var i = document.getElementById('scanFotoInput'); if (i) i.click();
+  });
+  _safeOn('scanFotoInput','change', function(){
+    var f = this.files && this.files[0];
+    this.value = '';
+    _escFoto(f);
+  });
 
   // Project selector
   _safeOn('projectSelector','change', renderProjectView);
@@ -26640,6 +26878,209 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 // ── Role-based UI ─────────────────────────────────────────────────────────────
+/* ── LO QUE NO ESTÁ EN LA VERSIÓN BÁSICA ─────────────────────────────────────
+ *
+ * Esconder, no desactivar. Un botón gris que no hace nada invita a preguntar
+ * qué le pasa; uno que no está no se echa de menos. Quien quiera lo de arriba
+ * ya se lo va a encontrar en la landing, no en un botón apagado.
+ *
+ * ── Y ESTO SOLO NO APAGA NADA ───────────────────────────────────────────────
+ *
+ * Esto es la mitad de la pantalla. La otra mitad está en el servidor
+ * (`basicNiega_`), y hacen falta las dos: esconder un botón no cierra la
+ * puerta que ese botón llamaba. Ver el comentario de ACOPIO_BASIC en Code.gs.
+ */
+var BASIC_FUERA = {
+  /* Lo que se ESCONDE: fontanería que no vende nada.
+   *
+   * Nadie sube a Pro por un botón de soporte ni por un reconstructor de
+   * existencias. Un candado aquí no es una oferta, es una puerta cerrada más —
+   * y con veinte puertas cerradas la app deja de parecer una herramienta y
+   * parece una demostración caducada. */
+  botones: ['btnReportIssue', 'btnDataCheck', 'btnRebuildStock', 'btnMovIdFill'],
+  ajustes: ['errorlog', 'system', 'import', 'pmdirectory'],
+  pestanas: []
+};
+
+/* ── LO QUE SÍ SE ENSEÑA, CON CANDADO ────────────────────────────────────────
+ *
+ * Jose, 19/10: *"que tal si cuando alguien intenta subir una imagen en básico,
+ * la app le dice que esa función solo está disponible en Pro"*.
+ *
+ * Tiene razón y yo había decidido lo contrario. Mi argumento era «esconder, no
+ * desactivar: un botón gris invita a preguntar qué le pasa», y eso valía contra
+ * un botón MUDO. Un botón que EXPLICA no es lo mismo, y mi razón no le aplica.
+ *
+ * Lo que sí aplica es para qué existe la versión gratis: **vender Pro**. Si
+ * nunca ven que se pueden subir fotos, nunca van a querer subir fotos — y
+ * esconder deja la versión gratis sin ninguna superficie de venta.
+ *
+ * Y el momento en que pulsan uno de estos botones es el de MÁXIMA INTENCIÓN que
+ * vamos a tener nunca: alguien que acaba de descubrir solo que necesita eso.
+ *
+ * `que` es lo que se GANA, no lo que falta. «Not available in Basic» es un
+ * muro; «Attach photos and PDFs to any movement» es una oferta. Mismo trabajo,
+ * resultado opuesto.
+ */
+var BASIC_PRO = {
+  fotos:     { titulo: '📎 Photos and documents',
+               que: 'Attach photos, PDFs and delivery notes to any movement, and find them again from the movement itself.' },
+  etiquetas: { titulo: '🏷️ Labels and QR codes',
+               que: 'Print a label for any material or rack, with a code that opens straight to it.' },
+  escanear:  { titulo: '📷 Scan a label',
+               que: 'Point your phone at a label and the app finds the material and fills the form for you.' },
+  reservas:  { titulo: '🔒 Reserve material',
+               que: 'Hold material for a job so nobody takes it out by mistake, with the reason written down.' },
+  usuarios:  { titulo: '👥 Your team',
+               que: 'Give your crew their own access, decide who can do what, and see who recorded every movement.' },
+  llegadas:  { titulo: '🚚 Expected deliveries',
+               que: 'Record what is coming before it arrives, and see at a glance what landed and what is late.' },
+  respaldo:  { titulo: '🌙 Automatic backup',
+               que: 'A copy of everything, made on its own every night and kept in your own Drive.' },
+  /* El lector de correos va aparte y con su propio mensaje: vende muchísimo y
+   * no cabe en la frase genérica. */
+  correo:    { titulo: '📧 Read it from the email',
+               que: 'Paste a supplier email and the app fills in what is arriving — supplier, items, quantities and dates.' }
+};
+
+/* Qué botón abre qué oferta. Un botón puede estar en la lista y no existir en
+ * la pantalla: se comprueba antes de tocarlo. */
+var BASIC_PRO_BOTONES = {
+  btnAddDoc:                 'fotos',
+  btnAiExtract:              'fotos',
+  btnMovLabels:              'etiquetas',
+  btnEscanear:               'escanear',
+  btnEscanearMov:            'escanear',
+  btnUsersMgmt:              'usuarios',
+  btnAddIncoming:            'llegadas',
+  btnDeleteIncoming:         'llegadas',
+  btnWeekSchedule:           'llegadas',
+  btnMonitorSettings:        'llegadas',
+  btnMonitorSettingsToolbar: 'llegadas',
+  btnBackupNow:              'respaldo',
+  btnFromEmail:              'correo',
+  btnReadEmail:              'correo'
+};
+
+/**
+ * Enseña la oferta — entera la primera vez, callada después.
+ *
+ * LA FRECUENCIA ES LO QUE DECIDE SI ESTO VENDE O MOLESTA. Un mensaje la primera
+ * vez es información; el mismo mensaje la décima vez es acoso, y quien lo sufre
+ * desinstala. Alguien que pulse «adjuntar foto» diez veces al día no puede
+ * recibir diez ventanas.
+ *
+ * El recuerdo vive en `localStorage`, que es del navegador de esa persona y no
+ * sale de ahí. Si falla —ventana privada, datos bloqueados— se cae del lado
+ * bueno: enseña la ventana. Perder el recuerdo es una molestia; perder la
+ * oferta es perder la venta.
+ */
+function _proPitch(clave){
+  var f = BASIC_PRO[clave];
+  if (!f) return;
+
+  var visto = false;
+  try { visto = !!localStorage.getItem('acopio_pro_' + clave); } catch (e) {}
+
+  if (visto) {
+    try { showToast(f.titulo + ' is part of Acopio Pro.', 'info', 4000); } catch (e) {}
+    return;
+  }
+  try { localStorage.setItem('acopio_pro_' + clave, '1'); } catch (e) {}
+
+  var t = document.getElementById('proTitulo');
+  var x = document.getElementById('proTexto');
+  var a = document.getElementById('proEnlace');
+  if (t) t.textContent = f.titulo;
+  if (x) x.textContent = f.que;
+  /* EL NOMBRE DE LA FUNCIÓN VIAJA EN EL ENLACE, y es el único dato que vamos a
+   * tener. La versión básica no puede mandarnos nada —no tiene permiso para
+   * salir a internet, que es justo lo que la hace instalable sin sustos—, pero
+   * ABRIR una página no es una petición nuestra. Así las estadísticas del sitio
+   * dicen qué función empuja gente hacia Pro, sin rastrear a nadie y sin pedir
+   * un permiso más.
+   *
+   * VA A LA RAÍZ, Y NO A `/pro`. La primera versión apuntaba a `/pro`, que NO
+   * EXISTE en el sitio: habría sido un 404 justo en el momento de más interés
+   * que vamos a tener. Un enlace del app a una página del sitio son otras dos
+   * cosas que tienen que coincidir sin que nada lo obligue — y la raíz es la
+   * única ruta que no puede faltar.
+   *
+   * El día que exista una página de Pro, se cambia aquí y el `?de=` sigue
+   * viajando igual. */
+  if (a) a.href = 'https://www.acopio.net/?de=' + encodeURIComponent(clave);
+
+  var ov = document.getElementById('proOverlay');
+  if (ov) ov.classList.add('show');
+}
+
+/**
+ * Pone el candado en los botones que se quedan a la vista.
+ *
+ * SE REEMPLAZA EL `onclick`, no se añade un oyente. Estos botones llevan su
+ * acción escrita en el propio HTML (`onclick="openEmailImport()"`), y un oyente
+ * añadido correría ADEMÁS de ella: saldría la oferta Y se intentaría hacer lo
+ * que no se puede. Asignar la propiedad pisa la del HTML, que es lo que hace
+ * falta.
+ */
+function _basicCandado(){
+  Object.keys(BASIC_PRO_BOTONES).forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    var clave = BASIC_PRO_BOTONES[id];
+    el.style.display = '';
+    if (el.getAttribute('data-pro') === clave) return;   // ya puesto
+    el.setAttribute('data-pro', clave);
+    el.classList.add('pro-lock');
+    el.onclick = function(ev){
+      if (ev && ev.preventDefault) ev.preventDefault();
+      _proPitch(clave);
+      return false;
+    };
+  });
+}
+
+/**
+ * Quita de la pantalla lo que la versión básica no lleva, y pone el candado en
+ * lo que sí se enseña.
+ *
+ * Se llama desde `applyRoleUI` y no desde el arranque, porque la edición llega
+ * con los datos: al arrancar todavía no se sabe.
+ */
+function _basicPintar(){
+  if (!APP_BASIC) return;
+  BASIC_FUERA.botones.forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  BASIC_FUERA.pestanas.forEach(function(par){
+    var b = document.getElementById(par[1]);
+    if (b) b.style.display = 'none';
+  });
+  BASIC_FUERA.ajustes.forEach(function(t){
+    var b = document.querySelector('[data-tab="' + t + '"]');
+    if (b) b.style.display = 'none';
+  });
+  _basicCandado();
+}
+
+/**
+ * ¿Está esta pestaña fuera de la versión básica?
+ *
+ * EXISTE POR UN FALLO QUE NO HABRÍA SALIDO HASTA ESTAR INSTALADO. La pestaña
+ * activa se guarda en `sessionStorage` y se restaura al recargar, así que se
+ * podría llegar a una sección cuyo botón ya no está y quedarse ahí sin salida.
+ *
+ * `Incoming` ya no se esconde —es una de las que se enseñan con candado— pero
+ * la sección sigue sin poder funcionar, así que la pestaña tampoco se abre:
+ * se enseña la oferta y se queda donde estaba.
+ */
+function _basicPestanaFuera(tab){
+  if (!APP_BASIC) return false;
+  if (tab === 'incoming') { _proPitch('llegadas'); return true; }
+  return BASIC_FUERA.pestanas.some(function(par){ return par[0] === tab; });
+}
+
 function applyRoleUI(){
   var isViewer = (userRole === 'VIEWER');
   var isAdmin  = (userRole === 'ADMIN');
@@ -26695,6 +27136,15 @@ function applyRoleUI(){
   if (sw) sw.style.display = _sessionToken ? '' : 'none';
 
   _setAccountIdentity(_lastUserName, userEmail, userRole, false);
+
+  /* AL FINAL, Y NO AL PRINCIPIO. Todo lo de arriba decide por ROL qué se ve, y
+   * varias de esas líneas tocan botones que la versión básica quiere dejar a la
+   * vista con candado — `_escPintarBoton`, por ejemplo, esconde el de escanear
+   * cuando no hay cámara. Puesto antes, cualquiera de ellas lo deshacía.
+   *
+   * La edición manda sobre el rol porque es una capa más abajo: el rol decide
+   * qué puede hacer esta persona, la edición decide qué existe. */
+  _basicPintar();
 }
 
 // ── Connection status ─────────────────────────────────────────────────────────
@@ -27084,6 +27534,38 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.76',
+    titulo: 'The free edition now shows what it is missing',
+    puntos: [
+      'In <b>Acopio Basic</b>, the Pro features are no longer hidden. The button is there, marked with a \u{1F512}, and pressing it says what that feature does.',
+      'It says what you <i>get</i>, not what you lack \u2014 and it never interrupts what you were doing. A movement still saves, with or without the photo.',
+      'The full message appears <b>once</b>. After that it is a quiet one-line note. A reminder shown every time is not a reminder, it is nagging.',
+      'The paid edition is unaffected: none of this exists in your copy.'
+    ],
+    antes:  'A free edition that quietly lacked things, and never said so',
+    ahora:  'It tells you what else it can do, at the moment you want it' },
+
+  { ver: '12.75',
+    titulo: 'Nothing on your screen changed — and that is the point',
+    puntos: [
+      'There is now a <b>free edition of Acopio</b>, built from this same file. It records entries, exits, transfers, returns and waste, and nothing else.',
+      'It is the same file, with one word changed \u2014 <b>not a second copy of the code</b>. So a fix made for one reaches the other. Freezing features is fine; freezing bugs is not.',
+      'The free edition writes to the spreadsheet <b>exactly</b> what this one writes \u2014 same columns, same width, same order. Someone who starts free and later moves up sees all their history on day one, with nothing to convert.',
+      'For you this changes nothing at all. Every new switch is off here, and the full test suite says so.'
+    ],
+    antes:  'One edition, and a rewrite waiting to happen the day a second one was needed',
+    ahora:  'Two editions, one file, and no history left behind' },
+
+  { ver: '12.74',
+    titulo: 'Scanning works after all — with a photo',
+    puntos: [
+      'Open <b>Scan label</b> and tap <b>Take a photo of the label</b>. Your phone camera opens, you take the picture, and the app reads the code from it.',
+      'The live viewfinder is what Google blocks inside this app. A photo is not blocked, because it is not the app asking for your camera — it is your phone handing back a picture, the same way the app already takes photos of documents.',
+      'Everything after the read is unchanged: it offers what you can do with that label and fills the form. It still never saves on its own.'
+    ],
+    antes:  'A black box asking you to point a camera that was never allowed to turn on',
+    ahora:  'Take the picture, and it reads the label' },
+
   { ver: '12.73',
     titulo: 'Why the camera does not open, said plainly',
     puntos: [
@@ -27093,39 +27575,6 @@ var NOVEDADES = [
     ],
     antes:  'A black rectangle asking you to point a camera that was never allowed to turn on',
     ahora:  'It tells you what is in the way, and stops wasting your time' },
-
-  { ver: '12.72',
-    titulo: 'What was left over, from which job, and where it ended up',
-    puntos: [
-      'A <b>Return</b> now asks which project the material is coming back from. That one answer is what lets the app tell you later what was left over from where.',
-      'Leftovers show under the material in the stock table: <b>28 left over from BLACK HOUSE 2</b>. The material stays what it is \u2014 a window screen is still a window screen.',
-      'When you send leftovers out to another job, the app offers them and shows how many are available. The movement then reads both ways: where it went, and which job it was left over from.',
-      'Nothing is counted twice. A return is not a purchase, so your inventory value does not inflate.'
-    ],
-    antes:  'Leftovers filed under a BONEYARD category, with no idea whose they were',
-    ahora:  'The material keeps its name, and the leftovers remember their job' },
-
-  { ver: '12.71',
-    titulo: 'Scan from where you work, and a notice that keeps its word',
-    puntos: [
-      '<b>Scan label</b> now sits next to Entry and Exit, where the work happens. It is still in the account menu too.',
-      'On a computer with no camera that button stays out of the way instead of sitting there doing nothing.',
-      'The <b>back online</b> notice no longer leaves before your data arrives. It says <b>Updating</b> until the new numbers are on screen, and only then says they are up to date.',
-      'The offline notice now reads in two lines: what happened, and what to do about it.'
-    ],
-    antes:  'The green notice left in six seconds, with the data still on its way',
-    ahora:  'It waits for the data, and then tells you' },
-
-  { ver: '12.68',
-    titulo: 'Labels for your racks, not just your material',
-    puntos: [
-      'Pick one location, several, or all of them in <b>Settings → Locations</b>, and print their labels. Three per sheet.',
-      'They look nothing like a material label on purpose: these are <b>landscape</b>, the material ones are upright. Two white stickers with a code on them get stuck in the wrong place sooner or later.',
-      'A rack label carries the name and the code and <b>nothing that can go out of date</b> — no quantity, no date, no PO. It gets stuck on once and lives for years.'
-    ],
-    antes:  'Only the bundle had a code. The shelf had nothing',
-    ahora:  'Scan the bundle, then scan the shelf — the app knows both' }
-
 ];
 
 var NV_CLAVE = 'acopio_novedades_vista';
