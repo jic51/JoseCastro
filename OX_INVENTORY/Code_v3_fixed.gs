@@ -128,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.77';
+var APP_VERSION = '12.79';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -140,7 +140,7 @@ var APP_VERSION = '12.77';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '89bba426';
+var APP_BUILD = '27a4011e';
 
 // ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
 //
@@ -252,6 +252,76 @@ function basicApagado_() { return ACOPIO_BASIC === true; }
  * diciendo qué falta y dónde está, que es lo único útil cuando alguien se
  * topa con esto.
  */
+/**
+ * QUIÉN ES, EN UNA EDICIÓN QUE NO PUEDE PREGUNTÁRSELO A GOOGLE.
+ *
+ * Jose, 19/10: *"¿no sería buena idea usar el correo y ponerlo en usuario en
+ * todos los movimientos? Así, si algún día esa persona paga Pro, todos los
+ * movimientos creados por ella tendrán su correo"*.
+ *
+ * La idea es buena y el matiz importa: **no tenemos su correo**.
+ * `Session.getActiveUser()` necesita `userinfo.email`, que es uno de los
+ * permisos que hay que quitar para que no salga la pantalla de «Google no ha
+ * verificado esta aplicación». No es que se nos olvidara pedirlo: pedirlo
+ * costaría el susto que hace que la gente no instale.
+ *
+ * Lo que sí se puede, y no cuesta NINGÚN permiso, es **preguntárselo una vez**
+ * y guardarlo en la propia hoja.
+ *
+ * ── LO QUE ESTO ES Y LO QUE NO ──────────────────────────────────────────────
+ *
+ * Es un nombre DECLARADO, no comprobado. Nadie verificó ese correo, y hay que
+ * decirlo aquí para que nadie lo trate como una identidad más adelante: en la
+ * versión de pago `USER_EMAIL` viene de Google y en la básica viene de un
+ * campo de texto.
+ *
+ * Para lo que se usa —firmar los movimientos de una persona en su propia
+ * hoja— no hace falta más: no hay nadie de quien distinguirla. Y el día que
+ * pase a Pro, su historial lleva su nombre en vez de `BASIC`, que es justo lo
+ * que Jose quería.
+ *
+ * Se puede saltar. Si lo deja en blanco, los movimientos siguen diciendo
+ * `BASIC`, que también es verdad.
+ */
+function basicIdentidad_() {
+  var p = PropertiesService.getScriptProperties();
+  return {
+    name:  String(p.getProperty('BASIC_USER_NAME')  || '').trim(),
+    email: String(p.getProperty('BASIC_USER_EMAIL') || '').trim()
+  };
+}
+
+/**
+ * La guarda. La llama la ventana que se enseña una sola vez al empezar.
+ *
+ * Sólo existe en la versión básica: en la de pago el nombre viene de Google y
+ * dejar que se escriba a mano sería abrir una puerta a firmar como otro.
+ */
+function saveBasicIdentity(d) {
+  if (!basicApagado_()) throw new Error('Not available in Acopio Pro.');
+  /* LA MISMA PUERTA QUE EL RESTO, y no una excepción.
+   *
+   * `tools/test-endpoint-auth.js` lo cazó al escribirla: toda función global
+   * sin guión bajo es una puerta que cualquiera puede llamar, y ésta escribe en
+   * las propiedades de la hoja. Que en la versión básica sólo pueda entrar el
+   * dueño lo garantiza el despliegue, pero eso no es razón para que esta puerta
+   * sea la única del archivo sin guardia: el día que la básica deje de ser de
+   * una persona, sería la que se quedó abierta. */
+  var auth = setVerifiedAuth_(getUserRole(d && d._sessionToken));
+  requireAuth_('WRITE');
+  var p     = PropertiesService.getScriptProperties();
+  var nom   = String((d && d.name)  || '').trim().slice(0, 60);
+  var email = String((d && d.email) || '').trim().slice(0, 120);
+  /* Una comprobación de forma, no de existencia: que parezca un correo. No se
+   * puede verificar que sea suyo y no se finge que sí. */
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    throw new Error('That does not look like an email address.');
+  }
+  p.setProperty('BASIC_USER_NAME',  nom);
+  p.setProperty('BASIC_USER_EMAIL', email);
+  return { name: nom, email: email };
+}
+
 function basicNiega_(queEs) {
   if (!ACOPIO_BASIC) return;
   throw new Error(queEs + ' is not part of Acopio Basic. ' +
@@ -2511,7 +2581,10 @@ function getUserRole(sessionToken) {
    * Sin correo A PROPÓSITO, y no es un descuido que haya que arreglar luego:
    * es lo que hace que `AC.USER_EMAIL` se escriba como `BASIC` en vez de
    * inventarse un autor. Ver docs/VERSION-BASICA.md. */
-  if (basicApagado_()) return { role: 'ADMIN', email: '', name: '' };
+  if (basicApagado_()) {
+    var yo = basicIdentidad_();
+    return { role: 'ADMIN', email: yo.email, name: yo.name };
+  }
   var email = '';
   // 1. Company users (same Workspace domain) → identified automatically.
   //    NOTE: do NOT fall back to getEffectiveUser() — under "Execute as: Me" that
@@ -3145,6 +3218,9 @@ function getInitialData(sessionToken) {
       // los botones pero deja las puertas abiertas, o al revés — y las dos
       // mitades fallan en silencio. Una sola fuente, y la otra se entera.
       basic:              ACOPIO_BASIC,
+      /* ¿Hay que preguntarle quién es? Sólo la primera vez, y sólo en la
+       * básica. Lo decide el servidor porque es quien tiene el dato. */
+      basicPreguntarQuien: ACOPIO_BASIC && !basicIdentidad_().email,
       // Sent with the first load so the ENTRY form can offer a material's packs
       // the moment its name is filled in, without a round trip per line.
       materialPacks:      (function(){ try { return readPacks_(ss); } catch (e) { return {}; } })(),
@@ -5241,6 +5317,8 @@ function checkDuplicateInValues_(archiveValues, mt, cat, name, qty, userEmail) {
 //     why only the first person got it and nobody appeared in CC).
 // Returns an error string if no valid recipient, else null.
 function sendBatchNotifyEmail_(notify, rowMeta, auth) {
+  // CALLAR en la versión básica: con UNA persona no hay a quién avisar de su propio movimiento.
+  if (basicApagado_()) return 'Acopio Basic does not send email.';
   // ── Robust recipient parse ───────────────────────────────────────────────
   var valid = [];
   var raw = String(notify.emails || '').split(/[\s,;]+/);
@@ -7060,6 +7138,8 @@ function dailyCheckinTrigger() {
 }
 
 function runCheckin_() {
+  // CALLAR en la versión básica: el aviso de cliente parado se manda por correo.
+  if (basicApagado_()) return null;
   var p = PropertiesService.getScriptProperties();
   if (!companySettings_().setupComplete) return;      // nothing to check in on yet
   if (p.getProperty('CHECKIN_ALERTS_ENABLED') === 'false') return;
@@ -7387,6 +7467,8 @@ function dailyReportMovements_(ss, dia) {
  * un admin pulsa "Send one now". El de la hora tiene que comprobar que le toca;
  * el botón, no — quien lo pulsa ya ha decidido que quiere el correo ahora. */
 function runDailyReport_(programado) {
+  // CALLAR en la versión básica: el informe diario se manda por correo.
+  if (basicApagado_()) return 'disabled';
   var cfg = dailyReportSettings_();
   if (!cfg.enabled) return 'disabled';
 
@@ -8090,6 +8172,8 @@ function managePmDirectory(data, auth) {
 // matching entry in PM_DIRECTORY are silently skipped (no email address to
 // send to) and reported back so the admin knows to add them.
 function sendPmGroupedEmails_(rows, auth) {
+  // CALLAR en la versión básica: los avisos al jefe de obra son de Pro.
+  if (basicApagado_()) return null;
   var byPm = {}; // upper(pmName) -> { displayName, items: [{name, qty, unit}] }
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
@@ -8193,6 +8277,22 @@ function getMaterialLocksUncached_() {
 // { 'MATID|||RACK': {allowedDest:[...], reason, lockedBy} } — used by the
 // authoritative enforcement check in _addMovement / addMovementsBatch_.
 function getActiveLocksMap_(ss) {
+  /* ── EN LA BÁSICA NO HAY NADA APARTADO, Y ES POR COHERENCIA ──────────────
+   *
+   * Jose, 19/10: *"como es una copia del demo había materiales reservados, y
+   * puedo liberarlos, pero no puedo reservar, eso no tiene lógica"*.
+   *
+   * Tiene razón, y las dos salidas obvias son peores que ésta:
+   *
+   *   · Dejar reservar → es una función de Pro.
+   *   · Prohibir también liberar → el material que venga apartado en la
+   *     plantilla se queda apartado PARA SIEMPRE, sin forma de soltarlo.
+   *
+   * Así que en la versión básica las reservas sencillamente NO EXISTEN: no se
+   * leen, no se pintan, no hay nada que liberar. Las filas de la hoja no se
+   * tocan —si ese cliente pasa a Pro, sus reservas siguen ahí y vuelven a
+   * contar—, simplemente dejan de mirarse. */
+  if (basicApagado_()) return {};
   var sheet = ss.getSheetByName('MATERIAL_LOCKS');
   var map = {};
   if (!sheet) return map;
@@ -12659,6 +12759,8 @@ function addUser(data, auth) {
  *   · SE DICE LA VERDAD AL QUE INVITA. La respuesta lleva si salió o no, para que
  *     la pantalla no ponga "Invitation sent" cuando no se mandó nada. */
 function invitarUsuario_(ss, email, name, role, auth) {
+  // CALLAR en la versión básica: sin usuarios no hay a quién invitar.
+  if (basicApagado_()) return false;
   var url = savedWebAppUrl_();
   if (!url) {
     return { enviado: false, motivo: 'No invitation was sent: this installation has ' +
@@ -15433,7 +15535,24 @@ function modifyMovementLocked_(data, auth) {
     'Row ' + rowIdx + ' | Reason: ' + reason,
     changes.join(' | '), '');
 
-  // Email admin
+  /* ── EL AVISO POR CORREO, Y POR QUÉ SE SALTA ENTERO EN LA BÁSICA ─────────
+   *
+   * ESTO ROMPIÓ UNA EDICIÓN EN LA CARA DE JOSE, el 19/10. La fila ya estaba
+   * escrita y la bitácora puesta —todo lo de arriba— y aquí reventaba con
+   * *«Specified permissions are not sufficient to call MailApp.sendEmail»*.
+   * Resultado: un error rojo encima de un cambio que YA había ocurrido, y la
+   * ventana sin cerrarse. Jose: *"ese no es un problema del cliente, es
+   * nuestro"*.
+   *
+   * Tenía razón dos veces. Y es exactamente el caso que el diseño de
+   * `ACOPIO_BASIC` llama CALLAR y yo no apliqué aquí: en la versión básica hay
+   * UNA persona, así que el aviso de «alguien modificó un movimiento» no tiene
+   * ni remitente ni destinatario. No es una función que falte: es una que no
+   * significa nada.
+   *
+   * Va DESPUÉS de guardar y de la bitácora a propósito, y por eso saltárselo
+   * deja la edición entera y correcta. */
+  if (!basicApagado_()) {
   var cfg       = loadConfig();
   var recipient = adminNotifyEmail_();
   var matLabel  = String(rowVals[AC.CATEGORY] || '') + ' — ' + String(rowVals[AC.NAME] || '');
@@ -15461,6 +15580,7 @@ function modifyMovementLocked_(data, auth) {
     body,
     { name: (companySettings_().name || 'Warehouse') + ' — ' + PRODUCT_NAME }
   );
+  }
 
   /* LA FILA COMO QUEDÓ, Y LAS CIFRAS DE DESPUÉS.
    *

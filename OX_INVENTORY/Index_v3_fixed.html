@@ -1072,11 +1072,35 @@
     /* EL CANDADO. Un botón normal, no uno apagado: se puede pulsar y contesta.
        Apagarlo con `disabled` lo dejaría gris y mudo, que es justo lo que no
        queremos — la gracia es que al pulsarlo cuente qué hace esa función. */
-    .pro-lock{position:relative;opacity:.72}
-    .pro-lock:hover{opacity:1}
+    /* GRIS CLARO Y QUE SE NOTE. Jose, 19/10: *"me gusta que están de color gris
+       pero debes hacerlas MÁS GRISES para que se distinga bien"*. A .72 se
+       distinguía poco de un botón normal; a .4 se lee de un vistazo que no es
+       para ahora. Al pasar el ratón sube sólo un poco: lo justo para que se vea
+       que contesta, sin fingir que está disponible. */
+    .pro-lock{position:relative;opacity:.4;filter:grayscale(1)}
+    .pro-lock:hover{opacity:.62}
     .pro-lock::after{content:'🔒';font-size:.7em;margin-left:var(--sp-1);opacity:.85}
+
+    /* UNA ZONA ENTERA APAGADA. El `pointer-events:none` de los HIJOS es lo que
+       impide empezar: un `<input type="file">` de dentro ya no abre el
+       explorador. La zona sí recibe el clic, y enseña la oferta. */
+    .pro-off{opacity:.4;filter:grayscale(1);cursor:pointer;position:relative}
+    .pro-off *{pointer-events:none!important}
+    .pro-off::after{content:'🔒 Acopio Pro';position:absolute;top:var(--sp-2);right:var(--sp-3);
+      font-size:.7rem;letter-spacing:.04em;color:var(--muted);pointer-events:none}
+
+    /* El enlace de dentro del aviso flotante. Tiene que destacar sobre el
+       fondo de color del aviso, que puede ser cualquiera. */
+    .toast-pro{color:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
     #proOverlay .modal-actions{display:flex;gap:var(--sp-3);justify-content:flex-end;align-items:center}
     #proOverlay a.btn{text-decoration:none;display:inline-flex;align-items:center}
+    /* UN SOLO BOTÓN, Y ES EL AZUL. Jose: *"sólo el azul debe ser un botón... la
+       otra opción debe ser sólo texto con hipervínculo. Así el usuario se fija
+       más en el botón ACOPIO PRO"*. Dos botones compiten; un botón y un enlace
+       no. */
+    .pro-notnow{font-size:.82rem;color:var(--muted);cursor:pointer;text-decoration:underline;
+      margin-right:var(--sp-2)}
+    .pro-notnow:hover{color:var(--text)}
     .field input,.field select,.field textarea{padding:var(--sp-4) var(--sp-5);border:1px solid var(--border);border-radius:6px;font-family:inherit;transition:.15s}
     .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-accent)}
     /* `flex-wrap:wrap` no es adorno: es lo que impide que los botones se
@@ -1902,6 +1926,29 @@
        dieciséis columnas no caben en 960px, y una barra horizontal es mejor que
        un texto que no se puede leer. */
     #tableContainer table{table-layout:fixed;width:100%}
+
+    /* ══ Y EL DASHBOARD, QUE SE QUEDÓ FUERA HASTA LA v12.79 ═══════════════════
+       Jose, 19/10, repasando la app entera: *"revisé el salto y movimiento de
+       las filas y columnas, y la mayoría está bien y no se mueven en
+       'Movements', pero en el 'Dashboard' sí se mueven y saltan algunas según
+       cambio de categorías y estado"*.
+
+       Lo raro es que el trabajo ya estaba hecho a medias: `STOCK_COLS` lleva su
+       ancho en cada columna desde siempre, y la v12.22 le puso el mínimo
+       calculado. Lo que faltaba era ESTA LÍNEA. Sin `table-layout:fixed` un
+       ancho declarado es una SUGERENCIA: el navegador la usa de punto de
+       partida y luego reparte por lo que haya dentro. Tres cuartas partes del
+       mecanismo puestas, y la que las ata, no.
+
+       POR QUÉ SOBREVIVIÓ: `tools/test-columnas.js` mide las columnas bajo siete
+       filtros y falla si alguna se mueve... pero sólo medía `#movHeadRow`. La
+       prueba demostraba que Movements estaba quieto, y de la tabla de al lado
+       no decía nada. Ahora mide las dos. Una prueba que cubre media pantalla
+       certifica media pantalla. */
+    #stockTable{table-layout:fixed;width:100%}
+    /* Y lo que no cabe se parte, no se recorta — misma regla que Movements: el
+       final de un nombre es donde están la letra y el número que lo distinguen. */
+    #stockTable td{overflow-wrap:anywhere}
     /* Y lo que no cabe SE PARTE, no se recorta. Es la misma regla que Jose fijó
        para la tira de reservas: el final de un nombre es donde están la letra y
        el número que lo distinguen, así que esconderlo con puntos suspensivos es
@@ -2641,6 +2688,23 @@
     .deck-card.saliendo-descartada{opacity:0;pointer-events:none;
       margin-bottom:calc(-1 * (var(--card-h) + .45rem));transition-delay:0s!important}
     .deck-card.saliendo-aceptada{transform:translateX(-22%) scale(.94)}
+    /* ══ CUANDO HAY RELEVO, EL HUECO NO SE DEVUELVE ═══════════════════════════
+       Jose, 19/10: *"al eliminar una se borra, todas se ruedan para arriba y en
+       menos de 1 segundo después todas se bajan para dejar entrar a la que
+       estaba afuera, y ésta se pone arriba... parece un error"*.
+
+       Y tiene razón: son DOS movimientos donde hay UN cambio. El margen
+       negativo de arriba hace que el resto suba a ocupar el hueco —que es lo
+       correcto cuando la pila se queda más corta— pero si había tarjetas
+       esperando fuera, el redibujado mete la siguiente y la pila vuelve a su
+       altura: todas bajan otra vez.
+
+       Con relevo, la pila NO cambia de altura, así que no tiene por qué
+       moverse. La tarjeta se va y la siguiente aparece en su sitio. Una baraja
+       se comporta así: quitas la de arriba y ves la de abajo, no se mueve el
+       montón entero dos veces. */
+    .deck-card.saliendo-aceptada.conserva-hueco,
+    .deck-card.saliendo-descartada.conserva-hueco{margin-bottom:0}
     /* Leaving. The card slides out to the right and gives its height back over
        the same beat, so everything below rises into the gap instead of jumping.
        margin-bottom is what moves the others: shrinking it by the card's own
@@ -4298,7 +4362,7 @@
         <button class="btn btn-ghost btn-sm" onclick="clearStockSelection()">Clear</button>
       </div>
       <div class="table-wrapper">
-        <table>
+        <table id="stockTable">
           <thead><tr id="stockHeadRow"></tr></thead>
           <tbody id="stockBody"></tbody>
         </table>
@@ -5400,19 +5464,48 @@
      Sólo aparece en la versión básica. No es un muro, es una oferta: dice qué
      hace la función y dónde está, con palabras de lo que se gana y no de lo que
      falta. Ver BASIC_PRO. -->
+<!-- ── QUIÉN ERES, PREGUNTADO UNA SOLA VEZ ────────────────────────────────────
+     Sólo en la versión básica, y sólo mientras no haya respuesta. Ver
+     basicIdentidad_ en Code.gs para por qué se pregunta en vez de saberlo. -->
+<div class="overlay" id="quienOverlay">
+  <div class="modal modal-sm">
+    <div class="mhdr">
+      <h3>👋 Before you start</h3>
+    </div>
+    <p style="font-size:.9rem;color:var(--text);margin:.1rem 0 1rem;line-height:1.5">
+      Who is recording movements here? This signs every movement you record, so your
+      history has your name on it from day one.
+    </p>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="quienNombre" placeholder="Jose Castro" maxlength="60">
+    </div>
+    <div class="field">
+      <label>Your email</label>
+      <input type="email" id="quienEmail" placeholder="you@company.com" maxlength="120">
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin:.6rem 0 0;line-height:1.45">
+      It is written only into your own spreadsheet. Nothing is sent anywhere, and nobody
+      else can open this app.
+    </p>
+    <div id="quienError" style="display:none;font-size:.8rem;color:var(--danger);margin-top:.5rem"></div>
+    <div class="modal-actions" style="margin-top:1.25rem">
+      <span class="pro-notnow" onclick="_quienSaltar()">Skip for now</span>
+      <button class="btn btn-primary btn-sm" id="quienSave" type="button" onclick="_quienGuardar()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="proOverlay">
   <div class="modal modal-sm">
     <div class="mhdr">
       <h3 id="proTitulo">Acopio Pro</h3>
       <button class="modal-x" onclick="closeModal('proOverlay')" title="Close">✕</button>
     </div>
-    <p id="proTexto" style="font-size:.9rem;color:var(--text);margin:.1rem 0 .6rem;line-height:1.5"></p>
-    <p style="font-size:.8rem;color:var(--muted);margin:0 0 1rem">
-      Everything you have recorded so far stays exactly where it is. Nothing to move, nothing to convert.
-    </p>
+    <p id="proTexto" style="font-size:.9rem;color:var(--text);margin:.1rem 0 1rem;line-height:1.5"></p>
     <div class="modal-actions" style="margin-top:1.25rem">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('proOverlay')">Not now</button>
-      <a id="proEnlace" class="btn btn-primary btn-sm" href="https://www.acopio.net/" target="_blank" rel="noopener">See what Acopio Pro does</a>
+      <span class="pro-notnow" onclick="closeModal('proOverlay')">Not now</span>
+      <a id="proEnlace" class="btn btn-primary btn-sm" href="https://www.acopio.net/" target="_blank" rel="noopener">Check Acopio Pro</a>
     </div>
   </div>
 </div>
@@ -5517,7 +5610,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.77';
+var APP_VERSION = '12.79';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5529,7 +5622,7 @@ var APP_VERSION = '12.77';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '89bba426';
+var APP_BUILD = '27a4011e';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -15573,14 +15666,18 @@ function _clearRowModes(){
 function _renderSettingsTab(tab) {
   _syncSettingsTabButtons(tab);
   var content = document.getElementById('settingsTabContent');
-  if (tab === 'materials')   { _renderMaterialsTab(); return; }
-  if (tab === 'errorlog')    { _renderErrorLogTab(); return; }
-  if (tab === 'system')      { _renderSystemTab(); return; }
-  if (tab === 'pmdirectory') { _renderPmDirectoryTab(); return; }
-  if (tab === 'import')      { _renderImportTab(); return; }
-  if (tab === 'locations')   { _renderLocationsTab(); return; }
-  if (tab === 'company')     { _renderCompanyTab(); return; }
-  if (tab === 'permissions') { _renderPermissionsTab(); return; }
+  /* CADA PINTADA REHACE EL CONTENIDO, así que el apagado hay que rehacerlo
+   * también — y DESPUÉS, no antes. Jose encontró la pestaña de sistema con
+   * todas sus opciones pulsables: *"todas están disponibles, si doy clic
+   * muestran un mensaje que parece de error"*. El mensaje llegaba tarde. */
+  if (tab === 'materials')   { _renderMaterialsTab();   _basicApagarAjuste(tab); return; }
+  if (tab === 'errorlog')    { _renderErrorLogTab();    _basicApagarAjuste(tab); return; }
+  if (tab === 'system')      { _renderSystemTab();      _basicApagarAjuste(tab); return; }
+  if (tab === 'pmdirectory') { _renderPmDirectoryTab(); _basicApagarAjuste(tab); return; }
+  if (tab === 'import')      { _renderImportTab();      _basicApagarAjuste(tab); return; }
+  if (tab === 'locations')   { _renderLocationsTab();   _basicApagarAjuste(tab); return; }
+  if (tab === 'company')     { _renderCompanyTab();     _basicApagarAjuste(tab); return; }
+  if (tab === 'permissions') { _renderPermissionsTab(); _basicApagarAjuste(tab); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -18762,9 +18859,17 @@ var _DECK_LEAVE_ANIM_MS = 500;
  * El `then` espera a que el movimiento termine. Redibujar antes reconstruiría
  * el mazo y no quedaría nada que animar, que es el fallo que esta función
  * existe para impedir. */
-function _deckCardLeave(el, then, modo){
+/**
+ * `hayRelevo` — si detrás de esta tarjeta hay otra esperando a entrar.
+ *
+ * Decide si la pila se encoge o se queda igual. Con relevo no se encoge, así
+ * que las de abajo no deben moverse: ver `.conserva-hueco` en el CSS. Sin él,
+ * el comportamiento es el de siempre.
+ */
+function _deckCardLeave(el, then, modo, hayRelevo){
   if (!el){ if (then) then(); return; }
   el.classList.add(modo === 'aceptada' ? 'saliendo-aceptada' : 'saliendo-descartada');
+  if (hayRelevo) el.classList.add('conserva-hueco');
   setTimeout(function(){ if (then) then(); }, _DECK_LEAVE_ANIM_MS);
 }
 
@@ -25753,6 +25858,7 @@ function _applyData(data) {
   /* ANTES que el rol, y antes de pintar nada: `applyRoleUI` ya decide qué se ve
    * y necesita saber en qué edición está cuando llegue. */
   APP_BASIC          = (data.basic === true);
+  if (data.basicPreguntarQuien === true) { try { _quienPreguntar(); } catch (e) {} }
   userRole           = data.userRole           || 'WAREHOUSE';
   if (data.rolePerms) rolePerms = data.rolePerms;
   if (data.warehouseRoleLabel) warehouseRoleLabel = data.warehouseRoleLabel;
@@ -25962,10 +26068,13 @@ function _dismissSysCard(id){
   // like a list rather than a stack of paper.
   var el = document.querySelector('[data-card-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
   // La ✕ de una notificación es "ya lo leí", no "esto se guardó": descartada.
+  /* ¿Queda alguna esperando fuera? Si la pila está llena, al quitar ésta entra
+   * la siguiente y la altura no cambia — así que nada debe moverse. */
+  var hayRelevo = _sysCards.length > _DECK_VISIBLE;
   _deckCardLeave(el, function(){
     _sysCards = _sysCards.filter(function(c){ return c.id !== id; });
     _renderSysDeck();
-  }, 'descartada');
+  }, 'descartada', hayRelevo);
 }
 
 // A notification stays until somebody presses its ✕. It used to carry a
@@ -26866,6 +26975,11 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('attachOverlay','click', function(e){ closeIfOutside(e,'attachOverlay'); });
   _safeOn('rackPhotoFileInput','change', _handleRackPhotoFileChange);
   _safeOn('lockMatOverlay','click', function(e){ closeIfOutside(e,'lockMatOverlay'); });
+  /* EL CLIC EN LA OFERTA NO LLEGA AL DOCUMENTO. Jose, 19/10: *"al hacer clic en
+   * el popup (no en los botones) se guarda el menú del avatar"*. El clic subía
+   * hasta el manejador que cierra los menús abiertos, así que leer la oferta
+   * cerraba por detrás el menú desde el que se había llegado a ella. */
+  _safeOn('proOverlay','click', function(e){ e.stopPropagation(); });
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') closeMediaPreview();
   });
@@ -26898,9 +27012,63 @@ var BASIC_FUERA = {
    * y con veinte puertas cerradas la app deja de parecer una herramienta y
    * parece una demostración caducada. */
   botones: ['btnReportIssue', 'btnDataCheck', 'btnRebuildStock', 'btnMovIdFill'],
-  ajustes: ['errorlog', 'system', 'import', 'pmdirectory'],
+
+  /* Jose, 19/10, repasando la app entera: *"también se muestra PERMISSIONS,
+   * ¿por qué? eso no tiene sentido"* y *"no debe haber DIRECTORY ¿verdad?"*.
+   * Las dos fuera: sin usuarios no hay permisos que repartir ni directorio de
+   * jefes de obra a quien avisar. `import` necesita Drive.
+   *
+   * `errorlog` SE QUEDA — él mismo dijo que está bien, y es verdad: un registro
+   * de errores no es una función de pago, es cómo se pide ayuda. */
+  ajustes: ['permissions', 'pmdirectory', 'import'],
   pestanas: []
 };
+
+/* ── LO QUE SE VE PERO NO SE PUEDE EMPEZAR ───────────────────────────────────
+ *
+ * Jose, 19/10, y es la frase que corrige el error de diseño:
+ *
+ *   *"se le dice al cliente lo que no se puede hacer ANTES de que lo termine de
+ *   hacer, justo al momento de empezar"*.
+ *
+ * La versión anterior dejaba elegir la imagen, escribir el destinatario del
+ * correo, adjuntar el documento y marcar las etiquetas — y avisaba AL GUARDAR.
+ * Peor: el movimiento se guardaba y el documento no, así que quedaba a medias y
+ * con un error encima. Eso no es un aviso, es una trampa.
+ *
+ * Esto son ZONAS enteras, no botones: la sección de documentos de una entrada,
+ * la de avisos por correo, la pestaña de sistema. Se pintan en gris claro, no
+ * se puede tocar nada de dentro, y el clic en la zona enseña la oferta.
+ */
+var BASIC_PRO_ZONAS = {
+  fileSection:   'fotos',    // adjuntar documentos a una entrada
+  notifySection: 'correo'    // avisar por correo al guardar
+};
+
+/* Las pestañas de ajustes se pintan cada vez que se entra en ellas, así que no
+ * basta con apagarlas una vez: hay que volver a hacerlo después de cada
+ * pintada. Ver la llamada al final de `_renderSettingsTab`. */
+var BASIC_PRO_AJUSTES = { system: 'respaldo' };
+
+/**
+ * Deja una zona entera a la vista pero intocable: gris claro, nada de dentro
+ * recibe el ratón, y el clic en la zona enseña la oferta.
+ *
+ * EL TRUCO ESTÁ EN EL CSS, no aquí: `.pro-off *` apaga el ratón de los hijos y
+ * la propia zona lo conserva. Así un `<input type="file">` dentro deja de
+ * abrir el explorador de archivos —que es justo lo que Jose no quería— sin
+ * tener que ir control por control.
+ */
+function _basicApagarZona(el, clave){
+  if (!el || el.getAttribute('data-pro') === clave) return;
+  el.setAttribute('data-pro', clave);
+  el.classList.add('pro-off');
+  el.addEventListener('click', function(ev){
+    ev.preventDefault();
+    ev.stopPropagation();
+    _proPitch(clave);
+  }, true);   // en captura: llega antes que cualquier manejador de dentro
+}
 
 /* ── LO QUE SÍ SE ENSEÑA, CON CANDADO ────────────────────────────────────────
  *
@@ -26982,36 +27150,124 @@ function _proPitch(clave){
   var visto = false;
   try { visto = !!localStorage.getItem('acopio_pro_' + clave); } catch (e) {}
 
-  if (visto) {
-    try { showToast(f.titulo + ' is part of Acopio Pro.', 'info', 4000); } catch (e) {}
-    return;
-  }
+  if (visto) { _proToast(clave); return; }
   try { localStorage.setItem('acopio_pro_' + clave, '1'); } catch (e) {}
 
   var t = document.getElementById('proTitulo');
   var x = document.getElementById('proTexto');
   var a = document.getElementById('proEnlace');
-  if (t) t.textContent = f.titulo;
-  if (x) x.textContent = f.que;
-  /* EL NOMBRE DE LA FUNCIÓN VIAJA EN EL ENLACE, y es el único dato que vamos a
-   * tener. La versión básica no puede mandarnos nada —no tiene permiso para
-   * salir a internet, que es justo lo que la hace instalable sin sustos—, pero
-   * ABRIR una página no es una petición nuestra. Así las estadísticas del sitio
-   * dicen qué función empuja gente hacia Pro, sin rastrear a nadie y sin pedir
-   * un permiso más.
+  /* EL TÍTULO DICE QUE ES DE PRO, Y ESO FALTABA.
    *
-   * VA A LA RAÍZ, Y NO A `/pro`. La primera versión apuntaba a `/pro`, que NO
-   * EXISTE en el sitio: habría sido un 404 justo en el momento de más interés
-   * que vamos a tener. Un enlace del app a una página del sitio son otras dos
-   * cosas que tienen que coincidir sin que nada lo obligue — y la raíz es la
-   * única ruta que no puede faltar.
-   *
-   * El día que exista una página de Pro, se cambia aquí y el `?de=` sigue
-   * viajando igual. */
-  if (a) a.href = 'https://www.acopio.net/?de=' + encodeURIComponent(clave);
+   * Jose, 19/10: *"sale una descripción del producto pero no se especifica que
+   * eso sólo está disponible en la opción Pro, no dice nada de eso, es
+   * confuso"*. Tenía razón y era el peor fallo de la ventana: explicaba la
+   * función sin decir nunca por qué no la tiene. */
+  if (t) t.textContent = f.titulo + ' is part of Acopio Pro';
+  if (x) x.textContent = f.que + ' Check this and more in Acopio Pro.';
+  if (a) a.href = _proUrl(clave);
 
   var ov = document.getElementById('proOverlay');
   if (ov) ov.classList.add('show');
+}
+
+/**
+ * La dirección, con el nombre de la función detrás.
+ *
+ * Es el único dato que la versión básica puede darnos: no tiene permiso para
+ * salir a internet —que es justo lo que la hace instalable sin sustos— pero
+ * ABRIR una página no es una petición nuestra. Así las estadísticas del sitio
+ * dicen qué función empuja gente hacia Pro, sin rastrear a nadie.
+ *
+ * VA A LA RAÍZ, y no a `/pro`: esa página no existe, y habría sido un 404 justo
+ * en el momento de más interés. El día que exista, se cambia esta línea.
+ */
+function _proUrl(clave){
+  return 'https://www.acopio.net/?de=' + encodeURIComponent(clave);
+}
+
+/**
+ * El recordatorio callado, a partir de la segunda vez.
+ *
+ * NO SE VA MIENTRAS EL RATÓN ESTÉ ENCIMA — idea de Jose, 19/10: *"podemos hacer
+ * que el toast no desaparezca si el usuario hace hover, así podemos resaltar
+ * Acopio Pro y al dar clic lo enviamos"*. Un aviso de cuatro segundos con un
+ * enlace dentro es un enlace que nadie llega a pulsar.
+ *
+ * Y DURA MÁS DE ENTRADA, porque en un teléfono no hay ratón que poner encima.
+ * Sin eso, la mitad de la gente —la que llega desde un vídeo, con el móvil— no
+ * alcanzaría nunca el enlace. El hover es una mejora para quien tiene ratón, no
+ * la única forma de llegar.
+ */
+function _proToast(clave){
+  var f = BASIC_PRO[clave];
+  if (!f) return;
+  var cont = document.getElementById('toastContainer');
+  if (!cont) return;
+
+  var el = document.createElement('div');
+  el.className = 'toast info';
+  el.innerHTML =
+    '<span class="toast-icon">🔒</span>' +
+    '<span class="toast-msg">' + _he(f.titulo) + ' is part of ' +
+      '<a class="toast-pro" href="' + _he(_proUrl(clave)) + '" target="_blank" rel="noopener">Acopio Pro</a>' +
+    '</span>' +
+    '<button class="toast-close" type="button">✕</button>';
+  cont.appendChild(el);
+
+  var reloj = null;
+  function irse(){ try { el.remove(); } catch (e) {} }
+  function contar(ms){ clearTimeout(reloj); reloj = setTimeout(irse, ms); }
+
+  el.querySelector('.toast-close').addEventListener('click', function(){
+    clearTimeout(reloj); irse();
+  });
+  el.addEventListener('mouseenter', function(){ clearTimeout(reloj); });
+  el.addEventListener('mouseleave', function(){ contar(2500); });
+
+  contar(9000);
+}
+
+/**
+ * Pregunta quién es, una sola vez.
+ *
+ * Se llama cuando el servidor dice que no hay respuesta guardada. SE PUEDE
+ * SALTAR: quien no quiera dar su nombre sigue con los movimientos firmados
+ * como `BASIC`, que también es verdad. Obligar aquí sería poner un formulario
+ * delante de un producto que se regala, y es el primer minuto.
+ */
+function _quienPreguntar(){
+  var ov = document.getElementById('quienOverlay');
+  if (ov) ov.classList.add('show');
+}
+
+function _quienSaltar(){
+  try { closeModal('quienOverlay'); } catch (e) {}
+}
+
+function _quienGuardar(){
+  var nom   = (document.getElementById('quienNombre') || {}).value || '';
+  var email = (document.getElementById('quienEmail')  || {}).value || '';
+  var err   = document.getElementById('quienError');
+  var btn   = document.getElementById('quienSave');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  google.script.run
+    .withSuccessHandler(function(r){
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      userEmail = (r && r.email) || '';
+      try { _setAccountIdentity((r && r.name) || '', userEmail, userRole, false); } catch (e) {}
+      try { closeModal('quienOverlay'); } catch (e) {}
+      try { showToast('Saved. Your movements will be signed with your name.', 'ok'); } catch (e) {}
+    })
+    .withFailureHandler(function(e){
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      /* EL MENSAJE ENTERO Y A LA VISTA, no un aviso que se va. Es un formulario
+       * de dos campos: si algo no le gustó, hay que poder leerlo al lado del
+       * campo y corregirlo. */
+      if (err) { err.textContent = (e && e.message) ? e.message : String(e); err.style.display = ''; }
+    })
+    .saveBasicIdentity({ name: nom, email: email });
 }
 
 /**
@@ -27061,7 +27317,21 @@ function _basicPintar(){
     var b = document.querySelector('[data-tab="' + t + '"]');
     if (b) b.style.display = 'none';
   });
+  Object.keys(BASIC_PRO_ZONAS).forEach(function(id){
+    _basicApagarZona(document.getElementById(id), BASIC_PRO_ZONAS[id]);
+  });
   _basicCandado();
+}
+
+/**
+ * Lo mismo para una pestaña de ajustes, que se pinta de nuevo cada vez.
+ * La llama `_renderSettingsTab` al final, una vez por pintada.
+ */
+function _basicApagarAjuste(tab){
+  if (!APP_BASIC) return;
+  var clave = BASIC_PRO_AJUSTES[tab];
+  if (!clave) return;
+  _basicApagarZona(document.getElementById('settingsTabContent'), clave);
 }
 
 /**
@@ -27534,6 +27804,29 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.79',
+    titulo: 'The card pile stops rocking',
+    puntos: [
+      'Dismissing a card made the whole pile slide up, and then slide back down a moment later when the next card took the free slot. One change, two movements \u2014 and the second one read as a glitch.',
+      'When another card is waiting, the pile no longer gives the space back: the card leaves and the next one is simply there. When nothing is waiting, the rest still rise into the gap, which is right.',
+      'The Dashboard table now holds its column widths by rule rather than by whatever happens to be in it.',
+      'And the footer says which edition you are running, so a free copy is never mistaken for anything else.'
+    ],
+    antes:  'Dismiss a card and the pile bounces up, then down',
+    ahora:  'The card goes, the pile stays put' },
+
+  { ver: '12.78',
+    titulo: 'Nothing half-done, and no surprises at the end',
+    puntos: [
+      'In the free edition you could pick a photo, write who to email, attach a document \u2014 and only find out <i>on save</i> that none of it would happen. Worse: the movement saved and the document did not.',
+      'Now anything that belongs to Acopio Pro is <b>greyed out and cannot be started</b>. One tap tells you what it does and how to get it, before you have put any work into it.',
+      'Editing a movement no longer fails. It was saving the change and <i>then</i> trying to email about it, which left a red error sitting on top of a change that had already happened.',
+      'And the app asks your name once, so every movement you record carries it \u2014 ready for the day you move up.',
+      'None of this exists in the paid edition.'
+    ],
+    antes:  'You could start anything, and find out at the end that it did not happen',
+    ahora:  'What you cannot finish, you cannot start' },
+
   { ver: '12.77',
     titulo: 'The free edition opens now',
     puntos: [
@@ -27544,29 +27837,6 @@ var NOVEDADES = [
     ],
     antes:  'The free edition drew its screen and then stopped, asking you to sign in to something that has no sign-in',
     ahora:  'It opens' },
-
-  { ver: '12.76',
-    titulo: 'The free edition now shows what it is missing',
-    puntos: [
-      'In <b>Acopio Basic</b>, the Pro features are no longer hidden. The button is there, marked with a \u{1F512}, and pressing it says what that feature does.',
-      'It says what you <i>get</i>, not what you lack \u2014 and it never interrupts what you were doing. A movement still saves, with or without the photo.',
-      'The full message appears <b>once</b>. After that it is a quiet one-line note. A reminder shown every time is not a reminder, it is nagging.',
-      'The paid edition is unaffected: none of this exists in your copy.'
-    ],
-    antes:  'A free edition that quietly lacked things, and never said so',
-    ahora:  'It tells you what else it can do, at the moment you want it' },
-
-  { ver: '12.75',
-    titulo: 'Nothing on your screen changed — and that is the point',
-    puntos: [
-      'There is now a <b>free edition of Acopio</b>, built from this same file. It records entries, exits, transfers, returns and waste, and nothing else.',
-      'It is the same file, with one word changed \u2014 <b>not a second copy of the code</b>. So a fix made for one reaches the other. Freezing features is fine; freezing bugs is not.',
-      'The free edition writes to the spreadsheet <b>exactly</b> what this one writes \u2014 same columns, same width, same order. Someone who starts free and later moves up sees all their history on day one, with nothing to convert.',
-      'For you this changes nothing at all. Every new switch is off here, and the full test suite says so.'
-    ],
-    antes:  'One edition, and a rewrite waiting to happen the day a second one was needed',
-    ahora:  'Two editions, one file, and no history left behind' },
-
   { ver: '12.74',
     titulo: 'Scanning works after all — with a photo',
     puntos: [
@@ -27931,7 +28201,19 @@ function _setAccountIdentity(name, email, role, stale){
   // it is so Jose can ask "what does this line say?" and know exactly which
   // bytes they are running, without asking anyone to open the script editor or
   // send a file. Shown only once it has actually been stamped.
-  if (foot) foot.textContent = (_companyName ? _companyName + ' · ' : '') + PRODUCT + ' v' + APP_VERSION +
+  /* QUÉ EDICIÓN ES, DICHO EN LA PANTALLA.
+   *
+   * El archivo que se manda sale SIEMPRE con `ACOPIO_BASIC = false`, porque la
+   * versión de pago es la que se publica. O sea que cada vez que se pega una
+   * versión nueva en una copia básica hay que volver a poner `true` — y
+   * olvidarlo da una app que parece la básica y no lo es, sin nada que lo diga.
+   *
+   * Es, otra vez, dos cosas que tienen que coincidir sin que nada lo obligue.
+   * No se puede quitar —el interruptor es lo que hace que haya una sola base de
+   * código— pero sí se puede hacer VISIBLE, que es la diferencia entre un
+   * despiste de dos segundos y uno de media hora. */
+  if (foot) foot.textContent = (_companyName ? _companyName + ' · ' : '') + PRODUCT +
+                               (APP_BASIC ? ' Basic' : '') + ' v' + APP_VERSION +
                                (APP_BUILD ? ' · build ' + APP_BUILD : '');
 }
 
