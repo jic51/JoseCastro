@@ -498,7 +498,25 @@
     .btn-icon{background:transparent;border:none;font-size:var(--fs-2xl);cursor:pointer;transition:.15s;padding:2px}
     .btn-icon:hover{transform:scale(1.15)}
     /* ── TABLES ── */
-    .table-wrapper{overflow-x:auto;max-height:65vh;overflow-y:auto;position:relative}
+    /* ══ LA BARRA QUE APARECE ES LA QUE MUEVE LAS COLUMNAS ═══════════════════
+       Jose, 20/10, con un vídeo de Movements cambiando de categoría: *"el
+       ligero movimiento en las columnas al cambiar de categoría y estado"*.
+
+       Durante días busqué esto en el reparto de la tabla y no estaba ahí: los
+       anchos no se mueven. Lo que se mueve es **el ancho disponible**. Con
+       `overflow-y:auto` la barra vertical aparece cuando hay muchas filas y se
+       va cuando hay pocas, y al hacerlo se lleva o devuelve sus ~15 px — así
+       que todas las columnas se corren ese tanto. Filtrar cambia el número de
+       filas, luego filtrar mueve las columnas.
+
+       No era la tabla: era la barra de al lado. Por eso siete filtros medidos
+       en una prueba con filas de sobra no lo enseñaban nunca — en todos salía
+       la barra.
+
+       `scrollbar-gutter:stable` reserva ese sitio SIEMPRE, haya barra o no. El
+       ancho disponible deja de depender de cuántas filas hay. */
+    .table-wrapper{overflow-x:auto;max-height:65vh;overflow-y:auto;position:relative;
+      scrollbar-gutter:stable}
     /* separate + 0 spacing, not collapse: Chrome mis-paints collapsed borders on
        sticky <th> whenever the table repaints (e.g. a detail row expanding),
        leaving thin gaps of the page background between header cells. Separate
@@ -2596,7 +2614,7 @@
     /* One place for the pace of the whole pile. Jose asked for "2 out of 5" —
        unhurried enough that the eye follows what moved, short of the point
        where waiting for it becomes the feeling. */
-    .deck{--deck-in:.62s;--deck-out:.5s;--deck-ease:cubic-bezier(.22,.61,.36,1);--deck-step:55ms}
+    .deck{--deck-in:.62s;--deck-out:.78s;--deck-ease:cubic-bezier(.22,.61,.36,1);--deck-step:55ms}
     /* transform-origin lives HERE, unconditionally, not only on the resting
        rule below. It used to be set only while the pile was closed, so the
        instant the pile opened that rule stopped matching and the origin
@@ -2688,6 +2706,23 @@
     .deck-card.saliendo-descartada{opacity:0;pointer-events:none;
       margin-bottom:calc(-1 * (var(--card-h) + .45rem));transition-delay:0s!important}
     .deck-card.saliendo-aceptada{transform:translateX(-22%) scale(.94)}
+    /* ══ LA QUE ENTRA SE VE ENTRAR ════════════════════════════════════════════
+       Jose, 20/10: *"ahora se ve mejor, pero eso no quiere decir que se vea
+       profesional; aún creo que la tarjeta que entra debe verse ENTRANDO en el
+       espacio, y la que se elimina debe demorar un poco más"*.
+
+       Antes el relevo aparecía de golpe: el mazo se redibuja entero con
+       `innerHTML`, así que la tarjeta nueva simplemente estaba ahí. Una
+       aparición instantánea al lado de una salida lenta se lee como un fallo de
+       dibujo, no como que llegó algo.
+
+       SE MUEVE CON `margin-left`, NO CON `transform`, y eso es deliberado: la
+       pila usa `transform` para el abanico y para la escala de reposo —abierta
+       al 100%, cerrada más pequeña—, así que una animación que lo tocara
+       pelearía con esas reglas y la tarjeta acabaría del tamaño equivocado.
+       El margen no lo toca nadie más. */
+    @keyframes deck-llega{from{opacity:0;margin-left:var(--sp-9)}to{opacity:1;margin-left:0}}
+    .deck-card.llegando{animation:deck-llega var(--deck-in) var(--deck-ease) both}
     /* ══ CUANDO HAY RELEVO, EL HUECO NO SE DEVUELVE ═══════════════════════════
        Jose, 19/10: *"al eliminar una se borra, todas se ruedan para arriba y en
        menos de 1 segundo después todas se bajan para dejar entrar a la que
@@ -5610,7 +5645,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.79';
+var APP_VERSION = '12.80';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5622,7 +5657,7 @@ var APP_VERSION = '12.79';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '27a4011e';
+var APP_BUILD = 'ed1784f5';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -18849,7 +18884,24 @@ var _deckSeenIds = {};
 // removed it: out to the right, giving its height back over the same beat so
 // the ones below rise into the gap. Redrawing first would rebuild the pile and
 // leave nothing to animate, so the redraw waits for the movement to finish.
-var _DECK_LEAVE_ANIM_MS = 500;
+/* CUÁNTO DURA LA SALIDA — LEÍDO DEL CSS, NO ESCRITO DOS VECES.
+ *
+ * Aquí había un 500 a mano y en el CSS un `--deck-out:.5s`. Dos números que
+ * tenían que decir lo mismo sin que nada lo obligara: subir uno y olvidar el
+ * otro deja la tarjeta a medio desvanecer cuando se rehace el mazo —o un hueco
+ * quieto esperando a un número que ya terminó—. Pasó al subirlo a .78s.
+ *
+ * El CSS manda, porque es donde se ve. El 500 queda de red por si la variable
+ * no se puede leer. */
+function _deckSalidaMs(){
+  try {
+    var v = getComputedStyle(document.querySelector('.deck') || document.documentElement)
+              .getPropertyValue('--deck-out').trim();
+    if (/ms$/.test(v))  return parseFloat(v);
+    if (/s$/.test(v))   return parseFloat(v) * 1000;
+  } catch (e) {}
+  return 500;
+}
 
 /* DOS SALIDAS, PORQUE SON DOS COSAS DISTINTAS. Ver el comentario largo del CSS.
  *
@@ -18870,7 +18922,7 @@ function _deckCardLeave(el, then, modo, hayRelevo){
   if (!el){ if (then) then(); return; }
   el.classList.add(modo === 'aceptada' ? 'saliendo-aceptada' : 'saliendo-descartada');
   if (hayRelevo) el.classList.add('conserva-hueco');
-  setTimeout(function(){ if (then) then(); }, _DECK_LEAVE_ANIM_MS);
+  setTimeout(function(){ if (then) then(); }, _deckSalidaMs());
 }
 
 function _paintDeck(){
@@ -26275,6 +26327,13 @@ function _renderSysDeck(){
   if (!_sysCards.length){ _sysDeckHtml = ''; _paintDeck(); return; }
 
   // Newest painted last so it sits nearest the top of the pile.
+  /* QUIÉN ESTABA ANTES, para saber quién es nueva. El mazo se redibuja entero
+   * con `innerHTML`, así que sin esto no hay forma de distinguir la tarjeta que
+   * acaba de llegar de las que ya estaban — y todas o ninguna se animarían. */
+  var _antes = {};
+  Array.prototype.forEach.call(deck.querySelectorAll('.sys-card[data-card-id]'),
+    function(el){ _antes[el.getAttribute('data-card-id')] = 1; });
+
   _sysDeckHtml = _sysCards.slice(0, _DECK_VISIBLE).reverse().map(function(c){
     return '<div class="deck-card sys-card" data-card-id="' + _he(c.id) + '" data-sys-open="' + _he(c.id) + '" title="Click for the full record">' +
       '<button class="sys-card-x" data-sys-x="' + _he(c.id) + '" title="Dismiss">✕</button>' +
@@ -26285,6 +26344,16 @@ function _renderSysDeck(){
     '</div>';
   }).join('');
   _paintDeck();
+
+  /* Y la que no estaba, entra. Sólo si había algo antes: en la primera pintada
+   * TODAS son nuevas, y animarlas a la vez sería el abanico de apertura otra
+   * vez, que ya tiene el suyo. */
+  if (Object.keys(_antes).length) {
+    Array.prototype.forEach.call(deck.querySelectorAll('.sys-card[data-card-id]'),
+      function(el){
+        if (!_antes[el.getAttribute('data-card-id')]) el.classList.add('llegando');
+      });
+  }
 
   // Solid on arrival, then out of the way; hovering brings it back. One pile,
   // one timer — the two decks used to run their own and could disagree about
@@ -27804,6 +27873,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.80',
+    titulo: 'The columns stop shifting, and the cards move like paper',
+    puntos: [
+      'Columns moved a little whenever you changed a filter. It was never the table \u2014 it was the <b>scrollbar</b>: it appears when there are many rows and goes when there are few, taking its width with it. That space is now reserved whether the bar is there or not.',
+      'A card that leaves takes longer, and the one that replaces it is now <b>seen arriving</b> instead of appearing out of nowhere.',
+      'The two timings that had to agree \u2014 how long the animation lasts and how long the code waits for it \u2014 are now one. They were two numbers that had to match with nothing making them.'
+    ],
+    antes:  'Change a filter and everything shuffles a few pixels sideways',
+    ahora:  'The columns stay where you left them' },
+
   { ver: '12.79',
     titulo: 'The card pile stops rocking',
     puntos: [
@@ -27826,17 +27905,6 @@ var NOVEDADES = [
     ],
     antes:  'You could start anything, and find out at the end that it did not happen',
     ahora:  'What you cannot finish, you cannot start' },
-
-  { ver: '12.77',
-    titulo: 'The free edition opens now',
-    puntos: [
-      'It did not. It drew the screen and then died asking for data, with <i>Not authenticated</i>. Nothing in the paid edition was affected \u2014 that switch is off in your copy.',
-      'The cause was two of our own decisions meeting: the free edition has no sign-in, so it has no email address to show, and the door read \u201cno email\u201d as \u201cnobody signed in\u201d.',
-      'In the free edition the door is the deployment itself \u2014 Google only lets the owner of the copy open it \u2014 so the email was never the proof. The rest of the door is untouched: roles, read-only and refused accounts behave exactly as before.',
-      'A test now runs that door in both editions with a user who has no email, so this cannot come back quietly.'
-    ],
-    antes:  'The free edition drew its screen and then stopped, asking you to sign in to something that has no sign-in',
-    ahora:  'It opens' },
   { ver: '12.74',
     titulo: 'Scanning works after all — with a photo',
     puntos: [
