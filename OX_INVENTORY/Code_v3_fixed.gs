@@ -128,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.76';
+var APP_VERSION = '12.77';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -140,7 +140,7 @@ var APP_VERSION = '12.76';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'e3e54d6d';
+var APP_BUILD = '89bba426';
 
 // ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
 //
@@ -2284,7 +2284,39 @@ var ROLES_QUE_ESCRIBEN = ['ADMIN', 'WAREHOUSE'];
 
 function requireAuth_(minRole) {
   var a = _verifiedAuth;
-  if (!a || !a.email || a.role === 'NO_SESSION') {
+
+  /* ── «SIN CORREO» NO SIGNIFICA «SIN SESIÓN» EN LA VERSIÓN BÁSICA ──────────
+   *
+   * ENCONTRADO AL ARRANCARLA POR PRIMERA VEZ, el 19/10, y es el choque de dos
+   * decisiones mías que por separado eran correctas:
+   *
+   *   · `getUserRole` devuelve el correo VACÍO en la versión básica, a
+   *     propósito: sin `userinfo.email` no hay a quién preguntar, y un correo
+   *     inventado haría que la columna del autor mintiera.
+   *   · Esta línea leía «sin correo» como «no ha iniciado sesión», que es
+   *     exactamente lo que significa en la versión de pago.
+   *
+   * Resultado: la app abría y moría en la primera petición de datos con
+   * *«getInitialData: Not authenticated»*. Jose lo grabó.
+   *
+   * ── POR QUÉ SE ARREGLA AQUÍ Y NO INVENTANDO UN CORREO ────────────────────
+   *
+   * Porque el correo nunca fue la prueba de identidad, sólo la forma de
+   * conseguirla. En la versión básica la prueba la da **el despliegue**:
+   * `access: MYSELF` significa que Google ya comprobó, antes de que esta
+   * función existiera, que quien está es el dueño de la copia. No hay sesión
+   * que falsificar porque no hay nadie más que pueda abrir la dirección.
+   *
+   * Lo demás de esta función sigue en pie —DENIED, y el rol mínimo— y no se
+   * toca: en la versión básica el rol es ADMIN, así que pasa por su propio pie
+   * y no por una excepción.
+   *
+   * Y DEJA UNA DEUDA ESCRITA: el día que la versión básica deje de ser de una
+   * sola persona, esta línea vuelve a ser una puerta sin guardia. Hoy no puede
+   * serlo, porque el despliegue lo impide. */
+  var sinSesion = !a || a.role === 'NO_SESSION' ||
+                  (!a.email && !basicApagado_());
+  if (sinSesion) {
     registrarAccesoDenegado_(a, 'No signed-in session');
     throw new Error('Not authenticated. Please sign in and use the app from its own page.');
   }

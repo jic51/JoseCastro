@@ -5517,7 +5517,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.76';
+var APP_VERSION = '12.77';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5529,7 +5529,7 @@ var APP_VERSION = '12.76';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'e3e54d6d';
+var APP_BUILD = '89bba426';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -27534,6 +27534,17 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.77',
+    titulo: 'The free edition opens now',
+    puntos: [
+      'It did not. It drew the screen and then died asking for data, with <i>Not authenticated</i>. Nothing in the paid edition was affected \u2014 that switch is off in your copy.',
+      'The cause was two of our own decisions meeting: the free edition has no sign-in, so it has no email address to show, and the door read \u201cno email\u201d as \u201cnobody signed in\u201d.',
+      'In the free edition the door is the deployment itself \u2014 Google only lets the owner of the copy open it \u2014 so the email was never the proof. The rest of the door is untouched: roles, read-only and refused accounts behave exactly as before.',
+      'A test now runs that door in both editions with a user who has no email, so this cannot come back quietly.'
+    ],
+    antes:  'The free edition drew its screen and then stopped, asking you to sign in to something that has no sign-in',
+    ahora:  'It opens' },
+
   { ver: '12.76',
     titulo: 'The free edition now shows what it is missing',
     puntos: [
@@ -27565,16 +27576,6 @@ var NOVEDADES = [
     ],
     antes:  'A black box asking you to point a camera that was never allowed to turn on',
     ahora:  'Take the picture, and it reads the label' },
-
-  { ver: '12.73',
-    titulo: 'Why the camera does not open, said plainly',
-    puntos: [
-      'Scanning opened a black box that asked you to point the camera. It could never have worked: <b>Google runs this app inside a frame that does not allow camera access</b>, and nothing you or the app can do from that screen changes it.',
-      'The app now checks before opening anything. Where the camera is blocked the button stays away and the message says who is blocking it \u2014 instead of sending you to fight with your phone settings for nothing.',
-      'The reader itself is built and works. What it needs is a different way in, and that is the next piece.'
-    ],
-    antes:  'A black rectangle asking you to point a camera that was never allowed to turn on',
-    ahora:  'It tells you what is in the way, and stops wasting your time' },
 ];
 
 var NV_CLAVE = 'acopio_novedades_vista';
