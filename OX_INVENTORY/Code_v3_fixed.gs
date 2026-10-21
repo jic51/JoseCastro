@@ -128,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.81';
+var APP_VERSION = '12.85';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -140,7 +140,7 @@ var APP_VERSION = '12.81';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '947a4b41';
+var APP_BUILD = '834d581b';
 
 // ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
 //
@@ -3382,15 +3382,7 @@ function parseArchiveRow(row, rowIdx) {
   var rawMT     = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
   var rawQty    = Number(row[AC.QTY] || 0);
   var rawStatus = String(row[AC.STATUS]   || '').toUpperCase().trim();
-  var mt;
-  if (!rawMT || rawMT === 'IN STOCK') {
-    // No MoveType stored — derive from QTY sign or Status
-    mt = (rawQty < 0 || rawStatus === 'DISPATCHED' || rawStatus === 'DISPATCH') ? 'EXIT' : 'ENTRY';
-  } else if (rawMT === 'DISPATCHED' || rawMT === 'DISPATCH' || rawMT === 'DEL') {
-    mt = 'EXIT';
-  } else {
-    mt = rawMT; // ENTRY, EXIT, TRANSFER, RETURN, WASTE, ADJUST — already correct
-  }
+  var mt = tipoDeMovimiento_(rawMT, rawQty, rawStatus);
 
   return {
     rowIdx:      rowIdx,
@@ -5211,12 +5203,7 @@ function buildStockSnapshot_(archiveValues) {
     var rawMT  = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
     var rawSt  = String(row[AC.STATUS]   || '').toUpperCase().trim();
     var qty    = Math.abs(rawQty);
-    var mt;
-    if (!rawMT || rawMT === 'IN STOCK') {
-      mt = (rawQty < 0 || rawSt === 'DISPATCHED' || rawSt === 'DISPATCH') ? 'EXIT' : 'ENTRY';
-    } else if (rawMT === 'DISPATCHED' || rawMT === 'DISPATCH' || rawMT === 'DEL') {
-      mt = 'EXIT';
-    } else { mt = rawMT; }
+    var mt = tipoDeMovimiento_(rawMT, rawQty, rawSt);
 
     var s = snap[matId] || (snap[matId] = { wh: 0, site: 0, locs: {}, project: '' });
     // The job this material is currently associated with — last real one wins,
@@ -5531,6 +5518,147 @@ function addMultiExit(ss, archive, data, auth) {
 }
 
 // ─── FRESH STOCK QUERY (reads Archive directly, no cache) ─────────────────────
+/**
+ * QUÉ MOVIMIENTO ES ESTA FILA. UNA SOLA VEZ, Y NO CUATRO.
+ *
+ * El archivo tiene filas de antes de que existiera la columna MoveType, y de
+ * cuando el tipo se escribía «DISPATCHED» o «DEL». Normalizarlas es cuatro
+ * líneas, y por eso estaban copiadas CUATRO VECES: en `parseArchiveRow`, en el
+ * refresco de las hojas derivadas, en la consulta fresca de un material y en el
+ * barrido de calidad de datos.
+ *
+ * ── Y YA SE HABÍAN SEPARADO, QUE ES EL PUNTO ───────────────────────────────
+ *
+ * Las tres primeras eran idénticas. La cuarta NO: comparaba con
+ * `indexOf('DISPATCH') === 0` en vez de con los dos valores exactos, y **no
+ * tenía el caso `DEL`**. O sea que una fila antigua escrita como `DEL` contaba
+ * como ENTRADA en el informe de calidad y como SALIDA en todo lo demás. Nadie
+ * lo escribió a propósito: se copió tres veces bien y la cuarta se quedó atrás
+ * cuando alguien añadió `DEL` a las otras.
+ *
+ * Es exactamente la forma de fallo que este archivo lleva un mes cazando —dos
+ * cosas que tienen que coincidir sin que nada lo obligue— y aquí decidía si una
+ * fila suma o resta.
+ *
+ * `qty` y `estado` sólo se miran cuando NO hay tipo escrito: son la forma de
+ * adivinarlo de las filas viejas, no una regla general.
+ */
+function tipoDeMovimiento_(rawMT, qty, estado) {
+  var mt = String(rawMT  || '').toUpperCase().trim();
+  var st = String(estado || '').toUpperCase().trim();
+  if (!mt || mt === 'IN STOCK') {
+    return (Number(qty) < 0 || st === 'DISPATCHED' || st === 'DISPATCH') ? 'EXIT' : 'ENTRY';
+  }
+  if (mt === 'DISPATCHED' || mt === 'DISPATCH' || mt === 'DEL') return 'EXIT';
+  return mt;   // ENTRY, EXIT, TRANSFER, RETURN, WASTE, ADJUST — ya correcto
+}
+
+/**
+ * QUÉ HAY FUERA DE LA BODEGA, POR MATERIAL Y POR SITIO.
+ *
+ * Jose, 20/10, sobre el formulario de RETURN: *"al seleccionar RETURN es lógico
+ * que voy a devolver algo que ya estaba fuera de la bodega... debería dar la
+ * lista de TODOS los materiales parecidos que no están en bodega, junto con la
+ * cantidad que tenía"*. Y el 21/10, decidiendo la forma: *"debe ser por
+ * material, porque no importa si se hicieron 4 EXITs de un material a un mismo
+ * lugar; importa cuánto material hay en ESE LUGAR para devolver la cantidad que
+ * necesitamos de ese lugar a la bodega"*.
+ *
+ * Así que la unidad no es el movimiento ni el material: es **material × sitio**.
+ * Cuatro salidas del mismo material a la misma obra son UNA línea con la suma.
+ * El mismo material en dos obras son DOS líneas, porque son dos devoluciones
+ * distintas y la cantidad disponible es distinta en cada una.
+ *
+ * ── Y ESTO NO ES SÓLO COMODIDAD: CIERRA UN AGUJERO ─────────────────────────
+ *
+ * En `docs/BACKLOG.md` está apuntado que devolver material que nunca salió crea
+ * existencias de la nada — `siteQty` tiene suelo en cero mientras `warehouseQty`
+ * suma igual. Si el formulario sólo ofrece **lo que de verdad está fuera, con su
+ * cantidad pendiente**, ese agujero deja de poderse alcanzar desde la pantalla:
+ * no hay forma de devolver cinco de algo de lo que salieron dos.
+ *
+ * ── POR QUÉ LEE EL ARCHIVO Y NO LAS HOJAS DERIVADAS ────────────────────────
+ *
+ * Porque las derivadas guardan `siteQty` como UN total, sin separar por sitio —
+ * que es justo el dato que hace falta. Añadirlo allí obligaría a reconstruirlas
+ * en cada instalación existente. Esto es una consulta fresca, como
+ * `getCurrentStockForItem`, y vale lo mismo: UNA lectura del archivo.
+ *
+ * `categoria` la manda el formulario porque el usuario ya la eligió. Filtrar
+ * aquí y no en el navegador es lo que mantiene pequeña la respuesta.
+ */
+function getOutstandingBySite(sessionToken, categoria) {
+  var auth = setVerifiedAuth_(getUserRole(sessionToken));
+  requireAuth_();
+  requireQuota_('fuera', auth.email || 'basic', 60, 300);
+
+  var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var archive = ss.getSheetByName(SHEETS.ARCHIVE);
+  if (!archive) return [];
+
+  var cat  = normalizeString(categoria || '');
+  var data = archive.getDataRange().getValues();
+  var fila = {};
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[AC.CATEGORY] && !row[AC.NAME]) continue;
+    var rowCat = normalizeString(row[AC.CATEGORY] || '');
+    if (cat && rowCat !== cat) continue;
+
+    var mt  = tipoDeMovimiento_(row[AC.MOVETYPE], row[AC.QTY], row[AC.STATUS]);
+    if (mt !== 'EXIT' && mt !== 'RETURN') continue;
+
+    var qty = Math.abs(Number(row[AC.QTY] || 0));
+    if (!qty) continue;
+
+    /* DE DÓNDE VUELVE, Y A DÓNDE FUE, SON LA MISMA COLUMNA LEÍDA AL REVÉS.
+     * Una salida apunta al sitio en DEST_LOC; una devolución, en SRC_LOC. */
+    var sitio = normalizeString(
+      (mt === 'EXIT' ? row[AC.DEST_LOC] : row[AC.SRC_LOC]) || '');
+    if (!sitio) continue;          // sin sitio no hay línea que ofrecer
+
+    var nombre = normalizeString(row[AC.NAME] || '');
+    var clave  = getMaterialId(rowCat, nombre) + '|' + sitio;
+    var f = fila[clave] || (fila[clave] = {
+      category: String(row[AC.CATEGORY] || '').trim(),
+      name:     String(row[AC.NAME]     || '').trim(),
+      site:     String(mt === 'EXIT' ? row[AC.DEST_LOC] : row[AC.SRC_LOC] || '').trim(),
+      qty: 0, unit: '', project: '', pm: '', responsible: '', supplier: '', gc: ''
+    });
+
+    if (mt === 'EXIT') {
+      f.qty += qty;
+      /* LO QUE SE RELLENA SOLO SALE DE LA ÚLTIMA SALIDA, no de la primera: si
+       * algo cambió por el camino —el jefe de obra, quién lo recibió— lo que
+       * vale es lo último que se supo. Y sólo se copia lo que tenga valor: un
+       * campo vacío de una salida reciente no debe borrar lo que dijo la
+       * anterior. */
+      if (row[AC.UNIT])        f.unit        = String(row[AC.UNIT]).trim();
+      if (row[AC.PROJECT])     f.project     = String(row[AC.PROJECT]).trim();
+      if (row[AC.PM])          f.pm          = String(row[AC.PM]).trim();
+      if (row[AC.RESPONSIBLE]) f.responsible = String(row[AC.RESPONSIBLE]).trim();
+      if (row[AC.SUPPLIER])    f.supplier    = String(row[AC.SUPPLIER]).trim();
+      if (row[AC.GC])          f.gc          = String(row[AC.GC]).trim();
+    } else {
+      f.qty -= qty;
+    }
+  }
+
+  var fuera = [];
+  Object.keys(fila).forEach(function (k) {
+    /* SÓLO LO QUE DE VERDAD QUEDA FUERA. Un saldo en cero o negativo es
+     * material que ya volvió entero, o historia desordenada de antes; ofrecerlo
+     * sería ofrecer devolver algo que no está allí — exactamente el agujero que
+     * esta función viene a cerrar. */
+    if (fila[k].qty > 0) fuera.push(fila[k]);
+  });
+
+  /* Lo que más hay fuera, primero: es lo que más probablemente se devuelve. */
+  fuera.sort(function (a, b) { return b.qty - a.qty; });
+  return fuera.slice(0, 200);
+}
+
 function getCurrentStockForItem(ss, matId) {
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
   if (!archive) return { warehouseQty: 0, siteQty: 0, warehouseLocs: {}, reservedQty: 0, availableQty: 0 };
@@ -5550,14 +5678,7 @@ function getCurrentStockForItem(ss, matId) {
     var rawMT2     = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
     var rawStatus2 = String(row[AC.STATUS]   || '').toUpperCase().trim();
     var qty = Math.abs(rawQty2);
-    var mt;
-    if (!rawMT2 || rawMT2 === 'IN STOCK') {
-      mt = (rawQty2 < 0 || rawStatus2 === 'DISPATCHED' || rawStatus2 === 'DISPATCH') ? 'EXIT' : 'ENTRY';
-    } else if (rawMT2 === 'DISPATCHED' || rawMT2 === 'DISPATCH' || rawMT2 === 'DEL') {
-      mt = 'EXIT';
-    } else {
-      mt = rawMT2;
-    }
+    var mt = tipoDeMovimiento_(rawMT2, rawQty2, rawStatus2);
     var src = normalizeString(row[AC.SRC_LOC]  || '');
     var dst = normalizeString(row[AC.DEST_LOC] || '');
 
@@ -14946,13 +15067,10 @@ function runDataQualityScan(data) {
     var matId = getMaterialId(normalizeString(cat), normalizeString(name));
     var n = netos[matId] || (netos[matId] = { category: cat, name: name, neto: 0, dentro: 0, fuera: 0 });
     var qty = Math.abs(Number(row[AC.QTY] || 0));
-    var mt  = String(row[AC.MOVETYPE] || '').toUpperCase().trim();
-    // Same normalisation the stock engine uses for rows written before the
-    // MoveType column existed, so old history is not read as entries.
-    if (!mt || mt === 'IN STOCK') {
-      mt = (Number(row[AC.QTY] || 0) < 0 ||
-            String(row[AC.STATUS] || '').toUpperCase().trim().indexOf('DISPATCH') === 0) ? 'EXIT' : 'ENTRY';
-    }
+    /* LA MISMA REGLA QUE EL RESTO, Y HASTA HOY NO LO ERA: aquí faltaba el caso
+     * `DEL`, así que una fila antigua escrita así contaba como ENTRADA en este
+     * informe y como SALIDA en todo lo demás. Ver `tipoDeMovimiento_`. */
+    var mt = tipoDeMovimiento_(row[AC.MOVETYPE], row[AC.QTY], row[AC.STATUS]);
     // TRANSFER and ADJUST are left out on purpose. A transfer moves between
     // racks and nets to zero; an adjustment is a CORRECTION, so counting it
     // here would flag the very movement somebody made to put a count right.

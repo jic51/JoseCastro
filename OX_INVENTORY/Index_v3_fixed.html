@@ -1521,6 +1521,24 @@
     .inc-suggest-item .inc-tag{font-size:var(--fs-xs);font-weight:700;background:#DBEAFE;color:var(--accent2);border-radius:var(--r-pildora);padding:var(--pad-pildora);flex-shrink:0}
     .inc-suggest-item>span:not(.inc-tag):not(.inc-meta){flex:1 1 100px;min-width:0;overflow-wrap:break-word;word-break:break-word}
     .inc-suggest-item .inc-meta{font-size:var(--fs-sm);color:var(--muted);margin-left:auto;flex-shrink:0;max-width:100%}
+    /* ── LA LISTA DE LO QUE ESTÁ FUERA (RETURN) ──────────────────────────────
+       Es la MISMA caja que la de bodega —un solo cuadro cuelga del nombre y una
+       sola función lo gobierna— pero cada fila lleva un dato más: el sitio
+       donde está. Con 260px el nombre y el sitio se pisan, así que la caja se
+       ensancha sólo mientras muestra esta lista. El tope en vw de arriba sigue
+       mandando, que es lo que la salva en un teléfono.
+
+       OJO CON LA ESPECIFICIDAD, que casi me come: la regla de arriba
+       `.inc-suggest-item>span:not(.inc-tag):not(.inc-meta)` vale 0-3-1 y le
+       pone `flex:1 1 100px` a CUALQUIER span de la fila. Un `.fuera-sitio`
+       suelto vale 0-1-0 y pierde en silencio: el sitio se quedaría en la misma
+       línea, apretado. De ahí el selector largo de abajo —misma cuenta, pero
+       escrito después, así que gana. */
+    .inc-suggest-box.caja-fuera{width:360px}
+    .caja-fuera .inc-suggest-item>span.fuera-sitio{flex:1 1 100%;font-size:var(--fs-sm);
+      color:var(--muted);display:flex;align-items:center;gap:.3rem;overflow-wrap:anywhere}
+    .caja-fuera .inc-meta{font-weight:700;color:var(--accent2)}
+    .fuera-nada{padding:var(--sp-4) var(--sp-5);font-size:var(--fs-sm);color:var(--muted);line-height:1.45}
     /* ── CONFIRM DIALOG ── */
     .cconfirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:var(--z-confirm);display:none;align-items:center;justify-content:center;padding:var(--sp-6)}
     .cconfirm-overlay.show{display:flex}
@@ -3388,6 +3406,14 @@
     .toast.fade-out{animation:toastOut .3s ease forwards}
     @keyframes toastIn {from{opacity:0;transform:translateY(-18px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes toastOut{from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-12px) scale(.95)}}
+    /* EL GOLPECITO DE «YA TE OÍ». El aviso de Pro es uno solo, así que al
+       volver a pulsar el mismo candado no aparece nada nuevo — y sin esto
+       parecería que el clic no hizo nada, que es lo que lleva a seguir
+       pulsando. Es un empujón de 6px, no una sacudida: el que pulsa no se ha
+       equivocado, sólo ha insistido. */
+    @keyframes pro-reavisa{0%{transform:translateX(0)}30%{transform:translateX(6px)}60%{transform:translateX(-4px)}100%{transform:translateX(0)}}
+    .toast.pro-reavisa{animation:pro-reavisa .26s ease}
+    @media (prefers-reduced-motion:reduce){ .toast.pro-reavisa{animation:none} }
     /* ── LA LÍNEA DE PROGRESO ───────────────────────────────────────────────
        Jose, 2026-09-15: "en lugar de mostrar los toasts de cada eliminación,
        ¿no sería mejor usar lo que Google usa en el Drive al cargar un archivo
@@ -5129,8 +5155,15 @@
       </div>
       <div class="field" id="mNameField" style="position:relative">
         <label>Name / Description</label>
+        <!-- EL `onfocus` ES LO QUE HACE ÚTIL EL RETURN. En una salida se
+             escribe el nombre porque se sabe cuál es; al devolver no se sabe
+             —por eso Jose pidió la lista—, y una lista que sólo aparece tras
+             teclear dos letras no se encuentra nunca. Al entrar en el campo
+             sale lo que está fuera de bodega en esta categoría; a partir de la
+             tercera letra se filtra. En las demás pantallas el foco no muestra
+             nada: con el campo vacío la caja se esconde igual que siempre. -->
         <input type="text" id="mName" list="matList" placeholder="Type or select..."
-               oninput="_checkStockSuggest(this)">
+               oninput="_checkStockSuggest(this)" onfocus="_checkStockSuggest(this)">
         <datalist id="matList"></datalist>
         <datalist id="matNameList"></datalist>
         <div class="inc-suggest-box" id="stockSuggestBox" style="display:none"></div>
@@ -5676,7 +5709,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.81';
+var APP_VERSION = '12.85';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5688,7 +5721,7 @@ var APP_VERSION = '12.81';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '947a4b41';
+var APP_BUILD = '834d581b';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -10871,7 +10904,18 @@ function setModalType(type){
   if (multiMatSection) multiMatSection.style.display = 'none';
   var multiExitSectionEl = document.getElementById('multiExitSection');
   if (multiExitSectionEl) multiExitSectionEl.style.display = 'none';
-  if (mPMField)   mPMField.style.display   = 'none';  // only for ENTRY
+  if (mPMField)   mPMField.style.display   = 'none';  // ENTRY y RETURN
+  /* Y el saldo de «lo que está fuera» se tira en CADA cambio de tipo. Es un
+   * número que sale de leer el archivo entero, y guardarlo de una pantalla a la
+   * siguiente es ofrecer devolver algo que otro ya devolvió. Ver `_fueraPedir`.
+   *
+   * El cuadro se cierra aquí mismo, y no al siguiente tecleo: la lista se abre
+   * sola al entrar en el campo, así que al cambiar de pestaña se queda flotando
+   * encima del formulario nuevo hasta que alguien escriba algo. Lo enseñó la
+   * prueba. */
+  if (typeof _fueraOlvidar === 'function') _fueraOlvidar();
+  var cajaSug = document.getElementById('stockSuggestBox');
+  if (cajaSug){ cajaSug.style.display = 'none'; cajaSug.classList.remove('caja-fuera'); }
 
   // Point rackListDest at racks by default
   mDestDl.id = 'rackListDest';
@@ -10953,6 +10997,15 @@ function setModalType(type){
     /* Y EL QUE SÍ AGRUPA. Es lo único que esta versión añade al RETURN, y es
      * todo lo que hacía falta para contestar «qué sobró de qué obra». */
     _origProjMostrar(true, 'Came back from (project)');
+    /* EL JEFE DE OBRA SE VE AQUÍ, y hasta ahora no. No es un capricho de la
+     * lista nueva: el campo estaba escondido en esta pantalla pero `_doSubmit`
+     * lo lee SIEMPRE, sin mirar el tipo. Así que quien escribía un PM en una
+     * entrada y luego cambiaba a RETURN sin cerrar la ventana guardaba ese
+     * nombre sin verlo nunca —el reset de `openMoveModal` sólo corre al abrir,
+     * no al cambiar de pestaña—. Mostrarlo arregla eso y le da sitio visible a
+     * lo que la lista rellena: un dato que la app escribe sola tiene que poder
+     * verse y corregirse. */
+    if (mPMField) mPMField.style.display = 'flex';
     dateLabel.textContent = 'Date Returned';
     respLabel.textContent = 'Returned By';
     mStatus.value = 'In Stock';
@@ -12079,6 +12132,44 @@ async function submitMovement(){
     comments = adjust.reason + (adjust.note ? ' — ' + adjust.note : '');
   }
 
+  /* ── DEVOLVER MÁS DE LO QUE SALIÓ ──────────────────────────────────────────
+   *
+   * Jose, 21/10, eligiendo entre cuatro salidas: *"avisar y dejar pasar, y
+   * anotarlo"*. Y es la correcta: rechazar la devolución deja a alguien con el
+   * material en la mano y sin forma de registrarlo, y como el cliente no entra
+   * nunca a la hoja, se queda sin salida ninguna.
+   *
+   * LAS DOS MITADES DE SU REGLA, y la primera importa tanto como la segunda:
+   *
+   *   · Si el material NO tiene ninguna salida registrada, se guarda SIN DECIR
+   *     NADA. La historia de cualquier bodega empieza a mitad, y algo que salió
+   *     antes de instalar Acopio es una devolución legítima de la que ningún
+   *     registro puede saber. Avisar ahí sería avisar de lo normal, y un aviso
+   *     que salta en lo normal se aprende a cerrar sin leer.
+   *   · Si SÍ tiene salidas y la cantidad se pasa, se pregunta antes.
+   *
+   * ES UN AVISO, NO UN GUARDIA. El saldo sale del caché que la lista de «lo que
+   * está fuera» cargó al abrir la pantalla, así que puede estar viejo si otro
+   * devolvió algo hace un minuto. Por eso no bloquea — y por eso la cuenta de
+   * verdad, la que acaba escrita, tiene que hacerla el servidor. Eso es la otra
+   * mitad y está en el backlog: la tarjeta de ajuste que Jose diseñó. */
+  if (currentMoveType === 'RETURN'){
+    var sobra = _fueraSobrante(cat, name, srcVal, qty);
+    if (sobra){
+      _showConfirm({
+        icon: '⚠️',
+        title: 'More than went out',
+        message: 'Only ' + _fueraNum(sobra.fuera) + ' of this material is recorded as out ' +
+                 'at ' + sobra.site + ',\nand you are returning ' + _fueraNum(qty) + '.\n\n' +
+                 _fueraNum(sobra.extra) + ' more will be added to the warehouse than ever ' +
+                 'left it.\n\nSave anyway?',
+        confirmText: 'Save anyway',
+        onConfirm: function(){ _doSubmit(false); }
+      });
+      return;
+    }
+  }
+
   // Advisory total-stock check for WASTE (TRANSFER is already validated per-row above)
   if (currentMoveType === 'WASTE'){
     var key2 = _normKey(cat) + '|||' + _normKey(name);
@@ -12797,7 +12888,7 @@ function _initMultiMatSection(){
     _refreshPmDatalist();
   } else {
     google.script.run
-      .withSuccessHandler(function(list) { _pmDirectoryData = list || []; _refreshPmDatalist(); })
+      .withSuccessHandler(function(list) { _pmDirPoner(list); _refreshPmDatalist(); })
       .withFailureHandler(function(){})
       .processMovement('getPmDirectory', _h({}));
   }
@@ -13293,10 +13384,25 @@ function updateExitMatNameList(n){
   dl.innerHTML = names.map(function(nm){ return '<option value="'+nm+'">'; }).join('');
 }
 
-// ── Warehouse stock suggestion box (for EXIT/TRANSFER/WASTE single-modal) ─────
+// ── EL CUADRO QUE CUELGA DEL NOMBRE, Y POR QUÉ ES UNO SOLO ───────────────────
+//
+// Hay dos listas que pueden aparecer bajo `#mName`, y son contrarias: al sacar
+// material se ofrece lo que está EN BODEGA, y al devolverlo lo que está FUERA.
+// La forma obvia de añadir la segunda era un segundo cuadro con su propio
+// mostrar/esconder, y es justo la forma que llevamos dieciséis veces pagando en
+// este archivo: dos cosas que tienen que coincidir sin que nada lo obligue. Con
+// dos cuadros, el día que uno se abra sin que el otro se cierre se ven las dos
+// listas a la vez y nadie sabe por qué.
+//
+// Así que es UN cuadro y UNA función. Ésta decide qué lista toca por el tipo de
+// movimiento, y como sólo hay un sitio donde se enciende, no hay nada que
+// sincronizar. La diferencia de ancho —la de fuera lleva el sitio— es una clase
+// que esta misma función pone y quita.
 function _checkStockSuggest(inputEl){
   var box = document.getElementById('stockSuggestBox');
   if (!box) return;
+  if (currentMoveType === 'RETURN') { _fueraSugerir(box, inputEl); return; }
+  box.classList.remove('caja-fuera');
   if (currentMoveType !== 'EXIT' && currentMoveType !== 'TRANSFER' && currentMoveType !== 'WASTE') {
     box.style.display = 'none'; return;
   }
@@ -13340,6 +13446,264 @@ function _applyStockSuggest(name){
   }
 }
 
+/* ══ LO QUE ESTÁ FUERA DE BODEGA, PARA DEVOLVERLO ════════════════════════════
+ *
+ * Jose, 20/10: *"al seleccionar RETURN es lógico que voy a devolver algo que ya
+ * estaba fuera de la bodega, pero la app solo sugiere 1 material (debería dar la
+ * lista de todos los materiales parecidos y solo como lista flotante, no como
+ * tarjetas abajo del nombre)... debería tomar los datos de ese material y
+ * autorellenar los campos... incluso debe sugerir la cantidad como se lo hace en
+ * un EXIT"*.
+ *
+ * ── POR QUÉ LA LISTA VA POR MATERIAL **Y SITIO** ───────────────────────────
+ *
+ * Jose otra vez, y es la decisión que da forma a todo esto: *"para RETURN debe
+ * ser por MATERIAL, porque no importa si se hicieron 4 EXITs de un material a un
+ * mismo lugar, importa cuánto material hay en ESE LUGAR para devolver la
+ * cantidad que necesitamos de ese lugar a la bodega"*.
+ *
+ * Una lista por MOVIMIENTO —lo primero que uno dibuja, porque los movimientos
+ * son lo que hay en la hoja— mostraría cuatro líneas idénticas de la misma obra
+ * y obligaría a sumarlas de cabeza para saber qué se puede devolver. Una lista
+ * por material a secas sumaría dos obras distintas en un número que no se puede
+ * devolver a ninguna parte. El par material+sitio es el único que contesta la
+ * pregunta que se tiene delante: *cuánto de esto hay allí*.
+ *
+ * ── EL CACHÉ, Y POR QUÉ DURA TAN POCO ─────────────────────────────────────
+ *
+ * `getOutstandingBySite` lee el archivo entero, así que no puede colgar de cada
+ * tecla. Se pide UNA vez por categoría al entrar en RETURN y se filtra en el
+ * navegador. Y se tira al cambiar de pantalla: un saldo de hace diez minutos
+ * ofrecería devolver algo que otro ya devolvió, y en ese caso la app estaría
+ * mintiendo con cara de dato. Vale más una lectura de más que un número viejo.
+ */
+var _fueraCache = { cat: null, filas: null, pidiendo: false };
+var _fueraVista = [];      // lo que se está mostrando, en el orden que se ve
+var _fueraAncla = null;    // el campo al que se pega la caja cuando llegue
+
+function _fueraOlvidar(){
+  _fueraCache = { cat: null, filas: null, pidiendo: false };
+  _fueraVista = [];
+}
+
+/* La categoría que manda es la del formulario: Jose ya la eligió antes de
+ * escribir el nombre, y filtrar en el servidor es lo que mantiene corta la
+ * respuesta. */
+function _fueraCat(){ return ((document.getElementById('mType') || {}).value || '').trim(); }
+
+/* NO SE REDONDEA A ENTERO, aunque `_fmtInt` esté a mano y sea más corto: la
+ * cantidad lleva `step="any"` en todo el formulario y media plancha es media
+ * plancha. Un «3» donde quedaban 2,5 es una cifra inventada en la casilla donde
+ * menos se puede inventar. */
+function _fueraNum(n){
+  return (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US');
+}
+
+function _fueraPedir(cat, cuandoLlegue){
+  if (_fueraCache.pidiendo) return;                       // una sola en vuelo
+  _fueraCache = { cat: cat, filas: null, pidiendo: true };
+  google.script.run
+    .withSuccessHandler(function(filas){
+      /* Si mientras volaba se cambió de categoría o de pantalla, esta respuesta
+       * ya no es de nadie. Guardarla pintaría la lista de la categoría
+       * anterior sobre la nueva. */
+      if (_fueraCache.cat !== cat) return;
+      /* `Array.isArray` Y NO `filas || []`, que es lo que escribí primero: un
+       * objeto pasa el `||` tan contento y luego revienta en el `.filter` de
+       * `_fueraSugerir`. Lo encontró `test-form-symmetry`, cuyo doble del
+       * servidor contesta `{}` a todo lo que no conoce —y un doble que contesta
+       * algo raro es justo el ensayo que hace falta—. La misma falta estaba en
+       * el directorio de jefes de obra, en tres sitios a la vez; ahora toda
+       * respuesta de ésa pasa por `_pmDirPoner`. */
+      _fueraCache = { cat: cat, filas: Array.isArray(filas) ? filas : [], pidiendo: false };
+      cuandoLlegue && cuandoLlegue();
+    })
+    .withFailureHandler(function(err){
+      _fueraCache = { cat: cat, filas: [], pidiendo: false };
+      console.warn('getOutstandingBySite:', err && err.message);
+      cuandoLlegue && cuandoLlegue();
+    })
+    .getOutstandingBySite(_sessionToken || null, cat);
+}
+
+function _fueraSugerir(box, inputEl){
+  box.classList.add('caja-fuera');
+  _fueraAncla = inputEl;
+
+  var cat = _fueraCat();
+  if (_fueraCache.cat !== cat && !_fueraCache.pidiendo) {
+    _fueraPedir(cat, function(){
+      /* Se repinta sólo si el campo sigue siendo el de antes y seguimos en
+       * RETURN. Una respuesta que llega después de cerrar la ventana no tiene
+       * derecho a abrir una caja. */
+      if (currentMoveType === 'RETURN' && _fueraAncla === inputEl &&
+          document.activeElement === inputEl) _fueraSugerir(box, inputEl);
+    });
+  }
+
+  if (_fueraCache.filas === null) {
+    box.innerHTML = '<div class="inc-suggest-hdr">↩ Out on site</div>' +
+      '<div class="fuera-nada">Checking what is out…</div>';
+    box.style.display = 'block';
+    _positionSuggestBox(box, inputEl, 360);
+    return;
+  }
+
+  var typed = nt(inputEl.value || '');
+  /* TRES LETRAS, NO DOS, y el motivo es que esta lista se abre SOLA al entrar
+   * en el campo: con el campo vacío se ve entera, que es el caso que Jose
+   * pidió. A partir de la tercera letra filtra por trozo de nombre. */
+  var filas = !typed ? _fueraCache.filas
+    : _fueraCache.filas.filter(function(f){
+        return nt(f.name).indexOf(typed) !== -1;
+      });
+
+  if (!filas.length) {
+    /* CON ALGO ESCRITO Y SIN COINCIDENCIAS, LA CAJA SE QUITA DE EN MEDIO.
+     * Devolver material que nunca se registró saliendo es legítimo —la historia
+     * de cualquier bodega empieza a mitad—, y un cartel de «no encontré nada»
+     * encima de cada letra que se teclea sería un estorbo permanente. Con el
+     * campo vacío sí se dice, porque entonces el cartel es el dato: en esta
+     * categoría no hay nada fuera, así que esto probablemente no es un RETURN. */
+    if (typed) { box.style.display = 'none'; _fueraVista = []; return; }
+    box.innerHTML = '<div class="inc-suggest-hdr">↩ Out on site</div>' +
+      '<div class="fuera-nada">Nothing from this category is out on a site right ' +
+      'now. You can still type a name — the warehouse history may start after ' +
+      'this material left.</div>';
+    box.style.display = 'block';
+    _fueraVista = [];
+    _positionSuggestBox(box, inputEl, 360);
+    return;
+  }
+
+  _fueraVista = filas.slice(0, 12);
+  box.innerHTML = '<div class="inc-suggest-hdr">↩ Out on site · pick one to fill the form</div>' +
+    _fueraVista.map(function(f, i){
+      /* EL ÍNDICE Y NO EL NOMBRE en el atributo: el nombre y el sitio son texto
+       * libre del almacén, y una fila se identifica por el PAR. Mandar los dos
+       * por atributos sería volver a pegarlos al otro lado. */
+      return '<div class="inc-suggest-item" data-action="fuera-pick" data-i="' + i + '">' +
+        '<span class="inc-tag">' + _he(nt(f.category)) + '</span>' +
+        '<span>' + _he(f.name) + '</span>' +
+        '<span class="inc-meta">' + _fueraNum(f.qty) +
+          (f.unit ? ' ' + _he(f.unit) : '') + ' out</span>' +
+        '<span class="fuera-sitio">📍 ' + _he(f.site) +
+          (f.project ? ' · ' + _he(f.project) : '') + '</span>' +
+      '</div>';
+    }).join('');
+  box.style.display = 'block';
+  _positionSuggestBox(box, inputEl, 360);
+}
+
+/* ¿SE ESTÁ DEVOLVIENDO MÁS DE LO QUE SALIÓ DE ESE SITIO?
+ *
+ * Devuelve `null` cuando no hay nada que decir, y eso incluye el caso que más
+ * importa: **que el material no tenga ninguna salida registrada**. Jose,
+ * 21/10: *"si el material no tiene ninguna salida registrada, se guarda sin
+ * decir nada"*. Un almacén que empieza a usar Acopio tiene material fuera que
+ * salió antes, y avisar de cada una de esas devoluciones es avisar de lo normal.
+ *
+ * TAMBIÉN DEVUELVE `null` CUANDO NO SABE, y hay que decirlo porque es la mitad
+ * silenciosa: si el caché es de otra categoría —porque alguien cambió el
+ * desplegable y no volvió a tocar el nombre— o si no se llegó a cargar, aquí no
+ * hay dato con el que afirmar nada. Inventarse un aviso con un saldo de otra
+ * categoría sería peor que callarse.
+ */
+function _fueraSobrante(cat, nombre, sitio, qty) {
+  if (_fueraCache.filas === null) return null;            // no cargó
+  if (nt(_fueraCache.cat) !== nt(cat)) return null;       // es de otra categoría
+  var sit = nt(sitio);
+  if (!sit) return null;                                  // sin sitio no hay con qué comparar
+
+  var nom = nt(nombre);
+  var f = null;
+  for (var i = 0; i < _fueraCache.filas.length; i++) {
+    var r = _fueraCache.filas[i];
+    if (nt(r.name) === nom && nt(r.site) === sit) { f = r; break; }
+  }
+  /* SIN FILA NO HAY AVISO, y es la regla de Jose: puede ser que ese material
+   * nunca saliera de aquí, o que saliera antes de que existiera el registro. */
+  if (!f) return null;
+
+  var n = Number(qty) || 0;
+  if (!(n > f.qty)) return null;
+  return { fuera: f.qty, extra: Math.round((n - f.qty) * 100) / 100, site: f.site };
+}
+
+/* ── LO QUE SE RELLENA, Y LOS DOS CAMPOS QUE NO ─────────────────────────────
+ *
+ * Jose: *"luego yo relleno la información que falta como a dónde lo voy a poner
+ * ahora que regresó, y la cantidad y el motivo, pero todo lo demás ya debe venir
+ * del registro"*. Así que de aquí salen el nombre, la categoría, el sitio del
+ * que vuelve, la unidad, la obra y el jefe de obra; y la cantidad se SUGIERE,
+ * como en una salida.
+ *
+ * NO SE RELLENA «Returned By», y es por lo mismo que el proyecto de origen tiene
+ * su propio campo en vez de reusar `mProj`: esa columna cambia de significado
+ * con la dirección del movimiento. En la salida dice quién lo entregó; en la
+ * devolución, quién lo trae de vuelta. A menudo es la misma persona, pero
+ * «a menudo» escrito en una casilla que nadie revisa es un nombre inventado en
+ * el registro de otro. Se queda vacío.
+ */
+function _fueraAplicar(i){
+  var f = _fueraVista[i];
+  if (!f) return;
+
+  var ponTexto = function(id, val){
+    var el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+
+  /* La categoría primero: si la lista vino sin filtrar —porque el formulario
+   * abrió en la primera categoría y el material es de otra— elegir una fila es
+   * también decir de qué categoría es. */
+  var sel = document.getElementById('mType');
+  if (sel && f.category) {
+    for (var k = 0; k < sel.options.length; k++) {
+      if (nt(sel.options[k].value) === nt(f.category)) { sel.selectedIndex = k; break; }
+    }
+  }
+
+  ponTexto('mSrc',      f.site);          // «From (site or address)»
+  ponTexto('mOrigProj', f.project);       // «Came back from (project)»
+  ponTexto('mPM',       f.pm);
+
+  /* LA UNIDAD ES UNA LISTA CERRADA, así que no se le escribe encima: si lo que
+   * dice el registro no está entre las opciones, se deja la que hay. Asignar un
+   * valor que no existe en un `<select>` lo deja en blanco, y un blanco aquí es
+   * una unidad perdida. */
+  var unidad = document.getElementById('mUnit');
+  if (unidad && f.unit) {
+    for (var u = 0; u < unidad.options.length; u++) {
+      if (nt(unidad.options[u].value) === nt(f.unit)) { unidad.value = unidad.options[u].value; break; }
+    }
+  }
+
+  /* La cantidad se sugiere entera —todo lo que hay allí— porque devolver el
+   * resto completo es el caso corriente, y recortarla es un número menos que
+   * escribir. Va antes del nombre para que el total del cuadro de material, que
+   * se recalcula con el nombre, ya la vea. */
+  var qty = document.getElementById('mQty');
+  if (qty) qty.value = f.qty;
+
+  var inp = document.getElementById('mName');
+  if (inp) {
+    inp.value = f.name;
+    inp.dispatchEvent(new Event('input'));   // checkStock, el total, los avisos
+  }
+  if (typeof _syncMoveMatTotal === 'function') _syncMoveMatTotal();
+
+  /* Se cierra DESPUÉS del `input`, porque ese `input` vuelve a entrar en
+   * `_checkStockSuggest` y la abriría otra vez. */
+  var box = document.getElementById('stockSuggestBox');
+  if (box) box.style.display = 'none';
+
+  /* Y el foco al único campo que de verdad falta: a qué estante va. Es lo que
+   * Jose dijo que rellena él, y el servidor lo exige. */
+  var dest = document.getElementById('mDest');
+  if (dest) try { dest.focus(); } catch (e) {}
+}
+
 // ── Stock suggestion box for multi-EXIT exit-name inputs ─────────────────────
 // Positions a suggestion box using position:fixed (viewport coordinates) instead
 // of position:absolute inside the modal — the modal itself scrolls
@@ -13348,9 +13712,12 @@ function _applyStockSuggest(name){
 // fully visible regardless of where the input sits or how far the modal has
 // scrolled. Flips to the LEFT of the input if there isn't enough room on the
 // right (near the modal's right edge), same idea for the bottom edge.
-function _positionSuggestBox(box, inputEl) {
+function _positionSuggestBox(box, inputEl, ancho) {
   var rect = inputEl.getBoundingClientRect();
-  var boxW = 260, boxH = Math.min(box.scrollHeight || 280, 280);
+  /* El ancho se recibe porque la caja de «lo que está fuera» mide más: si se
+   * calculara el hueco con 260 cuando el cuadro ocupa 360, se decidiría que
+   * cabe a la derecha y se saldría 100px de la pantalla. */
+  var boxW = ancho || 260, boxH = Math.min(box.scrollHeight || 280, 280);
   var spaceRight = window.innerWidth - rect.right;
   var left = spaceRight >= boxW + 16 ? rect.right + 8 : Math.max(8, rect.left - boxW - 8);
   var top  = rect.top;
@@ -13927,7 +14294,7 @@ function _loadSettings(opts) {
   if (!quiet) _pmDirectoryData = null;
   google.script.run
     .withSuccessHandler(function(list) {
-      _pmDirectoryData = list || [];
+      _pmDirPoner(list);
       if (_settingsTab === 'pmdirectory') _drawPmDirectory();
       _refreshPmDatalist();
     })
@@ -16776,13 +17143,28 @@ function _clearErrorLog(mode) {
   });
 }
 
-var _pmDirectoryData = null;
+var _pmDirectoryData = null;   // null = sin cargar todavía, que no es lo mismo que cargado y vacío
+
+/* EL DIRECTORIO SE GUARDA SIEMPRE COMO LISTA, y las tres respuestas del servidor
+ * pasan por aquí. Antes cada sitio hacía `list || []`, que es lo mismo salvo
+ * justo en el caso que importa: un `{}` pasa el `||` tan contento y revienta
+ * después en el `.map` de `_refreshPmDatalist` o de `_drawPmDirectory`, lejos de
+ * donde está la causa y sin decir de dónde vino.
+ *
+ * No es hipotético: la misma falta en la lista de «lo que está fuera» la cazó
+ * `test-form-symmetry` en la v12.82, cuyo doble del servidor contesta `{}` a
+ * todo lo que no conoce. Ésta es la hermana, y eran tres sitios que tenían que
+ * acordarse de hacer lo mismo — ahora es uno. */
+function _pmDirPoner(list) {
+  _pmDirectoryData = Array.isArray(list) ? list : [];
+}
+
 function _renderPmDirectoryTab() {
   var content = document.getElementById('settingsTabContent');
   if (_pmDirectoryData) { _drawPmDirectory(); return; }
   content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
   google.script.run
-    .withSuccessHandler(function(list) { _pmDirectoryData = list || []; _drawPmDirectory(); })
+    .withSuccessHandler(function(list) { _pmDirPoner(list); _drawPmDirectory(); })
     .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+_he(e.message||e)+'</p>'; })
     .processMovement('getPmDirectory', _h({}));
 }
@@ -17932,6 +18314,8 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _perso
     // y trabajan sobre lo marcado. Ver editSelectedUser y toggleSelectedUsers.
     } else if (a === 'stock-suggest') {
       _applyStockSuggest(el.getAttribute('data-name'));
+    } else if (a === 'fuera-pick') {
+      _fueraAplicar(parseInt(el.getAttribute('data-i'), 10));
     } else if (a === 'exit-suggest') {
       _applyExitMatSuggest(parseInt(el.getAttribute('data-n'),10), el.getAttribute('data-name'), el.getAttribute('data-cat'));
     } else if (a === 'rack-photo-upload') {
@@ -17958,12 +18342,12 @@ document.addEventListener('keydown', function(e){ if (e.key === 'Escape') _perso
     var el = e.target.closest && e.target.closest('[data-action]');
     if (!el) return;
     var a = el.getAttribute('data-action');
-    if (a === 'stock-suggest' || a === 'exit-suggest') return; // handled on mousedown
+    if (a === 'stock-suggest' || a === 'exit-suggest' || a === 'fuera-pick') return; // handled on mousedown
     dispatch(el);
   });
   // Suggestion items must fire on mousedown — before the input's blur hides the box.
   document.addEventListener('mousedown', function(e){
-    var el = e.target.closest && e.target.closest('[data-action="stock-suggest"],[data-action="exit-suggest"]');
+    var el = e.target.closest && e.target.closest('[data-action="stock-suggest"],[data-action="exit-suggest"],[data-action="fuera-pick"]');
     if (!el) return;
     e.preventDefault(); // keep input focus / win the blur race
     dispatch(el);
@@ -18642,6 +19026,22 @@ function triggerSimilarCheck() {
   _similarDebounce = setTimeout(function() {
     var hint   = document.getElementById('similarHint');
     var label  = document.getElementById('similarHintName');
+    /* EN RETURN ESTA TARJETA SE CALLA, y es literalmente lo que Jose pidió:
+     * *"debería dar la lista de todos los materiales parecidos y SOLO COMO
+     * LISTA FLOTANTE, no como tarjetas abajo del nombre"*. La lista flotante de
+     * `_fueraSugerir` hace el mismo trabajo mejor en esta pantalla —enseña
+     * TODOS los parecidos, con cuánto hay y dónde, en vez de uno— y las dos a
+     * la vez son dos cosas diciendo lo mismo en sitios distintos.
+     *
+     * EN LAS DEMÁS SE QUEDA. Esta tarjeta cuelga de `#mName`, y las pantallas
+     * que usan ese campo son TRANSFER, RETURN, WASTE y ADJUST —ENTRY y EXIT lo
+     * esconden porque traen su propia sección de varios materiales—. En esas
+     * tres no hay ninguna lista de «lo que está fuera» que ofrecer, así que lo
+     * único que se puede hacer es avisar del error de dedo, y lo sigue
+     * haciendo. */
+    if (currentMoveType === 'RETURN') {
+      hint.classList.remove('show'); _similarHintSuggested = ''; return;
+    }
     var typed  = (document.getElementById('mName').value || '').trim();
     var cat    = document.getElementById('mType').value;
     var similar = _findSimilarMaterial(typed, cat);
@@ -26143,6 +26543,40 @@ function _fmtWhen(iso){
 
 var _sysCards = [];
 
+/* ── QUÉ MERECE UNA TARJETA Y QUÉ NO ────────────────────────────────────────
+ *
+ * Jose, 21/10, con un vídeo de 33 segundos: pulsa la ✕ del mazo una y otra vez
+ * y siguen saliendo tarjetas — «archive start» del 8/10, «Backup created» del
+ * 9/10, «archive start» del 9/10, «Old movements archived» del 10/10, del
+ * 14/10, del 15/10… Doce clics y seguían entrando desde el fondo de la cola.
+ *
+ * Lo que vacía el mazo no es más paciencia, es una LÍNEA:
+ *
+ *     Una tarjeta es para «la app cambió algo que tú no pediste».
+ *     Un registro es para «la app hizo su trabajo».
+ *
+ * El respaldo de cada noche y el archivado de lo viejo son la segunda cosa.
+ * Pasan todas las noches, salen bien todas las noches, y no hay nada que
+ * decidir con ellas. Tres por noche, por los días que uno no entre, es un muro
+ * — y un muro no avisa de nada: entierra lo que sí importaba.
+ *
+ * `ARCHIVE_START` es peor todavía: es la MITAD de un evento, el «voy a
+ * empezar» de un trabajo que ya tiene su propio «terminé». Nunca debió ser una
+ * tarjeta; se colaba porque el servidor convierte en tarjeta cualquier fila del
+ * registro hecha por el sistema, tenga nombre bonito o no.
+ *
+ * NO SE PIERDE NADA, y es la condición para poder hacer esto sin preguntar:
+ * las tres siguen enteras en Settings → System, que a propósito enseña también
+ * lo descartado (ver `_renderSystemTab`). Lo que cambia es dónde se leen, no si
+ * existen.
+ *
+ * LO QUE SÍ SIGUE SIENDO TARJETA, y es lo que el muro tapaba: los movimientos
+ * re-enlazados a su material, los totales recalculados, las cabeceras
+ * reparadas, el stock reconstruido. Todas ésas son la app tocando datos por su
+ * cuenta, y eso hay que decirlo a la cara. */
+var SYS_RUTINA = { BACKUP_CREATED: 1, ARCHIVE_START: 1, ARCHIVE_RECONCILE: 1 };
+function _sysRutina(accion){ return SYS_RUTINA[String(accion || '').toUpperCase()] === 1; }
+
 // Dismissals are the SERVER's memory now, not this browser's.
 //
 // They lived in localStorage, and every backup notice since August came back on
@@ -26198,7 +26632,8 @@ function _announceSystemActivity(){
   // shows both (see _renderSystemTab): a notice is something you dismiss,
   // a maintenance record is not.
   _sysCards = (systemActivity || []).filter(function(a){
-    return a.at && !a.dismissed && !_sysDismissedNow[a.at + '|' + a.action];
+    return a.at && !_sysRutina(a.action) &&
+           !a.dismissed && !_sysDismissedNow[a.at + '|' + a.action];
   }).map(function(a){
     return { id: a.at + '|' + a.action, label: a.label, at: a.at, detail: a.detail, extra: a.extra };
   });
@@ -27316,13 +27751,34 @@ function _proUrl(clave){
  * alcanzaría nunca el enlace. El hover es una mejora para quien tiene ratón, no
  * la única forma de llegar.
  */
+/* EL AVISO DE PRO ES UNO SOLO, SIEMPRE.
+ *
+ * Jose, 21/10, con un vídeo de quince segundos: pulsa el candado de «Incoming»
+ * cuatro veces y se apilan cuatro avisos idénticos, uno sobre otro, tapando la
+ * barra de pestañas. Es mío, de la v12.78: cada llamada hacía `appendChild` y
+ * nadie quitaba el anterior.
+ *
+ * Y es peor que un fallo de dibujo. Lo que una persona hace cuando pulsa algo y
+ * no pasa lo que esperaba es VOLVER A PULSAR, así que el caso de las cuatro
+ * copias no es el raro: es el normal. Un aviso que se multiplica al insistir
+ * castiga justo a quien no lo entendió a la primera, y además le tapa la
+ * navegación con la que se iría a otro sitio.
+ *
+ * Así que el aviso se REUSA: si ya hay uno, se le cambia el texto —puede ser
+ * otra función— y se le reinicia el reloj, con un golpecito para que se vea que
+ * contestó. Uno en pantalla, pase lo que pase. */
+var _proToastEl = null;
+
 function _proToast(clave){
   var f = BASIC_PRO[clave];
   if (!f) return;
   var cont = document.getElementById('toastContainer');
   if (!cont) return;
 
-  var el = document.createElement('div');
+  /* ¿Sigue puesto el de antes? No basta con que la variable no sea nula: el
+   * aviso pudo irse solo por su reloj, o porque alguien pulsó su ✕. */
+  var previo = (_proToastEl && _proToastEl.parentNode === cont) ? _proToastEl : null;
+  var el = previo || document.createElement('div');
   el.className = 'toast info';
   el.innerHTML =
     '<span class="toast-icon">🔒</span>' +
@@ -27330,12 +27786,32 @@ function _proToast(clave){
       '<a class="toast-pro" href="' + _he(_proUrl(clave)) + '" target="_blank" rel="noopener">Acopio Pro</a>' +
     '</span>' +
     '<button class="toast-close" type="button">✕</button>';
-  cont.appendChild(el);
+  if (!previo) cont.appendChild(el);
+  _proToastEl = el;
+
+  if (previo) {
+    /* EL GOLPECITO, Y POR QUÉ HAY QUE QUITAR LA CLASE ANTES DE PONERLA. Si sólo
+     * se añade, el navegador ve que ya estaba y no vuelve a lanzar la
+     * animación — o sea que del segundo clic en adelante no se vería nada, que
+     * es exactamente cuando hace falta que se vea. El `offsetWidth` de en medio
+     * es lo que le obliga a darse cuenta del cambio. */
+    el.classList.remove('pro-reavisa');
+    void el.offsetWidth;
+    el.classList.add('pro-reavisa');
+  }
 
   var reloj = null;
-  function irse(){ try { el.remove(); } catch (e) {} }
+  function irse(){
+    try { el.remove(); } catch (e) {}
+    if (_proToastEl === el) _proToastEl = null;
+  }
   function contar(ms){ clearTimeout(reloj); reloj = setTimeout(irse, ms); }
 
+  /* Los oyentes se ponen CADA VEZ sobre el mismo elemento cuando se reusa, y no
+   * se acumulan por una razón concreta: `innerHTML` de arriba destruye el ✕
+   * viejo y crea uno nuevo, así que su oyente anterior se fue con él. Los del
+   * ratón sí quedarían repetidos — y no importa, porque los dos hacen lo mismo
+   * sobre el reloj de ESTA llamada, que es el único que queda armado. */
   el.querySelector('.toast-close').addEventListener('click', function(){
     clearTimeout(reloj); irse();
   });
@@ -28014,45 +28490,49 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
-  { ver: '12.81',
-    titulo: 'An \u2715 to empty any field',
+  { ver: '12.85',
+    titulo: 'Two notices that piled up',
     puntos: [
-      'Every box you can type into now has a small <b>\u2715</b> inside it. One tap empties it \u2014 no selecting with the mouse, no holding backspace.',
-      'It only shows when there is something to clear, and it is not on the dropdowns: those are lists you pick from, not boxes you write in.',
-      'Clearing a search box also re-runs the search, so the table never stays filtered by text that is no longer written anywhere.'
+      'Clicking a Pro feature you do not have four times used to stack four identical notices, covering the tabs. Now there is <b>one</b>, always: clicking again rewrites it and nudges it.',
+      'Clicking twice is not the odd case \u2014 it is what anyone does when a click does not do what they expected. The notice was multiplying for exactly the person who had not understood it.',
+      'And the corner cards stopped filling with maintenance. A card is now for <b>something the app changed that you did not ask for</b>; nightly backups and archiving are still there in full under Settings \u2192 System.'
     ],
-    antes:  'Select it with the mouse, or hold backspace',
-    ahora:  'One tap and the box is empty' },
+    antes:  'Four clicks, four notices, and a week away meant a wall of backup cards',
+    ahora:  'One notice, and cards only for what needs a look' },
 
-  { ver: '12.80',
-    titulo: 'The columns stop shifting, and the cards move like paper',
+  { ver: '12.84',
+    titulo: 'Returning more than went out now says so',
     puntos: [
-      'Columns moved a little whenever you changed a filter. It was never the table \u2014 it was the <b>scrollbar</b>: it appears when there are many rows and goes when there are few, taking its width with it. That space is now reserved whether the bar is there or not.',
-      'A card that leaves takes longer, and the one that replaces it is now <b>seen arriving</b> instead of appearing out of nowhere.',
-      'The two timings that had to agree \u2014 how long the animation lasts and how long the code waits for it \u2014 are now one. They were two numbers that had to match with nothing making them.'
+      'If you return more of a material than is recorded as out at that site, the app asks before saving: how much is out there, how much you are returning, and how much is about to be added to the warehouse that never left it.',
+      'It <b>asks</b> \u2014 it does not refuse. Someone standing there with material in hand has to be able to record it, and you never have to open the spreadsheet to fix it.',
+      'And it stays quiet in the case that matters: a material with <b>no recorded dispatch at all</b> saves with no warning. Warehouse history starts partway through, and something that left before Acopio existed is a real return no record can know about.'
     ],
-    antes:  'Change a filter and everything shuffles a few pixels sideways',
-    ahora:  'The columns stay where you left them' },
+    antes:  'Return five of something that never left, and the warehouse silently gained five',
+    ahora:  'The app asks first, and says exactly how many were never out' },
 
-  { ver: '12.79',
-    titulo: 'The card pile stops rocking',
+  { ver: '12.83',
+    titulo: 'The project-manager list can no longer break a screen',
     puntos: [
-      'Dismissing a card made the whole pile slide up, and then slide back down a moment later when the next card took the free slot. One change, two movements \u2014 and the second one read as a glitch.',
-      'When another card is waiting, the pile no longer gives the space back: the card leaves and the next one is simply there. When nothing is waiting, the rest still rise into the gap, which is right.',
-      'The Dashboard table now holds its column widths by rule rather than by whatever happens to be in it.',
-      'And the footer says which edition you are running, so a free copy is never mistaken for anything else.'
+      'The list of registered project managers is fetched from your sheet and used in three places. If that fetch came back in an unexpected shape, the Receive screen stopped opening — and the error pointed at the list, not at the fetch.',
+      'There is now <b>one place</b> that decides what that list is, instead of three that each had to get it right. Same for the "out on site" list added in v12.82.',
+      'Behind this release: fifteen of our own checks stopped keeping hand-written lists of what they need from the app, and a new check fails if anyone writes one of those lists again.'
     ],
-    antes:  'Dismiss a card and the pile bounces up, then down',
-    ahora:  'The card goes, the pile stays put' },
-  { ver: '12.74',
-    titulo: 'Scanning works after all — with a photo',
+    antes:  'Three places that each had to get the same thing right',
+    ahora:  'One place that decides it' },
+
+  { ver: '12.82',
+    titulo: 'Returns know what is still out there',
     puntos: [
-      'Open <b>Scan label</b> and tap <b>Take a photo of the label</b>. Your phone camera opens, you take the picture, and the app reads the code from it.',
-      'The live viewfinder is what Google blocks inside this app. A photo is not blocked, because it is not the app asking for your camera — it is your phone handing back a picture, the same way the app already takes photos of documents.',
-      'Everything after the read is unchanged: it offers what you can do with that label and fills the form. It still never saves on its own.'
+      'Click into the material name on a <b>Return</b> and a list drops down of everything from that category that is <b>out on a site right now</b> — with how much is out, and where.',
+      'It is grouped by <b>material and place</b>. Four dispatches of the same material to the same job are one line with the total, because what you need standing there is how much of it is at <i>that</i> address.',
+      'Pick one and the form fills itself: name, the site it comes back from, the unit, the project, the project manager, and the quantity as a suggestion. You are left with the rack, the real quantity and the reason.',
+      '<b>Returned By</b> is left empty on purpose: the record knows who took the material out, not who is bringing it back.'
     ],
-    antes:  'A black box asking you to point a camera that was never allowed to turn on',
-    ahora:  'Take the picture, and it reads the label' },
+    antes:  'Type the name of something you cannot see, and fill eight boxes by hand',
+    ahora:  'Pick it off the list and fill in three' },
+
+
+
 ];
 
 var NV_CLAVE = 'acopio_novedades_vista';
