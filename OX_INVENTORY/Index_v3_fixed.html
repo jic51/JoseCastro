@@ -1095,6 +1095,37 @@
        distinguía poco de un botón normal; a .4 se lee de un vistazo que no es
        para ahora. Al pasar el ratón sube sólo un poco: lo justo para que se vea
        que contesta, sin fingir que está disponible. */
+    /* ══ LA ✕ QUE VACÍA UN CAMPO ═════════════════════════════════════════════
+       Jose, 20/10: *"es molesto tener que darle clic a los lugares donde se
+       escribe y tener que borrar letra por letra o seleccionar con el mouse y
+       borrar, debemos poner una 'X' dentro que elimine lo que escribimos
+       enseguida"*.
+
+       SE ENVUELVE EL CAMPO, no se le ponen coordenadas a mano. Un `top`/`left`
+       calculado en píxeles hay que recalcularlo al cambiar el tamaño de la
+       ventana, al abrir un modal, al esconder una columna — y el día que no se
+       recalcule, la ✕ queda flotando sobre otra cosa. Envuelto, lo coloca el
+       navegador y no hay nada que mantener.
+
+       El envoltorio copia el `display` y el ancho del campo para no romper las
+       filas donde ya vivía: unos están en una barra de herramientas y otros
+       ocupan el ancho entero de su `.field`. */
+    .tiene-x{position:relative;display:inline-block}
+    .tiene-x.ancho{display:block;width:100%}
+    .tiene-x > .campo-x{position:absolute;top:0;bottom:0;right:.45rem;margin:auto;
+      width:18px;height:18px;line-height:16px;text-align:center;border:0;padding:0;
+      border-radius:50%;background:var(--border);color:var(--text);opacity:.55;
+      font-size:12px;cursor:pointer;display:none}
+    .tiene-x > .campo-x:hover{opacity:1}
+    /* Sólo cuando hay algo que borrar. Una ✕ sobre un campo vacío es un botón
+       que no hace nada, y de esos la app ya tuvo bastantes. */
+    .tiene-x.con-texto > .campo-x{display:block}
+    /* Sitio para la ✕ dentro del campo, para que no se monte sobre el texto. */
+    .tiene-x.con-texto > input,
+    .tiene-x.con-texto > textarea{padding-right:var(--sp-7)}
+    /* En un `textarea` el centro vertical sería la mitad de la caja; arriba. */
+    .tiene-x > textarea ~ .campo-x{top:.5rem;bottom:auto;margin:0}
+
     .pro-lock{position:relative;opacity:.4;filter:grayscale(1)}
     .pro-lock:hover{opacity:.62}
     .pro-lock::after{content:'🔒';font-size:.7em;margin-left:var(--sp-1);opacity:.85}
@@ -5645,7 +5676,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.80';
+var APP_VERSION = '12.81';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5657,7 +5688,7 @@ var APP_VERSION = '12.80';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'ed1784f5';
+var APP_BUILD = '947a4b41';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -15705,14 +15736,14 @@ function _renderSettingsTab(tab) {
    * también — y DESPUÉS, no antes. Jose encontró la pestaña de sistema con
    * todas sus opciones pulsables: *"todas están disponibles, si doy clic
    * muestran un mensaje que parece de error"*. El mensaje llegaba tarde. */
-  if (tab === 'materials')   { _renderMaterialsTab();   _basicApagarAjuste(tab); return; }
-  if (tab === 'errorlog')    { _renderErrorLogTab();    _basicApagarAjuste(tab); return; }
-  if (tab === 'system')      { _renderSystemTab();      _basicApagarAjuste(tab); return; }
-  if (tab === 'pmdirectory') { _renderPmDirectoryTab(); _basicApagarAjuste(tab); return; }
-  if (tab === 'import')      { _renderImportTab();      _basicApagarAjuste(tab); return; }
-  if (tab === 'locations')   { _renderLocationsTab();   _basicApagarAjuste(tab); return; }
-  if (tab === 'company')     { _renderCompanyTab();     _basicApagarAjuste(tab); return; }
-  if (tab === 'permissions') { _renderPermissionsTab(); _basicApagarAjuste(tab); return; }
+  if (tab === 'materials')   { _renderMaterialsTab();   _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'errorlog')    { _renderErrorLogTab();    _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'system')      { _renderSystemTab();      _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'pmdirectory') { _renderPmDirectoryTab(); _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'import')      { _renderImportTab();      _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'locations')   { _renderLocationsTab();   _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'company')     { _renderCompanyTab();     _basicApagarAjuste(tab); _equisTrasPintar(); return; }
+  if (tab === 'permissions') { _renderPermissionsTab(); _basicApagarAjuste(tab); _equisTrasPintar(); return; }
 
   var items = _settingsData[tab] || [];
   var label = { categories:'Category', projects:'Project', suppliers:'Supplier', locations:'Location' }[tab] || 'Item';
@@ -18693,8 +18724,26 @@ function _cfgKnownValues(type){
   return set;
 }
 
+/* ── DÓNDE SE CUELGA UN AVISO DE UN CAMPO ──────────────────────────────────
+ *
+ * Desde la v12.81 los campos donde se escribe van envueltos para poder llevar
+ * su ✕, así que «lo que hay justo después del campo» ya no es su aviso: es el
+ * botón de borrar. Y el aviso insertado «después del campo» caería DENTRO del
+ * envoltorio, encima del texto.
+ *
+ * Esto devuelve a qué hay que agarrarse: al envoltorio si lo hay, al campo si
+ * no. Lo usan los dos avisos que cuelgan de un campo —el de proveedor/proyecto
+ * nuevo y el de ubicación desconocida— tanto para ponerlos como para buscarlos.
+ *
+ * SIN ESTO, envolver los campos habría roto las dos cosas en silencio: el aviso
+ * se habría seguido creando y nadie lo habría encontrado para quitarlo. */
+function _anclaDeCampo(input){
+  var p = input && input.parentElement;
+  return (p && p.classList && p.classList.contains('tiene-x')) ? p : input;
+}
+
 function _cfgHintFor(input){
-  var next = input.nextElementSibling;
+  var next = _anclaDeCampo(input).nextElementSibling;
   return (next && next.classList && next.classList.contains('cfg-new-hint')) ? next : null;
 }
 
@@ -18722,7 +18771,7 @@ function _maybeOfferCfgAdd(input){
   hint.querySelector('.cfg-new-add').addEventListener('click', function(){
     _cfgAddInline(type, val, hint);
   });
-  input.insertAdjacentElement('afterend', hint);
+  _anclaDeCampo(input).insertAdjacentElement('afterend', hint);
 
   // Surface it in the deck straight away rather than waiting for the movement
   // to be saved. Typed values are held separately from the ones derived from
@@ -19662,7 +19711,7 @@ function _esCampoDeUbicacion(el){
 }
 
 function _quitarAvisoUbic(input){
-  var sig = input.nextElementSibling;
+  var sig = _anclaDeCampo(input).nextElementSibling;
   if (sig && sig.classList && sig.classList.contains('ubic-hint')) sig.remove();
 }
 
@@ -19736,7 +19785,7 @@ function _avisarUbicacion(input){
     hint.appendChild(quien);
   }
 
-  input.insertAdjacentElement('afterend', hint);
+  _anclaDeCampo(input).insertAdjacentElement('afterend', hint);
 }
 
 document.addEventListener('change', function(e){
@@ -27296,6 +27345,87 @@ function _proToast(clave){
   contar(9000);
 }
 
+/* ══ UNA ✕ EN CADA CAMPO DONDE SE ESCRIBE ═══════════════════════════════════
+ *
+ * Jose, 20/10: *"es molesto tener que darle clic a los lugares donde se escribe
+ * y tener que borrar letra por letra... debemos ponerlo en TODOS los lugares
+ * donde se escribe, excepto lo que no dejan escribir cualquier cosa y dan la
+ * lista para escoger"*.
+ *
+ * Ochenta y dos campos. Escribir la ✕ en cada uno a mano sería ochenta y dos
+ * sitios que tienen que acordarse de algo, y el campo ochenta y tres —el que
+ * alguien añada en diciembre— no la tendría. Un barrido, en cambio, la tiene
+ * desde que el campo existe.
+ *
+ * ── QUIÉN SÍ Y QUIÉN NO ────────────────────────────────────────────────────
+ *
+ *   SÍ:  donde se escribe libremente — texto, búsqueda, correo, teléfono,
+ *        número, y las áreas de comentarios. También los que tienen `list=`:
+ *        una lista de sugerencias no impide escribir lo que quieras, así que
+ *        ahí borrar a mano duele igual.
+ *
+ *   NO:  `<select>`, que es la lista cerrada de la que habla Jose — no se
+ *        escribe, se elige, y vaciarlo no significa nada.
+ *        Tampoco fechas (el navegador ya trae su propio control), ni casillas,
+ *        ni los de sólo lectura, ni los que están apagados por ser de Pro.
+ */
+function _ponerEquis(raiz){
+  var campos = (raiz || document).querySelectorAll(
+    'input[type=text],input[type=search],input[type=email],input[type=tel],' +
+    'input[type=number],input:not([type]),textarea');
+
+  Array.prototype.forEach.call(campos, function(el){
+    if (el.dataset.equis) return;                       // ya lo tiene
+    if (el.readOnly || el.disabled) return;
+    if (el.closest('.pro-off')) return;                 // apagado por ser de Pro
+    if (el.type === 'hidden') return;
+
+    el.dataset.equis = '1';
+
+    var caja = document.createElement('span');
+    caja.className = 'tiene-x';
+    /* ANCHO: si el campo ocupaba todo lo ancho de su hueco, el envoltorio
+     * también tiene que ocuparlo, o la fila se encoge al envolverlo. Se mira
+     * lo que el navegador le estaba dando, no lo que creemos que debería. */
+    var estilo = getComputedStyle(el);
+    if (estilo.display === 'block' || estilo.width === '100%' ||
+        el.offsetWidth >= (el.parentElement ? el.parentElement.clientWidth - 4 : 0)) {
+      caja.className += ' ancho';
+    }
+    el.parentNode.insertBefore(caja, el);
+    caja.appendChild(el);
+
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'campo-x';
+    x.textContent = '✕';
+    x.tabIndex = -1;                 // se llega escribiendo, no tabulando
+    x.setAttribute('aria-label', 'Clear');
+    x.title = 'Clear';
+    caja.appendChild(x);
+
+    function pintar(){ caja.classList.toggle('con-texto', !!el.value); }
+
+    x.addEventListener('click', function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      el.value = '';
+      /* LOS DOS AVISOS, Y HACEN FALTA LOS DOS. Las búsquedas escuchan `input`
+       * y los filtros escuchan `change`. Vaciar el campo sin avisar dejaría la
+       * tabla filtrada por un texto que ya no está escrito en ninguna parte —
+       * que es peor que no tener la ✕. */
+      el.dispatchEvent(new Event('input',  { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      pintar();
+      el.focus();
+    });
+
+    el.addEventListener('input', pintar);
+    el.addEventListener('change', pintar);
+    pintar();
+  });
+}
+
 /**
  * Pregunta quién es, una sola vez.
  *
@@ -27396,6 +27526,13 @@ function _basicPintar(){
  * Lo mismo para una pestaña de ajustes, que se pinta de nuevo cada vez.
  * La llama `_renderSettingsTab` al final, una vez por pintada.
  */
+/* Las pestañas de ajustes y los modales se pintan de nuevo cada vez, así que
+ * sus campos nacen sin ✕. Se vuelve a pasar; los que ya la tienen se saltan
+ * solos. */
+function _equisTrasPintar(){
+  try { _ponerEquis(document); } catch (e) {}
+}
+
 function _basicApagarAjuste(tab){
   if (!APP_BASIC) return;
   var clave = BASIC_PRO_AJUSTES[tab];
@@ -27484,6 +27621,10 @@ function applyRoleUI(){
    * La edición manda sobre el rol porque es una capa más abajo: el rol decide
    * qué puede hacer esta persona, la edición decide qué existe. */
   _basicPintar();
+  /* Y la ✕ de los campos, después de que el rol y la edición hayan decidido
+   * cuáles están a la vista: envolver uno escondido no estorba, pero envolver
+   * uno apagado por ser de Pro le pondría un botón que no debe tener. */
+  try { _ponerEquis(document); } catch (e) { console.warn('_ponerEquis:', e && e.message); }
 }
 
 // ── Connection status ─────────────────────────────────────────────────────────
@@ -27873,6 +28014,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.81',
+    titulo: 'An \u2715 to empty any field',
+    puntos: [
+      'Every box you can type into now has a small <b>\u2715</b> inside it. One tap empties it \u2014 no selecting with the mouse, no holding backspace.',
+      'It only shows when there is something to clear, and it is not on the dropdowns: those are lists you pick from, not boxes you write in.',
+      'Clearing a search box also re-runs the search, so the table never stays filtered by text that is no longer written anywhere.'
+    ],
+    antes:  'Select it with the mouse, or hold backspace',
+    ahora:  'One tap and the box is empty' },
+
   { ver: '12.80',
     titulo: 'The columns stop shifting, and the cards move like paper',
     puntos: [
@@ -27893,18 +28044,6 @@ var NOVEDADES = [
     ],
     antes:  'Dismiss a card and the pile bounces up, then down',
     ahora:  'The card goes, the pile stays put' },
-
-  { ver: '12.78',
-    titulo: 'Nothing half-done, and no surprises at the end',
-    puntos: [
-      'In the free edition you could pick a photo, write who to email, attach a document \u2014 and only find out <i>on save</i> that none of it would happen. Worse: the movement saved and the document did not.',
-      'Now anything that belongs to Acopio Pro is <b>greyed out and cannot be started</b>. One tap tells you what it does and how to get it, before you have put any work into it.',
-      'Editing a movement no longer fails. It was saving the change and <i>then</i> trying to email about it, which left a red error sitting on top of a change that had already happened.',
-      'And the app asks your name once, so every movement you record carries it \u2014 ready for the day you move up.',
-      'None of this exists in the paid edition.'
-    ],
-    antes:  'You could start anything, and find out at the end that it did not happen',
-    ahora:  'What you cannot finish, you cannot start' },
   { ver: '12.74',
     titulo: 'Scanning works after all — with a photo',
     puntos: [
