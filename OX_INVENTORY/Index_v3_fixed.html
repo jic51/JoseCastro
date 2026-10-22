@@ -3403,6 +3403,39 @@
     .toast-msg{flex:1;line-height:1.4}
     .toast-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.9rem;padding:0 0 0 .35rem;line-height:1;flex-shrink:0;align-self:flex-start}
     .toast-close:hover{color:var(--text)}
+    /* EL BOTÓN DEL AVISO. Se ve como un botón y no como un enlace a propósito:
+       es la única forma de llegar a las etiquetas después de guardar, y algo
+       que hay que pulsar tiene que parecer pulsable. Von Restorff: en un aviso
+       que es todo texto gris, un rectángulo con color salta sin gritar. */
+    .toast-accion{background:var(--accent);border:none;color:#fff;cursor:pointer;
+      font-size:var(--fs-md);font-weight:700;padding:var(--sp-2) var(--sp-5);
+      border-radius:var(--r-btn);margin-left:var(--sp-3);flex-shrink:0;
+      align-self:center;white-space:nowrap}
+    .toast-accion:hover{filter:brightness(1.08)}
+    .toast-accion:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+    /* ── UNA SECCIÓN PLEGADA ──────────────────────────────────────────────
+       Tiene que parecer pulsable sin parecer un botón de acción: lo que hay
+       detrás no es «hacer algo», es «ver el resto». De ahí el borde punteado,
+       que en este archivo ya significa «aquí se añade» (+ Add Location, + Add
+       Another Material). Jakob: que se parezca a lo que ya hay. */
+    .seccion-plegada{display:flex;width:100%;align-items:center;justify-content:space-between;
+      gap:var(--sp-4);background:none;border:1px dashed var(--border);border-radius:var(--r-btn);
+      padding:var(--sp-4) var(--sp-5);cursor:pointer;color:var(--muted);
+      font-size:var(--fs-base);font-weight:600;text-align:left;transition:border-color .15s,color .15s}
+    .seccion-plegada:hover{border-color:var(--accent);color:var(--accent)}
+    .seccion-plegada:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+    .seccion-abrir{font-size:var(--fs-4xl);font-weight:700;line-height:1;flex-shrink:0}
+    /* `display:none !important` y no un `style` en la etiqueta: estos campos
+       los enciende y apaga `setModalType` escribiendo `style.display`, así que
+       una regla sin `!important` perdería contra lo que esa función acaba de
+       poner. Son las dos únicas cosas que tocan la visibilidad de un campo y
+       tienen que poder convivir sin pisarse. */
+    .field.campo-plegado{display:none !important}
+    .campos-mas{grid-column:1/-1;justify-self:start;background:none;border:none;
+      color:var(--accent);cursor:pointer;font-size:var(--fs-sm);font-weight:600;
+      padding:var(--sp-2) 0;text-align:left}
+    .campos-mas:hover{text-decoration:underline}
+    .campos-mas:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
     .toast.fade-out{animation:toastOut .3s ease forwards}
     @keyframes toastIn {from{opacity:0;transform:translateY(-18px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes toastOut{from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-12px) scale(.95)}}
@@ -5416,6 +5449,12 @@
         <input type="text" id="mPM" list="pmNameList" placeholder="Name of project manager">
         <datalist id="pmNameList"></datalist>
       </div>
+      <!-- LA PUERTA DE VUELTA, y está siempre. Ver `_plegarCamposSinUso`: lo
+           que se pliega no desaparece, se esconde detrás de esta línea, que
+           dice cuántos campos hay dentro. Plegar sin dejar por dónde volver
+           cambiaría un problema por otro peor. -->
+      <button type="button" class="campos-mas" id="camposMas" style="display:none"
+              onclick="_abrirCamposMas()">+ more fields</button>
       <div class="field" id="mStatusField" style="display:none">
         <label>Status</label>
         <select id="mStatus">
@@ -5434,21 +5473,40 @@
       </div>
     </div>
 
-    <!-- ── Document Builder (ENTRY only) ── -->
+    <!-- ── Document Builder (ENTRY only) ──
+         PLEGADA DESDE LA v12.87. Jose, 21/10, marcando este bloque en una
+         captura: *"quiero que todas las cosas que no se usen no molesten en la
+         pantalla o ventana"*.
+
+         Ocupaba un bloque entero —cabecera, botón de IA, una tarjeta de
+         documento con Cámara / Archivos / Drive, y «+ Add Document»— siempre
+         desplegado, entre los campos y el botón de guardar. Adjuntar un albarán
+         no es un dato del movimiento: es algo que se hace a veces y después.
+         Ahora es una línea que se abre al pulsarla, y se abre SOLA en cuanto
+         hay algo dentro. Ver `_docsPlegar`. -->
     <div class="file-section" id="fileSection" style="display:none;margin-top:.75rem">
-      <div class="doc-builder-hdr">
-        <label class="sec-label" style="margin:0">📎 Documents</label>
-        <button id="btnAiExtract" class="btn btn-ghost btn-sm" onclick="aiExtractFromModal()"
-          title="Take a photo of the invoice and AI will fill the fields for you"
-          style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
-          🪄 AI Extract
-        </button>
+      <button type="button" class="seccion-plegada" id="fileToggle" onclick="_docsAbrir()">
+        <span>📎 Add documents</span>
+        <span class="seccion-abrir">+</span>
+      </button>
+      <div id="fileBody" style="display:none">
+        <div class="doc-builder-hdr">
+          <label class="sec-label" style="margin:0">📎 Documents</label>
+          <button id="btnAiExtract" class="btn btn-ghost btn-sm" onclick="aiExtractFromModal()"
+            title="Take a photo of the invoice and AI will fill the fields for you"
+            style="border-color:var(--purple);color:var(--purple);font-size:.75rem">
+            🪄 AI Extract
+          </button>
+        </div>
+        <!-- Doc groups rendered here by JS -->
+        <div id="docGroupsContainer"></div>
+        <button id="btnAddDoc" class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
+        <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
       </div>
-      <!-- Doc groups rendered here by JS -->
-      <div id="docGroupsContainer"></div>
-      <button id="btnAddDoc" class="btn btn-ghost btn-sm" onclick="addDocGroup()" style="margin-top:.35rem;font-size:.8rem">+ Add Document</button>
-      <div id="aiExtractStatus" style="display:none;margin-top:.5rem;font-size:.78rem;padding:.4rem .6rem;border-radius:6px;background:var(--purple-bg);color:var(--purple)"></div>
-      <!-- Hidden file input (kept for AI extract compatibility) -->
+      <!-- Hidden file input (kept for AI extract compatibility). FUERA del
+           cuerpo plegable: lo usa la extracción con IA, que puede dispararse
+           desde otro sitio, y un input escondido dentro de algo escondido es
+           la clase de detalle que falla un martes. -->
       <input type="file" id="legacyFileInput" class="mFile" accept="image/*,.pdf,video/*" style="display:none">
     </div>
 
@@ -5709,7 +5767,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.85';
+var APP_VERSION = '12.87';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5721,7 +5779,7 @@ var APP_VERSION = '12.85';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '834d581b';
+var APP_BUILD = 'c6eeee05';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -10905,6 +10963,29 @@ function setModalType(type){
   var multiExitSectionEl = document.getElementById('multiExitSection');
   if (multiExitSectionEl) multiExitSectionEl.style.display = 'none';
   if (mPMField)   mPMField.style.display   = 'none';  // ENTRY y RETURN
+
+  /* ── EL CAMIÓN APARECE SI LA BODEGA TIENE CAMIONES ───────────────────────
+   *
+   * Jose, 21/10: *"si alguna bodega maneja camiones, ¿deberíamos poner una
+   * forma de que el usuario ingrese su número o nombre, o le diga cuáles desde
+   * una lista, pero que no moleste si no los tiene?"*.
+   *
+   * Estaba TODO construido desde hace tiempo —el campo, el desplegable que se
+   * llena solo, el guardado, la búsqueda, la exportación, y la gestión en el
+   * servidor con persona asignada y estado— y el campo tenía `display:none` en
+   * el HTML sin que nada lo encendiera nunca. Una función entera inalcanzable.
+   *
+   * Y su pregunta se contesta sola sin aprender nada del historial, al revés
+   * que los campos de abajo: **la lista de camiones YA ES la respuesta**. Sin
+   * camiones registrados el campo no existe para esa bodega; en cuanto se
+   * registra uno, aparece. */
+  var mTruckField = document.getElementById('mTruckField');
+  if (mTruckField) {
+    var hayCamiones = ((config && config.trucks) || []).some(function(t){
+      return t && t.status !== 'INACTIVE';
+    });
+    mTruckField.style.display = hayCamiones ? 'flex' : 'none';
+  }
   /* Y el saldo de «lo que está fuera» se tira en CADA cambio de tipo. Es un
    * número que sale de leer el archivo entero, y guardarlo de una pantalla a la
    * siguiente es ofrecer devolver algo que otro ya devolvió. Ver `_fueraPedir`.
@@ -11046,6 +11127,122 @@ function setModalType(type){
 
   updateMatList();
   checkStock();
+  _plegarCamposSinUso();
+}
+
+/* ══ LOS CAMPOS QUE ESTA BODEGA NUNCA LLENA ═════════════════════════════════
+ *
+ * Jose, 21/10: *"quiero que todas las cosas que no se usen no molesten en la
+ * pantalla o ventana... analiza qué cosas puedes esconder detrás de un checkbox
+ * y deja la ventana mucho más limpia"*.
+ *
+ * ── POR QUÉ NO ES UN CHECKBOX ──────────────────────────────────────────────
+ *
+ * Porque un checkbox es UNA DECISIÓN MÁS que tomar —la ley de Hick de la propia
+ * lámina que mandó Jose— y encima hay que acordarse de ir a marcarlo. Y no hace
+ * falta preguntarlo: **la app ya sabe la respuesta**. Tiene todos los
+ * movimientos que esa instalación ha guardado.
+ *
+ *     Un campo que lleva sesenta movimientos vacío es ruido PARA ESA BODEGA.
+ *
+ * Hay almacenes que llenan GC, PO y jefe de obra en cada entrada, y hay
+ * almacenes que no han escrito uno solo en su vida. La misma ventana no puede
+ * ser la correcta para los dos, y el que decide no debería ser el usuario
+ * marcando casillas: debería ser lo que ya hizo.
+ *
+ * ── LAS CUATRO REGLAS QUE LO HACEN SEGURO ──────────────────────────────────
+ *
+ * 1. CON POCA HISTORIA NO SE ESCONDE NADA. Por debajo de `MINIMO_HISTORIA`
+ *    movimientos no hay con qué opinar, y una instalación recién hecha
+ *    escondiendo campos sería la app decidiendo por una bodega que todavía no
+ *    ha dicho nada. Un sitio nuevo los ve todos.
+ * 2. NUNCA SE ESCONDE UN CAMPO CON VALOR. Si algo lo rellenó —una entrega
+ *    esperada, el historial del material, la persona— se queda a la vista.
+ *    Esconder un dato que ya está puesto es hacerlo desaparecer.
+ * 3. LA PUERTA ESTÁ SIEMPRE A LA VISTA. La línea «+ N campos más» no
+ *    desaparece nunca y dice cuántos esconde. Plegar sin dejar por dónde volver
+ *    cambia un problema por otro peor: alguien nuevo que no encuentra el campo
+ *    que necesita.
+ * 4. UNA VEZ ABIERTA, SE QUEDA ABIERTA toda la sesión. Quien la abrió está
+ *    buscando algo; volver a plegársela en el siguiente movimiento sería
+ *    discutir con él.
+ *
+ * Y no hace falta guardar nada: en cuanto se guarda UN movimiento con ese campo
+ * lleno, el propio historial lo devuelve a la vista. El recuerdo es el dato.
+ */
+var CAMPOS_PLEGABLES = [
+  { caja: 'mSupField',      lee: 'supplier'    },
+  { caja: 'mGCField',       lee: 'gc'          },
+  { caja: 'mPOField',       lee: 'po'          },
+  { caja: 'mProjField',     lee: 'project'     },
+  { caja: 'mPMField',       lee: 'pm'          },
+  { caja: 'mRespFieldWrap', lee: 'responsible' }
+];
+var MINIMO_HISTORIA = 25;   // por debajo de esto no se opina
+var MIRA_ULTIMOS    = 60;   // y se mira esta ventana de historia
+var _camposAbiertos = false;   // la regla 4, y vive sólo en esta sesión
+
+function _camposMas(){ return document.getElementById('camposMas'); }
+
+/** Qué campos lleva esta bodega sin usar. Devuelve [] cuando no hay historia
+ *  suficiente para decir nada, que NO es lo mismo que «los usa todos». */
+function _camposSinUso(){
+  var hist = (typeof movements !== 'undefined' && movements) ? movements : [];
+  if (hist.length < MINIMO_HISTORIA) return [];
+  var ultimos = hist.slice(-MIRA_ULTIMOS);
+  return CAMPOS_PLEGABLES.filter(function(c){
+    return !ultimos.some(function(m){
+      var v = m && m[c.lee];
+      /* GENERIC es el relleno que la app pone cuando no hay proyecto, así que
+       * no cuenta como que alguien escribió uno. Sin esto, «Project» no se
+       * plegaría nunca en ninguna instalación. */
+      v = String(v == null ? '' : v).trim();
+      return v && v.toUpperCase() !== 'GENERIC';
+    });
+  });
+}
+
+function _plegarCamposSinUso(){
+  var linea = _camposMas();
+  if (!linea) return;
+
+  /* Se parte siempre de todo visible y se esconde después, en vez de recordar
+   * qué se escondió la vez anterior: `setModalType` acaba de decidir qué campos
+   * tienen sentido para ESTE tipo de movimiento, y mezclar las dos decisiones
+   * sería volver a tener dos cosas que coordinar. */
+  CAMPOS_PLEGABLES.forEach(function(c){
+    var el = document.getElementById(c.caja);
+    if (el) el.classList.remove('campo-plegado');
+  });
+  linea.style.display = 'none';
+
+  if (_camposAbiertos) return;
+
+  var sinUso = _camposSinUso().filter(function(c){
+    var el = document.getElementById(c.caja);
+    if (!el) return false;
+    /* Sólo se pliega lo que este tipo de movimiento mostraba. Lo que
+     * `setModalType` ya escondió no se cuenta: decir «+ 3 campos más» y abrir
+     * para encontrar dos sería mentir con un número. */
+    if (el.style.display === 'none') return false;
+    var inp = el.querySelector('input, select, textarea');
+    if (inp && String(inp.value || '').trim()) return false;   // regla 2
+    return true;
+  });
+
+  if (!sinUso.length) return;
+
+  sinUso.forEach(function(c){
+    var el = document.getElementById(c.caja);
+    if (el) el.classList.add('campo-plegado');
+  });
+  linea.textContent = '+ ' + sinUso.length + ' more field' + (sinUso.length === 1 ? '' : 's');
+  linea.style.display = '';
+}
+
+function _abrirCamposMas(){
+  _camposAbiertos = true;
+  _plegarCamposSinUso();
 }
 
 // The quantity badge on the TRANSFER/RETURN/WASTE material box — the same
@@ -12669,21 +12866,30 @@ function _matLineTpl(n){
     '<div class="mat-line-hdr">' +
       '<span class="mat-line-lbl">Material ' + n + '</span>' +
       '<div style="display:flex;gap:6px;align-items:center">' +
-        /* DECIR AQUÍ CUÁL LLEVA ETIQUETA. Jose: *"mi idea es poner un checkbox
-         * al crear el entry para los que quiera labels, así ya la app sabe
-         * cuáles quiero."*
+        /* ── AQUÍ VIVÍA LA CASILLA DE «🏷 Label», Y SE FUE EN LA v12.87 ──────
          *
-         * Nace SIN MARCAR, y eso es lo que le ahorra trabajo: con diez
-         * materiales y dos que necesitan etiqueta, marcar dos es mejor que
-         * desmarcar ocho en el cuadro de después.
+         * Jose, 21/10, marcándola en una captura junto a otras tres cosas:
+         * *"quiero que todas las cosas que no se usen no molesten en la
+         * pantalla"*.
          *
-         * PERO SI NADIE LA TOCA, EL CUADRO SE COMPORTA COMO SIEMPRE — todas
-         * marcadas. Quien ignore esta casilla no puede perder una función que
-         * ya tenía; lo que hace esta casilla es ESTRECHAR la selección, no
-         * crearla. Ver _labelsFromEntry. */
-        '<label class="mat-lbl-want" title="Print a 4&quot;×6&quot; label for this material">' +
-          '<input type="checkbox" id="mat-label-' + n + '"><span>🏷 Label</span>' +
-        '</label>' +
+         * Y el motivo para quitarla de AQUÍ no es sólo el sitio que ocupa.
+         * Imprimir una etiqueta **no es un dato de la recepción**: es algo que
+         * se hace con el material una vez guardado. Preguntarlo arriba, en la
+         * misma línea que el nombre, es pedir una decisión sobre el futuro
+         * antes de haber escrito el presente — y encima en la edición gratis
+         * llevaba candado, o sea una puerta cerrada en el formulario más usado
+         * de la app.
+         *
+         * LA PREGUNTA NO DESAPARECE, SE MUEVE AL MOMENTO EN QUE SE PUEDE
+         * CONTESTAR: al guardar, el aviso de «Saved ✓» ofrece «🏷 Print
+         * labels». Quien lo pulsa tiene los bultos delante y sabe si los
+         * quiere; quien no, ya terminó.
+         *
+         * Y respeta lo que Jose exigió la primera vez —*"eso es pedir
+         * información al usuario pero hacer lo que queremos después"*—, porque
+         * ahora la respuesta SE USA tal cual: se pulsa y se abre con todo
+         * marcado, no se pulsa y no se abre nada. Reimprimir sigue existiendo:
+         * se marca el movimiento en Movements y se pulsa Labels. */
         '<span id="mat-total-' + n + '" style="font-size:.78rem;font-weight:700;color:var(--accent2);background:#DBEAFE;padding:2px 10px;border-radius:10px">0 units</span>' +
         '<button type="button" class="mat-line-remove" onclick="removeMatLine(' + n + ')" title="Remove this material">×</button>' +
       '</div>' +
@@ -13966,11 +14172,7 @@ function submitMultiEntry(){
       valid = false; return;
     }
 
-    var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty,
-                     // Sólo para el cuadro de etiquetas; NO viaja al servidor.
-                     // Ver el `_h(payload)` de más abajo: lo que se manda es
-                     // payload, y esto vive en el array local.
-                     wantsLabel: !!(document.getElementById('mat-label-' + n) || {}).checked };
+    var matEntry = { category: cat, name: name, unit: unit, locations: locs, qty: totalQty };
     // Per-material always, unlike Supplier/PO/etc below — cost belongs to the
     // material being bought, never to the "same info for all" grouping, and
     // the field doesn't exist in the DOM at all for someone without
@@ -14071,21 +14273,36 @@ function submitMultiEntry(){
             if (res.pmError)      msgs.push('📇 ' + res.pmError);
             if (res.refreshError) msgs.push('⚠ ' + res.refreshError);
             showToast('Saved ✓ — ' + count + ' material(s), ' + rows + ' row(s) — ' + msgs.join(' | '), 'warn', res.refreshError ? 12000 : 8000);
-          } else {
-            showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' + (rows===1?'':'s') + ')', 'ok', TOAST_QUICK);
           }
-          /* DOS COSAS DESPUÉS DE GUARDAR, Y EN ESTE ORDEN.
+          /* DOS COSAS DESPUÉS DE GUARDAR, Y SIGUEN SIN PODER APILARSE.
              Las dos van al final y no antes: los movimientos ya están
-             guardados. Preguntar por entregas —o imprimir una etiqueta— de algo
-             que todavía podía fallar sería peor que no preguntar.
-             LAS ETIQUETAS PRIMERO, porque son la parte física: quien acaba de
-             registrar un camión tiene los bultos delante y necesita pegarles
-             algo AHORA. Lo de las entregas es papeleo y aguanta treinta
-             segundos. Y encadenadas, no las dos a la vez: dos ventanas
-             apiladas es el error que costó la v11.29. */
-          _openLabels(_labelsFromEntry(materials, payload), function(){
-            _offerAlsoArrived(materials, dateRec, po, deLaEntrega);
-          });
+             guardados, y preguntar por algo que todavía podía fallar sería peor
+             que no preguntar.
+
+             LO QUE CAMBIÓ EN LA v12.87: las etiquetas ya no se abren solas. La
+             casilla «🏷 Label» que decidía cuáles se fue de la línea de cada
+             material —ocupaba sitio y pedía decidir sobre el futuro antes de
+             escribir el presente— así que la pregunta se hace AQUÍ, donde se
+             puede contestar: el aviso de guardado ofrece imprimirlas.
+
+             Y SIGUE SIN HABER DOS VENTANAS A LA VEZ, que es el error que costó
+             la v11.29: o se pulsa el botón del aviso —y entonces el cuadro de
+             etiquetas encadena la pregunta de las entregas al cerrarse— o el
+             aviso caduca y esa pregunta corre sola. Nunca las dos. */
+          var filasEtq = _labelsFromEntry(materials, payload);
+          var luego    = function(){ _offerAlsoArrived(materials, dateRec, po, deLaEntrega); };
+          if (filasEtq.length) {
+            showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' +
+                      (rows===1?'':'s') + ')', 'ok', 12000, {
+              texto: '🏷 Print labels',
+              hacer: function(){ _openLabels(filasEtq, luego); },
+              siNo:  luego
+            });
+          } else {
+            showToast('Saved ✓ — ' + count + ' material(s) received (' + rows + ' archive row' +
+                      (rows===1?'':'s') + ')', 'ok', TOAST_QUICK);
+            luego();
+          }
         }, 400);
       })
       .withFailureHandler(function(err){
@@ -18969,11 +19186,58 @@ function _collectDocGroups(containerId) {
 }
 
 // Reset the ENTRY modal document builder
+/* ══ LA SECCIÓN DE DOCUMENTOS, PLEGADA ══════════════════════════════════════
+ *
+ * Jose, 21/10, marcándola en una captura: *"quiero que todas las cosas que no
+ * se usen no molesten en la pantalla o ventana"*.
+ *
+ * LA REGLA, Y ES LA QUE HACE QUE ESTO NO SEA PELIGROSO: **nunca se esconde algo
+ * que tenga contenido**. Plegar es una ayuda; plegar encima de un archivo que
+ * alguien ya adjuntó es perderlo de vista, y perderlo de vista es perderlo. Por
+ * eso `_docsPlegar` se niega a cerrar si hay algo dentro, y cualquier camino
+ * que meta un documento llama a `_docsAbrir`.
+ */
+function _docsAbrir(){
+  var b = document.getElementById('fileBody');
+  var t = document.getElementById('fileToggle');
+  if (!b) return;
+  b.style.display = '';
+  if (t) t.style.display = 'none';
+}
+
+/** ¿Hay algo dentro? Un grupo vacío no cuenta: `resetDocBuilder` crea uno
+ *  siempre, así que «existe un grupo» no significa «hay un documento». Lo que
+ *  cuenta es un archivo elegido o un nombre escrito por una persona. */
+function _docsConContenido(){
+  var c = document.getElementById('docGroupsContainer');
+  if (!c) return false;
+  var hayArchivo = [].slice.call(c.querySelectorAll('input[type=file]'))
+    .some(function(i){ return i.files && i.files.length; });
+  if (hayArchivo) return true;
+  /* Un nombre distinto del que viene de serie también es trabajo de alguien. */
+  return [].slice.call(c.querySelectorAll('input[type=text]'))
+    .some(function(i){ var v = (i.value || '').trim(); return v && v !== 'Document'; });
+}
+
+function _docsPlegar(){
+  var b = document.getElementById('fileBody');
+  var t = document.getElementById('fileToggle');
+  if (!b || !t) return;
+  if (_docsConContenido()) { _docsAbrir(); return; }   // ver la regla de arriba
+  b.style.display = 'none';
+  t.style.display = '';
+}
+
 function resetDocBuilder() {
   var c = document.getElementById('docGroupsContainer');
   if (c) c.innerHTML = '';
   _docGroupCounters['docGroupsContainer'] = 0;
   addDocGroup('Document', 'docGroupsContainer', '');
+  /* Al abrir una ventana nueva no hay nada adjunto todavía, así que se pliega.
+   * Va DESPUÉS de crear el grupo de serie, no antes: `_docsConContenido` mira
+   * lo que hay, y mirar antes de que exista daría siempre «vacío» por el motivo
+   * equivocado. */
+  _docsPlegar();
 }
 
 // Reset the Attach modal document builder
@@ -23483,7 +23747,12 @@ function _labelsFromEntry(materiales, compartido){
     (mat.locations || []).forEach(function(l){
       if (!l || !(l.qty > 0)) return;
       out.push({
-        marcada:  !!mat.wantsLabel,
+        /* SIN `marcada`, y es a propósito. La regla de `_openLabels` dice que
+         * una fila sin ese campo cuenta como marcada — que es lo correcto desde
+         * la v12.87: aquí ya no se elige cuáles, porque la pregunta se hace
+         * DESPUÉS de guardar y la respuesta es sí o no para todas. Poner
+         * `marcada: false` cerraría el cuadro justo cuando alguien acaba de
+         * pedir que se abra. */
         name:     mat.name || '',
         category: mat.category || compartido.category || '',
         qty:      l.qty,
@@ -27251,7 +27520,20 @@ function _progFinish(){
  */
 var TOAST_QUICK = 2000;
 
-function showToast(msg, type, duration) {
+/**
+ * `accion` es opcional y añade UN botón al aviso: `{ texto, hacer, siNo }`.
+ *
+ * PARA QUÉ EXISTE: desde la v12.87 la pregunta de «¿imprimo etiquetas?» ya no
+ * está en el formulario —ocupaba sitio en la línea de cada material y pedía
+ * decidir sobre el futuro antes de escribir el presente— sino aquí, al guardar,
+ * que es cuando se puede contestar con los bultos delante.
+ *
+ * `siNo` CORRE SI EL AVISO SE VA SIN QUE SE PULSE, y no es un adorno: es lo que
+ * mantiene la regla de no apilar dos ventanas, la que costó la v11.29. O se
+ * pulsa —y entonces el cuadro de etiquetas encadena lo que venga después— o el
+ * aviso caduca y eso de después corre solo. Nunca las dos cosas, nunca a la vez.
+ */
+function showToast(msg, type, duration, accion) {
   type     = type     || 'ok';
   duration = duration || 3500;
   var icons = { ok:'✅', err:'❌', warn:'⚠️', info:'ℹ️' };
@@ -27262,9 +27544,30 @@ function showToast(msg, type, duration) {
   el.innerHTML =
     '<span class="toast-icon">' + (icons[type] || 'ℹ️') + '</span>' +
     '<span class="toast-msg">'  + _he(msg) + '</span>' +
+    (accion && accion.texto
+      ? '<button class="toast-accion" type="button">' + _he(accion.texto) + '</button>' : '') +
     '<button class="toast-close" onclick="dismissToast(\'' + id + '\')">✕</button>';
   var container = document.getElementById('toastContainer');
   if (container) container.appendChild(el);
+
+  if (accion && accion.texto) {
+    var usada = false;
+    el.querySelector('.toast-accion').addEventListener('click', function(){
+      if (usada) return;
+      usada = true;
+      dismissToast(id);
+      try { accion.hacer && accion.hacer(); } catch (e) { console.warn('toast accion:', e); }
+    });
+    /* El `siNo` se arma sobre el MISMO reloj que esconde el aviso, no sobre uno
+     * propio: dos relojes para un solo aviso serían dos cosas que tienen que
+     * coincidir sin que nada lo obligue. */
+    setTimeout(function(){
+      if (usada) return;
+      usada = true;
+      try { accion.siNo && accion.siNo(); } catch (e) { console.warn('toast siNo:', e); }
+    }, duration);
+  }
+
   setTimeout(function(){ dismissToast(id); }, duration);
   return id;
 }
@@ -27661,14 +27964,43 @@ var BASIC_PRO = {
   /* El lector de correos va aparte y con su propio mensaje: vende muchísimo y
    * no cabe en la frase genérica. */
   correo:    { titulo: '📧 Read it from the email',
-               que: 'Paste a supplier email and the app fills in what is arriving — supplier, items, quantities and dates.' }
+               que: 'Paste a supplier email and the app fills in what is arriving — supplier, items, quantities and dates.' },
+  /* LEER UNA FACTURA NO ES LO MISMO QUE ADJUNTARLA, y hasta la v12.86 el botón
+   * «📷 Take a photo of the invoice» contestaba con el mensaje de adjuntar
+   * documentos. Parecido no basta: quien pulsa «léemela» y recibe «puedes
+   * guardarla» no entiende que le acaban de ofrecer otra cosa, entiende que la
+   * app no le entendió. */
+  lectura:   { titulo: '🤖 Let the app read the invoice',
+               que: 'Take a photo of a delivery note or an invoice and the app fills in the supplier, the items and the quantities for you.' }
 };
 
 /* Qué botón abre qué oferta. Un botón puede estar en la lista y no existir en
  * la pantalla: se comprueba antes de tocarlo. */
+/* ── CADA CANDADO CONTESTA DE LO QUE SE PULSÓ ───────────────────────────────
+ *
+ * Jose, 21/10: *"al dar clic en la ventana de low stock aparece un mensaje que
+ * dice algo sobre los incomings. Eso está mal... analiza todos los candados y el
+ * mensaje que muestra, deben hablar de lo mismo"*.
+ *
+ * Tenía razón y el repaso encontró tres, de dos clases distintas:
+ *
+ *   1. `btnMonitorSettings` y su gemelo de la barra contestaban «Expected
+ *      deliveries». Eran el ⚙ Monitor —elegir qué materiales se vigilan y con
+ *      qué mínimo—, y acabaron en 'llegadas' por estar cerca en el archivo.
+ *      **Pero el arreglo no era cambiarles el mensaje: era quitarles el
+ *      candado.** Ver la nota de abajo.
+ *   2. `btnAiExtract` contestaba «Photos and documents». Es «hazme la foto de
+ *      la factura y relléname los campos», que no es adjuntar un archivo: es
+ *      que te lo LEAN. Ahora tiene su propia oferta.
+ *
+ * CÓMO SE COLARON, que importa más que las tres: nada obligaba al mensaje a
+ * hablar del botón. Son dos cosas que tienen que coincidir sin que nada lo
+ * obligue — la misma falta que llevamos dieciséis veces pagando, esta vez en el
+ * texto en vez de en el código. Ahora lo vigila
+ * `test-candados-hablan-de-lo-mismo.js`. */
 var BASIC_PRO_BOTONES = {
   btnAddDoc:                 'fotos',
-  btnAiExtract:              'fotos',
+  btnAiExtract:              'lectura',
   btnMovLabels:              'etiquetas',
   btnEscanear:               'escanear',
   btnEscanearMov:            'escanear',
@@ -27676,8 +28008,22 @@ var BASIC_PRO_BOTONES = {
   btnAddIncoming:            'llegadas',
   btnDeleteIncoming:         'llegadas',
   btnWeekSchedule:           'llegadas',
-  btnMonitorSettings:        'llegadas',
-  btnMonitorSettingsToolbar: 'llegadas',
+  /* ── EL ⚙ MONITOR SE QUEDA ABIERTO EN LA GRATIS ──────────────────────────
+   *
+   * Estaba aquí, y era un descuido con consecuencias. La franja de «⚠ Zero
+   * Stock (1) · ⚠ Below Minimum (5)» **se ve en la Básica** —sale en el propio
+   * vídeo de Jose— y el botón que decide qué es «mínimo» estaba cerrado. O sea:
+   * la app le enseña a alguien un problema y le esconde el control con el que
+   * se define. Es el peor de los dos mundos, peor que no tener ninguna de las
+   * dos cosas.
+   *
+   * Y no había nada que lo justificara. La lista de materiales vigilados vive
+   * en las Script Properties del propio archivo del cliente: no pide ni un
+   * permiso más, que es el único portero que tiene la edición gratis. Lo que
+   * sí es de Pro es que ese aviso **llegue por correo**, porque eso necesita
+   * `MailApp` — y eso ya está cerrado por su lado.
+   *
+   * Nota deliberada: no se le pone candado NI se le esconde. Se deja funcionar. */
   btnBackupNow:              'respaldo',
   btnFromEmail:              'correo',
   btnReadEmail:              'correo'
@@ -28490,6 +28836,27 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.87',
+    titulo: 'A much quieter Receive window',
+    puntos: [
+      'There were sixteen controls on screen to record "20 windows arrived, they are in A1A". Two of them are the movement; the rest is context some warehouses fill every time and others never.',
+      '<b>The form now learns which ones yours uses.</b> A field left empty across your last sixty movements folds behind one <b>+ 3 more fields</b> line \u2014 no setting to find, no box to tick. Save one movement with it filled and it comes back on its own.',
+      'It never hides a field that already has something in it, and the line that brings them back is always there and says how many it holds.',
+      '<b>Documents</b> is one line that opens when you need it. The <b>\ud83c\udff7 Label</b> tickbox left the material line \u2014 after saving, the confirmation offers <b>Print labels</b>, which is when you can answer that.'
+    ],
+    antes:  'Sixteen controls to write down twenty windows',
+    ahora:  'The ones your warehouse actually uses' },
+
+  { ver: '12.86',
+    titulo: 'Every padlock now answers about what you clicked',
+    puntos: [
+      'In the free edition, clicking the low-stock settings used to answer with a message about <i>expected deliveries</i>. Three of them pointed at the wrong explanation.',
+      'And the low-stock settings should never have been closed. The free edition already shows the "below minimum" banner, so closing the button that decides what "minimum" means showed you a problem and hid the control that defines it. <b>It is open now.</b>',
+      'What is still Pro is getting that alert <b>by email</b>, which needs a permission the free edition does not ask for.'
+    ],
+    antes:  'Click the low-stock settings, get told about expected deliveries',
+    ahora:  'Each one explains the thing you actually clicked' },
+
   { ver: '12.85',
     titulo: 'Two notices that piled up',
     puntos: [
@@ -28510,26 +28877,7 @@ var NOVEDADES = [
     antes:  'Return five of something that never left, and the warehouse silently gained five',
     ahora:  'The app asks first, and says exactly how many were never out' },
 
-  { ver: '12.83',
-    titulo: 'The project-manager list can no longer break a screen',
-    puntos: [
-      'The list of registered project managers is fetched from your sheet and used in three places. If that fetch came back in an unexpected shape, the Receive screen stopped opening — and the error pointed at the list, not at the fetch.',
-      'There is now <b>one place</b> that decides what that list is, instead of three that each had to get it right. Same for the "out on site" list added in v12.82.',
-      'Behind this release: fifteen of our own checks stopped keeping hand-written lists of what they need from the app, and a new check fails if anyone writes one of those lists again.'
-    ],
-    antes:  'Three places that each had to get the same thing right',
-    ahora:  'One place that decides it' },
 
-  { ver: '12.82',
-    titulo: 'Returns know what is still out there',
-    puntos: [
-      'Click into the material name on a <b>Return</b> and a list drops down of everything from that category that is <b>out on a site right now</b> — with how much is out, and where.',
-      'It is grouped by <b>material and place</b>. Four dispatches of the same material to the same job are one line with the total, because what you need standing there is how much of it is at <i>that</i> address.',
-      'Pick one and the form fills itself: name, the site it comes back from, the unit, the project, the project manager, and the quantity as a suggestion. You are left with the rack, the real quantity and the reason.',
-      '<b>Returned By</b> is left empty on purpose: the record knows who took the material out, not who is bringing it back.'
-    ],
-    antes:  'Type the name of something you cannot see, and fill eight boxes by hand',
-    ahora:  'Pick it off the list and fill in three' },
 
 
 

@@ -7,7 +7,7 @@
 > **Este documento se actualiza en cada versión.** Si la fecha de abajo tiene más
 > de una semana, está viejo y hay que decirlo.
 
-**Última actualización:** 21/10/2026 · **versión v12.84** · build `502c1a66`
+**Última actualización:** 21/10/2026 · **versión v12.87** · build `c6eeee05`
 
 ---
 
@@ -18,7 +18,7 @@ contexto.
 
 | # | Qué | Por qué está parado | Cuánto cuesta |
 |---|---|---|---|
-| 1 | **Verificar la v12.82–84 en la app de verdad** | Está publicado y nadie lo ha abierto todavía | 10 min |
+| 1 | **Verificar la v12.82–87 en la app de verdad** | Seis versiones publicadas y ninguna abierta | 20 min |
 | 2 | **Que alguien de fuera instale la Básica** | El enlace `/copy` le falló a la única persona que lo intentó | 20 min, con otra persona |
 | 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
 | 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
@@ -27,6 +27,41 @@ contexto.
 ---
 
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.87 · La ventana de entrada, limpia · **SIN VERIFICAR**
+
+Eran **dieciséis controles** para registrar «llegaron 20 ventanas, están en
+A1A». Ahora el formulario **aprende** qué campos usa tu bodega y pliega el resto
+detrás de «+ N more fields»; Documentos es una línea; la casilla 🏷 Label se fue
+de cada material y la pregunta sale al guardar. Y si tienes camiones
+registrados aparece el campo de camión — ya estaba construido entero y nadie
+podía verlo.
+
+**Qué probar:**
+1. Abre Entry → ¿ves «+ 4 more fields»? Púlsala: tienen que volver GC, PO#,
+   Project y PM.
+2. Escribe algo en PO#, cambia de pestaña y vuelve: **un campo con algo escrito
+   no se puede esconder**.
+3. Abre la línea de Documentos, escribe un nombre: **ya no se cierra sola**.
+4. Guarda una entrada → el aviso ofrece **🏷 Print labels**; si NO lo pulsas, la
+   pregunta de «¿también llegó esto?» tiene que salir igual.
+
+### v12.86 · Cada candado contesta de lo que pulsaste · **SIN VERIFICAR**
+
+Tres apuntaban al mensaje equivocado. Y el ⚙ Monitor **ya no lleva candado en
+la Básica**: la franja de «⚠ Below Minimum» se ve ahí, así que cerrar el botón
+que define qué es «mínimo» era enseñar un problema y esconder su control.
+
+**Qué probar:** en la Básica, pulsa los ajustes de stock mínimo — tiene que
+abrirse, no dar un mensaje de Pro.
+
+### v12.85 · Dos avisos que se apilaban · **SIN VERIFICAR**
+
+De tus dos videos. El aviso de Pro ya no se multiplica al insistir, y las
+tarjetas de la esquina dejaron de llenarse de respaldos y archivados.
+
+**Qué probar:** pulsa cuatro veces un candado de Pro → un solo aviso. Y mira el
+mazo de tarjetas: no debería haber ni un «Backup created».
 
 ### v12.84 · Devolver más de lo que salió, avisado · **SIN VERIFICAR**
 
@@ -156,15 +191,17 @@ Para no perder de vista el tamaño de lo que ya hay.
 
 ## 📋 LO SIGUIENTE, EN ORDEN
 
-1. **Verificar la v12.82–84** (10 min, tú)
+1. **Verificar la v12.82–87** (20 min, tú) — son seis versiones sin abrir
 2. **Terminar la tarjeta de ajuste** (yo, ~1 versión)
 3. **Precios y sección de Pro en la página** (medio día, yo; la decisión, tú)
 4. **Agendar llamadas** (20 min, tú)
 5. **Grabar V1, el cronómetro** (una mañana, tú)
 6. **Que alguien de fuera instale la Básica** (20 min, tú y otra persona)
-7. Las mejoras visuales de la siguiente versión: bloque de marca, pestañas
+7. **Incoming: crear varios a la vez**, y que aceptar uno SEA la entrada (yo;
+   lo segundo necesita que decidas lo de las llegadas parciales)
+8. Las mejoras visuales de la siguiente versión: bloque de marca, pestañas
    centradas, **menú de iconos abajo en el teléfono**
-8. Migrar un Excel real — el primero
+9. Migrar un Excel real — el primero
 
 ---
 
