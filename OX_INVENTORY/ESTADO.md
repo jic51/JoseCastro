@@ -10,7 +10,7 @@
 > **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
 > único sitio donde mirar cómo vamos.
 
-**Última actualización:** 22/10/2026 · **versión v12.89** · build `6ca3a928`
+**Última actualización:** 22/10/2026 · **versión v12.90** · build `32359892`
 
 ---
 
@@ -26,6 +26,10 @@ contexto.
 | 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
 | 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
 | 5 | **Una forma de agendar una llamada** | Hoy el camino muere en un correo | 20 min de configuración |
+| 6 | **¿La papelera se abre en la gratis?** | Hoy borras y no puedes deshacer: el aviso manda a una pestaña cerrada | 1 min de decisión |
+| 7 | **¿Qué dos nombres intentaste fusionar?** | Tengo la causa, pero no la puedo confirmar sin ellos | 1 min |
+| 8 | **¿Las filas importadas sin ubicación van a `RECEIVING`?** | Hoy caen en `UNASSIGNED`, que es una palabra del programa | 2 min de decisión |
+| 9 | **¿La página comprimida?** | 1.59 MB → 874 KB, 516 KB → 216 KB por la red. Cero cambios en el producto | 1 min de decisión |
 
 ---
 
@@ -67,7 +71,7 @@ contexto.
 - ☐ Si registras camiones en Ajustes, aparece el campo **Truck** en el formulario. Si no tienes, no está.
 
 **v12.86 · Los candados**
-- ☐ [B] Pulsa los ajustes de **stock mínimo** (⚙ Monitor): tiene que **abrirse**, no dar mensaje de Pro.
+- ☐ [B] Pulsa los ajustes de **stock mínimo** (⚙ Monitor): **NO** se abre, y el mensaje habla de alertas de stock bajo. (Lo abrí yo por mi cuenta en la v12.86; tú lo revertiste y volvió a ser de Pro en la v12.89.)
 - ☐ [B] Pulsa la foto de factura (**AI Extract**): el mensaje habla de *leer la factura*, no de adjuntar archivos.
 - ☐ [B] Pulsa tres o cuatro candados distintos: cada mensaje habla de lo que pulsaste.
 
@@ -106,7 +110,46 @@ Las dos correcciones de hoy salieron de eso.
 
 ---
 
+## 🧭 LO QUE ESTAMOS MIRANDO AHORA — barrido del 22/10, ocho cosas
+
+Las ocho de tus tres capturas y tres vídeos del 22/10. **Investigadas, no
+arregladas**: tú dijiste *"aún no hagas nada"*, y así está. El detalle completo,
+con números de línea, está en `docs/BACKLOG.md`, al principio.
+
+| # | Qué | Estado |
+|---|---|---|
+| 1 | [B] Borrar un movimiento manda a Settings → System, que en la gratis está cerrada | **causa encontrada** · hay que decidir si la papelera se abre en la gratis |
+| 2 | [B] Permissions, Directory e Import vuelven al abrir Ajustes | **causa encontrada** · `_filterSettingsSidebar` deshace lo que esconde la gratis |
+| 3 | Fusionar proyectos/suppliers falla si sólo cambian las mayúsculas | **causa encontrada** · me falta saber qué dos nombres elegiste |
+| 4 | El Error Log no enseña lo que acaba de pasar | **causa encontrada** · sí se guarda; la pantalla no vuelve a preguntar |
+| 5 | Importar sin ubicación deja material en `UNASSIGNED` | **medido** · tengo tres arreglos pequeños y una decisión para ti |
+| 6 | Materials (Ajustes), como las alertas de stock bajo | anotado, sin empezar |
+| 7 | Directory (Ajustes), como la pantalla de usuarios | anotado, sin empezar |
+| 8 | La casilla «todos» de Movements | **así lo establecimos** · decisión tuya si cambia |
+
+**Mi recomendación: del 1 al 4, en una sola versión.** Son las cuatro pequeñas,
+las cuatro son «la app dice algo que no es verdad», y la 4 va dentro porque es
+la herramienta con la que se comprueban las otras tres.
+
+---
+
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.90 · La devolución no pregunta lo que ya sabe, y el aviso dura 7s · **SIN VERIFICAR**
+
+De tu vídeo del 22/10.
+
+**Qué probar:**
+1. Return → elige un material que salió **a un solo sitio**: el sitio, la obra,
+   el PM, la unidad y la cantidad se rellenan **solos**. Ya no te pregunta de
+   dónde vino.
+2. Elige uno que salió **a dos sitios distintos**: ahí **sí** sale la lista de
+   los dos para que elijas.
+3. Elige uno que **nunca salió**: el cajón se queda vacío, para contestarlo.
+4. Escribe algo a mano en el sitio y luego cambia el material: **no te lo pisa**.
+5. [B] Pulsa un candado de Pro: el aviso se va a los **7 segundos**, no a los 14.
+   Pasa el ratón por encima: se queda. Quítalo: se va en **2 ó 3**.
+6. Pulsa cuatro candados seguidos: sigue habiendo **un solo aviso**.
 
 ### v12.89 · Una lista, búsqueda que no se queda atrás, y 2 MB menos · **SIN VERIFICAR**
 
