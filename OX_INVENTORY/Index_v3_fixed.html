@@ -4067,18 +4067,47 @@
      * que da un consejo seguro sobre algo que no ha comprobado hace perder más
      * tiempo del que ahorra. */
     var nuestro = !!(window.google && window.google.script);
-    var titulo = fallo ? 'The app stopped while loading.'
-               : nuestro ? 'This copy of the app did not start.'
-               : 'Could not reach Google.';
-    var detalle = fallo
+
+    /* EL ORDEN IMPORTA, Y ESTABA AL REVÉS (arreglado el 22/10).
+     *
+     * «Falta la librería de Google» se mira ANTES que «se cazó un error», y no
+     * es un detalle de redacción: cuando la librería no llega, el error que se
+     * caza es su CONSECUENCIA. Preguntar primero por el error hacía que la
+     * pantalla enseñara un número de línea —y pidiera mandárselo a soporte—
+     * cuando la línea no tiene nada que ver con la avería. Es mandar a alguien
+     * a buscar donde no está, que es peor que no decir nada.
+     *
+     * Lo encontró la suite siendo INTERMITENTE: las dos condiciones se cumplen
+     * a la vez en ese caso, y cuál ganaba dependía de si el error llegaba antes
+     * que el vigilante. Un rojo que va y viene es el peor de todos porque se
+     * aprende a reejecutarlo; aquí señalaba una ambigüedad de verdad. */
+    /* ¿EL ERROR TRAE ALGO QUE SIRVA? No siempre. Un navegador puede entregar
+     * el suceso SIN detalles —línea 0, columna 0, mensaje «error»— y eso pasa
+     * de verdad: es lo que hace con un script que considera de otro origen.
+     *
+     * Decir entonces «se paró en la línea 0, columna 0 — error» y rematar con
+     * «manda esto a soporte: el número de línea es lo que identifica el
+     * problema» es PROMETER UN DIAGNÓSTICO QUE NO SE TIENE. Quien lo mande se
+     * queda esperando una respuesta que nadie puede dar con eso. Vale más
+     * decir que el navegador no lo contó. */
+    var util = !!(fallo && fallo.linea > 0);
+
+    var titulo = !nuestro ? 'Could not reach Google.'
+               : fallo    ? 'The app stopped while loading.'
+                          : 'This copy of the app did not start.';
+    var detalle = !nuestro
+      ? 'The page loaded but the Google script library did not. Check the ' +
+        'connection and reload. Nothing is wrong with your data.'
+      : util
       ? 'Its code stopped at line ' + fallo.linea + ', column ' + fallo.col +
         ' — ' + fallo.msg + '. Send this screen to support: the line ' +
         'number is what identifies the problem. Your data is untouched.'
-      : nuestro
-      ? 'The page loaded but its code never ran. The most likely cause is a ' +
-        'file pasted incompletely — paste Index.html again, whole, and deploy.'
-      : 'The page loaded but the Google script library did not. Check the ' +
-        'connection and reload. Nothing is wrong with your data.';
+      : fallo
+      ? 'Its code stopped, but the browser did not say where. Reload once; if ' +
+        'it happens again, paste Index.html in again, whole, and deploy. Your ' +
+        'data is untouched.'
+      : 'The page loaded but its code never ran. The most likely cause is a ' +
+        'file pasted incompletely — paste Index.html again, whole, and deploy.';
 
     var nota = document.getElementById('splashNote');
     if (nota) {
@@ -5767,7 +5796,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.87';
+var APP_VERSION = '12.88';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5779,7 +5808,7 @@ var APP_VERSION = '12.87';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'c6eeee05';
+var APP_BUILD = '6d4d1bd3';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -8439,6 +8468,11 @@ function showTab(tab, btnId){
     _TAB_RENDERS[tab]();
     _dirtyTabs[tab] = false;
   }
+  /* LAS ✕ QUE NO SE PUDIERON MEDIR, AHORA QUE SE VEN. Una pestaña escondida no
+   * tiene anchos, así que la ✕ de sus campos se queda sin decidir al arrancar.
+   * Éste es el momento en que pasan a poder medirse. Ver `_equisAncho`. */
+  try { _equisMedir(document.getElementById(tab)); } catch(e) {}
+
   // Persist active tab so refresh returns to same page
   try { sessionStorage.setItem('oxwms_tab', tab + '|' + btnId); } catch(e) {}
 }
@@ -10763,6 +10797,9 @@ function openMoveModal(type){
   if (lw){ lw.style.display = 'none'; lw.innerHTML = ''; }
 
   setModalType(currentMoveType);
+  /* Lo mismo para los campos de esta ventana: hasta ahora estaba cerrada y no
+   * se podían medir. Ver `_equisAncho`. */
+  try { _equisMedir(document.getElementById('moveOverlay')); } catch(e) {}
 
   // FIX #1: actually show the overlay
   document.getElementById('moveOverlay').classList.add('show');
@@ -19401,6 +19438,55 @@ function _cfgKnownValues(type){
  *
  * SIN ESTO, envolver los campos habría roto las dos cosas en silencio: el aviso
  * se habría seguido creando y nadie lo habría encontrado para quitarlo. */
+/* ══ ¿EL ENVOLTORIO VALE EL ANCHO ENTERO? ═══════════════════════════════════
+ *
+ * Jose, 21/10, con una captura de Movements: la ✕ aparecía **al final de la
+ * fila**, a setecientos píxeles de la caja de búsqueda, y la caja se quedaba
+ * sola en su línea. Las dos cosas son el mismo fallo.
+ *
+ * LO QUE PASABA, medido: el envoltorio valía 1004px y el campo 230px. La ✕ se
+ * coloca a la derecha DEL ENVOLTORIO, así que acababa lejísimos del sitio donde
+ * se escribe; y un envoltorio de 1004px dentro de una barra flexible se lleva
+ * la fila entera y empuja lo demás abajo.
+ *
+ * LA CAUSA, Y ES LA DE SIEMPRE: la regla vieja preguntaba «¿el campo es tan
+ * ancho como su hueco?» con
+ *
+ *     el.offsetWidth >= padre.clientWidth - 4
+ *
+ * y eso, cuando la pestaña está escondida —que es justo cuando corre, al
+ * arrancar— es `0 >= -4`: **verdadero siempre**. Una comparación que contesta
+ * «sí» cuando no se puede medir nada no está midiendo, está adivinando.
+ *
+ * LO QUE SE PREGUNTA AHORA es directamente lo que importa, y se comprueba sobre
+ * el DOM ya montado: se le pone el ancho entero y se mira **si el campo lo
+ * llena**. Si lo llena, se queda; si no —como la caja de 230px— se le quita. Y
+ * si no se puede medir porque está escondido, NO SE DECIDE: se apunta para
+ * medirlo cuando se vea, que es lo que hace `_equisMedir`. */
+function _equisAncho(caja, el){
+  caja.classList.add('ancho');
+  if (!caja.offsetWidth) {          // escondido: no se puede medir, no se inventa
+    caja.dataset.medir = '1';
+    caja.classList.remove('ancho');
+    return;
+  }
+  delete caja.dataset.medir;
+  if (el.offsetWidth < caja.offsetWidth - 4) caja.classList.remove('ancho');
+}
+
+/** Los que se envolvieron estando escondidos, ahora que se ven.
+ *
+ *  Se llama al cambiar de pestaña y al abrir la ventana de movimientos, que son
+ *  los dos momentos en que algo pasa de no poder medirse a poder medirse. Es
+ *  barato: sólo mira los que quedaron pendientes, y cada uno se resuelve una
+ *  vez y para siempre. */
+function _equisMedir(raiz){
+  (raiz || document).querySelectorAll('.tiene-x[data-medir]').forEach(function(caja){
+    var el = caja.querySelector('input, textarea');
+    if (el) _equisAncho(caja, el);
+  });
+}
+
 function _anclaDeCampo(input){
   var p = input && input.parentElement;
   return (p && p.classList && p.classList.contains('tiene-x')) ? p : input;
@@ -28206,16 +28292,9 @@ function _ponerEquis(raiz){
 
     var caja = document.createElement('span');
     caja.className = 'tiene-x';
-    /* ANCHO: si el campo ocupaba todo lo ancho de su hueco, el envoltorio
-     * también tiene que ocuparlo, o la fila se encoge al envolverlo. Se mira
-     * lo que el navegador le estaba dando, no lo que creemos que debería. */
-    var estilo = getComputedStyle(el);
-    if (estilo.display === 'block' || estilo.width === '100%' ||
-        el.offsetWidth >= (el.parentElement ? el.parentElement.clientWidth - 4 : 0)) {
-      caja.className += ' ancho';
-    }
     el.parentNode.insertBefore(caja, el);
     caja.appendChild(el);
+    _equisAncho(caja, el);
 
     var x = document.createElement('button');
     x.type = 'button';
@@ -28836,6 +28915,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.88',
+    titulo: 'The \u2715 sits inside the box',
+    puntos: [
+      'In Movements the \u2715 was drawing at the <b>far right of the row</b>, hundreds of pixels from the search box \u2014 and the box was pushed onto a line of its own. Both were the same thing.',
+      'It asked "is this field as wide as its slot?" while the tab was still hidden, which is <code>0 \u2265 -4</code>: <b>true, always</b>. A comparison that answers yes when nothing can be measured is not measuring.',
+      'It now checks what actually matters, once the field can be seen: <b>does the field fill its wrapper?</b> That holds for every box you can type in, including ones added later.'
+    ],
+    antes:  'The \u2715 half a screen away from the box it clears',
+    ahora:  'Inside the box, where you are typing' },
+
   { ver: '12.87',
     titulo: 'A much quieter Receive window',
     puntos: [
@@ -28867,15 +28956,6 @@ var NOVEDADES = [
     antes:  'Four clicks, four notices, and a week away meant a wall of backup cards',
     ahora:  'One notice, and cards only for what needs a look' },
 
-  { ver: '12.84',
-    titulo: 'Returning more than went out now says so',
-    puntos: [
-      'If you return more of a material than is recorded as out at that site, the app asks before saving: how much is out there, how much you are returning, and how much is about to be added to the warehouse that never left it.',
-      'It <b>asks</b> \u2014 it does not refuse. Someone standing there with material in hand has to be able to record it, and you never have to open the spreadsheet to fix it.',
-      'And it stays quiet in the case that matters: a material with <b>no recorded dispatch at all</b> saves with no warning. Warehouse history starts partway through, and something that left before Acopio existed is a real return no record can know about.'
-    ],
-    antes:  'Return five of something that never left, and the warehouse silently gained five',
-    ahora:  'The app asks first, and says exactly how many were never out' },
 
 
 

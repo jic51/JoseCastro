@@ -128,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.87';
+var APP_VERSION = '12.88';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -140,7 +140,7 @@ var APP_VERSION = '12.87';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = 'c6eeee05';
+var APP_BUILD = '6d4d1bd3';
 
 // ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
 //
@@ -10620,6 +10620,13 @@ function onSelectionChange(e) {
     if (Date.now() - last < NUDGE_EVERY_MS) return;
     p.setProperty('NUDGE_AT', String(Date.now()));
 
+    /* CALLAR EN LA GRATIS. Aquí se empuja hacia un «Set Up» que en esa edición
+     * no existe —el asistente crea carpetas en Drive y registra usuarios— así
+     * que `setupComplete` nunca llega a ser cierto y este recordatorio saldría
+     * para siempre, pidiendo algo que no se puede hacer. Un aviso que no se
+     * puede satisfacer es peor que ninguno: enseña a ignorar los avisos. */
+    if (basicApagado_()) return;
+
     SpreadsheetApp.getActiveSpreadsheet().toast(
       'Setup has not been done yet. Open the "👉 START HERE" tab at the bottom.',
       '👋 Welcome to ' + PRODUCT_NAME, 15);
@@ -10667,6 +10674,43 @@ function onEdit(e) {
     }
 
     sh.getRange(TERMS_STAMP_CELL).setValue('Accepted ' + new Date().toLocaleString());
+
+    /* ── EL SIGUIENTE PASO NO ES EL MISMO EN LAS DOS EDICIONES ──────────────
+     *
+     * Jose, 21/10, con una captura de la hoja de la versión gratis: *"sale que
+     * debo ir al menú Acopio pero el menú Acopio no aparece"*.
+     *
+     * Y no es que no aparezca: **no puede aparecer**. El menú de la hoja
+     * necesita `script.container.ui`, que es un permiso SENSIBLE y que la
+     * edición gratis no pide a propósito — pedirlo es lo que trae la pantalla
+     * de aviso de Google. `onOpen` ya se calla por eso desde que existe la
+     * gratis; lo que se quedó sin cambiar fue este texto, que manda a buscar
+     * algo que no está.
+     *
+     * Es el fallo de siempre con otra cara: dos sitios que tienen que decir lo
+     * mismo —el menú y la frase que manda al menú— sin que nada lo obligue. Lo
+     * vigila ahora `test-basica-sin-menu.js`.
+     *
+     * Y EN LA GRATIS NO HAY «SET UP» NINGUNO, que es la otra mitad: el
+     * asistente crea carpetas en Drive y registra usuarios, las dos cosas que
+     * esta edición no tiene. La hoja ya viene con sus pestañas hechas y la app
+     * abre directa en el inventario. Así que el paso siguiente de verdad es
+     * desplegarla, y el nombre de la empresa se pone dentro, en
+     * Settings → Name & Logo. */
+    if (basicApagado_()) {
+      sh.getRange(TERMS_NEXT_CELL)
+        .setValue('→ Next: deploy the app — Extensions → Apps Script → Deploy. ' +
+                  'The steps are at www.acopio.net. This edition has NO menu in ' +
+                  'this window: everything happens inside the app, and you set ' +
+                  'your company name there in Settings → Name & Logo.')
+        .setFontWeight('bold').setFontColor('#B45309');
+      SpreadsheetApp.getActiveSpreadsheet().toast(
+        'This edition has no menu here. Deploy the app (Extensions → Apps Script) ' +
+        'and everything else happens inside it.',
+        '✓ Terms accepted', 20);
+      return;
+    }
+
     sh.getRange(TERMS_NEXT_CELL)
       .setValue('→ Now open the  🏭 ' + PRODUCT_NAME + '  menu at the top of this window ' +
                 'and choose  "🚀 Set Up ' + PRODUCT_NAME + '".')

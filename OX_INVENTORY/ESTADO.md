@@ -4,10 +4,13 @@
 > vez que olvide cómo vamos, y señala las partes que estamos trabajando, las que
 > recién hicimos y las no se han verificado, para enfocarme en ellas."*
 >
-> **Este documento se actualiza en cada versión.** Si la fecha de abajo tiene más
-> de una semana, está viejo y hay que decirlo.
+> **Este documento se actualiza en cada versión** y va con cada entrega. Si la
+> fecha de abajo tiene más de una semana, está viejo y hay que decirlo.
+>
+> **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
+> único sitio donde mirar cómo vamos.
 
-**Última actualización:** 21/10/2026 · **versión v12.87** · build `c6eeee05`
+**Última actualización:** 22/10/2026 · **versión v12.88** · build `6d4d1bd3`
 
 ---
 
@@ -18,7 +21,7 @@ contexto.
 
 | # | Qué | Por qué está parado | Cuánto cuesta |
 |---|---|---|---|
-| 1 | **Verificar la v12.82–87 en la app de verdad** | Seis versiones publicadas y ninguna abierta | 20 min |
+| 1 | **La lista de verificación de abajo** | Hay diez versiones de cambios y ninguno está confirmado por ti | 30 min, con la app abierta |
 | 2 | **Que alguien de fuera instale la Básica** | El enlace `/copy` le falló a la única persona que lo intentó | 20 min, con otra persona |
 | 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
 | 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
@@ -26,7 +29,99 @@ contexto.
 
 ---
 
+## 📋 LA LISTA DE VERIFICACIÓN — las diez últimas versiones
+
+> **Esto NO quiere decir que no hayas usado la app.** La usas: los dos fallos de
+> la v12.88 —la ✕ al final de la fila y el menú que no existe— salieron de tus
+> propias capturas, y los dos avisos que se apilaban salieron de tus vídeos. Lo
+> que falta es otra cosa: **confirmar que los arreglos funcionan**, que es
+> distinto de haber visto el fallo.
+>
+> Van marcados **[P]** los que sólo se ven en Pro y **[B]** los que sólo se ven
+> en la Básica. Lo demás vale para las dos.
+
+### Las cinco que más importan — si sólo haces cinco, éstas
+
+| ✓ | Qué | Dónde | Qué tiene que pasar |
+|---|---|---|---|
+| ☐ | **La ✕ dentro de la caja** | Movements → escribe en la búsqueda | La ✕ sale **dentro** de la caja, pegada al borde derecho, y la caja **no** ocupa la fila entera |
+| ☐ | **La lista de lo que está fuera** | Nuevo movimiento → Return → entra en el nombre **sin escribir nada** | Sale sola la lista de lo que está fuera de bodega, con cuánto y dónde |
+| ☐ | **El formulario más corto** | Nuevo movimiento → Entry | Hay una línea **«+ N more fields»**; al pulsarla vuelven GC, PO#, Project y PM |
+| ☐ | **Las columnas quietas** | Dashboard → cambia categoría y estado varias veces | Las columnas no se mueven de sitio |
+| ☐ | **[B] El menú fantasma** | La hoja → destilda y vuelve a tildar los términos | El texto **ya no habla de ningún menú**; dice que despliegues la app y que el nombre va en Settings → Name & Logo |
+
+### Todo lo demás, por versión
+
+**v12.88 · La ✕ y el menú**
+- ☐ La ✕ dentro de la caja **en todas** las cajas de escritura, no sólo en Movements: filtros, formularios, ajustes.
+- ☐ [B] El texto de la hoja al aceptar términos (arriba).
+
+**v12.87 · La ventana de entrada, limpia**
+- ☐ La línea «+ N more fields» y que al pulsarla vuelvan todos.
+- ☐ Escribe algo en PO#, cambia de pestaña y vuelve: **un campo con algo escrito no se puede esconder**.
+- ☐ **Documentos** es una línea que se abre al pulsarla.
+- ☐ Abre Documentos, escribe un nombre: **ya no se cierra sola**.
+- ☐ La casilla **🏷 Label ya no está** en la línea de cada material.
+- ☐ Guarda una entrada → el aviso ofrece **🏷 Print labels**. Púlsalo: se abre el cuadro con todo marcado.
+- ☐ Guarda otra entrada y **no** pulses nada → la pregunta de «¿también llegó esto?» tiene que salir igual.
+- ☐ Si registras camiones en Ajustes, aparece el campo **Truck** en el formulario. Si no tienes, no está.
+
+**v12.86 · Los candados**
+- ☐ [B] Pulsa los ajustes de **stock mínimo** (⚙ Monitor): tiene que **abrirse**, no dar mensaje de Pro.
+- ☐ [B] Pulsa la foto de factura (**AI Extract**): el mensaje habla de *leer la factura*, no de adjuntar archivos.
+- ☐ [B] Pulsa tres o cuatro candados distintos: cada mensaje habla de lo que pulsaste.
+
+**v12.85 · Los dos avisos que se apilaban**
+- ☐ [B] Pulsa **cuatro veces** el mismo candado: **un solo aviso**, que da un golpecito al insistir.
+- ☐ Mira el mazo de tarjetas de la esquina: **no debe haber ni un «Backup created»** ni «archive start».
+- ☐ Ajustes → Sistema: ahí **sí** siguen todos los respaldos y archivados. (Esto importa: se movieron, no se borraron.)
+
+**v12.84 · Devolver más de lo que salió**
+- ☐ Return → elige de la lista algo con 7 fuera → escribe **10** → guardar: **tiene que preguntar** y decir cuánto sobra.
+- ☐ Return → escribe un material **inventado**, cantidad 99 → guardar: **no debe decir nada**.
+
+**v12.83 · La lista de jefes de obra** *(interno)*
+- ☐ Nada que mirar a simple vista. Si Entry abre bien, está.
+
+**v12.82 · El RETURN parte de lo que está fuera**
+- ☐ La lista sale al entrar en el nombre, sin teclear.
+- ☐ Un material que esté en **dos obras** sale en **dos líneas**, no sumado.
+- ☐ Al elegir una: nombre, sitio, cantidad, unidad, obra y PM puestos; estante y motivo vacíos, con el cursor ya en el estante.
+- ☐ **«Returned By» se queda vacío** — es a propósito.
+
+**v12.81 · La ✕ en cada campo**
+- ☐ La ✕ **dentro de una ventana modal** (en el formulario de movimientos), que es lo que quedó sin mirar.
+- ☐ Vaciar la búsqueda con la ✕ **vuelve a lanzar la búsqueda** (la tabla se repuebla).
+
+**v12.80 · Las columnas**
+- ☐ Dashboard: cambiar filtros no mueve las columnas.
+
+**v12.79 · El mazo de tarjetas**
+- ☐ Ya lo viste y dijiste *"se ve mejor, pero no profesional"*. **Queda tu idea sin hacer**: que la que entra se vea entrando en el hueco y la que se borra tarde un poco más. Dime si sigue en pie.
+
+### Si algo de esto falla
+
+Mándame la captura como has hecho hasta ahora — es lo que mejor ha funcionado.
+Las dos correcciones de hoy salieron de eso.
+
+---
+
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.88 · La ✕ dentro de la caja, y la gratis sin menú fantasma · **SIN VERIFICAR**
+
+Tus dos capturas del 21/10. En Movements la ✕ se dibujaba al final de la fila, a
+cientos de píxeles de la caja — y por eso la caja se quedaba sola arriba. Y en
+la versión gratis la hoja mandaba a un menú «Acopio» que **no puede existir
+ahí**: necesita un permiso sensible que esa edición no pide a propósito.
+
+**Qué probar:**
+1. Movements → escribe algo en la búsqueda: la ✕ tiene que salir **dentro** de
+   la caja, y la caja ya no debe ocupar la fila entera.
+2. Lo mismo en cualquier otra caja de escritura de la app.
+3. En la copia gratis, destilda y vuelve a tildar la casilla de términos: el
+   texto ya no debe hablar de ningún menú, y tiene que decirte que el nombre de
+   la empresa se pone en **Settings → Name & Logo**.
 
 ### v12.87 · La ventana de entrada, limpia · **SIN VERIFICAR**
 
@@ -191,7 +286,7 @@ Para no perder de vista el tamaño de lo que ya hay.
 
 ## 📋 LO SIGUIENTE, EN ORDEN
 
-1. **Verificar la v12.82–87** (20 min, tú) — son seis versiones sin abrir
+1. **La lista de verificación** (30 min, tú) — diez versiones de cambios sin confirmar
 2. **Terminar la tarjeta de ajuste** (yo, ~1 versión)
 3. **Precios y sección de Pro en la página** (medio día, yo; la decisión, tú)
 4. **Agendar llamadas** (20 min, tú)
