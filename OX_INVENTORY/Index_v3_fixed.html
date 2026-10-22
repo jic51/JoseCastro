@@ -11,7 +11,12 @@
        Jose was seeing. applyCompanyBranding() swaps this for the company's
        own uploaded logo once one exists — see the c.logoId branch there. -->
   <link rel="icon" id="appFavicon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%231B2A4A'/%3E%3Cpath d='M12 4L4 8l8 4 8-4-8-4zM4 15l8 4 8-4M4 11l8 4 8-4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <!-- GOOGLE CHARTS YA NO SE BAJA AQUÍ. Jose, 22/10, con un vídeo y la consola
+       abierta en 3G: 2,0 MB de recursos, DOMContentLoaded a los 9,9 s y la
+       página entera a los 27 s. La mayor parte de ese peso eran los módulos de
+       gráficas de gstatic.com — y lo pagaba TODO EL MUNDO, en cada carga, para
+       dibujar dos tartas que sólo existen en una de las cinco pantallas.
+       Ahora se baja cuando el panel las necesita. Ver `_cargarCharts`. -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
@@ -5796,7 +5801,7 @@ var _MOV_PAGE_SZ = 75;   // rows per page in Movements tab
 var chartsReady = false;
 // Version handshake — must match APP_VERSION in Code.gs. If they differ, one
 // file was deployed without the other; loadDataFromGoogle shows a warning banner.
-var APP_VERSION = '12.88';
+var APP_VERSION = '12.89';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -5808,7 +5813,7 @@ var APP_VERSION = '12.88';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '6d4d1bd3';
+var APP_BUILD = '6ca3a928';
 var userRole = 'WAREHOUSE';
 /* QUÉ EDICIÓN ES. La manda el servidor con los datos iniciales; el navegador
  * NO la declara por su cuenta a propósito. Si hubiera una constante aquí y otra
@@ -10365,7 +10370,12 @@ function renderProjectView(){
 
 // ── Charts ────────────────────────────────────────────────────────────────────
 function drawInventoryCharts(){
-  if (!chartsReady || !Object.keys(stockData).length) return;
+  if (!Object.keys(stockData).length) return;
+  /* SI TODAVÍA NO ESTÁ, SE PIDE — y esta misma función vuelve a correr cuando
+   * llegue. Es el único sitio que las dibuja, así que es el único que tiene que
+   * saber pedirlas: cargar la librería desde la cabecera hacía esperar a las
+   * cinco pantallas por la única que las usa. */
+  if (!chartsReady) { _cargarCharts(drawInventoryCharts); return; }
   var catData = {};
   Object.values(stockData).forEach(function(s){
     if (s.warehouseQty > 0) catData[s.category] = (catData[s.category]||0) + s.warehouseQty;
@@ -11034,6 +11044,10 @@ function setModalType(type){
   if (typeof _fueraOlvidar === 'function') _fueraOlvidar();
   var cajaSug = document.getElementById('stockSuggestBox');
   if (cajaSug){ cajaSug.style.display = 'none'; cajaSug.classList.remove('caja-fuera'); }
+  /* Y se le devuelve al campo su lista del navegador: en la pantalla nueva
+   * puede que la nuestra no ofrezca nada, y entonces la del navegador es la
+   * única ayuda que hay. Ver `_listaNavegador`. */
+  _listaNavegador(document.getElementById('mName'), true);
 
   // Point rackListDest at racks by default
   mDestDl.id = 'rackListDest';
@@ -13641,6 +13655,37 @@ function updateExitMatNameList(n){
 // movimiento, y como sólo hay un sitio donde se enciende, no hay nada que
 // sincronizar. La diferencia de ancho —la de fuera lleva el sitio— es una clase
 // que esta misma función pone y quita.
+/* ── UNA LISTA, NO DOS ──────────────────────────────────────────────────────
+ *
+ * Jose, 22/10, con una captura de la pantalla de devoluciones: *"¿por qué se
+ * muestran 2 listas? Eso lo veo SIEMPRE en la app"*.
+ *
+ * Las dos son reales y una no es nuestra: `#mName` lleva `list="matList"`, y
+ * eso hace que el NAVEGADOR dibuje su propio desplegable encima, con los mismos
+ * nombres, en su estilo y sin nada de lo que la nuestra añade —cuánto hay fuera
+ * y en qué sitio—. Se tapan, se pisan y hay que elegir entre dos cosas que
+ * dicen lo mismo a medias.
+ *
+ * MANDA LA NUESTRA. Mientras nuestra caja está puesta se le quita el atributo
+ * `list` al campo, que es lo único que apaga la del navegador; al esconderla se
+ * le devuelve, porque en las pantallas donde no ofrecemos nada esa lista es la
+ * única que hay y quitarla sería quitar una ayuda.
+ *
+ * Se guarda el nombre del datalist en vez de darlo por supuesto: el campo
+ * apunta a uno distinto según la pantalla, y escribir «matList» aquí sería la
+ * decimoséptima vez de dos sitios que tienen que coincidir sin que nada lo
+ * obligue. */
+function _listaNavegador(inputEl, encender){
+  if (!inputEl) return;
+  if (encender) {
+    var g = inputEl.dataset.listaOrig;
+    if (g) inputEl.setAttribute('list', g);
+  } else if (inputEl.getAttribute('list')) {
+    inputEl.dataset.listaOrig = inputEl.getAttribute('list');
+    inputEl.removeAttribute('list');
+  }
+}
+
 function _checkStockSuggest(inputEl){
   var box = document.getElementById('stockSuggestBox');
   if (!box) return;
@@ -13660,7 +13705,7 @@ function _checkStockSuggest(inputEl){
     })
     .sort(function(a,b){ return b.availableQty - a.availableQty; })
     .slice(0, 7);
-  if (!matches.length) { box.style.display = 'none'; return; }
+  if (!matches.length) { box.style.display = 'none'; _listaNavegador(inputEl, true); return; }
   box.innerHTML = '<div class="inc-suggest-hdr">📦 In Warehouse</div>' +
     matches.map(function(s){
       return '<div class="inc-suggest-item" data-action="stock-suggest" data-name="' + _he(s.name) + '">' +
@@ -13671,6 +13716,7 @@ function _checkStockSuggest(inputEl){
       '</div>';
     }).join('');
   box.style.display = 'block';
+  _listaNavegador(inputEl, false);
   _positionSuggestBox(box, inputEl);
 }
 
@@ -13682,6 +13728,7 @@ function _applyStockSuggest(name){
   }
   var box = document.getElementById('stockSuggestBox');
   if (box) box.style.display = 'none';
+  _listaNavegador(inp, true);
   // For ENTRY (if modal type is ENTRY) fill shared fields from history
   if (currentMoveType === 'ENTRY') {
     var cat = (document.getElementById('mType') || {}).value || '';
@@ -13788,6 +13835,7 @@ function _fueraSugerir(box, inputEl){
     box.innerHTML = '<div class="inc-suggest-hdr">↩ Out on site</div>' +
       '<div class="fuera-nada">Checking what is out…</div>';
     box.style.display = 'block';
+    _listaNavegador(inputEl, false);
     _positionSuggestBox(box, inputEl, 360);
     return;
   }
@@ -13808,12 +13856,13 @@ function _fueraSugerir(box, inputEl){
      * encima de cada letra que se teclea sería un estorbo permanente. Con el
      * campo vacío sí se dice, porque entonces el cartel es el dato: en esta
      * categoría no hay nada fuera, así que esto probablemente no es un RETURN. */
-    if (typed) { box.style.display = 'none'; _fueraVista = []; return; }
+    if (typed) { box.style.display = 'none'; _fueraVista = []; _listaNavegador(inputEl, true); return; }
     box.innerHTML = '<div class="inc-suggest-hdr">↩ Out on site</div>' +
       '<div class="fuera-nada">Nothing from this category is out on a site right ' +
       'now. You can still type a name — the warehouse history may start after ' +
       'this material left.</div>';
     box.style.display = 'block';
+    _listaNavegador(inputEl, false);
     _fueraVista = [];
     _positionSuggestBox(box, inputEl, 360);
     return;
@@ -13835,6 +13884,7 @@ function _fueraSugerir(box, inputEl){
       '</div>';
     }).join('');
   box.style.display = 'block';
+  _listaNavegador(inputEl, false);
   _positionSuggestBox(box, inputEl, 360);
 }
 
@@ -13940,6 +13990,7 @@ function _fueraAplicar(i){
    * `_checkStockSuggest` y la abriría otra vez. */
   var box = document.getElementById('stockSuggestBox');
   if (box) box.style.display = 'none';
+  _listaNavegador(inp, true);
 
   /* Y el foco al único campo que de verdad falta: a qué estante va. Es lo que
    * Jose dijo que rellena él, y el servidor lo exige. */
@@ -26670,14 +26721,52 @@ function loadDataFromGoogle(skipCache, quiet){
 // Envuelto, el peor caso es quedarse sin gráficas: `chartsReady` se queda en
 // `false` y `drawInventoryCharts` ya sabe no dibujar. Las cifras, la tabla, los
 // movimientos y los formularios —todo lo que se usa para trabajar— siguen ahí.
-try {
-  google.charts.load('current', {packages:['corechart']});
-  google.charts.setOnLoadCallback(function(){ chartsReady = true; drawInventoryCharts(); });
-} catch (e) {
-  /* Sin consola no queda rastro de por qué faltan las gráficas, y en silencio
-   * parecería un fallo nuestro. No se enseña nada al usuario: alguien de bodega
-   * no puede hacer nada con esto, y la app sigue sirviendo para su trabajo. */
-  console.warn('Google Charts no cargó; la app sigue sin gráficas:', e && e.message);
+/* ── Y DESDE LA v12.89, TAMPOCO SE BAJA HASTA QUE HACE FALTA ───────────────
+ *
+ * Jose, 22/10, con un vídeo y la consola abierta en 3G: **2,0 MB de recursos,
+ * DOMContentLoaded a los 9,9 s y la página entera a los 27 s**. En el listado
+ * se ven uno detrás de otro `jsapi_compiled_default_module.js`,
+ * `…_graphics_module.js`, `…_ui_module.js`, `…_format_module.js`, `util.css`,
+ * `tooltip.css` — los módulos de gráficas de gstatic.com.
+ *
+ * Eso lo pagaba TODO EL MUNDO EN CADA CARGA, para dibujar dos tartas que sólo
+ * existen en una de las cinco pantallas. Quien entra a registrar una salida
+ * desde el teléfono en la bodega esperaba por unas gráficas que no iba a mirar.
+ *
+ * Ahora la librería se baja la primera vez que el panel va a dibujar, y una
+ * sola vez. Lo de siempre sigue en pie: si no llega —cortafuegos, wifi malo, un
+ * mal rato de Google— `chartsReady` se queda en `false`, `drawInventoryCharts`
+ * ya sabe no dibujar, y las cifras, la tabla y los formularios siguen ahí.
+ * Antes eso costaba un `<script>` en la cabecera; ahora no cuesta nada. */
+var _chartsPedido = false;
+
+function _cargarCharts(alEstar){
+  if (chartsReady) { alEstar && alEstar(); return; }
+  if (_chartsPedido) return;          // ya viene de camino
+  _chartsPedido = true;
+
+  var sc = document.createElement('script');
+  sc.src = 'https://www.gstatic.com/charts/loader.js';
+  sc.async = true;
+  sc.onload = function(){
+    try {
+      google.charts.load('current', { packages: ['corechart'] });
+      google.charts.setOnLoadCallback(function(){
+        chartsReady = true;
+        alEstar && alEstar();
+      });
+    } catch (e) {
+      console.warn('Google Charts no arrancó; la app sigue sin gráficas:', e && e.message);
+    }
+  };
+  /* Un fallo de red aquí no es un fallo de la app. Se anota y se sigue: sin
+   * consola no quedaría rastro de por qué faltan las gráficas y parecería cosa
+   * nuestra, pero a alguien de bodega no se le enseña nada — no puede hacer
+   * nada con ello y la app le sirve igual para su trabajo. */
+  sc.onerror = function(){
+    console.warn('Google Charts no se pudo bajar; la app sigue sin gráficas.');
+  };
+  document.head.appendChild(sc);
 }
 
 // ── SessionStorage Cache ──────────────────────────────────────────────────────
@@ -27795,6 +27884,40 @@ function _debounce(fn, ms) {
   return function(){ clearTimeout(t); t = setTimeout(fn, ms || 200); };
 }
 
+/* ══ FILTRAR MIENTRAS SE ESCRIBE, NO CUANDO SE PARA ═════════════════════════
+ *
+ * Jose, 22/10, con un vídeo: *"al escribir en la caja de búsqueda no se
+ * actualiza enseguida el texto de abajo. ¿Por qué tiene ese desfase?"*.
+ *
+ * EL PORQUÉ, y es una elección mía mal hecha: las cuatro cajas de búsqueda
+ * usaban `_debounce(…, 220)`. Un debounce **sólo dispara cuando dejas de
+ * escribir**. Si tecleas seguido durante diez segundos, no pasa NADA durante
+ * diez segundos — y en el vídeo se ve exactamente eso: la caja con una frase
+ * larga y el texto de abajo citando una búsqueda vieja, de hace tres palabras.
+ *
+ * Y el debounce es la herramienta equivocada para esto. Sirve para no repetir
+ * un trabajo CARO mientras alguien teclea —una llamada al servidor, por
+ * ejemplo—. Filtrar una lista que ya está en memoria no es caro: son unas
+ * decenas de microsegundos. Lo único que compraba ese retraso era el desfase.
+ *
+ * LO QUE HACE ESTO: dispara **a la primera tecla**, y luego como mucho una vez
+ * cada `ms`, y siempre una última vez al final para no quedarse a medias. La
+ * lista se mueve contigo, y el trabajo sigue acotado.
+ */
+function _filtrarAlEscribir(fn, ms) {
+  ms = ms || 90;
+  var ultimo = 0, t = null;
+  return function(){
+    var ahora = Date.now();
+    clearTimeout(t);
+    if (ahora - ultimo >= ms) { ultimo = ahora; fn(); return; }
+    /* LA ÚLTIMA SIEMPRE SE HACE. Sin esta cola, las teclas que caen dentro del
+     * intervalo se perderían y la lista quedaría mostrando el resultado de la
+     * penúltima letra — que es el mismo desfase, más corto. */
+    t = setTimeout(function(){ ultimo = Date.now(); fn(); }, ms - (ahora - ultimo));
+  };
+}
+
 // ── Event Listeners ───────────────────────────────────────────────────────────
 // Safe addEventListener — logs errors instead of crashing the whole init block
 function _safeOn(id, event, fn) {
@@ -27827,11 +27950,11 @@ document.addEventListener('DOMContentLoaded', function(){
   _safeOn('btn-incoming','click',  function(){ showTab('incoming','btn-incoming'); });
 
   // Warehouse Map filters
-  _safeOn('mapSearch','input',    _debounce(renderWarehouseMap, 220));
+  _safeOn('mapSearch','input',    _filtrarAlEscribir(renderWarehouseMap));
   _safeOn('mapCatFilter','change', renderWarehouseMap);
 
   // Dashboard filters
-  _safeOn('stockSearch','input', _debounce(renderStock, 220));
+  _safeOn('stockSearch','input', _filtrarAlEscribir(renderStock));
   _safeOn('stockFilter','change', renderStock);
   _safeOn('stockStatusFilter','change', renderStock);
   // Las opciones, desde la misma lista que decide las insignias. Va aquí, con
@@ -27845,7 +27968,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // que ya no tiene delante — el accidente exacto que esta pantalla tiene que
   // hacer imposible. Pasar de página NO la suelta: la página cambia lo que se
   // ve, no lo que se buscó.
-  _safeOn('movSearch','input', _debounce(function(){ _clearMovSelection(); _movPage=1; renderMovements(); }, 220));
+  _safeOn('movSearch','input', _filtrarAlEscribir(function(){ _clearMovSelection(); _movPage=1; renderMovements(); }));
   _safeOn('movTypeFilter','change', function(){ _clearMovSelection(); _movPage=1; renderMovements(); });
   _safeOn('movCatFilter','change', function(){ _clearMovSelection(); _movPage=1; renderMovements(); });
 
@@ -27860,7 +27983,7 @@ document.addEventListener('DOMContentLoaded', function(){
    * dentro de la tarjeta de "All Incoming" y filtra lo que hay debajo de ella;
    * vaciar de paso la vista de la semana —que es un calendario, no una lista—
    * escondería días enteros por escribir tres letras. */
-  _safeOn('incSearch','input', _debounce(renderIncomingTable, 220));
+  _safeOn('incSearch','input', _filtrarAlEscribir(renderIncomingTable));
 
   // Modals — close on outside click
   _safeOn('incomingOverlay','click', function(e){ closeIfOutside(e,'incomingOverlay'); });
@@ -28057,7 +28180,14 @@ var BASIC_PRO = {
    * guardarla» no entiende que le acaban de ofrecer otra cosa, entiende que la
    * app no le entendió. */
   lectura:   { titulo: '🤖 Let the app read the invoice',
-               que: 'Take a photo of a delivery note or an invoice and the app fills in the supplier, the items and the quantities for you.' }
+               que: 'Take a photo of a delivery note or an invoice and the app fills in the supplier, the items and the quantities for you.' },
+  /* Jose, 22/10, después de que yo lo abriera en la v12.86 por mi cuenta:
+   * *"no debería poder abrirse y sólo debe mostrar el toast igual que los demás
+   * de Pro"*. Es su producto y es su decisión. Lo que cambia respecto a la
+   * v12.86 es el MENSAJE: antes contestaba «Expected deliveries», que era el
+   * fallo que él mismo encontró. Ahora habla de lo que se pulsó. */
+  minimos:   { titulo: '⚠️ Low-stock alerts',
+               que: 'Choose which materials to watch and set a minimum for each, so the app tells you before you run out.' }
 };
 
 /* Qué botón abre qué oferta. Un botón puede estar en la lista y no existir en
@@ -28094,22 +28224,20 @@ var BASIC_PRO_BOTONES = {
   btnAddIncoming:            'llegadas',
   btnDeleteIncoming:         'llegadas',
   btnWeekSchedule:           'llegadas',
-  /* ── EL ⚙ MONITOR SE QUEDA ABIERTO EN LA GRATIS ──────────────────────────
+  /* ── EL ⚙ MONITOR VUELVE A SER DE PRO (v12.89) ───────────────────────────
    *
-   * Estaba aquí, y era un descuido con consecuencias. La franja de «⚠ Zero
-   * Stock (1) · ⚠ Below Minimum (5)» **se ve en la Básica** —sale en el propio
-   * vídeo de Jose— y el botón que decide qué es «mínimo» estaba cerrado. O sea:
-   * la app le enseña a alguien un problema y le esconde el control con el que
-   * se define. Es el peor de los dos mundos, peor que no tener ninguna de las
-   * dos cosas.
+   * Lo abrí en la v12.86 por mi cuenta, razonando que la franja de «⚠ Below
+   * Minimum» se ve en la gratis y cerrar el botón que define «mínimo» era
+   * enseñar un problema escondiendo su control. Jose, 22/10: *"no recuerdo que
+   * cambiáramos eso... no debería poder abrirse y sólo debe mostrar el toast
+   * igual que los demás de Pro"*.
    *
-   * Y no había nada que lo justificara. La lista de materiales vigilados vive
-   * en las Script Properties del propio archivo del cliente: no pide ni un
-   * permiso más, que es el único portero que tiene la edición gratis. Lo que
-   * sí es de Pro es que ese aviso **llegue por correo**, porque eso necesita
-   * `MailApp` — y eso ya está cerrado por su lado.
-   *
-   * Nota deliberada: no se le pone candado NI se le esconde. Se deja funcionar. */
+   * Su producto, su decisión. Lo que NO vuelve es el fallo que él mismo
+   * encontró: contestaba «Expected deliveries» porque estaba mapeado a
+   * 'llegadas' por estar cerca en el archivo. Ahora tiene su propia oferta y
+   * habla de lo que se pulsó. */
+  btnMonitorSettings:        'minimos',
+  btnMonitorSettingsToolbar: 'minimos',
   btnBackupNow:              'respaldo',
   btnFromEmail:              'correo',
   btnReadEmail:              'correo'
@@ -28915,6 +29043,16 @@ var LEGAL_DOCS = {
  */
 
 var NOVEDADES = [
+  { ver: '12.89',
+    titulo: 'One list, search that keeps up, a lighter first load',
+    puntos: [
+      'On a Return, two dropdowns used to open on top of each other: ours \u2014 with how much is out and where \u2014 and the browser\u2019s own. <b>Ours wins now.</b>',
+      'The search boxes waited for you to <b>stop</b> typing, so typing without pausing moved nothing. They now filter from the first letter.',
+      '<b>And the app starts much faster on a bad connection.</b> It was downloading Google\u2019s charting library on every load \u2014 most of 2 MB \u2014 for two pie charts on one of five screens. On 3G that was 27 seconds. Now it is fetched when the dashboard needs it.'
+    ],
+    antes:  'Two lists fighting, and 27 seconds before the page was ready',
+    ahora:  'One list, and everyone else gets in without paying for the charts' },
+
   { ver: '12.88',
     titulo: 'The \u2715 sits inside the box',
     puntos: [
@@ -28946,15 +29084,6 @@ var NOVEDADES = [
     antes:  'Click the low-stock settings, get told about expected deliveries',
     ahora:  'Each one explains the thing you actually clicked' },
 
-  { ver: '12.85',
-    titulo: 'Two notices that piled up',
-    puntos: [
-      'Clicking a Pro feature you do not have four times used to stack four identical notices, covering the tabs. Now there is <b>one</b>, always: clicking again rewrites it and nudges it.',
-      'Clicking twice is not the odd case \u2014 it is what anyone does when a click does not do what they expected. The notice was multiplying for exactly the person who had not understood it.',
-      'And the corner cards stopped filling with maintenance. A card is now for <b>something the app changed that you did not ask for</b>; nightly backups and archiving are still there in full under Settings \u2192 System.'
-    ],
-    antes:  'Four clicks, four notices, and a week away meant a wall of backup cards',
-    ahora:  'One notice, and cards only for what needs a look' },
 
 
 

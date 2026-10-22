@@ -10,7 +10,7 @@
 > **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
 > único sitio donde mirar cómo vamos.
 
-**Última actualización:** 22/10/2026 · **versión v12.88** · build `6d4d1bd3`
+**Última actualización:** 22/10/2026 · **versión v12.89** · build `6ca3a928`
 
 ---
 
@@ -22,7 +22,7 @@ contexto.
 | # | Qué | Por qué está parado | Cuánto cuesta |
 |---|---|---|---|
 | 1 | **La lista de verificación de abajo** | Hay diez versiones de cambios y ninguno está confirmado por ti | 30 min, con la app abierta |
-| 2 | **Que alguien de fuera instale la Básica** | El enlace `/copy` le falló a la única persona que lo intentó | 20 min, con otra persona |
+| 2 | ~~Que alguien de fuera instale la Básica~~ | ✅ **HECHO el 21/10** — alguien de fuera instaló con los dos enlaces y funcionaron. En computadora | — |
 | 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
 | 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
 | 5 | **Una forma de agendar una llamada** | Hoy el camino muere en un correo | 20 min de configuración |
@@ -44,11 +44,11 @@ contexto.
 
 | ✓ | Qué | Dónde | Qué tiene que pasar |
 |---|---|---|---|
-| ☐ | **La ✕ dentro de la caja** | Movements → escribe en la búsqueda | La ✕ sale **dentro** de la caja, pegada al borde derecho, y la caja **no** ocupa la fila entera |
+| ✅ | ~~**La ✕ dentro de la caja**~~ | — | **Confirmado por Jose el 22/10** |
 | ☐ | **La lista de lo que está fuera** | Nuevo movimiento → Return → entra en el nombre **sin escribir nada** | Sale sola la lista de lo que está fuera de bodega, con cuánto y dónde |
 | ☐ | **El formulario más corto** | Nuevo movimiento → Entry | Hay una línea **«+ N more fields»**; al pulsarla vuelven GC, PO#, Project y PM |
-| ☐ | **Las columnas quietas** | Dashboard → cambia categoría y estado varias veces | Las columnas no se mueven de sitio |
-| ☐ | **[B] El menú fantasma** | La hoja → destilda y vuelve a tildar los términos | El texto **ya no habla de ningún menú**; dice que despliegues la app y que el nombre va en Settings → Name & Logo |
+| ✅ | ~~**Las columnas quietas**~~ | — | **Confirmado el 22/10**, en Dashboard y en Movements |
+| ✅ | ~~**[B] El menú fantasma**~~ | — | **Confirmado el 22/10.** Y Jose vio que el resto del texto seguía describiendo el asistente: arreglado en la v12.89 |
 
 ### Todo lo demás, por versión
 
@@ -107,6 +107,24 @@ Las dos correcciones de hoy salieron de eso.
 ---
 
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.89 · Una lista, búsqueda que no se queda atrás, y 2 MB menos · **SIN VERIFICAR**
+
+De tu repaso del 22/10.
+
+**Qué probar:**
+1. Return → entra en el nombre: **una sola lista**, la nuestra. La del navegador
+   ya no sale encima.
+2. Cambia a Waste y escribe: ahí **sí** vuelve la lista del navegador, porque en
+   esa pantalla es la única ayuda.
+3. Escribe **seguido y rápido** en cualquier búsqueda: el texto de abajo tiene
+   que seguirte, no esperar a que pares.
+4. Abre la app con la red lenta (DevTools → Network → 3G, como en tu vídeo):
+   tiene que entrar **mucho antes**. Las gráficas llegan después, solas.
+5. [B] Pulsa los ajustes de **stock mínimo**: ahora **no** se abre, y el mensaje
+   habla de alertas de stock bajo — no de entregas esperadas.
+6. [B] En una copia nueva de la hoja, mira «WHAT HAPPENS NEXT»: ya no habla del
+   asistente ni de materiales y locaciones.
 
 ### v12.88 · La ✕ dentro de la caja, y la gratis sin menú fantasma · **SIN VERIFICAR**
 

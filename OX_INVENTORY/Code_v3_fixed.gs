@@ -128,7 +128,7 @@
 // Version handshake — bump this whenever Code.gs and Index.html change together.
 // getInitialData() returns it; the frontend compares against its own APP_VERSION
 // and warns if they differ (i.e. one file was deployed without the other).
-var APP_VERSION = '12.88';
+var APP_VERSION = '12.89';
 // Build fingerprint — a short hash of the two shipped files, written by
 // tools/build-fingerprint.js and shown next to the version in the app.
 //
@@ -140,7 +140,7 @@ var APP_VERSION = '12.88';
 // part that matters in docs/LICENCIA-E-INTEGRIDAD.md.
 //
 // Never edit this by hand. Run: node tools/build-fingerprint.js --stamp
-var APP_BUILD = '6d4d1bd3';
+var APP_BUILD = '6ca3a928';
 
 // ═══ ACOPIO BASIC — EL INTERRUPTOR DE LA VERSIÓN GRATIS ══════════════════════
 //
@@ -11213,9 +11213,31 @@ function createStartHereSheet_(ss) {
   // ── What happens next ──
   sh.setRowHeight(18, 22);
   put('C19', 'WHAT HAPPENS NEXT', { size: 9, bold: true, color: SH_MUTED });
-  put('C20', '1.   Setup asks for your company name and logo.', { size: 11, color: '#374151' });
-  put('C21', '2.   You tell it what you store and where you store it.', { size: 11, color: '#374151' });
-  put('C22', '3.   You add the people who work here. That is all.', { size: 11, color: '#374151' });
+  /* ── Y «LO QUE PASA DESPUÉS» NO ES LO MISMO EN LAS DOS EDICIONES ─────────
+   *
+   * Jose, 22/10, mirando la hoja de la gratis ya corregida: *"ahora el texto no
+   * habla del menú Acopio porque no lo hay, PERO en el texto escrito dentro del
+   * sheet sí habla sobre los materiales y las locaciones dentro del
+   * instalador"*.
+   *
+   * Tiene razón, y es la misma falta una línea más abajo. Estos tres pasos son
+   * los del ASISTENTE: pide el nombre y el logo, pregunta qué guardas y dónde,
+   * y registra a la gente. En la gratis no hay asistente —crea carpetas en
+   * Drive y registra usuarios, las dos cosas que esa edición no tiene— así que
+   * describen un camino que nadie va a recorrer.
+   *
+   * Lo que de verdad pasa en la gratis es más corto, y conviene que lo sea: se
+   * despliega, se abre, y se empieza a trabajar. El nombre se pone dentro
+   * cuando se quiera. */
+  if (basicApagado_()) {
+    put('C20', '1.   You deploy the app once — the steps are at www.acopio.net.', { size: 11, color: '#374151' });
+    put('C21', '2.   You open it and start recording movements straight away.', { size: 11, color: '#374151' });
+    put('C22', '3.   Your company name goes in Settings \u2192 Name & Logo, whenever you like.', { size: 11, color: '#374151' });
+  } else {
+    put('C20', '1.   Setup asks for your company name and logo.', { size: 11, color: '#374151' });
+    put('C21', '2.   You tell it what you store and where you store it.', { size: 11, color: '#374151' });
+    put('C22', '3.   You add the people who work here. That is all.', { size: 11, color: '#374151' });
+  }
 
   // ── The warning screen, explained before they meet it ──
   sh.setRowHeight(23, 16);
@@ -11226,8 +11248,14 @@ function createStartHereSheet_(ss) {
     { size: 10, color: SH_MUTED, wrap: true });
   sh.setRowHeight(24, 56);
 
+  /* La segunda frase es otra promesa que sólo la de pago puede cumplir: esta
+   * hoja la borra el ASISTENTE al terminar, y en la gratis no hay asistente.
+   * Decir que desaparece sola y que se quede ahí para siempre es pequeño, pero
+   * es exactamente la clase de detalle que hace dudar de todo lo demás. */
   put('C26', 'Leave the other tabs at the bottom alone — the system fills those in for you. ' +
-             'This page disappears by itself once setup is finished.',
+             (basicApagado_()
+               ? 'You can hide this tab once you are up and running.'
+               : 'This page disappears by itself once setup is finished.'),
       { size: 10, color: SH_MUTED, wrap: true });
   sh.setRowHeight(26, 34);
 
