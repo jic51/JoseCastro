@@ -128,7 +128,7 @@
 
 
 
-var APP_VERSION = '12.90';
+var APP_VERSION = '12.93';
 
 
 
@@ -140,7 +140,7 @@ var APP_VERSION = '12.90';
 
 
 
-var APP_BUILD = '32359892';
+var APP_BUILD = '688c6196';
 
 
 
@@ -1435,12 +1435,39 @@ function writeConfigColumns_(cfg, colIdx, columnas) {
   if (!ancho) return;
 
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  var vistos = {};
+  var repetidas = 0;
+
+  
   var filas = [];
   var alto  = 0;
   for (var c = 0; c < ancho; c++) alto = Math.max(alto, (columnas[c] || []).length);
   for (var r = 0; r < alto; r++) {
     var primera = String(((columnas[0] || [])[r]) || '').trim();
     if (!primera) continue;             
+    var clave = primera.toUpperCase();
+    if (vistos[clave]) { repetidas++; continue; }
+    vistos[clave] = 1;
     var fila = [];
     for (var c2 = 0; c2 < ancho; c2++) {
       
@@ -1472,6 +1499,20 @@ function writeConfigColumns_(cfg, colIdx, columnas) {
           'them from the 2am backup.', { column: colIdx + 1, had: habia }, newRequestId_());
       }
     } catch (e) { Logger.log('writeConfigColumns_ warn: ' + e.message); }
+  }
+
+  
+
+
+
+
+  if (repetidas) {
+    try {
+      logError_(cfg.getParent(), 'WARN', 'backend', 'writeConfigColumns_', 'system',
+        repetidas + ' duplicate name(s) were dropped from CONFIG column ' + (colIdx + 1) +
+        '. Only the first spelling of each is kept.', { column: colIdx + 1, dropped: repetidas },
+        newRequestId_());
+    } catch (e) { Logger.log('writeConfigColumns_ dup: ' + e.message); }
   }
 
   var needed = filas.length + 1;
@@ -2831,6 +2872,29 @@ function loadConfig() {
   }
   
   if (!c.archiveCutoffMonths) c.archiveCutoffMonths = 12;
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return c;
 }
 
@@ -3980,6 +4044,9 @@ function processMovementInner_(ss, action, data, auth) {
   if (action === 'updateMinStockBulk')    return updateMinStockBulk(data, auth);
   if (action === 'parseImportFile')       return parseImportFile(data);
   if (action === 'commitImport')          return commitImport(data, auth);
+  if (action === 'listImports')           return listImports(auth);
+  if (action === 'undoImport')            return undoImport(data, auth);
+  if (action === 'deleteMovements')       return deleteMovements(data, auth);
   
   if (action === 'getUsers')       return getUsers(auth);
   if (action === 'addUser')        return addUser(data, auth);
@@ -4392,6 +4459,14 @@ var DATA_STAMP_ACTIONS = {
   manageMaterial:      true,
   applyDataQualityFix: true,
   commitImport:        true,
+  
+  
+  
+  
+  undoImport:          true,
+  
+  
+  deleteMovements:     true,
   
   
   
@@ -9545,8 +9620,16 @@ var MAX_ATTACH_BYTES = 25 * 1024 * 1024;
 var IMPORT_REQUIRED_HEADERS = ['category', 'name', 'qty'];
 var IMPORT_ALL_HEADERS      = ['category', 'name', 'qty', 'unit', 'location', 'project', 'supplier', 'po', 'comments'];
 
-function parseImportFile(data) {
-  requireAuth_('ADMIN');
+
+
+
+
+
+
+
+
+
+function leerFilasDelFichero_(data) {
   var fileName = String(data.fileName || '');
   var isExcel  = /\.xlsx?$/i.test(fileName);
   if (!isExcel && !/\.csv$/i.test(fileName)) {
@@ -9650,7 +9733,21 @@ function parseImportFile(data) {
 
   if (!parsed.length) throw new Error('No data rows found below the header row.');
 
+  return { parsed: parsed, col: col, rawLineCount: rawLineCount,
+           sheetNames: sheetNames, usedSheet: usedSheet };
+}
+
+function parseImportFile(data) {
+  requireAuth_('ADMIN');
+  var leido      = leerFilasDelFichero_(data);
+  var parsed     = leido.parsed;
+  var col        = leido.col;
+  var sheetNames = leido.sheetNames;
+  var usedSheet  = leido.usedSheet;
+  var rawLineCount = leido.rawLineCount;
+
   var validCount = parsed.filter(function (p) { return p.valid; }).length;
+  var resumen    = resumenDeImportacion_(parsed);
   return {
     status:       'success',
     totalRows:    parsed.length,
@@ -9659,16 +9756,204 @@ function parseImportFile(data) {
     rawLineCount: rawLineCount,
     sheetNames:   sheetNames,             
     usedSheet:    usedSheet,
-    rows:         parsed.slice(0, 500)    
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    rows:         parsed.slice(0, IMPORT_PREVIEW_ROWS),
+    previewRows:  IMPORT_PREVIEW_ROWS,
+
+    
+    
+    
+    columns:      IMPORT_ALL_HEADERS.filter(function (h) { return col[h] !== -1; }),
+
+    
+    
+    
+    fingerprint:  resumen.huella,
+    unitsTotal:   resumen.unidades,
+
+    
+    
+    willCreate:   loQueCrearia_(parsed),
+
+    
+    alreadyImported: importacionConHuella_(resumen.huella)
   };
 }
 
 
 
+var IMPORT_PREVIEW_ROWS = 200;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function resumenDeImportacion_(parsed) {
+  var unidades = 0;
+  var trozos = [];
+  for (var i = 0; i < parsed.length; i++) {
+    var p = parsed[i];
+    if (!p.valid) continue;
+    unidades += Number(p.qty) || 0;
+    trozos.push(normalizeString(p.category) + '|' + normalizeString(p.name) + '|' +
+                p.qty + '|' + normalizeString(p.location || ''));
+  }
+  
+
+  trozos.sort();
+  return {
+    unidades: unidades,
+    huella: parsed.length + '-' + Math.round(unidades * 100) + '-' +
+            hash32_(trozos.join('\n'))
+  };
+}
+
+
+
+
+
+
+function hash32_(texto) {
+  var h = 5381;
+  for (var i = 0; i < texto.length; i++) {
+    h = ((h * 33) ^ texto.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(36);
+}
+
+
+
+
+
+function loQueCrearia_(parsed) {
+  var cfg      = loadConfig();
+  var ubicYa   = {}; (cfg.locations   || []).forEach(function (l) { ubicYa[normalizeString(l.name)] = 1; });
+  var catYa    = {}; (cfg.categories  || []).forEach(function (c) { catYa[normalizeString(c)]       = 1; });
+  var projYa   = {}; (cfg.projects    || []).forEach(function (p) { projYa[normalizeString(p)]      = 1; });
+  var supYa    = {}; (cfg.suppliers   || []).forEach(function (s) { supYa[normalizeString(s)]       = 1; });
+
+  var ubic = {}, cat = {}, proj = {}, sup = {};
+  parsed.forEach(function (p) {
+    if (!p.valid) return;
+    var u = String(p.location || '').trim();
+    if (u && !ubicYa[normalizeString(u)]) ubic[u] = 1;
+    var c = String(p.category || '').trim();
+    if (c && !catYa[normalizeString(c)]) cat[c] = 1;
+    var j = String(p.project || '').trim();
+    if (j && !projYa[normalizeString(j)]) proj[j] = 1;
+    var s = String(p.supplier || '').trim();
+    if (s && !supYa[normalizeString(s)]) sup[s] = 1;
+  });
+  
+  
+  function lista(o) { return Object.keys(o).sort().slice(0, 40); }
+  return {
+    locations:  lista(ubic),  locationsTotal:  Object.keys(ubic).length,
+    categories: lista(cat),   categoriesTotal: Object.keys(cat).length,
+    projects:   lista(proj),  projectsTotal:   Object.keys(proj).length,
+    suppliers:  lista(sup),   suppliersTotal:  Object.keys(sup).length
+  };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function commitImport(data, auth) {
   auth = requireAuth_('ADMIN');    
-  var rows = Array.isArray(data.rows) ? data.rows : [];
+
+  if (!data || !data.fileData) {
+    throw new Error('No file to import. Pick the file again on this screen.');
+  }
+
+  var saltar = {};
+  (Array.isArray(data.skipRowNums) ? data.skipRowNums : []).forEach(function (n) {
+    saltar[Number(n)] = 1;
+  });
+
+  var todas = leerFilasDelFichero_(data).parsed;
+  var rows  = todas.filter(function (r) { return r.valid && !saltar[r.rowNum]; });
   if (!rows.length) throw new Error('No rows to import.');
+
+  
+  
+  
+  
+  var unidadesEsperadas = rows.reduce(function (a, r) { return a + (Number(r.qty) || 0); }, 0);
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  var importId = 'IMP-' + Utilities.getUuid().substring(0, 8).toUpperCase();
 
   var ss      = SpreadsheetApp.getActiveSpreadsheet();
   var archive = ss.getSheetByName(SHEETS.ARCHIVE);
@@ -9688,10 +9973,16 @@ function commitImport(data, auth) {
       destLoc:     r.location || '',
       supplier:    r.supplier || '',
       po:          r.po || '',
-      comments:    ('Imported from file' + (r.comments ? ' — ' + r.comments : '')).trim(),
+      comments:    ('Imported from file ' + importId +
+                    (r.comments ? ' — ' + r.comments : '')).trim(),
       
       
       responsible: '',
+      
+      
+      
+      
+      
       
       
       
@@ -9740,9 +10031,321 @@ function commitImport(data, auth) {
         'Could not record the imported locations: ' + (eLoc && eLoc.message), null, '');
     }
   }
-  auditLog_(ss, 'BULK_IMPORT', auth.email, rows.length + ' row(s) imported', '', '');
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+  var unidadesEscritas = 0;
+  movements.forEach(function (m) { unidadesEscritas += Number(m.qty) || 0; });
+  var cuadra = (res.rowCount === rows.length) &&
+               (Math.abs(unidadesEscritas - unidadesEsperadas) < 0.005);
+
+  if (!cuadra) {
+    logError_(ss, 'ERROR', 'backend', 'commitImport', auth.email,
+      'An import did not balance: expected ' + rows.length + ' row(s) / ' +
+      unidadesEsperadas + ' unit(s), wrote ' + res.rowCount + ' row(s) / ' +
+      unidadesEscritas + ' unit(s). Import ' + importId + '.',
+      { importId: importId }, newRequestId_());
+  }
+
+  
+
+
+
+
+  auditLog_(ss, 'BULK_IMPORT', auth.email,
+    res.rowCount + ' row(s) imported · ' + unidadesEscritas + ' unit(s)' +
+    (data.fileName ? ' · ' + String(data.fileName) : ''),
+    importId, String(data.fingerprint || resumenDeImportacion_(todas).huella));
+
   return { status: 'success', rowCount: res.rowCount, newLocations: creadas,
-           newCategories: catCreadas };
+           newCategories: catCreadas,
+           importId: importId,
+           balanced: cuadra,
+           rowsExpected: rows.length, unitsExpected: unidadesEsperadas,
+           unitsWritten: unidadesEscritas };
+}
+
+
+
+
+
+
+
+
+
+var IMPORTS_A_MIRAR = 400;    
+
+function importacionesRecientes_(ss, cuantas) {
+  var sheet = ss.getSheetByName(SHEETS.AUDIT);
+  if (!sheet) return [];
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var n     = Math.min(last - 1, IMPORTS_A_MIRAR);
+  var desde = last - n + 1;
+  var filas = sheet.getRange(desde, 1, n, 6).getValues();
+  var out = [];
+  for (var i = filas.length - 1; i >= 0; i--) {
+    if (String(filas[i][1] || '') !== 'BULK_IMPORT') continue;
+    out.push({
+      when:        filas[i][0] instanceof Date ? filas[i][0].toISOString() : String(filas[i][0]),
+      who:         String(filas[i][2] || ''),
+      details:     String(filas[i][3] || ''),
+      importId:    String(filas[i][4] || ''),
+      fingerprint: String(filas[i][5] || '')
+    });
+    if (cuantas && out.length >= cuantas) break;
+  }
+  return out;
+}
+
+
+
+
+
+
+
+function importacionConHuella_(huella) {
+  if (!huella) return null;
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ya = importacionesRecientes_(ss, 0);
+    for (var i = 0; i < ya.length; i++) {
+      if (ya[i].fingerprint && ya[i].fingerprint === huella) return ya[i];
+    }
+  } catch (e) {
+    
+    
+    Logger.log('importacionConHuella_: ' + e.message);
+  }
+  return null;
+}
+
+function listImports(auth) {
+  requireAuth_('ADMIN');
+  return importacionesRecientes_(SpreadsheetApp.getActiveSpreadsheet(), 12);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function borrarFilasEnTanda_(ss, auth, seLleva, tope) {
+  var trash = ensureTrashSheet_(ss);
+  var ahora = new Date();
+  var movidas = 0, quedanPor = 0;
+  
+
+
+
+
+
+
+
+
+
+
+
+  var idsMovidos = [];
+
+  [{ sh: ss.getSheetByName(SHEETS.ARCHIVE),  nombre: SHEETS.ARCHIVE },
+   { sh: ensureArchiveHistorySheet_(ss),     nombre: SHEETS.ARCHIVE_HISTORY }]
+  .forEach(function (par) {
+    var sheet = par.sh;
+    if (!sheet || sheet.getLastRow() < 2) return;
+
+    var filas = sheet.getRange(2, 1, sheet.getLastRow() - 1, AC_WIDTH).getValues();
+    var quedan = [], aPapelera = [];
+    filas.forEach(function (f) {
+      
+      if (!f[AC.CATEGORY] && !f[AC.NAME]) return;
+      if (!seLleva(f)) { quedan.push(f); return; }
+      
+
+
+
+      if (tope && movidas + aPapelera.length >= tope) { quedan.push(f); quedanPor++; return; }
+      var guardada = f.slice();
+      guardada[TR.DELETED_AT] = ahora;
+      guardada[TR.DELETED_BY] = auth.email;
+      guardada[TR.FROM_SHEET] = par.nombre;
+      aPapelera.push(guardada);
+      var idf = String(f[AC.MOV_ID] || '').trim();
+      if (idf) idsMovidos.push(idf);
+    });
+
+    if (!aPapelera.length) return;
+
+    trash.getRange(trash.getLastRow() + 1, 1, aPapelera.length, TRASH_WIDTH)
+         .setValues(aPapelera.map(textSafeRow_));
+    escribirHojaCompleta_(sheet, quedan, AC_WIDTH);
+    movidas += aPapelera.length;
+  });
+
+  return { movidas: movidas, quedanPor: quedanPor, ids: idsMovidos };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var MAX_BORRADO_POR_TANDA = 300;
+
+function undoImport(data, auth) {
+  auth = requireAuth_('ADMIN');
+  var importId = String((data && data.importId) || '').trim();
+  if (!importId) throw new Error('Which import?');
+
+  return withStockLock_(function () {
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var marca = 'Imported from file ' + importId;
+
+    var res = borrarFilasEnTanda_(ss, auth, function (f) {
+      return String(f[AC.COMMENTS] || '').indexOf(marca) === 0;
+    }, MAX_BORRADO_POR_TANDA);
+
+    if (!res.movidas) {
+      throw new Error('Nothing left from that import — it may have been undone already.');
+    }
+
+    
+    
+    
+    
+    refreshDerivedSheets_(ss);
+    auditLog_(ss, 'IMPORT_UNDONE', auth.email,
+      res.movidas + ' row(s) from import ' + importId + ' moved to the trash', importId, '');
+
+    return { status: 'success', removed: res.movidas, importId: importId,
+             
+             
+             
+             more: res.quedanPor > 0 };
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function deleteMovements(data, auth) {
+  auth = requireAuth_('WRITE');
+  requirePerm_(auth, 'canEditMovements');
+
+  var ids = (Array.isArray(data && data.movIds) ? data.movIds : [])
+              .map(function (v) { return String(v || '').trim(); })
+              .filter(function (v) { return v; });
+  if (!ids.length) throw new Error('No movements to delete.');
+
+  var quiero = {};
+  ids.forEach(function (id) { quiero[id] = 1; });
+
+  return withStockLock_(function () {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    var res = borrarFilasEnTanda_(ss, auth, function (f) {
+      var id = String(f[AC.MOV_ID] || '').trim();
+      return !!id && !!quiero[id];
+    }, MAX_BORRADO_POR_TANDA);
+
+    
+
+
+
+
+
+
+    if (res.movidas) {
+      refreshDerivedSheets_(ss);
+      auditLog_(ss, 'DELETE_BATCH', auth.email,
+        res.movidas + ' movement(s) moved to the trash', String(ids.length) + ' asked', '');
+    }
+
+    return { status: 'success', removed: res.movidas, removedIds: res.ids,
+             asked: ids.length, more: res.quedanPor > 0 };
+  });
 }
 
 function runReconciliation_(ss) {
@@ -13702,8 +14305,32 @@ function mergeConfigValues(data, auth) {
 
   var into = String(data.into || '').trim();
   if (!into) throw new Error('Pick the name to keep.');
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   var from = (data.from || []).map(function (v) { return String(v || '').trim(); })
-                              .filter(function (v) { return v && v.toUpperCase() !== into.toUpperCase(); });
+                              .filter(function (v) { return !!v; });
   if (!from.length) throw new Error('Pick at least one other name to merge in.');
   return withStockLock_(function () { return mergeConfigValuesLocked_(data, auth, type, into, from); });
 }
@@ -13712,8 +14339,14 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var col = (type === 'projects') ? AC.PROJECT : AC.SUPPLIER;
 
+  
+
+
+
+
   var wanted = {};
   from.forEach(function (v) { wanted[v.toUpperCase()] = true; });
+  wanted[into.toUpperCase()] = true;
 
   
   
@@ -13722,7 +14355,11 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
   [ss.getSheetByName(SHEETS.ARCHIVE), ensureArchiveHistorySheet_(ss)].forEach(function (sheet) {
     rowsChanged += rewriteArchiveColumn_(sheet, col, function (row) {
       var cur = String(row[col] || '').trim();
-      return (cur && wanted[cur.toUpperCase()]) ? storedInto : null;
+      if (!cur || !wanted[cur.toUpperCase()]) return null;
+      
+      
+      
+      return (cur === storedInto) ? null : storedInto;
     });
   });
 
@@ -13733,15 +14370,18 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
   if (cfg) {
     var cfgCol  = (type === 'projects') ? 0 : 2;
     var cfgVals = cfg.getDataRange().getValues();
-    var keep = [], sawInto = false;
+    var keep = [];
     for (var r = 1; r < cfgVals.length; r++) {
       var v = String(cfgVals[r][cfgCol] || '').trim();
       if (!v) continue;
+      
+
+
       if (wanted[v.toUpperCase()]) { removed++; continue; }
-      if (v.toUpperCase() === into.toUpperCase()) sawInto = true;
       keep.push(v);
     }
-    if (!sawInto) keep.push(into);
+    
+    keep.push(into);
     keep.sort();
     writeConfigColumn_(cfg, cfgCol, keep);
   }
@@ -13750,7 +14390,11 @@ function mergeConfigValuesLocked_(data, auth, type, into, from) {
   auditLog_(ss, 'MERGE_CONFIG', auth.email,
     type + ': ' + from.join(' + ') + ' → ' + into, String(rowsChanged) + ' rows', '');
 
-  return { status: 'success', rowsChanged: rowsChanged, removed: removed, into: into };
+  
+  
+  
+  return { status: 'success', rowsChanged: rowsChanged,
+           removed: Math.max(0, removed - 1), into: into };
 }
 
 

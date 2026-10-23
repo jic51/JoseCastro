@@ -3276,6 +3276,29 @@
     .loc-savebar{display:none;gap:var(--sp-3);align-items:center;flex-wrap:wrap;position:sticky;bottom:0;background:var(--navy);color:#fff;border-radius:8px;padding:.55rem var(--sp-5);margin-top:var(--sp-5);font-size:.8rem}
     .loc-savebar.show{display:flex}
     
+    
+
+    .import-dupe{background:var(--red-bg,#FEE2E2);border:1px solid #FCA5A5;border-radius:10px;
+                 padding:var(--sp-5);margin-bottom:var(--sp-5)}
+    [data-theme="dark"] .import-dupe{background:#4C1D1D;border-color:#7F1D1D}
+    .import-dupe-hd{font-size:.86rem;font-weight:700;color:var(--red);margin-bottom:var(--sp-1)}
+    .import-dupe-tx{font-size:.78rem;line-height:1.45}
+    
+
+    .import-will{background:var(--blue-bg,#EFF6FF);border:1px solid #BFDBFE;border-radius:10px;
+                 padding:var(--sp-4) var(--sp-5);margin-bottom:var(--sp-5)}
+    [data-theme="dark"] .import-will{background:#17314F;border-color:#1E4976}
+    .import-will-hd{font-size:.78rem;font-weight:700;color:var(--accent2);margin-bottom:var(--sp-1)}
+    .import-will-ul{margin:0;padding-left:var(--sp-6);font-size:.78rem;line-height:1.5}
+    
+
+
+
+    @keyframes errRowIn{from{background:var(--blue-bg,#EFF6FF)} to{background:transparent}}
+    tr.row-enter{animation:errRowIn 1.6s ease}
+    @media(prefers-reduced-motion:reduce){ tr.row-enter{animation:none} }
+    .sim-dupe-exacto{font-size:.84rem;font-weight:600;padding:var(--sp-1) 0}
+    .sim-dupe-exacto span{font-weight:400;color:var(--muted);font-size:.78rem}
     .sim-box{background:var(--yellow-bg,#FEF9C3);border:1px solid #FDE68A;border-radius:10px;padding:var(--sp-5) .85rem;margin-bottom:var(--sp-6)}
     [data-theme="dark"] .sim-box{background:#3B2F0B;border-color:#6B5B16}
     .sim-hdr{font-size:.82rem;font-weight:800;color:var(--text);margin-bottom:var(--sp-1)}
@@ -3406,6 +3429,10 @@
     .toast.info{border-top-color:var(--accent)}
     .toast-icon{font-size:1rem;flex-shrink:0;margin-top:.05rem}
     .toast-msg{flex:1;line-height:1.4}
+    
+
+    .toast-veces{flex-shrink:0;align-self:center;font-size:.72rem;font-weight:700;
+                 color:var(--muted);font-variant-numeric:tabular-nums;padding:0 var(--sp-1)}
     .toast-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.9rem;padding:0 0 0 .35rem;line-height:1;flex-shrink:0;align-self:flex-start}
     .toast-close:hover{color:var(--text)}
     
@@ -3493,6 +3520,10 @@
     #progMsg{flex:1;line-height:1.35}
     #progCount{color:var(--muted);font-size:.78rem;flex-shrink:0;
                font-variant-numeric:tabular-nums}
+    .prog-stop{flex-shrink:0;border:1px solid var(--border);background:var(--card);
+               color:var(--text);border-radius:6px;padding:var(--sp-1) var(--sp-4);
+               font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer}
+    .prog-stop:hover{border-color:var(--red);color:var(--red)}
     @keyframes progIn {from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)}}
     @keyframes progOut{from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(8px)}}
     @media(max-width:640px){ #progWrap{left:1rem;right:1rem;min-width:0;max-width:none} }
@@ -4342,6 +4373,10 @@
   <span id="progIcon" class="spin-hg">⏳</span>
   <span id="progMsg"></span>
   <span id="progCount"></span>
+  
+
+
+  <button type="button" id="progStop" class="prog-stop" style="display:none">Stop</button>
 </div>
 
 
@@ -5801,7 +5836,7 @@ var _MOV_PAGE_SZ = 75;
 var chartsReady = false;
 
 
-var APP_VERSION = '12.90';
+var APP_VERSION = '12.93';
 
 
 
@@ -5813,7 +5848,7 @@ var APP_VERSION = '12.90';
 
 
 
-var APP_BUILD = '32359892';
+var APP_BUILD = '688c6196';
 var userRole = 'WAREHOUSE';
 
 
@@ -10045,24 +10080,167 @@ function deleteSelectedMovements(){
     onConfirm: function(){
       
       
-      
-      
-      
-      
-      
-      
-      var pedidos = 0;
+      var ids = [];
       sel.forEach(function(m){
         delete _movSelection[m.movId];
-        if (_doDeleteMovementRow(m.rowIdx)) pedidos++;
+        if (m.movId) ids.push(m.movId);
       });
-      
-      
-      
-      _progStart(pedidos, pedidos === 1 ? 'Deleting movement' : 'Deleting movements');
       _updateMovActionBar();
+      
+
+
+
+
+
+
+      if (ids.length <= 1){
+        var pedidos = 0;
+        sel.forEach(function(m){ if (_doDeleteMovementRow(m.rowIdx)) pedidos++; });
+        _progStart(pedidos, pedidos === 1 ? 'Deleting movement' : 'Deleting movements');
+        return;
+      }
+      _borrarEnTanda(ids);
     }
   });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var _tandaBorrado = null;    
+
+function _borrarEnTanda(ids){
+  
+  
+  
+  _tandaBorrado = { ids: ids.slice(), hechas: 0, total: ids.length,
+                    parar: false, esperas: 0 };
+  _progStart(ids.length, 'Deleting movements', _progFinBorrado);
+  _progPararOfrecer(function(){
+    
+    
+    
+    if (_tandaBorrado) _tandaBorrado.parar = true;
+  });
+  _tandaPaso();
+}
+
+function _tandaPaso(){
+  var t = _tandaBorrado;
+  if (!t) return;
+
+  if (t.parar){
+    _progPararQuitar();
+    _progEnd('Stopped — ' + t.hechas + ' of ' + t.total + ' deleted. The other ' +
+             (t.total - t.hechas) + ' are untouched.', true);
+    _tandaBorrado = null;
+    loadDataFromGoogle(true, true);
+    return;
+  }
+  if (!t.ids.length){
+    _progPararQuitar();
+    _tandaBorrado = null;
+    loadDataFromGoogle(true, true);
+    return;
+  }
+
+  
+
+
+
+
+
+  var trozo = t.ids.slice();
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      var idsFuera = (res && res.removedIds) || [];
+      var hechas   = (res && res.removed) || 0;
+      t.hechas += hechas;
+      
+
+
+
+      _quitarMovimientosPorId(idsFuera);
+      var yaNo = {}; idsFuera.forEach(function(id){ yaNo[id] = 1; });
+      t.ids = t.ids.filter(function(id){ return !yaNo[id]; });
+      t.esperas = 0;    
+      _progStepN(hechas);
+      _sysCacheDrop('trash');
+      
+
+
+
+      if (hechas === 0 && t.ids.length){
+        _progPararQuitar();
+        _progEnd(t.hechas + ' deleted. The other ' + t.ids.length +
+                 ' were already gone.', t.hechas === 0);
+        _tandaBorrado = null;
+        loadDataFromGoogle(true, true);
+        return;
+      }
+      _tandaPaso();
+    })
+    .withFailureHandler(function(err){
+      
+
+
+
+
+
+
+
+
+      if (_isBusyError(err) && t.esperas < BUSY_MAX_RETRIES){
+        t.esperas++;
+        setTimeout(_tandaPaso, _busyDelay(t.esperas));
+        return;
+      }
+      _progPararQuitar();
+      _progEnd(t.hechas + ' of ' + t.total + ' deleted — the rest were not.', true);
+      showToast('Could not finish deleting: ' +
+        _stripTags(err) + ' Nothing else was touched.', 'err', 8000);
+      _tandaBorrado = null;
+      loadDataFromGoogle(true, true);
+    })
+    .processMovement('deleteMovements', _h({ movIds: trozo }));
+}
+
+
+
+
+function _quitarMovimientosPorId(ids){
+  if (!ids || !ids.length) return;
+  var fuera = {};
+  ids.forEach(function(id){ fuera[id] = 1; });
+  for (var i = movements.length - 1; i >= 0; i--){
+    if (movements[i].movId && fuera[movements[i].movId]) movements.splice(i, 1);
+  }
+  renderAll();
 }
 
 function _movByRowIdx(rowIdx){
@@ -11568,9 +11746,29 @@ var BUSY_BASE_MS     = 900;
 var BUSY_MAX_MS      = 8000;
 var BUSY_JITTER_MS   = 700;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function _isBusyError(err){
   var msg = (err && err.message) ? err.message : String(err || '');
-  return msg.indexOf('SYSTEM_BUSY|') !== -1;
+  return msg.indexOf('SYSTEM_BUSY|') !== -1 || /too many requests/i.test(msg);
 }
 
 
@@ -14679,7 +14877,12 @@ function _loadSettings(opts) {
 
   if (!quiet) _errorLogData = null;
   google.script.run
-    .withSuccessHandler(function(rows) { _errorLogData = rows || []; if (_settingsTab === 'errorlog') _drawErrorLog(); })
+    .withSuccessHandler(function(rows) {
+      _errorLogData = rows || [];
+      
+      
+      if (_settingsTab === 'errorlog') _drawErrorLog(_errLogFiltroActual());
+    })
     .withFailureHandler(function(){})
     .processMovement('getErrorLog', _h({}));
 
@@ -16286,7 +16489,13 @@ function _backupNow(){
 
 
 
-var _importParsedRows = [];
+
+
+
+
+var _importParsedRows  = [];
+var _importValidTotal  = 0;
+var _importFingerprint = '';
 
 function _renderImportTab() {
   var content = document.getElementById('settingsTabContent');
@@ -16308,9 +16517,18 @@ function _renderImportTab() {
     '<div class="field">' +
       '<label>What will be saved</label>' +
       '<div id="importPreviewBox"></div>' +
+    '</div>' +
+    '<div class="field">' +
+      '<label>Imports you have already done</label>' +
+      '<p style="font-size:.78rem;color:var(--muted);margin:0 0 .6rem">' +
+        'If the same file went in twice, undo one of them here. Undoing sends ' +
+        'those movements to the trash, so nothing is lost for good.' +
+      '</p>' +
+      '<div id="importHistBox"></div>' +
     '</div>';
   document.getElementById('importFileInput').addEventListener('change', _onImportFileChange);
-  _importParsedRows = [];
+  _importParsedRows = []; _importValidTotal = 0; _importFingerprint = '';
+  _drawImportHistory();
 }
 
 function _downloadImportTemplate() {
@@ -16344,7 +16562,16 @@ function _parseImportSheet(sheetName){
   box.innerHTML = '<p style="color:var(--muted);font-size:.85rem"><span class="spin-hg">⏳</span> Reading' +
     (sheetName ? ' sheet “' + _he(sheetName) + '”' : ' file') + '…</p>';
   google.script.run
-    .withSuccessHandler(function(res){ _importParsedRows = res.rows || []; _renderImportPreview(res); })
+    .withSuccessHandler(function(res){
+      
+
+
+
+      _importParsedRows   = res.rows || [];
+      _importValidTotal   = res.validRows || 0;
+      _importFingerprint  = res.fingerprint || '';
+      _renderImportPreview(res);
+    })
     .withFailureHandler(function(err){
       box.innerHTML = '<p style="color:var(--red);font-size:.85rem">' +
         _he((err.message || err).replace(/^Error:\s*/i,'')) + '</p>' + _importSheetPickerHtml();
@@ -16393,41 +16620,136 @@ function _renderImportPreview(res){
     '<span class="badge badge-blue">' + res.totalRows + ' row(s) found</span>' +
     '<span class="badge badge-green">' + res.validRows + ' ready to import</span>' +
     (res.invalidRows ? '<span class="badge badge-red">' + res.invalidRows + ' need fixing in the file</span>' : '') +
+    (res.unitsTotal ? '<span class="badge badge-blue">' + _numMiles(res.unitsTotal) + ' units in total</span>' : '') +
   '</div>';
+
+  
+
+
+
+
+  var yaVino = res.alreadyImported;
+  var avisoRepe = !yaVino ? '' :
+    '<div class="import-dupe">' +
+      '<div class="import-dupe-hd">⚠ You already imported this exact file</div>' +
+      '<div class="import-dupe-tx">' +
+        _he(_fmtWhen(yaVino.when)) + (yaVino.who ? ' · by ' + _he(yaVino.who) : '') +
+        (yaVino.details ? ' · ' + _he(yaVino.details) : '') +
+        '<br>Importing it again <b>adds all of it a second time</b> — it does not ' +
+        'replace what is already there. If that is not what you want, pick a ' +
+        'different file, or undo that import below.' +
+      '</div>' +
+    '</div>';
+
+  
+
+
+
+  var wc = res.willCreate || {};
+  function trozoCrea(lista, total, que){
+    if (!total) return '';
+    var muestra = (lista || []).slice(0, 6).map(_he).join(', ');
+    return '<li><b>' + total + '</b> ' + que + (total === 1 ? '' : 's') +
+           (muestra ? ': <span style="color:var(--muted)">' + muestra +
+             (total > (lista || []).length ? ', …' : '') + '</span>' : '') + '</li>';
+  }
+  var creaHtml = trozoCrea(wc.locations,  wc.locationsTotal,  'location') +
+                 trozoCrea(wc.categories, wc.categoriesTotal, 'category').replace('categorys','categories') +
+                 trozoCrea(wc.projects,   wc.projectsTotal,   'project') +
+                 trozoCrea(wc.suppliers,  wc.suppliersTotal,  'supplier');
+  var avisoCrea = !creaHtml ? '' :
+    '<div class="import-will">' +
+      '<div class="import-will-hd">This import will also create:</div>' +
+      '<ul class="import-will-ul">' + creaHtml + '</ul>' +
+    '</div>';
+
+  
+
+
+
+
+
+
+
+
+  var COLS = [
+    { k:'category', t:'Category' }, { k:'name',    t:'Name' },
+    { k:'qty',      t:'Qty'      }, { k:'unit',    t:'Unit' },
+    { k:'location', t:'Location' }, { k:'project', t:'Project' },
+    { k:'supplier', t:'Supplier' }, { k:'po',      t:'PO#' },
+    { k:'comments', t:'Comments' }
+  ];
+  var trajo = {};
+  (res.columns || ['category','name','qty','location']).forEach(function(c){ trajo[c] = 1; });
+  var cols = COLS.filter(function(c){ return trajo[c.k]; });
 
   var tableRows = rows.slice(0, 100).map(function(r){
     var rowBg = r.valid ? '' : 'background:var(--red-bg)';
     return '<tr style="'+rowBg+'">' +
       '<td style="padding:.3rem .5rem;color:var(--muted)">' + r.rowNum + '</td>' +
-      '<td style="padding:.3rem .5rem">' + _he(r.category) + '</td>' +
-      '<td style="padding:.3rem .5rem">' + _he(r.name) + '</td>' +
-      '<td style="padding:.3rem .5rem">' + (isNaN(r.qty) ? '' : r.qty) + '</td>' +
-      '<td style="padding:.3rem .5rem">' + _he(r.location || '—') + '</td>' +
+      cols.map(function(c){
+        var v = r[c.k];
+        if (c.k === 'qty') v = isNaN(r.qty) ? '' : r.qty;
+        return '<td style="padding:.3rem .5rem">' + _he(v === '' || v == null ? '—' : String(v)) + '</td>';
+      }).join('') +
       '<td style="padding:.3rem .5rem;color:var(--red);font-size:.75rem">' + (r.errors.length ? _he(r.errors.join('; ')) : '') + '</td>' +
     '</tr>';
   }).join('');
 
-  box.innerHTML = summary +
+  
+
+
+  var mostradas = Math.min(100, rows.length);
+  var notaMuestra = res.totalRows > mostradas
+    ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem">Showing the first ' +
+      mostradas + ' of ' + res.totalRows + ' rows — <b>all ' + res.validRows +
+      ' valid rows are imported</b>, not just the ones shown.</p>'
+    : '';
+
+  box.innerHTML = avisoRepe + summary + avisoCrea +
     '<div style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:.75rem">' +
       '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
         '<thead><tr style="position:sticky;top:0;background:var(--bg)">' +
-          '<th style="padding:.3rem .5rem;text-align:left">Row</th><th style="padding:.3rem .5rem;text-align:left">Category</th>' +
-          '<th style="padding:.3rem .5rem;text-align:left">Name</th><th style="padding:.3rem .5rem;text-align:left">Qty</th>' +
-          '<th style="padding:.3rem .5rem;text-align:left">Location</th><th style="padding:.3rem .5rem;text-align:left">Issue</th>' +
+          '<th style="padding:.3rem .5rem;text-align:left">Row</th>' +
+          cols.map(function(c){ return '<th style="padding:.3rem .5rem;text-align:left">' + c.t + '</th>'; }).join('') +
+          '<th style="padding:.3rem .5rem;text-align:left">Issue</th>' +
         '</tr></thead>' +
         '<tbody>' + tableRows + '</tbody>' +
       '</table>' +
     '</div>' +
-    (rows.length > 100 ? '<p style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem">Showing the first 100 of ' + rows.length + ' rows.</p>' : '') +
+    notaMuestra +
     '<button class="btn btn-primary" id="btnCommitImport" ' + (res.validRows ? '' : 'disabled') + ' onclick="_commitImport()">' +
       '✓ Import ' + res.validRows + ' Valid Row(s)' +
     '</button>';
   _wireImportSheetPicker();
 }
 
+
+
+function _numMiles(n){
+  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function _commitImport(){
-  var validRows = _importParsedRows.filter(function(r){ return r.valid; });
-  if (!validRows.length) return;
+  if (!_importFileB64) {
+    showToast('Pick the file again on this screen before importing.', 'warn');
+    return;
+  }
+  var prometidas = _importValidTotal;
   var btn = document.getElementById('btnCommitImport');
   _btnBusy(btn, 'Importing…');
   
@@ -16436,24 +16758,146 @@ function _commitImport(){
   _progStart(1, 'Importing rows');
   google.script.run
     .withSuccessHandler(function(res){
+      
+
+
+      var cuadra = res.balanced !== false;
       _progEnd('Imported ' + res.rowCount + ' row' + (res.rowCount === 1 ? '' : 's') +
-               ' as new ENTRY movements.');
-      _importParsedRows = [];
+               ' · ' + _numMiles(res.unitsWritten) + ' units' +
+               (cuadra ? ' — matches the file.' : ' — DOES NOT match the file.'),
+               !cuadra);
+      if (!cuadra) {
+        showToast('The import did not balance: the file had ' + res.rowsExpected +
+                  ' row(s) and ' + _numMiles(res.unitsExpected) + ' units, and ' +
+                  res.rowCount + ' row(s) / ' + _numMiles(res.unitsWritten) +
+                  ' units were written. It is recorded in the Error Log — send me a ' +
+                  'screenshot before importing again.', 'err', 14000);
+      }
+      _importParsedRows = []; _importValidTotal = 0;
+      _importFileB64 = ''; _importFileName = ''; _importFileMime = '';
       var box = document.getElementById('importPreviewBox'); if (box) box.innerHTML = '';
       var fi  = document.getElementById('importFileInput');  if (fi)  fi.value = '';
+      
+      
+      _importsData = null;
+      _drawImportHistory();
       
       
       
       loadDataFromGoogle(true, true);
     })
     .withFailureHandler(function(err){
-      _btnLabel(btn, '✓ Import ' + validRows.length + ' Valid Row(s)');
+      _btnLabel(btn, '✓ Import ' + prometidas + ' Valid Row(s)');
       _progEnd('Nothing was imported.', true);
       
       
       showToast('Import failed: ' + (err.message || err).replace(/^Error:\s*/i,''), 'err', 8000);
     })
-    .processMovement('commitImport', _h({ rows: validRows }));
+    .processMovement('commitImport', _h({
+      fileData:    _importFileB64,
+      fileName:    _importFileName,
+      sheetName:   _importUsedSheet || '',
+      fingerprint: _importFingerprint
+    }));
+}
+
+
+
+
+
+
+
+
+
+
+
+var _importsData = null;
+
+function _loadImportHistory(){
+  if (_importsData) { _drawImportHistory(); return; }
+  google.script.run
+    .withSuccessHandler(function(list){ _importsData = list || []; _drawImportHistory(); })
+    .withFailureHandler(function(){ _importsData = []; _drawImportHistory(); })
+    .processMovement('listImports', _h({}));
+}
+
+function _drawImportHistory(){
+  var box = document.getElementById('importHistBox');
+  if (!box) return;
+  if (!_importsData) { _loadImportHistory(); return; }
+  var items = _importsData.filter(function(i){ return i.importId; });
+  if (!items.length){
+    box.innerHTML = '<span style="font-size:.78rem;color:var(--muted)">No imports yet. ' +
+      'Once you import a file it appears here, and you can undo it.</span>';
+    return;
+  }
+  box.innerHTML =
+    '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+    items.map(function(it){
+      return '<div data-imp="' + _escAttr(it.importId) + '" ' +
+        'style="display:flex;align-items:center;gap:.6rem;padding:.5rem .65rem;border-bottom:1px solid var(--border)">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:.82rem;font-weight:600">' + _he(it.details || it.importId) + '</div>' +
+          '<div style="font-size:.72rem;color:var(--muted)">' +
+            _he(_fmtWhen(it.when)) + (it.who ? ' · ' + _he(it.who) : '') +
+            ' · <span style="font-family:ui-monospace,Menlo,Consolas,monospace">' +
+            _he(it.importId) + '</span></div>' +
+        '</div>' +
+        '<button class="btn btn-ghost btn-sm" data-impid="' + _escAttr(it.importId) + '" ' +
+          'onclick="_undoImport(this)">↩ Undo this import</button>' +
+      '</div>';
+    }).join('') + '</div>';
+}
+
+function _undoImport(btn){
+  var id = btn ? (btn.getAttribute('data-impid') || '') : '';
+  if (!id) return;
+  var fila = _importsData && _importsData.filter(function(i){ return i.importId === id; })[0];
+  _showConfirm({
+    icon: '↩', danger: true,
+    title: 'Undo this import?',
+    message: (fila && fila.details ? fila.details + '\n\n' : '') +
+      'Every movement that came in with this file is removed from your stock.\n\n' +
+      'They go to the trash, exactly like deleting a movement — nothing here is ' +
+      'final, and anything you take out can be put back.',
+    confirmText: 'Undo it',
+    onConfirm: function(){
+      _btnBusy(btn, 'Undoing…');
+      _progStart(1, 'Undoing the import');
+      
+
+
+
+
+
+
+      var total = 0;
+      function vuelta(){
+        google.script.run
+          .withSuccessHandler(function(res){
+            total += (res && res.removed) || 0;
+            _importsData = null;
+            _sysCacheDrop('trash');
+            if (res && res.more){ vuelta(); return; }
+            _progEnd(total + ' movement' + (total === 1 ? '' : 's') +
+                     ' from that import moved to the trash.');
+            _drawImportHistory();
+            loadDataFromGoogle(true, true);
+          })
+          .withFailureHandler(function(err){
+            _btnReset(btn);
+            _progEnd(total ? (total + ' moved to the trash — the rest were not.')
+                           : 'Nothing was undone.', true);
+            showToast('Could not undo that import: ' +
+              (err.message || err).replace(/^Error:\s*/i,''), 'err', 8000);
+            _drawImportHistory();
+            if (total) loadDataFromGoogle(true, true);
+          })
+          .processMovement('undoImport', _h({ importId: id }));
+      }
+      vuelta();
+    }
+  });
 }
 
 
@@ -17185,7 +17629,13 @@ function _wireManualMerge(tab, label){
 
     document.getElementById('cfgPickMerge').addEventListener('click', function(){
       var into = document.getElementById('cfgPickKeep').value;
-      var from = sel.filter(function(v){ return v !== into; });
+      
+      
+      var quitada = false;
+      var from = sel.filter(function(v){
+        if (!quitada && v === into){ quitada = true; return false; }
+        return true;
+      });
       var btn  = document.getElementById('cfgPickMerge');
       _showConfirm({
         icon: '🔀', title: 'Merge into "' + into + '"?',
@@ -17313,6 +17763,31 @@ function _renderSimilarGroups(tab, items, label){
       ' spelled differently. Merging rewrites every movement so history reads as one. ' +
       'Check each group first — similar names are not always the same thing.</p>' +
     _similarGroups.map(function(g, gi){
+      
+
+
+
+
+
+
+
+
+
+      var mismo = g.every(function(v){
+        return String(v).trim().toUpperCase() === String(g[0]).trim().toUpperCase();
+      });
+      if (mismo){
+        return '<div class="sim-group" data-g="' + gi + '">' +
+          '<div class="sim-dupe-exacto">' + _he(g[0]) +
+            ' <span>· listed ' + g.length + ' times</span></div>' +
+          '<p class="sim-sub" style="margin:.2rem 0 .5rem">' +
+            'These are the same name, not similar ones. Nothing to choose — ' +
+            'keeping one leaves your history exactly as it is.</p>' +
+          '<div class="sim-acts">' +
+            '<button class="btn btn-primary btn-sm" data-sim-merge="' + gi + '">Keep one</button>' +
+            '<button class="btn btn-ghost btn-sm" data-sim-skip="' + gi + '">Leave them</button>' +
+          '</div></div>';
+      }
       return '<div class="sim-group" data-g="' + gi + '">' +
         g.map(function(v, vi){
           return '<label class="sim-opt">' +
@@ -17348,7 +17823,17 @@ function _wireSimilarGroups(tab){
       var group = _similarGroups[gi]; if (!group) return;
       var picked = document.querySelector('input[name="simKeep' + gi + '"]:checked');
       var into = picked ? picked.value : group[0];
-      var from = group.filter(function(v){ return v !== into; });
+      
+
+
+
+
+
+      var yaQuitado = false;
+      var from = group.filter(function(v){
+        if (!yaQuitado && v === into){ yaQuitado = true; return false; }
+        return true;
+      });
       _showConfirm({
         icon: '🔀', title: 'Merge into "' + into + '"?',
         message: from.join('\n') + '\n\nwill become "' + into + '" on every movement. ' +
@@ -17425,19 +17910,159 @@ function _applyMergeLocally(tab, from, into){
 }
 
 var _errorLogData = [];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function _renderErrorLogTab() {
   var content = document.getElementById('settingsTabContent');
   
-  if (_errorLogData) { _drawErrorLog(); return; }
-  content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  
+  _errLogNuevas = 0;
+  
+
+
+  if (_errorLogData && _errorLogData.length) _drawErrorLog();
+  else content.innerHTML = '<p style="padding:1rem;color:var(--muted);font-size:.85rem">Loading…</p>';
+  _refrescarErrorLog(content);
+}
+
+
+
+var _errLogNuevas = 0;
+
+function _refrescarErrorLog(content){
   google.script.run
-    .withSuccessHandler(function(rows) { _errorLogData = rows || []; _drawErrorLog(); })
-    .withFailureHandler(function(e) { content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+_he(e.message||e)+'</p>'; })
+    .withSuccessHandler(function(rows) {
+      var nuevas = _errorLogFilasNuevas(rows || []);
+      var habia  = _errorLogData && _errorLogData.length;
+      _errorLogData = rows || [];
+      if (_settingsTab !== 'errorlog') return;
+      
+      
+      if (!habia || !nuevas.length) { _drawErrorLog(_errLogFiltroActual()); return; }
+      _errLogNuevas += nuevas.length;
+      _errorLogMeterArriba(nuevas);
+    })
+    .withFailureHandler(function(e) {
+      if (content && !(_errorLogData && _errorLogData.length)) {
+        content.innerHTML = '<p style="padding:1rem;color:#c0392b;font-size:.85rem">Error: '+_he(e.message||e)+'</p>';
+      }
+    })
     .processMovement('getErrorLog', _h({}));
+}
+
+
+
+
+function _errLogFiltroActual(){
+  var inp = document.getElementById('errLogSearch');
+  return inp ? inp.value : '';
+}
+
+
+
+
+
+function _errorLogFilasNuevas(rows){
+  var ya = {};
+  (_errorLogData || []).forEach(function(r){ ya[_errLogClave(r)] = 1; });
+  return rows.filter(function(r){ return !ya[_errLogClave(r)]; });
+}
+function _errLogClave(r){
+  return r.requestId ? ('id:' + r.requestId)
+                     : (String(r.timestamp) + '|' + String(r.action) + '|' + String(r.message));
+}
+
+
+
+
+function _errorLogMeterArriba(nuevas){
+  var tbody = document.querySelector('#settingsTabContent tbody');
+  if (!tbody) { _drawErrorLog(_errLogFiltroActual()); return; }
+  var q = String(_errLogFiltroActual() || '').toLowerCase();
+  
+  var vacio = tbody.querySelector('td[colspan]');
+  if (vacio && vacio.parentNode) tbody.removeChild(vacio.parentNode);
+
+  var metidas = 0;
+  
+  for (var i = nuevas.length - 1; i >= 0; i--) {
+    var r = nuevas[i];
+    if (q && (r.message+' '+r.action+' '+r.user+' '+r.requestId).toLowerCase().indexOf(q) === -1) continue;
+    var tr = document.createElement('tr');
+    tr.innerHTML = _errLogFilaHtml(r);
+    tr.className = 'row-enter';
+    tbody.insertBefore(tr, tbody.firstChild);
+    metidas++;
+  }
+  _errLogPintarContador();
+  if (!metidas) return;
+}
+
+
+
+function _errLogPintarContador(){
+  var marca = document.getElementById('errLogNuevasMarca');
+  if (!marca) return;
+  marca.textContent = _errLogNuevas
+    ? ('• ' + _errLogNuevas + ' new since you opened this') : '';
+}
+
+
+
+
+
+
+
+function _errLogFilaHtml(r) {
+  var color = r.severity === 'ERROR' ? '#c0392b' : '#b8860b';
+  var ts = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
+  return '<td style="white-space:nowrap;font-size:.72rem;color:var(--muted)">'+_he(ts)+'</td>' +
+    '<td><span style="color:'+color+';font-weight:700;font-size:.7rem">'+_he(r.severity)+'</span></td>' +
+    '<td style="font-size:.72rem">'+_he(r.user)+'</td>' +
+    '<td style="font-size:.72rem">'+_he(r.source)+'/'+_he(r.action)+'</td>' +
+    '<td style="font-size:.75rem">'+_he(r.message)+'</td>' +
+    '<td style="font-size:.68rem;color:var(--muted)">'+_he(r.requestId)+'</td>';
 }
 
 function _drawErrorLog(filterText) {
   var content = document.getElementById('settingsTabContent');
+  
+  
+  if (!_errorLogData) return;
   var q = String(filterText || '').toLowerCase();
   var rows = _errorLogData.filter(function(r) {
     if (!q) return true;
@@ -17445,16 +18070,7 @@ function _drawErrorLog(filterText) {
   });
 
   var trs = rows.map(function(r) {
-    var color = r.severity === 'ERROR' ? '#c0392b' : '#b8860b';
-    var ts = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
-    return '<tr>' +
-      '<td style="white-space:nowrap;font-size:.72rem;color:var(--muted)">'+_he(ts)+'</td>' +
-      '<td><span style="color:'+color+';font-weight:700;font-size:.7rem">'+_he(r.severity)+'</span></td>' +
-      '<td style="font-size:.72rem">'+_he(r.user)+'</td>' +
-      '<td style="font-size:.72rem">'+_he(r.source)+'/'+_he(r.action)+'</td>' +
-      '<td style="font-size:.75rem">'+_he(r.message)+'</td>' +
-      '<td style="font-size:.68rem;color:var(--muted)">'+_he(r.requestId)+'</td>' +
-    '</tr>';
+    return '<tr>' + _errLogFilaHtml(r) + '</tr>';
   }).join('');
 
   
@@ -17467,8 +18083,14 @@ function _drawErrorLog(filterText) {
     '<p style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">' +
       '<b>'+errCount+'</b> error'+(errCount===1?'':'s')+' and <b>'+warnCount+'</b> warning'+(warnCount===1?'':'s')+' ' +
       '(backend + frontend). ERROR = unexpected bug, WARN = the app correctly refusing something. ' +
-      'Entries older than 30 days are removed on their own.</p>' +
+      'Entries older than 30 days are removed on their own. ' +
+      '<span id="errLogNuevasMarca" style="color:var(--accent2);font-weight:700"></span></p>' +
     '<div style="display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap">' +
+      
+
+
+
+      '<button class="btn btn-sm" id="btnErrLogRefrescar" onclick="_refrescarErrorLog()">↻ Refresh</button>' +
       '<button class="btn btn-sm" onclick="_clearErrorLog(\'warnings\')"' + (warnCount ? '' : ' disabled') + '>' +
         '🧹 Clear '+warnCount+' warning'+(warnCount===1?'':'s')+'</button>' +
       '<button class="btn btn-sm btn-danger" onclick="_clearErrorLog(\'all\')"' + (_errorLogData.length ? '' : ' disabled') + '>' +
@@ -17490,6 +18112,7 @@ function _drawErrorLog(filterText) {
         '<tbody>'+(trs || '<tr><td colspan="6" style="padding:1rem;text-align:center;color:var(--muted);font-size:.8rem">No errors logged.</td></tr>')+'</tbody>' +
       '</table>' +
     '</div>';
+  _errLogPintarContador();
   var inp = document.getElementById('errLogSearch');
   if (inp) { inp.focus(); var v = inp.value; inp.value=''; inp.value=v; }
 }
@@ -27712,6 +28335,10 @@ function _progHide(){
   var w = document.getElementById('progWrap');
   if (!w) return;
   if (_progHideT){ clearTimeout(_progHideT); _progHideT = null; }
+  
+  
+  
+  _progPararQuitar();
   w.className = '';
   _prog = null;
 }
@@ -27721,6 +28348,59 @@ function _progStep(ok){
   if (ok) _prog.done++; else _prog.failed++;
   if ((_prog.done + _prog.failed) >= _prog.total) _progFinish();
   else _progPaint();
+}
+
+
+
+
+
+
+
+function _progStepN(n){
+  if (!_prog || !n) return;
+  _prog.done += n;
+  _progPaint();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _progPararOfrecer(alParar){
+  var b = document.getElementById('progStop');
+  if (!b) return;
+  b.style.display = '';
+  b.textContent = 'Stop';
+  b.disabled = false;
+  b.onclick = function(ev){
+    
+    
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    b.disabled = true;
+    b.textContent = 'Stopping…';
+    try { alParar(); } catch (e) {}
+  };
+}
+
+function _progPararQuitar(){
+  var b = document.getElementById('progStop');
+  if (!b) return;
+  b.style.display = 'none';
+  b.onclick = null;
+  b.disabled = false;
 }
 
 function _progPaint(){
@@ -27758,6 +28438,7 @@ function _progFinish(){
 
 
 
+  _progPararQuitar();
   _progHideT = setTimeout(function(){
     w.className += ' fade-out';
     setTimeout(function(){ w.className = ''; _prog = null; _progHideT = null; }, 320);
@@ -27795,14 +28476,69 @@ var TOAST_QUICK = 2000;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _toastIgual(msg, type){
+  var c = document.getElementById('toastContainer');
+  if (!c) return null;
+  var todos = c.querySelectorAll('.toast');
+  for (var i = 0; i < todos.length; i++){
+    var t = todos[i];
+    if (t.classList.contains('fade-out')) continue;
+    if (t.getAttribute('data-tipo') !== type) continue;
+    if (t.getAttribute('data-msg')  !== msg)  continue;
+    return t;
+  }
+  return null;
+}
+
 function showToast(msg, type, duration, accion) {
   type     = type     || 'ok';
   duration = duration || 3500;
   var icons = { ok:'✅', err:'❌', warn:'⚠️', info:'ℹ️' };
+
+  if (!(accion && accion.texto)) {
+    var ya = _toastIgual(String(msg), type);
+    if (ya) {
+      var n = (parseInt(ya.getAttribute('data-veces'), 10) || 1) + 1;
+      ya.setAttribute('data-veces', String(n));
+      var marca = ya.querySelector('.toast-veces');
+      if (!marca) {
+        marca = document.createElement('span');
+        marca.className = 'toast-veces';
+        ya.insertBefore(marca, ya.querySelector('.toast-close'));
+      }
+      marca.textContent = '× ' + n;
+      
+      
+      if (ya._reloj) clearTimeout(ya._reloj);
+      ya._reloj = setTimeout(function(){ dismissToast(ya.id); }, duration);
+      return ya.id;
+    }
+  }
+
   var id    = 'toast-' + (++_toastIdSeq);
   var el    = document.createElement('div');
   el.className = 'toast ' + type;
   el.id        = id;
+  el.setAttribute('data-tipo', type);
+  el.setAttribute('data-msg', String(msg));
   el.innerHTML =
     '<span class="toast-icon">' + (icons[type] || 'ℹ️') + '</span>' +
     '<span class="toast-msg">'  + _he(msg) + '</span>' +
@@ -27830,7 +28566,11 @@ function showToast(msg, type, duration, accion) {
     }, duration);
   }
 
-  setTimeout(function(){ dismissToast(id); }, duration);
+  
+  
+  
+  
+  el._reloj = setTimeout(function(){ dismissToast(id); }, duration);
   return id;
 }
 function dismissToast(id) {
@@ -28200,7 +28940,7 @@ var BASIC_FUERA = {
 
 var BASIC_PRO_ZONAS = {
   fileSection:   'fotos',     
-  notifySection: 'correo'     
+  notifySection: 'avisarcorreo'    
 };
 
 
@@ -28265,8 +29005,28 @@ var BASIC_PRO = {
                que: 'A copy of everything, made on its own every night and kept in your own Drive.' },
   
 
-  correo:    { titulo: '📧 Read it from the email',
-               que: 'Paste a supplier email and the app fills in what is arriving — supplier, items, quantities and dates.' },
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  leercorreo: { titulo: '📧 Read it from the email',
+                que: 'Paste a supplier email and the app fills in what is arriving — supplier, items, quantities and dates.' },
+  avisarcorreo: { titulo: '📨 Email the people who need to know',
+                  que: 'When you save a movement, the app emails the project manager and whoever else you pick — no screenshots, no copying numbers by hand.' },
   
 
 
@@ -28332,8 +29092,8 @@ var BASIC_PRO_BOTONES = {
   btnMonitorSettings:        'minimos',
   btnMonitorSettingsToolbar: 'minimos',
   btnBackupNow:              'respaldo',
-  btnFromEmail:              'correo',
-  btnReadEmail:              'correo'
+  btnFromEmail:              'leercorreo',
+  btnReadEmail:              'leercorreo'
 };
 
 
@@ -29164,6 +29924,42 @@ var LEGAL_DOCS = {
 
 
 var NOVEDADES = [
+  { ver: '12.93',
+    titulo: 'Merging duplicate names works, and the error log keeps up',
+    puntos: [
+      '<b>Every merge was failing.</b> Twenty groups of duplicate projects and eight of suppliers, and all twenty-eight answered \u201cpick at least one other name to merge in\u201d.',
+      'The screen offered to merge names that are the same once you ignore capitals and spacing, and the server refused exactly those \u2014 <b>the tool for joining misspelled names refused the commonest misspelling there is</b>. It does the job now.',
+      'When a group is <b>the same name listed fourteen times</b>, it no longer asks which to keep \u2014 fourteen options that read identically is not a choice. It says how many and offers <b>Keep one</b>.',
+      '<b>The duplicates had a way in, and it is closed.</b> Only the \u201cadd\u201d button checked for a name already there, so anything arriving another way piled up. That check now sits where every write passes.',
+      '<b>And the error log was a photograph, not a window</b> \u2014 it loaded once when you opened Settings and never asked again. It refreshes when you open the tab, and new entries slide in at the top instead of redrawing the table.'
+    ],
+    antes:  'Twenty-eight merges, twenty-eight refusals',
+    ahora:  'One button, and the error log tells you what just happened' },
+
+  { ver: '12.92',
+    titulo: 'Deleting a lot of movements takes seconds, and can be stopped',
+    puntos: [
+      'Deleting 490 movements took <b>almost half an hour</b>, lost 40 of them to a \u201ctoo many requests\u201d error, and <b>could not be stopped</b>. All of it was one cause: 490 rows were <b>490 separate requests</b>, each rebuilding your whole stock.',
+      '<b>It is two requests now.</b> The half hour becomes seconds, the rate limit is nowhere near reached, forty error notices become one answer, and nothing ends up half done.',
+      'The \u201ctoo many requests\u201d was <b>the app flooding the server</b> with its own burst and then asking you to wait. That answer now counts as \u201cwait your turn\u201d and retries by itself.',
+      '<b>And there is a Stop button.</b> It stops before the next batch and says exactly where it got to \u2014 <i>\u201c200 of 490 deleted. The other 290 are untouched.\u201d</i>',
+      'The same notice no longer stacks: it gets a small <b>\u00d7 4</b> instead of piling up. And undoing a large import keeps going until it is finished.'
+    ],
+    antes:  'Half an hour, 40 lost, and no way to stop it',
+    ahora:  'Seconds, nothing lost, and a Stop button' },
+
+  { ver: '12.91',
+    titulo: 'Importing a file no longer stops at row 500',
+    puntos: [
+      '<b>If your file had more than 500 rows, only the first 500 went in</b> — while the button said it was importing all of them. A 1,052-row inventory lost 552 rows with nothing on screen to say so.',
+      'Confirming now reads the file in full, so the number on the button and the number saved are the same thing. Every import <b>counts rows and units before and after</b> and tells you whether they match — whether they do or not.',
+      '<b>The same file twice no longer doubles your stock in silence.</b> The app recognises an inventory it already took in, even if the rows come back in a different order, and says so before you press anything. It still lets you through.',
+      '<b>And an import can be undone.</b> Those movements go to the trash, exactly like deleting one — nothing is final.',
+      'The preview shows <b>every column your file brought</b>, not five. Unit, project, supplier, PO and comments were being imported without anyone ever seeing them.'
+    ],
+    antes:  'A button promising 1,052 rows and saving 500',
+    ahora:  'Every row in, counted before and after, and undoable' },
+
   { ver: '12.90',
     titulo: 'A return stops asking what the record already knows',
     puntos: [
@@ -29174,44 +29970,6 @@ var NOVEDADES = [
     ],
     antes:  'Two boxes asking where it came from, with one possible answer',
     ahora:  'Filled in, unless there is really something to choose' },
-
-  { ver: '12.89',
-    titulo: 'One list, search that keeps up, a lighter first load',
-    puntos: [
-      'On a Return, two dropdowns used to open on top of each other: ours \u2014 with how much is out and where \u2014 and the browser\u2019s own. <b>Ours wins now.</b>',
-      'The search boxes waited for you to <b>stop</b> typing, so typing without pausing moved nothing. They now filter from the first letter.',
-      '<b>And the app starts much faster on a bad connection.</b> It was downloading Google\u2019s charting library on every load \u2014 most of 2 MB \u2014 for two pie charts on one of five screens. On 3G that was 27 seconds. Now it is fetched when the dashboard needs it.'
-    ],
-    antes:  'Two lists fighting, and 27 seconds before the page was ready',
-    ahora:  'One list, and everyone else gets in without paying for the charts' },
-
-  { ver: '12.88',
-    titulo: 'The \u2715 sits inside the box',
-    puntos: [
-      'In Movements the \u2715 was drawing at the <b>far right of the row</b>, hundreds of pixels from the search box \u2014 and the box was pushed onto a line of its own. Both were the same thing.',
-      'It asked "is this field as wide as its slot?" while the tab was still hidden, which is <code>0 \u2265 -4</code>: <b>true, always</b>. A comparison that answers yes when nothing can be measured is not measuring.',
-      'It now checks what actually matters, once the field can be seen: <b>does the field fill its wrapper?</b> That holds for every box you can type in, including ones added later.'
-    ],
-    antes:  'The \u2715 half a screen away from the box it clears',
-    ahora:  'Inside the box, where you are typing' },
-
-  { ver: '12.87',
-    titulo: 'A much quieter Receive window',
-    puntos: [
-      'There were sixteen controls on screen to record "20 windows arrived, they are in A1A". Two of them are the movement; the rest is context some warehouses fill every time and others never.',
-      '<b>The form now learns which ones yours uses.</b> A field left empty across your last sixty movements folds behind one <b>+ 3 more fields</b> line \u2014 no setting to find, no box to tick. Save one movement with it filled and it comes back on its own.',
-      'It never hides a field that already has something in it, and the line that brings them back is always there and says how many it holds.',
-      '<b>Documents</b> is one line that opens when you need it. The <b>\ud83c\udff7 Label</b> tickbox left the material line \u2014 after saving, the confirmation offers <b>Print labels</b>, which is when you can answer that.'
-    ],
-    antes:  'Sixteen controls to write down twenty windows',
-    ahora:  'The ones your warehouse actually uses' },
-
-
-
-
-
-
-
 
 ];
 

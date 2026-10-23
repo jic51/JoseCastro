@@ -10,7 +10,7 @@
 > **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
 > único sitio donde mirar cómo vamos.
 
-**Última actualización:** 22/10/2026 · **versión v12.90** · build `32359892`
+**Última actualización:** 23/10/2026 · **versión v12.93** · build `688c6196`
 
 ---
 
@@ -26,10 +26,9 @@ contexto.
 | 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
 | 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
 | 5 | **Una forma de agendar una llamada** | Hoy el camino muere en un correo | 20 min de configuración |
-| 6 | **¿La papelera se abre en la gratis?** | Hoy borras y no puedes deshacer: el aviso manda a una pestaña cerrada | 1 min de decisión |
-| 7 | **¿Qué dos nombres intentaste fusionar?** | Tengo la causa, pero no la puedo confirmar sin ellos | 1 min |
-| 8 | **¿Las filas importadas sin ubicación van a `RECEIVING`?** | Hoy caen en `UNASSIGNED`, que es una palabra del programa | 2 min de decisión |
-| 9 | **¿La página comprimida?** | 1.59 MB → 874 KB, 516 KB → 216 KB por la red. Cero cambios en el producto | 1 min de decisión |
+| 6 | **¿Las filas importadas sin ubicación van a `RECEIVING`?** | Hoy caen en `UNASSIGNED`, que es una palabra del programa | 2 min de decisión |
+| 7 | **La casilla «todos» de Movements** | Tres opciones, y la que tú propusiste no es la que yo construiría | 2 min de decisión |
+| 8 | **¿Destildar filas al importar, en vez de «subir uno por uno»?** | Da el mismo control sin una pantalla nueva | 1 min de decisión |
 
 ---
 
@@ -110,30 +109,123 @@ Las dos correcciones de hoy salieron de eso.
 
 ---
 
-## 🧭 LO QUE ESTAMOS MIRANDO AHORA — barrido del 22/10, ocho cosas
+## 🧭 LO QUE ESTAMOS MIRANDO AHORA — el plan del 22/10
 
-Las ocho de tus tres capturas y tres vídeos del 22/10. **Investigadas, no
-arregladas**: tú dijiste *"aún no hagas nada"*, y así está. El detalle completo,
-con números de línea, está en `docs/BACKLOG.md`, al principio.
+El detalle completo, con números de línea, está en `docs/BACKLOG.md`, al
+principio.
 
 | # | Qué | Estado |
 |---|---|---|
-| 1 | [B] Borrar un movimiento manda a Settings → System, que en la gratis está cerrada | **causa encontrada** · hay que decidir si la papelera se abre en la gratis |
-| 2 | [B] Permissions, Directory e Import vuelven al abrir Ajustes | **causa encontrada** · `_filterSettingsSidebar` deshace lo que esconde la gratis |
-| 3 | Fusionar proyectos/suppliers falla si sólo cambian las mayúsculas | **causa encontrada** · me falta saber qué dos nombres elegiste |
-| 4 | El Error Log no enseña lo que acaba de pasar | **causa encontrada** · sí se guarda; la pantalla no vuelve a preguntar |
-| 5 | Importar sin ubicación deja material en `UNASSIGNED` | **medido** · tengo tres arreglos pequeños y una decisión para ti |
-| 6 | Materials (Ajustes), como las alertas de stock bajo | anotado, sin empezar |
-| 7 | Directory (Ajustes), como la pantalla de usuarios | anotado, sin empezar |
-| 8 | La casilla «todos» de Movements | **así lo establecimos** · decisión tuya si cambia |
+| 1 | **Importar perdía las filas pasada la 500** | ✅ **HECHO — v12.91** |
+| 1-bis | **Borrar 490 tardaba media hora y no se podía parar** | ✅ **HECHO — v12.92** |
+| 2 | **El mismo fichero dos veces**: aviso + **deshacer** | ✅ **HECHO — v12.91** |
+| 3 | **La pantalla de importar dice la verdad** (un número, todas las columnas, qué va a crear antes) | ✅ **HECHO — v12.91** |
+| 4 | **«Send notification email» contestaba sobre LEER el correo** | ✅ **HECHO — v12.91** |
+| 5 | **Fusionar nombres**, las dos mitades | ✅ **HECHO — v12.93** · causa confirmada con tu vídeo: fallan **las 28** |
+| 6 | **El Error Log en vivo**, sin repintar | ✅ **HECHO — v12.93** |
+| 7 | **Dueño único de las pestañas** + papelera abierta + Import abierto (CSV) | 🔜 **v12.94** |
+| 8 | **Importar de verdad**: ventana propia, ubicación por fila y por grupos, destildar, prueba de 20 | 🔜 **v12.94+** |
+| 9 | Materials (Ajustes), como las alertas de stock bajo | anotado |
+| 10 | Directory (Ajustes), como la pantalla de usuarios | anotado |
+| — | La casilla «todos» de Movements | 🔵 **la revisaste y se queda como está** |
+| — | Importar el **historial** (fechas, tipos, quién) | 🔵 **tu decisión** · es otra función, no una columna más |
 
-**Mi recomendación: del 1 al 4, en una sola versión.** Son las cuatro pequeñas,
-las cuatro son «la app dice algo que no es verdad», y la 4 va dentro porque es
-la herramienta con la que se comprueban las otras tres.
+**Los cuatro primeros ya están en la v12.91.** Lo siguiente es la fusión de
+nombres y el Error Log en vivo, que van juntos en la v12.92.
+
+### ✅ La página recortada — HECHO el 22/10
+
+Aprobado por ti y ya está. **No cambia ni una línea del producto**: misma
+versión, mismo sello, mismo código. Lo único que cambia es que lo que se pega
+en Apps Script ya no lleva los comentarios.
+
+| | Antes | Ahora |
+|---|---|---|
+| `Index_v3_fixed.html` | 1.590 KB | **897 KB** |
+| `Code_v3_fixed.gs` | 813 KB | **400 KB** |
+| **Por la red (lo que esperas en 3G)** | **527 KB** | **225 KB** |
+
+Y lo que hacía falta arreglar antes de recomendártelo: la herramienta borraba
+también las líneas vacías, y el archivo pasaba de 30.246 líneas a 17.858. Eso
+rompe lo único que usamos para encontrar un fallo — tú mandas la captura de tu
+consola, yo leo «línea 19174» y voy ahí. **Ahora las líneas son las mismas**, y
+hay una prueba que comprueba que **cada una de las 1.181 funciones cae en la
+misma línea** que en el repositorio.
+
+**Lo que cambia para ti:** a partir de ahora pegas los archivos de la carpeta
+`pegar/` (te los mando aparte), no los del repositorio. Son el mismo producto.
 
 ---
 
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.93 · Unir nombres funciona, y el Error Log se entera · **SIN VERIFICAR**
+
+**Qué probar:**
+
+1. **Ajustes → Projects.** El grupo de «ASPEN HOLLOW LOT 14» ya no te pide
+   elegir entre catorce botones iguales: dice **«listed 14 times»** y ofrece
+   **Keep one**. Púlsalo — tiene que quedar **una** fila.
+2. **Lo mismo en Suppliers**, con los ocho grupos.
+3. **Un grupo de verdad parecido** (dos grafías distintas) sigue pidiendo cuál
+   conservar, que es lo correcto. Elige una: el historial se reescribe con ella.
+4. **El Error Log en vivo.** Abre Ajustes, provoca un error, y **sin cerrar
+   Ajustes** ve a Error Log: la fila nueva tiene que estar **arriba**, con un
+   destello azul, y **sin que se repinte la tabla**. Arriba sale
+   *«• 1 new since you opened this»*.
+5. **Escribe algo en el buscador del Error Log** y deja que llegue otro error:
+   el texto que escribiste **no se borra**, y la fila nueva sólo entra si
+   coincide con lo buscado.
+6. Y hay un botón **↻ Refresh** por si quieres pedirlo tú.
+
+### v12.92 · Borrar muchos tarda segundos, y se puede parar · **SIN VERIFICAR**
+
+De tus dos vídeos del 22/10: 490 movimientos, **casi media hora**, 40 perdidas,
+y sin forma de pararlo.
+
+**Qué probar:**
+
+1. **La prueba grande.** Marca unos cuantos cientos de movimientos y pulsa
+   Delete. Tiene que tardar **segundos**, no minutos. Y ya no debe salir ningún
+   *«Too many requests»*.
+2. **El botón de Parar.** Mientras trabaja, la línea de abajo a la izquierda
+   tiene un botón **Stop**. Púlsalo a mitad: tiene que decir algo como
+   *«Stopped — 300 of 490 deleted. The other 190 are untouched»*, y esos 190
+   tienen que seguir en la lista.
+3. **Borrar UNO solo** sigue igual que siempre: la fila se va al pulsar y las
+   cifras del almacén se actualizan con la respuesta. Eso no cambió.
+4. **Los avisos repetidos.** Si algo falla varias veces, **no se apilan**: al
+   que está en pantalla le sale un **× 4** pequeño.
+5. **Deshacer una importación grande** (más de 300 filas) tiene que terminar
+   del todo, no pararse a medias diciendo que ya está.
+6. Y lo borrado sigue en **Ajustes → Sistema → papelera**, para devolverlo.
+
+### v12.91 · Importar deja de perder filas · **SIN VERIFICAR — Y ES LA MÁS IMPORTANTE**
+
+Los cuatro puntos que aprobaste. **Esto arregla una pérdida de datos**, así que
+si sólo compruebas una versión este mes, que sea ésta.
+
+**Qué probar, en orden:**
+
+1. **La prueba grande.** Coge tu fichero de 1.052 filas e impórtalo en una copia
+   **vacía**. Mira que el botón diga **1.052**, y que al terminar la línea diga
+   **1.052 filas** y las unidades, con **«matches the file»**. Antes entraban
+   500.
+2. **Las columnas.** Al cargar el fichero, la tabla tiene que enseñar
+   **Unit, Project, Supplier, PO# y Comments** además de las cinco de siempre.
+   Si tu fichero no trae alguna, esa columna no sale — eso también está bien.
+3. **Lo que va a crear.** Encima del botón, un recuadro azul: *«This import will
+   also create: 7 locations…»*. Antes eso se contaba **al terminar**.
+4. **Sube el MISMO fichero otra vez.** Tiene que salir un recuadro rojo arriba
+   del todo: *«You already imported this exact file»*, con cuándo y quién. **Y
+   el botón sigue ahí** — avisa y deja pasar, como en las devoluciones.
+5. **Deshacer.** Abajo de esa pantalla está **«Imports you have already done»**.
+   Pulsa **↩ Undo this import** en una: tiene que decir cuántos movimientos
+   quitó, y el almacén volver a lo de antes. Luego mira **Ajustes → Sistema →
+   papelera**: ahí están, para devolverlos.
+6. **[B] El candado del correo.** En la gratis, pulsa **«Send notification
+   email»**: el mensaje tiene que hablar de **avisar por correo**, no de *leer*
+   un correo.
 
 ### v12.90 · La devolución no pregunta lo que ya sabe, y el aviso dura 7s · **SIN VERIFICAR**
 
