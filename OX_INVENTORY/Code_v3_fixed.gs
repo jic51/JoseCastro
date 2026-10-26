@@ -128,7 +128,7 @@
 
 
 
-var APP_VERSION = '12.93';
+var APP_VERSION = '12.94';
 
 
 
@@ -140,7 +140,7 @@ var APP_VERSION = '12.93';
 
 
 
-var APP_BUILD = '688c6196';
+var APP_BUILD = 'b18721b3';
 
 
 

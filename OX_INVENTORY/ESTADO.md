@@ -10,7 +10,7 @@
 > **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
 > único sitio donde mirar cómo vamos.
 
-**Última actualización:** 23/10/2026 · **versión v12.93** · build `688c6196`
+**Última actualización:** 23/10/2026 · **versión v12.94** · build `b18721b3`
 
 ---
 
@@ -32,80 +32,71 @@ contexto.
 
 ---
 
-## 📋 LA LISTA DE VERIFICACIÓN — las diez últimas versiones
+## 📋 LA LISTA DE VERIFICACIÓN — depurada el 23/10
 
-> **Esto NO quiere decir que no hayas usado la app.** La usas: los dos fallos de
-> la v12.88 —la ✕ al final de la fila y el menú que no existe— salieron de tus
-> propias capturas, y los dos avisos que se apilaban salieron de tus vídeos. Lo
-> que falta es otra cosa: **confirmar que los arreglos funcionan**, que es
-> distinto de haber visto el fallo.
->
-> Van marcados **[P]** los que sólo se ven en Pro y **[B]** los que sólo se ven
-> en la Básica. Lo demás vale para las dos.
+> **Lo que ya confirmaste está fuera de esta lista.** Sólo queda lo que falta
+> mirar, separado por edición como pediste. Lo tachado se fue porque lo
+> verificaste tú; lo que descubriste roto pasó a `docs/BACKLOG.md`.
 
-### Las cinco que más importan — si sólo haces cinco, éstas
+### ✅ Lo que confirmaste el 23/10 — ya no hay que volver a mirarlo
 
-| ✓ | Qué | Dónde | Qué tiene que pasar |
-|---|---|---|---|
-| ✅ | ~~**La ✕ dentro de la caja**~~ | — | **Confirmado por Jose el 22/10** |
-| ☐ | **La lista de lo que está fuera** | Nuevo movimiento → Return → entra en el nombre **sin escribir nada** | Sale sola la lista de lo que está fuera de bodega, con cuánto y dónde |
-| ☐ | **El formulario más corto** | Nuevo movimiento → Entry | Hay una línea **«+ N more fields»**; al pulsarla vuelven GC, PO#, Project y PM |
-| ✅ | ~~**Las columnas quietas**~~ | — | **Confirmado el 22/10**, en Dashboard y en Movements |
-| ✅ | ~~**[B] El menú fantasma**~~ | — | **Confirmado el 22/10.** Y Jose vio que el resto del texto seguía describiendo el asistente: arreglado en la v12.89 |
+La ✕ dentro de la caja (Dashboard, Movements, Warehouse Map) · los candados de
+Pro, cada uno con su mensaje · cuatro clics en el mismo candado = un solo aviso ·
+Documentos es una línea que se abre · Entry abre bien · la lista de «lo que está
+fuera» sale al entrar en el nombre, sin teclear · un material en dos obras sale
+en dos líneas · al elegir una se rellenan nombre, sitio, cantidad, unidad, obra
+y PM, con el cursor en el estante · «Returned By» se queda vacío · las columnas
+del Dashboard ya no se mueven al cambiar de filtro.
 
-### Todo lo demás, por versión
+---
 
-**v12.88 · La ✕ y el menú**
-- ☐ La ✕ dentro de la caja **en todas** las cajas de escritura, no sólo en Movements: filtros, formularios, ajustes.
-- ☐ [B] El texto de la hoja al aceptar términos (arriba).
+### 🟦 ACOPIO **BÁSICO** — lo que falta mirar
 
-**v12.87 · La ventana de entrada, limpia**
-- ☐ La línea «+ N more fields» y que al pulsarla vuelvan todos.
-- ☐ Escribe algo en PO#, cambia de pestaña y vuelve: **un campo con algo escrito no se puede esconder**.
-- ☐ **Documentos** es una línea que se abre al pulsarla.
-- ☐ Abre Documentos, escribe un nombre: **ya no se cierra sola**.
-- ☐ La casilla **🏷 Label ya no está** en la línea de cada material.
-- ☐ Guarda una entrada → el aviso ofrece **🏷 Print labels**. Púlsalo: se abre el cuadro con todo marcado.
-- ☐ Guarda otra entrada y **no** pulses nada → la pregunta de «¿también llegó esto?» tiene que salir igual.
-- ☐ Si registras camiones en Ajustes, aparece el campo **Truck** en el formulario. Si no tienes, no está.
+| ✓ | Qué | Dónde |
+|---|---|---|
+| ☐ | **Decir «sí» en un aviso guarda** (v12.94 — el fallo que encontraste) | Return → algo con 49 fuera → escribe 60 → Save anyway. Tiene que **guardar**, no dar error |
+| ☐ | **Borrar muchos tarda segundos y se puede parar** (v12.92) | Marca unos cientos → Delete. Botón **Stop** a mitad: debe decir *«Stopped — X of Y deleted»* |
+| ☐ | **Importar no pierde filas** (v12.91) | Un fichero de más de 500 filas: el botón y el final tienen que decir **el mismo número**, con *«matches the file»* |
+| ☐ | **El mismo fichero dos veces avisa** (v12.91) | Súbelo otra vez: recuadro rojo arriba, y el botón **sigue ahí** |
+| ☐ | **Deshacer una importación** (v12.91) | Ajustes → Import → **↩ Undo this import** |
+| ☐ | **Unir nombres duplicados** (v12.93) | Ajustes → Projects → el grupo de catorce: **«listed 14 times»** y **Keep one** |
+| ☐ | **El Error Log en vivo** (v12.93) | Provoca un error **sin cerrar Ajustes** → la fila nueva entra **arriba**, con destello, sin repintar |
+| ☐ | **El candado del correo** (v12.91) | «Send notification email» → el mensaje habla de **avisar**, no de *leer* un correo |
+| ☐ | **La ✕ dentro de la ventana de movimiento** | Abre Entry y escribe en un campo: la ✕ va **dentro** de la caja |
+| ☐ | **Vaciar la búsqueda con la ✕ relanza la búsqueda** | Movements: escribe, filtra, pulsa ✕ → la tabla se repuebla |
+| ☐ | **La papelera después de borrar** | Ajustes → Sistema → lo borrado está ahí para devolverlo |
 
-**v12.86 · Los candados**
-- ☐ [B] Pulsa los ajustes de **stock mínimo** (⚙ Monitor): **NO** se abre, y el mensaje habla de alertas de stock bajo. (Lo abrí yo por mi cuenta en la v12.86; tú lo revertiste y volvió a ser de Pro en la v12.89.)
-- ☐ [B] Pulsa la foto de factura (**AI Extract**): el mensaje habla de *leer la factura*, no de adjuntar archivos.
-- ☐ [B] Pulsa tres o cuatro candados distintos: cada mensaje habla de lo que pulsaste.
+**Y tres que YA SABEMOS que están mal en Básico** (anotadas, no hace falta que
+las mires otra vez): 🏷 Labels sale a color en vez de gris · la pregunta de
+«¿también llegó esto?» no debería salir · no aparece ni una tarjeta en el mazo.
 
-**v12.85 · Los dos avisos que se apilaban**
-- ☐ [B] Pulsa **cuatro veces** el mismo candado: **un solo aviso**, que da un golpecito al insistir.
-- ☐ Mira el mazo de tarjetas de la esquina: **no debe haber ni un «Backup created»** ni «archive start».
-- ☐ Ajustes → Sistema: ahí **sí** siguen todos los respaldos y archivados. (Esto importa: se movieron, no se borraron.)
+---
 
-**v12.84 · Devolver más de lo que salió**
-- ☐ Return → elige de la lista algo con 7 fuera → escribe **10** → guardar: **tiene que preguntar** y decir cuánto sobra.
-- ☐ Return → escribe un material **inventado**, cantidad 99 → guardar: **no debe decir nada**.
+### 🟪 ACOPIO **PRO** — lo que falta mirar
 
-**v12.83 · La lista de jefes de obra** *(interno)*
-- ☐ Nada que mirar a simple vista. Si Entry abre bien, está.
+| ✓ | Qué | Dónde |
+|---|---|---|
+| ☐ | **Lo mismo de la lista de arriba** que no depende de la edición | importar, borrar en tanda, fusionar, Error Log, la ✕ |
+| ☐ | **«+ N more fields»** | Entry: la línea existe y al pulsarla vuelven GC, PO#, Project y PM |
+| ☐ | **Un campo con algo escrito no se esconde** | Escribe en PO#, cambia de pestaña y vuelve |
+| ☐ | **Documentos no se cierra sola** | Abre Documentos, escribe un nombre |
+| ☐ | **🏷 Print labels tras guardar** | Guarda una entrada → el aviso lo ofrece → se abre el cuadro con todo marcado |
+| ☐ | **«¿También llegó esto?»** | Guarda una entrada y **no** pulses nada: la pregunta tiene que salir igual |
+| ☐ | **El campo Truck** | Registra un camión en Ajustes → aparece en el formulario. Sin camiones, no está |
+| ☐ | **⚙ Monitor** | Se abre (en Pro no lleva candado) |
+| ☐ | **El mazo de tarjetas** | **Sí** debe haber tarjetas aquí. Y **ninguna** de «Backup created» ni «archive start» |
+| ☐ | **Ajustes → Sistema** | Ahí **sí** siguen todos los respaldos y archivados |
+| ☐ | **Los documentos en un movimiento** | Adjuntar, y que se guarden con él |
 
-**v12.82 · El RETURN parte de lo que está fuera**
-- ☐ La lista sale al entrar en el nombre, sin teclear.
-- ☐ Un material que esté en **dos obras** sale en **dos líneas**, no sumado.
-- ☐ Al elegir una: nombre, sitio, cantidad, unidad, obra y PM puestos; estante y motivo vacíos, con el cursor ya en el estante.
-- ☐ **«Returned By» se queda vacío** — es a propósito.
+---
 
-**v12.81 · La ✕ en cada campo**
-- ☐ La ✕ **dentro de una ventana modal** (en el formulario de movimientos), que es lo que quedó sin mirar.
-- ☐ Vaciar la búsqueda con la ✕ **vuelve a lanzar la búsqueda** (la tabla se repuebla).
+### ⏳ Esperando algo tuyo
 
-**v12.80 · Las columnas**
-- ☐ Dashboard: cambiar filtros no mueve las columnas.
-
-**v12.79 · El mazo de tarjetas**
-- ☐ Ya lo viste y dijiste *"se ve mejor, pero no profesional"*. **Queda tu idea sin hacer**: que la que entra se vea entrando en el hueco y la que se borra tarde un poco más. Dime si sigue en pie.
-
-### Si algo de esto falla
-
-Mándame la captura como has hecho hasta ahora — es lo que mejor ha funcionado.
-Las dos correcciones de hoy salieron de eso.
+| Qué | Qué hace falta |
+|---|---|
+| **Ajustes → Sistema en Básico** | Dijiste que mandabas un vídeo y no llegó |
+| **«El menú se apaga»** | ¿Cuál menú? El de arriba, el de la cuenta, o el de la hoja |
+| **La app tarda en abrir** | Un vídeo con la v12.94 ya pegada, para medir con lo de ahora y no con lo de antes |
 
 ---
 

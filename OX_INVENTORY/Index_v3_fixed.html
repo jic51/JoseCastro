@@ -5836,7 +5836,7 @@ var _MOV_PAGE_SZ = 75;
 var chartsReady = false;
 
 
-var APP_VERSION = '12.93';
+var APP_VERSION = '12.94';
 
 
 
@@ -5848,7 +5848,7 @@ var APP_VERSION = '12.93';
 
 
 
-var APP_BUILD = '688c6196';
+var APP_BUILD = 'b18721b3';
 var userRole = 'WAREHOUSE';
 
 
@@ -12392,6 +12392,38 @@ async function submitMovement(){
   if (currentMoveType === 'ENTRY') { submitMultiEntry(); return; }
   if (currentMoveType === 'EXIT')  { submitMultiExit();  return; }
 
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  var _avisoPendiente = null;
+  function _preguntarAntes(aviso){
+    
+    
+    if (!_avisoPendiente) _avisoPendiente = aviso;
+  }
+
   var cat  = document.getElementById('mType').value;
   var name = (document.getElementById('mName').value || '').trim();
   if (!name){ alert('Please enter a material name'); return; }
@@ -12459,7 +12491,7 @@ async function submitMovement(){
       var msg = overages.map(function(el){
         return el.loc + ': trying ' + el.qty + ', only ' + (matLocs[el.loc.toUpperCase()] || 0) + ' available';
       }).join('\n');
-      _showConfirm({ icon:'⚠️', title:'Stock Warning', message:'Some locations exceed available stock:\n\n' + msg + '\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
+      _preguntarAntes({ icon:'⚠️', title:'Stock Warning', message:'Some locations exceed available stock:\n\n' + msg + '\n\nProceed anyway?', confirmText:'Proceed' });
     }
   }
 
@@ -12486,7 +12518,7 @@ async function submitMovement(){
       var tMsg = tOverages.map(function(tl){
         return tl.sourceLoc + ': trying ' + tl.qty + ', only ' + (tMatLocs[tl.sourceLoc.toUpperCase()] || 0) + ' available';
       }).join('\n');
-      _showConfirm({ icon:'⚠️', title:'Stock Warning', message:'Some transfer rows exceed available stock:\n\n' + tMsg + '\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
+      _preguntarAntes({ icon:'⚠️', title:'Stock Warning', message:'Some transfer rows exceed available stock:\n\n' + tMsg + '\n\nProceed anyway?', confirmText:'Proceed' });
     }
   }
 
@@ -12562,7 +12594,7 @@ async function submitMovement(){
 
   
   if (currentMoveType === 'RETURN' && !destLoc){
-    _showConfirm({ icon:'📦', title:'No Location', message:'No rack/location specified for this RETURN.\nContinue anyway?', confirmText:'Continue', onConfirm: function(){ _doSubmit(false); } }); return;
+    _preguntarAntes({ icon:'📦', title:'No Location', message:'No rack/location specified for this RETURN.\nContinue anyway?', confirmText:'Continue' });
   }
 
   
@@ -12602,17 +12634,15 @@ async function submitMovement(){
   if (currentMoveType === 'RETURN'){
     var sobra = _fueraSobrante(cat, name, srcVal, qty);
     if (sobra){
-      _showConfirm({
+      _preguntarAntes({
         icon: '⚠️',
         title: 'More than went out',
         message: 'Only ' + _fueraNum(sobra.fuera) + ' of this material is recorded as out ' +
                  'at ' + sobra.site + ',\nand you are returning ' + _fueraNum(qty) + '.\n\n' +
                  _fueraNum(sobra.extra) + ' more will be added to the warehouse than ever ' +
                  'left it.\n\nSave anyway?',
-        confirmText: 'Save anyway',
-        onConfirm: function(){ _doSubmit(false); }
+        confirmText: 'Save anyway'
       });
-      return;
     }
   }
 
@@ -12621,7 +12651,7 @@ async function submitMovement(){
     var key2 = _normKey(cat) + '|||' + _normKey(name);
     var s2 = stockData[key2];
     if (s2 && s2.availableQty < qty){
-      _showConfirm({ icon:'⚠️', title:'Insufficient Stock', message:'Only ' + s2.availableQty + ' units available,\ntrying to remove ' + qty + '.\n\nProceed anyway?', confirmText:'Proceed', onConfirm: function(){ _doSubmit(false); } }); return;
+      _preguntarAntes({ icon:'⚠️', title:'Insufficient Stock', message:'Only ' + s2.availableQty + ' units available,\ntrying to remove ' + qty + '.\n\nProceed anyway?', confirmText:'Proceed' });
     }
   }
 
@@ -12809,6 +12839,13 @@ async function submitMovement(){
       .processMovement('addMovement', _h(payload));
   }
 
+  
+
+  if (_avisoPendiente){
+    _avisoPendiente.onConfirm = function(){ _doSubmit(false); };
+    _showConfirm(_avisoPendiente);
+    return;
+  }
   _doSubmit(false);
  } catch (e) {
   
@@ -29924,6 +29961,17 @@ var LEGAL_DOCS = {
 
 
 var NOVEDADES = [
+  { ver: '12.94',
+    titulo: 'Saying \u201cyes\u201d to a warning now saves',
+    puntos: [
+      'Returning more of something than ever went out warned you correctly \u2014 and then <b>pressing \u201cSave anyway\u201d crashed</b>, so the movement could not be saved at all.',
+      '<b>It was not one warning, it was five</b>: too much stock on a multi-location entry, a transfer row over stock, a return with no rack, a return of more than went out, and waste with not enough stock.',
+      'All five asked the question <b>before the movement was ready to be sent</b>, so answering yes had nothing to send. They note the question now, and one place decides between asking and saving once everything is ready.',
+      'That also fixes something nobody had noticed: a soft \u201care you sure?\u201d used to cut the path short, so the real checks below it never ran. <b>A genuine error beats a warning now.</b>'
+    ],
+    antes:  'Five warnings where pressing Yes crashed',
+    ahora:  'Yes means save' },
+
   { ver: '12.93',
     titulo: 'Merging duplicate names works, and the error log keeps up',
     puntos: [
@@ -29959,17 +30007,6 @@ var NOVEDADES = [
     ],
     antes:  'A button promising 1,052 rows and saving 500',
     ahora:  'Every row in, counted before and after, and undoable' },
-
-  { ver: '12.90',
-    titulo: 'A return stops asking what the record already knows',
-    puntos: [
-      'Returning material asked you twice where it came from \u2014 the site and the project \u2014 even when there was only one possible answer.',
-      '<b>Out in exactly one place?</b> Both are filled in for you, with the unit, the project manager and a suggested quantity. Nothing to answer, so nothing is asked.',
-      '<b>Out in two or more?</b> That is a real question: you get the list of those places to pick from. <b>No record of it leaving?</b> The boxes stay empty for you. And anything you typed is never overwritten.',
-      'The Pro notice now lasts <b>7 seconds</b>. Hovering keeps it; moving away leaves it 2.5 more.'
-    ],
-    antes:  'Two boxes asking where it came from, with one possible answer',
-    ahora:  'Filled in, unless there is really something to choose' },
 
 ];
 
