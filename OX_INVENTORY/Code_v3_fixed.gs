@@ -128,7 +128,7 @@
 
 
 
-var APP_VERSION = '12.94';
+var APP_VERSION = '13.1';
 
 
 
@@ -140,7 +140,7 @@ var APP_VERSION = '12.94';
 
 
 
-var APP_BUILD = 'b18721b3';
+var APP_BUILD = '46ddab23';
 
 
 
@@ -473,14 +473,43 @@ var AC = {
   
   
   
-  ORIGIN_PROJECT:23, FROM_MOV:24
+  ORIGIN_PROJECT:23, FROM_MOV:24,
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  IMPORT_ID:25
 };
 
 
 
 
 
-var AC_WIDTH = 25;
+var AC_WIDTH = 26;
 
 
 
@@ -814,7 +843,7 @@ function ensureCoreSheets_(ss) {
         'System Date','Type','Name','GC','PO#','Qty','Unit','Date Received','Source Location',
         'Supplier','Comments','Status','Received By','Project','Mat ID','Doc Links','User Email',
         'Destination Location','MoveType','PM','Unit Cost','Total Cost','Movement ID',
-        'Left Over From','From Movement'] },
+        'Left Over From','From Movement','Import ID'] },
     { name: SHEETS.CONFIG, header: [
         'Projects','Categories','Suppliers','Locations','Location Type','User Email','User Role',
         'Admin Email','Truck','Truck Person','Truck Status','Min Stock Material','Min Stock Qty',
@@ -1849,7 +1878,28 @@ function oauthCfg_() {
 
 
 
-var GEMINI_MODEL_DEFAULT = 'gemini-2.5-flash';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var GEMINI_MODEL_DEFAULT = 'gemini-3.8-flash';
 
 function geminiModel_() {
   return String(PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || '').trim()
@@ -1861,7 +1911,14 @@ function geminiModel_() {
 
 function geminiModels_() {
   var out = [geminiModel_()];
-  ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'].forEach(function (m) {
+  [
+    
+    'gemini-3.8-flash', 'gemini-flash-latest',
+    
+    
+    
+    'gemini-2.5-flash', 'gemini-2.5-flash-lite'
+  ].forEach(function (m) {
     if (out.indexOf(m) === -1) out.push(m);
   });
   return out;
@@ -1959,18 +2016,32 @@ function setAiKey(data, auth) {
   
   
   
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   var probe;
   try {
     probe = geminiFetch_({
       contents: [{ parts: [{ text: 'Reply with the single word: ok' }] }],
       generationConfig: { maxOutputTokens: 5 }
-    }, key, true);
+    }, key);
   } catch (e) {
     throw new Error('Could not reach Google to check the key: ' + e.message);
   }
@@ -2036,8 +2107,12 @@ function setAiKey(data, auth) {
 
 
 
-function geminiFetch_(requestBody, apiKey, unSoloModelo) {
-  var models = unSoloModelo ? [geminiModel_()] : geminiModels_();
+
+
+
+
+function geminiFetch_(requestBody, apiKey) {
+  var models = geminiModels_();
   var last = null;
   for (var i = 0; i < models.length; i++) {
     last = UrlFetchApp.fetch(geminiUrl_(models[i], apiKey), {
@@ -2161,6 +2236,15 @@ function emailFromIdToken_(idToken) {
 
 
 
+
+
+
+function escapeHtmlSrv_(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function handleOAuthCallback_(code, state) {
   var ok = false, msg = '';
   try {
@@ -2189,7 +2273,12 @@ function handleOAuthCallback_(code, state) {
       '<script>setTimeout(function(){try{window.close();}catch(e){}},800);<\/script>'
     : '<div style="font-family:system-ui,sans-serif;text-align:center;padding:2.5rem 1rem;color:#b91c1c">' +
       '<div style="font-size:3rem">⚠</div><h2 style="margin:.5rem 0">Could not sign in</h2>' +
-      '<p style="color:#555">' + msg + '</p><p>Close this window and try again.</p></div>';
+      
+
+
+
+
+      '<p style="color:#555">' + escapeHtmlSrv_(msg) + '</p><p>Close this window and try again.</p></div>';
   return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -5044,6 +5133,17 @@ function addMovementsBatch_(ss, archive, movements, auth, opciones) {
         row[AC.FROM_MOV]       = '';
       }
 
+      
+
+
+
+
+
+
+
+
+      row[AC.IMPORT_ID] = String(d.importId || '').trim();
+
       newRows.push(row);
       rowMeta.push({
         mt: mt, name: name, matId: matId, proj: proj, qty: qty, unit: row[AC.UNIT],
@@ -6026,6 +6126,83 @@ function packMath_(packCount, perPack, pricePerPack) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function alinearPapelera_(sheet) {
+  if (!sheet) return sheet;
+  try {
+    var ancho = sheet.getMaxColumns();
+    if (ancho < 1) return sheet;
+    var cab = sheet.getRange(1, 1, 1, ancho).getValues()[0];
+    var pos = -1;
+    for (var i = 0; i < cab.length; i++) {
+      if (String(cab[i] || '').trim() === 'Deleted At') { pos = i; break; }
+    }
+    if (pos === -1) return sheet;         
+    if (pos === TR.DELETED_AT) return sheet;    
+
+    if (pos > TR.DELETED_AT) {
+      
+      
+      Logger.log('alinearPapelera_: "Deleted At" en ' + pos + ', el modelo espera ' +
+                 TR.DELETED_AT + '. No se toca.');
+      return sheet;
+    }
+
+    
+    
+    sheet.insertColumnsBefore(pos + 1, TR.DELETED_AT - pos);
+  } catch (e) {
+    
+    
+    Logger.log('alinearPapelera_: ' + (e && e.message));
+  }
+  return sheet;
+}
+
 function ensureTrashSheet_(ss) {
   var sheet = ss.getSheetByName(SHEETS.TRASH);
   if (!sheet) {
@@ -6039,6 +6216,10 @@ function ensureTrashSheet_(ss) {
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
   }
+  
+  
+  
+  alinearPapelera_(sheet);
   ensureArchiveWidth_(sheet);
   if (sheet.getMaxColumns() < TRASH_WIDTH) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), TRASH_WIDTH - sheet.getMaxColumns());
@@ -6080,7 +6261,10 @@ function findMovementById_(ss, movId) {
 function findTrashedById_(ss, movId) {
   var want = String(movId || '').trim();
   if (!want) return null;
-  var sheet = ss.getSheetByName(SHEETS.TRASH);
+  
+  
+  
+  var sheet = alinearPapelera_(ss.getSheetByName(SHEETS.TRASH));
   if (!sheet) return null;
   var last = sheet.getLastRow();
   if (last < 2) return null;
@@ -9617,6 +9801,39 @@ function chooseImportSheet_(sheets, wanted) {
 
 var MAX_ATTACH_BYTES = 25 * 1024 * 1024;    
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function numeroDeFichero_(v) {
+  var t = String(v == null ? '' : v).trim();
+  if (!t) return NaN;
+  
+
+
+
+  if (/^-?\d{1,3}([,\u00A0\u202F\u2009' ]\d{3})+(\.\d+)?$/.test(t)) {
+    t = t.replace(/[,\u00A0\u202F\u2009' ]/g, '');
+  }
+  return Number(t);
+}
+
 var IMPORT_REQUIRED_HEADERS = ['category', 'name', 'qty'];
 var IMPORT_ALL_HEADERS      = ['category', 'name', 'qty', 'unit', 'location', 'project', 'supplier', 'po', 'comments'];
 
@@ -9634,6 +9851,25 @@ function leerFilasDelFichero_(data) {
   var isExcel  = /\.xlsx?$/i.test(fileName);
   if (!isExcel && !/\.csv$/i.test(fileName)) {
     throw new Error('Please upload a .csv or .xlsx file.');
+  }
+  
+
+
+
+
+
+
+
+
+
+  if (isExcel && basicApagado_()) {
+    throw new Error(
+      'Acopio Basic reads .csv files. Open your Excel file and use ' +
+      'File \u2192 Download \u2192 Comma-separated values (.csv) \u2014 in Excel, ' +
+      'Save As \u2192 CSV \u2014 and bring that one; everything else works the same. ' +
+      'Reading .xlsx directly needs a Google permission this edition does not ask ' +
+      'for, which is what lets it install without the warning screen. ' +
+      'Acopio Pro reads .xlsx straight.');
   }
 
   var text;
@@ -9713,7 +9949,7 @@ function leerFilasDelFichero_(data) {
       rowNum:   i + 1,
       category: String(r[col.category] || '').trim(),
       name:     String(r[col.name]     || '').trim(),
-      qty:      Number(r[col.qty]),
+      qty:      numeroDeFichero_(r[col.qty]),
       unit:     col.unit     !== -1 ? (String(r[col.unit]     || '').trim() || 'UNIT') : 'UNIT',
       location: col.location !== -1 ?  String(r[col.location] || '').trim() : '',
       project:  col.project  !== -1 ?  String(r[col.project]  || '').trim() : '',
@@ -9975,6 +10211,13 @@ function commitImport(data, auth) {
       po:          r.po || '',
       comments:    ('Imported from file ' + importId +
                     (r.comments ? ' — ' + r.comments : '')).trim(),
+      
+
+
+
+
+
+      importId:    importId,
       
       
       responsible: '',
@@ -10262,17 +10505,40 @@ function borrarFilasEnTanda_(ss, auth, seLleva, tope) {
 
 var MAX_BORRADO_POR_TANDA = 300;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function esDeLaImportacion_(fila, importId) {
+  var id = String(importId || '').trim();
+  if (!id || !fila) return false;
+  if (String(fila[AC.IMPORT_ID] || '').trim() === id) return true;
+  
+  return String(fila[AC.COMMENTS] || '').indexOf('Imported from file ' + id) === 0;
+}
+
 function undoImport(data, auth) {
   auth = requireAuth_('ADMIN');
   var importId = String((data && data.importId) || '').trim();
   if (!importId) throw new Error('Which import?');
 
   return withStockLock_(function () {
-    var ss    = SpreadsheetApp.getActiveSpreadsheet();
-    var marca = 'Imported from file ' + importId;
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     var res = borrarFilasEnTanda_(ss, auth, function (f) {
-      return String(f[AC.COMMENTS] || '').indexOf(marca) === 0;
+      return esDeLaImportacion_(f, importId);
     }, MAX_BORRADO_POR_TANDA);
 
     if (!res.movidas) {
@@ -10750,7 +11016,28 @@ var _KNOWN_VALIDATION_PREFIXES = [
   
   
   'RESERVED', 'No reservations exist',
-  'WASTE movements require'
+  'WASTE movements require',
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  'SYSTEM_BUSY'
 ];
 
 
@@ -11340,13 +11627,28 @@ var LEGAL_SHEET_TEXT = {
   terms: [
     ["title","Terms of Service — Acopio"],
     ["p",""],
-    ["p","Last updated: 27 August 2026"],
+    ["p","Last updated: 24 October 2026"],
     ["p",""],
     ["p","These terms govern your use of Acopio, warehouse-management software provided by Jose Castro (\"we\", \"us\"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so."],
     ["p",""],
+    ["head","The two editions, and which parts of this apply to you"],
+    ["p",""],
+    ["p","Acopio comes in two editions, and several clauses below only make sense for one of them."],
+    ["p",""],
+    ["li","•   Acopio Basic is free: no fee, no subscription, no expiry, not a trial."],
+    ["li","•   Acopio Pro is the paid edition: a one-off setup fee and a subscription."],
+    ["p",""],
+    ["p","Acopio Basic you install yourself. Because nothing is paid, nothing in section 9 (payment, cancellation and refunds) applies to it, and the response time in section 5 is not promised for it — write to us and we will look, but a free edition carries no support commitment."],
+    ["p",""],
+    ["p","Acopio Pro is covered by everything in this document."],
+    ["p",""],
+    ["p","Two things are identical in both, and they are the ones that matter most: your data is yours and stays in your own Google account (section 3), and we are not a hosted service you depend on (section 1). Stopping paying, or never paying at all, does not take your system away from you."],
+    ["p",""],
+    ["p","Features that are only in Pro are visible in the free edition and say so when you touch them; they are not a defect of your installation. Which features belong to which edition is listed at www.acopio.net (https://www.acopio.net/#pro) and may change as the software changes; what you have already been given in your edition is not taken away."],
+    ["p",""],
     ["head","1. What you are buying"],
     ["p",""],
-    ["p","A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus updates and support for as long as your licence is active."],
+    ["p","A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus — in Pro — updates and support for as long as your licence is active."],
     ["p",""],
     ["p","You are not buying a hosted service. Acopio runs in your Google account, on your data, under your control. We do not operate a server your business depends on — which is why there is no uptime commitment below, and why there also is no one who can take your data away from you."],
     ["p",""],
@@ -11445,7 +11747,9 @@ var LEGAL_SHEET_TEXT = {
     ["p",""],
     ["head","8. Backups"],
     ["p",""],
-    ["p","Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on."],
+    ["p","In Pro, Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on."],
+    ["p",""],
+    ["p","In Basic there is no automatic backup at all. The free edition is installed with a single, non-sensitive Google permission, and scheduling a nightly task needs another one. Copies in Basic are made by you, by hand, with File → Make a copy. Everything in the paragraph below applies to those with at least as much force."],
     ["p",""],
     ["p","It is a convenience, not a guarantee. It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility."],
     ["p",""],
@@ -15168,7 +15472,8 @@ function manageMaterialLocked_(data, auth) {
     return { status: 'success', removed: n };
 
   } else if (op === 'listTrash') {
-    var tSheet = ss.getSheetByName(SHEETS.TRASH);
+    
+    var tSheet = alinearPapelera_(ss.getSheetByName(SHEETS.TRASH));
     if (!tSheet || tSheet.getLastRow() < 2) return { status: 'success', items: [] };
     var tLast  = tSheet.getLastRow();
     var span   = Math.min(200, tLast - 1);           
@@ -16365,8 +16670,26 @@ function modifyMovementLocked_(data, auth) {
     normalizeString(rowVals[AC.NAME]     || ''));
 
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  var idEditado = String(rowVals[AC.MOV_ID] || '').trim();
   auditLog_(ss, 'MODIFY_MOVEMENT', auth.email,
-    'Row ' + rowIdx + ' | Reason: ' + reason,
+    (idEditado ? idEditado + ' (row ' + rowIdx + ')' : 'Row ' + rowIdx) + ' | Reason: ' + reason,
     changes.join(' | '), '');
 
   

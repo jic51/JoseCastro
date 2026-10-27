@@ -10,7 +10,39 @@
 > **«El estado de Acopio» y `ESTADO.md` son lo mismo**: este fichero. Es el
 > único sitio donde mirar cómo vamos.
 
-**Última actualización:** 23/10/2026 · **versión v12.94** · build `b18721b3`
+**Última actualización:** 26/10/2026 · **versión v12.98** · build `216da04c`
+· páginas publicadas en www.acopio.net el 24/10 (`landing/.publicado`)
+
+> ### ⚠️ LA v12.98 HAY QUE PEGARLA — Y AHORA SÍ DESBLOQUEA LAS CUATRO
+> **Me equivoqué el 26/10**: te dije que la papelera ya se podía probar en
+> Básico y no era verdad. Vive dentro de Ajustes → Sistema, y esa pestaña
+> seguía con candado **entera**. La v12.97 arregló que no se quedara gris al
+> salir, pero Sistema en sí seguía cerrado.
+>
+> La **v12.98** lo arregla de verdad, y con el grano correcto: Sistema ya no se
+> apaga entera, se apaga **sección a sección**. Siguen cerrados el respaldo, el
+> archivado, el reporte de la tarde y el lector de documentos. Están abiertos
+> **la papelera**, el espacio usado y lo que el sistema hizo solo.
+>
+> Y trae **Import en Básico**, que decidiste el 26/10. Con esta versión pegada,
+> las cuatro que no podías probar —importar, borrar en tanda, fusionar y la
+> papelera— son verificables en la copia gratis.
+>
+> Y lo de la v12.96 sigue valiendo:
+> Casi todo lo de esta entrega son las páginas y los documentos, que ya están
+> publicados. **Dos cosas están dentro de la app**: los Términos que el cliente
+> acepta —que viven en su propia hoja, no sólo en la web— y el ancla del enlace
+> de los candados.
+>
+> Mientras no la pegues, la ventana de Términos **de la app** sigue diciendo lo
+> de antes.
+>
+> **Y la pestaña de Términos de la HOJA no se arregla pegando.** Jose lo vio el
+> 25/10 con dos capturas: la ventana de la app ya trae el texto nuevo y la
+> pestaña de la hoja no. No es que falte pegar — **esa pestaña se escribe una
+> vez, al instalar, y no se vuelve a tocar nunca**. Es un fallo aparte, con su
+> causa y su trampa (reconstruirla le cambia el `gid` y rompe los dos enlaces de
+> la casilla de consentimiento) escritas en `docs/BACKLOG.md`. Decides tú.
 
 ---
 
@@ -19,16 +51,31 @@
 Esta es la lista corta, y es la que importa. Todo lo demás de este documento es
 contexto.
 
+> **Corregido el 24/10, porque la tabla estaba mintiendo.** Jose: *"¿ya
+> habíamos hablado de esto y ya decidí o no? Dime si me equivoco en algo."* No
+> se equivocaba: cuatro de las ocho filas pedían algo que él ya había
+> contestado, y una le atribuía a él un trabajo que era mío. Una lista de
+> pendientes con cosas ya hechas dentro no es una lista, es ruido — y la parte
+> que sí hace falta se pierde entre lo que sobra. Lo decidido está ahora abajo,
+> en «Ya decidido», para que se vea que se movió y no que se perdió.
+
 | # | Qué | Por qué está parado | Cuánto cuesta |
 |---|---|---|---|
-| 1 | **La lista de verificación de abajo** | Hay diez versiones de cambios y ninguno está confirmado por ti | 30 min, con la app abierta |
-| 2 | ~~Que alguien de fuera instale la Básica~~ | ✅ **HECHO el 21/10** — alguien de fuera instaló con los dos enlaces y funcionaron. En computadora | — |
-| 3 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing | una mañana |
-| 4 | **Decidir el precio de la Básica en la página** | El precio de Pro ya está decidido; la columna de la gratis no | 10 min de decisión |
-| 5 | **Una forma de agendar una llamada** | Hoy el camino muere en un correo | 20 min de configuración |
-| 6 | **¿Las filas importadas sin ubicación van a `RECEIVING`?** | Hoy caen en `UNASSIGNED`, que es una palabra del programa | 2 min de decisión |
-| 7 | **La casilla «todos» de Movements** | Tres opciones, y la que tú propusiste no es la que yo construiría | 2 min de decisión |
-| 8 | **¿Destildar filas al importar, en vez de «subir uno por uno»?** | Da el mismo control sin una pantalla nueva | 1 min de decisión |
+| 1 | **La lista de verificación de PRO** (la de abajo) | Básico lo repasaste entero el 23/10 y me contaste todo. De Pro dijiste *"aún estoy esperando para hacerlo"* | 20 min, con la copia Pro abierta |
+| 2 | **El enlace de tu Google Calendar** | No es una decisión: necesito el enlace público de «reservar una cita» para ponerlo en la página. Ver abajo cómo se saca | 5 min |
+| 3 | **Cómo quieres que te contacten** | Dijiste *"no quiero publicar mi número de WhatsApp, quiero sólo un link"*. Tengo tres formas y **ninguna es un `wa.me`**: ése ES tu número en claro | 2 min de decisión |
+| 4 | **Grabar V1, el vídeo del cronómetro** | Es el hueco más caro de la landing. Y el cómo poner el cronómetro ya está escrito: `docs/CAPTURAS-PARA-LA-LANDING.md`, «Cómo se pone el cronómetro» | una mañana |
+| 5 | **La política para empresas grandes** | Está escrita entera en `docs/PRECIOS-Y-COMPETENCIA.md` con el número delante: **1 hora de soporte al mes, $75 la extra**. Falta que digas sí o no, porque va a los **Términos**, que es lo que el cliente firma | 10 min de lectura |
+| 6 | **Leer lo de importar y `RECEIVING`** | Pediste ideas antes de decidir: *"no quiero decidir algo sin que me des ideas sobre esto o me digas qué es lo que mejor va a funcionar"*. La propuesta entera está en `docs/BACKLOG.md` | 10 min de lectura |
+
+### ✅ Ya decidido — fuera de la lista de arriba
+
+| Qué | Qué decidiste | Dónde quedó |
+|---|---|---|
+| ~~Que alguien de fuera instale la Básica~~ | **Hecho el 21/10** — instaló con los dos enlaces, en computadora | — |
+| ~~El precio de la Básica~~ | **Gratis, $0.** *"Ya habíamos decidido que la básica es gratis"* | Ya está en la página: `landing/acopio.html`, sección de precio |
+| ~~La casilla «todos» de Movements~~ | **No se toca.** *"Ya te dije arriba, no haremos esto"* | Anotado en `BACKLOG.md` para revisarlo algún día, no ahora |
+| ~~Agendar una llamada~~ | **Google Calendar + un enlace de contacto.** Ya no es una decisión, es el enlace (fila 2 de arriba) | — |
 
 ---
 
@@ -52,10 +99,24 @@ del Dashboard ya no se mueven al cambiar de filtro.
 
 ### 🟦 ACOPIO **BÁSICO** — lo que falta mirar
 
+> Jose, 24/10: *"ya revisé todo, y te hablé de todas las cosas, lo que no hice
+> fueron los de PRO."* Lo que queda abajo **no contradice eso**: son las cosas
+> que se publicaron *después* de tu repaso (la v12.94 y la v12.95 salieron el
+> 24/10) o que dependen de un dato que sólo se ve con el fichero delante, como
+> que el número del botón y el del final coincidan. Si alguna ya la miraste y
+> estaba bien, dímelo y se va de aquí.
+
 | ✓ | Qué | Dónde |
 |---|---|---|
+| ☑ | ~~**Ajustes ya no se queda muerto** (v12.97)~~ | ✅ **confirmado por ti el 26/10**, en vídeo: sales de Sistema y el Error Log, Materials y Name & Logo se ven y se tocan |
+| ☑ | ~~**La gratis ya no enseña lo que no lleva** (v12.97)~~ | ✅ **confirmado**: Permissions, Directory e Import ya no están en la barra lateral |
+| ☑ | ~~El candado lleva a la lista de Pro~~ | ✅ **lo confirmaste el 25/10**: *"sí funciona así"* |
+| ☐ | **Los Términos de la app** (v12.96) | Menú de la cuenta → Términos: arriba del todo, el apartado de las dos ediciones, con fecha **24 October 2026**. ⚠️ **La pestaña de la HOJA no se actualiza** — es un fallo aparte, ver `BACKLOG.md` |
+| ☐ | **Una obra no se ofrece como estantería** (v12.95 — el concepto que encontraste) | Return → en «Came back from» escribe una obra → **no** debe salir *«is not a location in your warehouse yet · + Create»*, y **no** debe pedirte la obra otra vez abajo |
 | ☐ | **Decir «sí» en un aviso guarda** (v12.94 — el fallo que encontraste) | Return → algo con 49 fuera → escribe 60 → Save anyway. Tiene que **guardar**, no dar error |
 | ☐ | **Borrar muchos tarda segundos y se puede parar** (v12.92) | Marca unos cientos → Delete. Botón **Stop** a mitad: debe decir *«Stopped — X of Y deleted»* |
+| ☐ | **Import en Básico** (v12.98 — tu decisión del 26/10) | Ajustes → **Import** tiene que estar. Sube un **.csv** y debe funcionar entero. Prueba a elegir un **.xlsx**: tiene que salir la oferta de Pro **antes** de subirlo, no un error después |
+| ☐ | **La papelera en Básico** (v12.98) | Borra un movimiento → Ajustes → **Sistema** → la papelera se ve y **devuelve** el movimiento. El respaldo y el reporte de la tarde en esa misma pestaña siguen en gris, cada uno con su propio mensaje |
 | ☐ | **Importar no pierde filas** (v12.91) | Un fichero de más de 500 filas: el botón y el final tienen que decir **el mismo número**, con *«matches the file»* |
 | ☐ | **El mismo fichero dos veces avisa** (v12.91) | Súbelo otra vez: recuadro rojo arriba, y el botón **sigue ahí** |
 | ☐ | **Deshacer una importación** (v12.91) | Ajustes → Import → **↩ Undo this import** |
@@ -64,11 +125,23 @@ del Dashboard ya no se mueven al cambiar de filtro.
 | ☐ | **El candado del correo** (v12.91) | «Send notification email» → el mensaje habla de **avisar**, no de *leer* un correo |
 | ☐ | **La ✕ dentro de la ventana de movimiento** | Abre Entry y escribe en un campo: la ✕ va **dentro** de la caja |
 | ☐ | **Vaciar la búsqueda con la ✕ relanza la búsqueda** | Movements: escribe, filtra, pulsa ✕ → la tabla se repuebla |
-| ☐ | **La papelera después de borrar** | Ajustes → Sistema → lo borrado está ahí para devolverlo |
 
-**Y tres que YA SABEMOS que están mal en Básico** (anotadas, no hace falta que
-las mires otra vez): 🏷 Labels sale a color en vez de gris · la pregunta de
-«¿también llegó esto?» no debería salir · no aparece ni una tarjeta en el mazo.
+
+**Y CUATRO que YA SABEMOS que están mal en Básico** (anotadas, no hace falta
+que las mires otra vez): 🏷 Labels sale a color en vez de gris · la pregunta de
+«¿también llegó esto?» no debería salir · no aparece ni una tarjeta en el mazo ·
+**«Choose image» del logo** (nuevo, 26/10).
+
+> **25/10 — las dos primeras ya tienen causa, y son la misma.** El CSS del
+> candado está bien (medido: gris y con su 🔒). Lo que pasa es que **la clase no
+> llega**: el candado recorre una lista de `id` escrita a mano, una sola vez, y
+> hay **tres** controles de etiquetas en la app — el de Movements está en la
+> lista, y los otros dos **se crean al vuelo** (el botón «🏷 Print labels» del
+> aviso de «Saved ✓», y el de Ajustes → Locations), así que ninguna lista de
+> `id` recorrida al arrancar puede alcanzarlos. La pregunta de «¿también llegó
+> esto?» está en **ese mismo camino**. Detalle y las dos formas de arreglarlo:
+> `docs/BACKLOG.md`, «POR QUÉ 🏷 LABELS SALE A COLOR». Toca la app, así que
+> decides tú si va con la tercera en una sola versión.
 
 ---
 
@@ -96,7 +169,8 @@ las mires otra vez): 🏷 Labels sale a color en vez de gris · la pregunta de
 |---|---|
 | **Ajustes → Sistema en Básico** | Dijiste que mandabas un vídeo y no llegó |
 | **«El menú se apaga»** | ¿Cuál menú? El de arriba, el de la cuenta, o el de la hoja |
-| **La app tarda en abrir** | Un vídeo con la v12.94 ya pegada, para medir con lo de ahora y no con lo de antes |
+| **El toast mal alineado y el salto del logo** | Los dos anotados el 26/10 en `BACKLOG.md`; toca la app y decides tú cuándo |
+| **La app tarda en abrir** | Un vídeo con la **v12.97** ya pegada, para medir con lo de ahora y no con lo de antes. Y antes de grabarlo te paso la sugerencia, que la pediste así: *"no arregles nada antes de decirme la sugerencia... y déjame decidir"* |
 
 ---
 
@@ -149,6 +223,26 @@ misma línea** que en el repositorio.
 ---
 
 ## ✅ LO QUE ACABAMOS DE HACER — y qué hay que mirar de cada cosa
+
+### v12.95 · Una obra no es una estantería · **SIN VERIFICAR**
+
+Tu hallazgo de concepto. **Qué probar:**
+
+1. **Return → escribe una obra** en «Came back from»: **no** debe salir
+   *«is not a location in your warehouse»* ni el botón de crearla.
+2. **Hay un solo campo**, no dos: «From» y «Came back from» eran la misma
+   pregunta.
+3. **La lista que ofrece** son los sitios a donde ha salido material y tus
+   obras — **ningún estante**.
+4. **El estante de vuelta (Return to Rack) SÍ sigue avisando** si no existe.
+5. **Entry / Exit / Transfer**: «Source Rack» sigue ofreciendo estantes y
+   avisando. Eso no cambió.
+6. **El Error Log**: los «System busy» ya salen en amarillo (WARN), no en rojo.
+
+### v12.94 · Decir «sí» en un aviso ahora guarda · **SIN VERIFICAR**
+
+7. **Return → devuelve más de lo que salió → Save anyway**: tiene que
+   **guardar**. Era el error que encontraste.
 
 ### v12.93 · Unir nombres funciona, y el Error Log se entera · **SIN VERIFICAR**
 
@@ -382,10 +476,11 @@ con el enlace → Lector*.
 |---|---|
 | Página y textos | ✅ publicada, en dos idiomas |
 | Imagen para compartir | ✅ se genera con un comando |
-| **Vídeos e imágenes** | ❌ **ninguno existe** — las cuatro guías están en `CAPTURAS-PARA-LA-LANDING.md` |
-| **Precios a la vista** | ❌ decididos en `PRECIOS-Y-COMPETENCIA.md`, no publicados |
-| **Sección de Pro** | ❌ el candado de la app apunta a la raíz porque no hay dónde apuntar |
-| **Agendar una llamada** | ❌ hoy muere en un correo |
+| **Las dos ediciones** | ✅ **24/10** — el precio abre con «Acopio Basic — free / $0», y la lista de funciones está partida en dos con un encabezado por edición. Antes la página vendía UNA cosa llamada «Acopio» y prometía a la gratis cuatro funciones que están cerradas en ella |
+| **Precios a la vista** | ✅ **24/10** — los tres están en la página: $0, $500 de instalación y $49/mes |
+| **Sección de Pro** | ⚠️ **el ancla ya existe** (`#pro`, encima de «Acopio Pro adds»). Falta UNA línea en la app: `_proUrl` sigue mandando a la raíz. Viaja con la próxima versión |
+| **Vídeos e imágenes** | ❌ **ninguno existe** — las cuatro guías están en `CAPTURAS-PARA-LA-LANDING.md`, y el cómo poner el cronómetro ya está escrito ahí |
+| **Agendar una llamada** | ⚠️ decidido (Google Calendar + un enlace de contacto). Falta **el enlace**, que sólo lo tienes tú |
 | Testimonios | ⏸ **a propósito vacío** hasta que haya clientes de verdad |
 
 ---
@@ -424,18 +519,23 @@ Para no perder de vista el tamaño de lo que ya hay.
 - Backup automático cada noche, y archivado de lo viejo
 - Informe diario por correo
 - Informe de calidad de datos, con reparaciones
-- **171 comprobaciones automáticas**, todas en verde
+- **178 pruebas automáticas**, todas en verde (177 vigilando; `test-scale.js`
+  es una cinta métrica, no un guardia)
 
 ---
 
 ## 📋 LO SIGUIENTE, EN ORDEN
 
-1. **La lista de verificación** (30 min, tú) — diez versiones de cambios sin confirmar
-2. **Terminar la tarjeta de ajuste** (yo, ~1 versión)
-3. **Precios y sección de Pro en la página** (medio día, yo; la decisión, tú)
-4. **Agendar llamadas** (20 min, tú)
-5. **Grabar V1, el cronómetro** (una mañana, tú)
-6. **Que alguien de fuera instale la Básica** (20 min, tú y otra persona)
+1. **La lista de verificación de PRO** (20 min, tú) — Básico ya lo repasaste
+2. **Importar de verdad**: ventana propia, ubicaciones internas antes de
+   escribir, por tandas, y «importa 20 de prueba» (yo, ~2 versiones; la
+   propuesta está en `BACKLOG.md` y pediste leerla antes de decidir)
+3. **Que lo borrado desaparezca al instante en toda la app** (yo, ~1 versión) —
+   es lo que ya pasa al borrar un movimiento, aplicado a los otros seis sitios
+4. **Terminar la tarjeta de ajuste** (yo, ~1 versión)
+5. **El enlace de Google Calendar y el de contacto** (5 min, tú) — decidido,
+   falta el enlace
+6. **Grabar V1, el cronómetro** (una mañana, tú)
 7. **Incoming: crear varios a la vez**, y que aceptar uno SEA la entrada (yo;
    lo segundo necesita que decidas lo de las llegadas parciales)
 8. Las mejoras visuales de la siguiente versión: bloque de marca, pestañas

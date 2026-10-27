@@ -2116,11 +2116,24 @@
 
 
 
+    
+
+
+
+
     #tableContainer td.mc-qty .qpair{
       display:grid;grid-template-columns:46px 48px;gap:5px;align-items:baseline}
     #tableContainer td.mc-qty .qv{
       text-align:right;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
-    #tableContainer td.mc-qty .qv.qty-lg{font-size:var(--fs-base)}
+    
+
+
+
+
+
+
+
+    #tableContainer td.mc-qty .qv.qty-lg{font-size:var(--fs-sm)}
     #tableContainer td.mc-qty .qu{
       text-align:left;color:var(--muted);font-size:var(--fs-md);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -5329,6 +5342,10 @@
       <div class="field" id="mSrcField" style="display:none">
         <label id="mSrcLabel">Source Rack</label>
         <input type="text" id="mSrc" list="rackList" placeholder="e.g. A1A">
+        
+
+
+        <datalist id="fueraSitioList"></datalist>
         <datalist id="rackList"></datalist>
         
 
@@ -5836,7 +5853,7 @@ var _MOV_PAGE_SZ = 75;
 var chartsReady = false;
 
 
-var APP_VERSION = '12.94';
+var APP_VERSION = '13.1';
 
 
 
@@ -5848,7 +5865,7 @@ var APP_VERSION = '12.94';
 
 
 
-var APP_BUILD = 'b18721b3';
+var APP_BUILD = '46ddab23';
 var userRole = 'WAREHOUSE';
 
 
@@ -9557,7 +9574,7 @@ function renderMovements(){
         var txt = (isOut ? '−' : '+') + m.qty;
         var uni = String(m.unit || '—');
         return '<td class="mc-qty"><span class="qpair">' +
-          '<span class="qv' + (txt.length > 5 ? ' qty-lg' : '') + '" style="color:' +
+          '<span class="qv' + (txt.length >= 5 ? ' qty-lg' : '') + '" style="color:' +
             (isOut ? 'var(--red)' : 'var(--accent2)') + '">' + _he(txt) + '</span>' +
           '<span class="qu" title="' + _escAttr(uni) + '">' + _he(uni) + '</span>' +
         '</span></td>';
@@ -11297,7 +11314,22 @@ function setModalType(type){
 
 
 
-    srcLabel.textContent    = 'From (site or address)';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    srcLabel.textContent    = 'Came back from (site or project)';
+    _marcarSitioDeFuera(document.getElementById('mSrc'), true);
     destField.style.display = 'flex';
     destLabel.textContent   = 'Return to Rack';
     supField.style.display  = 'none';
@@ -11305,8 +11337,9 @@ function setModalType(type){
     poField.style.display   = 'none';
     projField.style.display = 'none';
     
-
-    _origProjMostrar(true, 'Came back from (project)');
+    
+    
+    _origProjMostrar(false);
     
 
 
@@ -11325,6 +11358,7 @@ function setModalType(type){
   } else if (type === 'WASTE'){
     srcField.style.display = 'flex';
     srcLabel.textContent = 'Source Rack (pull from)';
+    _marcarSitioDeFuera(document.getElementById('mSrc'), false);
     supField.style.display  = 'none';
     gcField.style.display   = 'none';
     poField.style.display   = 'none';
@@ -12387,6 +12421,46 @@ function _busyRetry(err, opts){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _origProjDeducido(){
+  var campo = document.getElementById('mOrigProj');
+  
+  var wrap = document.getElementById('mOrigProjField');
+  if (campo && wrap && wrap.style.display !== 'none') return campo.value || '';
+
+  if (currentMoveType !== 'RETURN') return '';
+  var dicho = String((document.getElementById('mSrc') || {}).value || '').trim();
+  if (!dicho) return '';
+  var clave = dicho.toUpperCase();
+  var obras = config.projects || [];
+  for (var i = 0; i < obras.length; i++){
+    if (String(obras[i] || '').trim().toUpperCase() === clave) return obras[i];
+  }
+  return '';
+}
+
 async function submitMovement(){
  try {
   if (currentMoveType === 'ENTRY') { submitMultiEntry(); return; }
@@ -12445,13 +12519,23 @@ async function submitMovement(){
 
 
 
+  
+
+
+
+
+
+
+
+
+
   if (currentMoveType === 'RETURN'){
-    var _op = ((document.getElementById('mOrigProj') || {}).value || '').trim();
+    var _op = ((document.getElementById('mSrc') || {}).value || '').trim();
     if (!_op){
-      alert('Which project is this coming back from?\n\n' +
+      alert('Where is this coming back from?\n\n' +
             'This is what lets the app tell you later what was left over from ' +
             'where, and where it ended up being used.');
-      var _opEl = document.getElementById('mOrigProj');
+      var _opEl = document.getElementById('mSrc');
       if (_opEl) _opEl.focus();
       return;
     }
@@ -12735,7 +12819,7 @@ async function submitMovement(){
 
 
 
-    originProject:    (document.getElementById('mOrigProj') || {}).value || '',
+    originProject:    _origProjDeducido(),
     fromMov:          _boneyardOrigenMov || '',
     supplier:         document.getElementById('mSup').value,
     comments:         comments,
@@ -14279,9 +14363,11 @@ function _fueraAplicar(i){
     }
   }
 
-  ponTexto('mSrc',      f.site);           
-  ponTexto('mOrigProj', f.project);        
-  ponTexto('mPM',       f.pm);
+  
+
+
+  ponTexto('mSrc', f.site);
+  ponTexto('mPM',  f.pm);
 
   
 
@@ -14801,13 +14887,42 @@ function openSettingsModal() {
 
 var SETTINGS_CATALOG_TABS = { categories:1, projects:1, suppliers:1, locations:1 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _settingsTabVisible(tab){
+  if (APP_BASIC && BASIC_FUERA.ajustes.indexOf(tab) !== -1) return false;
+  if (userRole === 'ADMIN') return true;
+  return !!SETTINGS_CATALOG_TABS[tab];
+}
+
 function _filterSettingsSidebar(){
-  var isAdmin = (userRole === 'ADMIN');
   var nav = document.querySelector('.settings-sidebar');
   if (!nav) return;
   nav.querySelectorAll('.settings-tab').forEach(function(btn){
-    var tab = btn.getAttribute('data-tab');
-    btn.style.display = (isAdmin || SETTINGS_CATALOG_TABS[tab]) ? '' : 'none';
+    btn.style.display = _settingsTabVisible(btn.getAttribute('data-tab')) ? '' : 'none';
   });
   
   
@@ -14822,7 +14937,11 @@ function _filterSettingsSidebar(){
   
   
   
-  if (!isAdmin && !SETTINGS_CATALOG_TABS[_settingsTab]) _settingsTab = 'categories';
+  
+
+
+
+  if (!_settingsTabVisible(_settingsTab)) _settingsTab = 'categories';
 }
 
 
@@ -15407,7 +15526,7 @@ function _renderSystemTab() {
                 'their own section below.') +
       '</label>' + actHtml +
     '</div>' +
-    '<div class="field" style="margin-bottom:1.25rem">' +
+    '<div class="field" id="sysArchivado" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Archive movements older than ' +
         _infoIc('Older movements stay accessible via "Load Older History" — this only moves them out of the main table for speed.') +
       '</label>' +
@@ -15419,7 +15538,7 @@ function _renderSystemTab() {
         '</select>' +
       '</div>' +
     '</div>' +
-    '<div class="field" style="margin-bottom:1.25rem">' +
+    '<div class="field" id="sysRespaldo" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Backups ' +
         _infoIc('A full copy of your system is made every night at 2am and kept for 30 days ' +
                 'in a folder in your own Drive. Old copies are deleted after that.\n\n' +
@@ -15428,7 +15547,7 @@ function _renderSystemTab() {
       '</label>' +
       '<div id="backupBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Checking…</div>' +
     '</div>' +
-    '<div class="field" style="margin-bottom:1.25rem">' +
+    '<div class="field" id="sysReporte" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Daily movement report ' +
         _infoIc('An email each evening listing what came into the warehouse and what left that day. ' +
                 'It is sent on quiet days too, saying there were no movements — so a quiet day never ' +
@@ -15442,7 +15561,7 @@ function _renderSystemTab() {
       '</label>' +
       '<div id="spaceBox" style="color:var(--muted);font-size:.78rem"><span class="spin-hg">⏳</span> Measuring…</div>' +
     '</div>' +
-    '<div class="field" style="margin-bottom:1.25rem">' +
+    '<div class="field" id="sysLector" style="margin-bottom:1.25rem">' +
       '<label style="display:flex;align-items:center;gap:.4rem">Document reader (AI) ' +
         _infoIc('Reads a pasted supplier email and pulls out what is arriving, how much and when. It runs on your own Google AI key — Google bills the usage to you, not to us.') +
       '</label>' +
@@ -15485,6 +15604,12 @@ function _renderSystemTab() {
   
   
   
+  
+
+
+
+  _basicApagarSecciones();
+
   _applySysActSpot();
 
   _loadBackupStatus();
@@ -16543,12 +16668,40 @@ function _renderImportTab() {
     '<div class="field">' +
       '<label>Bring in a file</label>' +
       '<p style="font-size:.8rem;color:var(--muted);margin:0 0 .75rem">' +
-        'Bulk-import an existing inventory from an Excel (.xlsx) or CSV file — useful for the first setup, or catching up after counting on paper. ' +
-        'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Multi-sheet workbooks: the right sheet is detected automatically, and you can switch sheets after loading.' +
+        (APP_BASIC
+          ? 'Bulk-import an existing inventory from a CSV file — useful for the first setup, or catching up after counting on paper. Every row becomes a real ENTRY movement, reviewed here before anything is saved.'
+          : 'Bulk-import an existing inventory from an Excel (.xlsx) or CSV file — useful for the first setup, or catching up after counting on paper. ' +
+        'Every row becomes a real ENTRY movement, reviewed here before anything is saved. Multi-sheet workbooks: the right sheet is detected automatically, and you can switch sheets after loading.') +
       '</p>' +
       '<div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">' +
         '<button class="btn btn-ghost btn-sm" onclick="_downloadImportTemplate()">⬇ Download CSV Template</button>' +
-        '<input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="font-size:.82rem">' +
+        
+
+
+
+
+
+        
+
+
+
+
+
+
+        '<input type="file" id="importFileInput" accept="' +
+          (APP_BASIC ? '.csv' : '.csv,.xlsx,.xls') + '" style="font-size:.82rem">' +
+        '<button type="button" id="importFileClear" class="btn btn-ghost btn-sm" ' +
+          'onclick="_limpiarFicheroImport()" title="Remove the selected file" ' +
+          'style="display:none;padding:.15rem .45rem">✕</button>' +
+        (APP_BASIC
+          ? '<p style="font-size:.78rem;color:var(--muted);margin:.5rem 0 0">' +
+              'Acopio Basic reads <b>.csv</b>. If what you have is an Excel file, open it and use ' +
+              '<b>File &rarr; Download &rarr; Comma-separated values (.csv)</b> &mdash; or, in Excel, ' +
+              '<b>Save As &rarr; CSV</b> &mdash; and bring that one. Reading .xlsx straight needs a ' +
+              'Google permission this edition does not ask for, which is what keeps it installable ' +
+              'in two minutes.' +
+            '</p>'
+          : '') +
       '</div>' +
     '</div>' +
     '<div class="field">' +
@@ -16582,10 +16735,45 @@ function _downloadImportTemplate() {
 
 var _importFileB64 = '', _importFileName = '', _importFileMime = '';
 
+
+
+
+
+
+function _limpiarFicheroImport(){
+  var inp = document.getElementById('importFileInput');
+  if (inp) inp.value = '';
+  var box = document.getElementById('importPreviewBox');
+  if (box) box.innerHTML = '';
+  var x = document.getElementById('importFileClear');
+  if (x) x.style.display = 'none';
+  _importFileB64 = ''; _importFileName = ''; _importFileMime = '';
+  _importParsedRows = []; _importValidTotal = 0; _importFingerprint = '';
+}
+
 function _onImportFileChange(e){
   var file = e.target.files[0];
-  if (!file) return;
+  if (!file) { _limpiarFicheroImport(); return; }
+  var x = document.getElementById('importFileClear');
+  if (x) x.style.display = '';
   var box = document.getElementById('importPreviewBox');
+  
+
+
+
+
+
+
+
+
+
+
+
+  if (APP_BASIC && /\.xlsx?$/i.test(file.name || '')) {
+    _limpiarFicheroImport();
+    _proPitch('importarexcel');
+    return;
+  }
   box.innerHTML = '<p style="color:var(--muted);font-size:.85rem"><span class="spin-hg">⏳</span> Reading file…</p>';
   _readFileAsBase64(file, function(b64, mime){
     if (!b64) { box.innerHTML = '<p style="color:var(--red);font-size:.85rem">Could not read this file.</p>'; return; }
@@ -16948,7 +17136,27 @@ function _syncSettingsTabButtons(tab){
   });
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _limpiarAvisoAjustes(){
+  var bar = document.getElementById('settingsMsgBar');
+  if (bar) { bar.style.display = 'none'; bar.textContent = ''; }
+}
+
 function switchSettingsTab(tab) {
+  _limpiarAvisoAjustes();
   
   
   
@@ -19764,7 +19972,23 @@ function addDocGroup(suggestedName, containerId, idPrefix) {
   group.dataset.gid = uid;
   group.innerHTML =
     '<div class="doc-group-hdr">' +
-      '<input class="doc-group-name" type="text" value="' + name.replace(/"/g,'&quot;') + '" placeholder="Document name">' +
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      '<input class="doc-group-name" type="text" value="' + _he(name) + '" placeholder="Document name">' +
       '<button class="doc-group-remove" title="Remove" onclick="this.closest(\'.doc-group\').remove();_updateDocPhotoCount()">×</button>' +
     '</div>' +
     '<div class="doc-photos-strip" id="strip-' + uid + '"></div>' +
@@ -21249,9 +21473,68 @@ function _ubicacionParecida(txt, conocidas){
   return mejorD <= 1 ? mejor : '';
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _esSitioDeFuera(el){
+  return !!(el && el.getAttribute && el.getAttribute('data-fuera') === '1');
+}
+
+
+
+
+
+
+
+function _marcarSitioDeFuera(el, esDeFuera){
+  if (!el) return;
+  if (esDeFuera){
+    el.setAttribute('data-fuera', '1');
+    el.setAttribute('list', 'fueraSitioList');
+    
+    
+    
+    try { _quitarAvisoUbic(el); } catch (e) {}
+  } else {
+    el.removeAttribute('data-fuera');
+    el.setAttribute('list', 'rackList');
+  }
+}
+
 function _esCampoDeUbicacion(el){
   if (!el || el.tagName !== 'INPUT') return false;
   if (el.id === 'lockAllowedDest') return false;    
+  
+  
+  if (_esSitioDeFuera(el)) return false;
   var lista = el.getAttribute('list') || '';
   if (lista === 'rackList' || lista === 'rackListDest') return true;
   return !!(el.classList && (el.classList.contains('loc-rack') ||
@@ -21429,6 +21712,46 @@ function refreshDropdowns(){
   var destinoSet = Array.from(new Set(rackNames)).sort();
   origenSet.forEach(function(r){ var o = document.createElement('option'); o.value = r; rd1.appendChild(o); });
   destinoSet.forEach(function(r){ var o = document.createElement('option'); o.value = r; rd2.appendChild(o); });
+
+  
+
+
+
+
+
+
+
+
+
+
+
+  var fd = document.getElementById('fueraSitioList');
+  if (fd){
+    fd.innerHTML = '';
+    var deDentro = {};
+    (config.locations || []).forEach(function(l){
+      deDentro[String(l.name || '').toUpperCase().trim()] = 1;
+    });
+    var fuera = {};
+    movements.forEach(function(m){
+      var mt = String(m.moveType || '').toUpperCase();
+      var v = (mt === 'EXIT')   ? m.destLoc
+            : (mt === 'RETURN') ? m.sourceLoc : '';
+      v = String(v || '').trim();
+      if (!v) return;
+      if (deDentro[v.toUpperCase()]) return;       
+      fuera[v] = 1;
+    });
+    
+    
+    (config.projects || []).forEach(function(pj){
+      var v = String(pj || '').trim();
+      if (v && !deDentro[v.toUpperCase()]) fuera[v] = 1;
+    });
+    Object.keys(fuera).sort().forEach(function(v){
+      var o = document.createElement('option'); o.value = v; fd.appendChild(o);
+    });
+  }
 
   var sd = document.getElementById('supplierList'); sd.innerHTML = '';
   var supSet = Array.from(new Set(config.suppliers.concat(movements.map(function(m){ return m.supplier; }).filter(Boolean)))).sort();
@@ -28955,7 +29278,22 @@ var BASIC_FUERA = {
 
 
 
-  ajustes: ['permissions', 'pmdirectory', 'import'],
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ajustes: ['permissions', 'pmdirectory'],
   pestanas: []
 };
 
@@ -28983,7 +29321,36 @@ var BASIC_PRO_ZONAS = {
 
 
 
-var BASIC_PRO_AJUSTES = { system: 'respaldo' };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var BASIC_PRO_AJUSTES = {};
+
+
+
+var BASIC_PRO_SISTEMA = {
+  sysArchivado: 'archivado',       
+  sysRespaldo:  'respaldo',
+  sysReporte:   'reportediario',
+  sysLector:    'lectura'
+};
 
 
 
@@ -28995,14 +29362,44 @@ var BASIC_PRO_AJUSTES = { system: 'respaldo' };
 
 
 function _basicApagarZona(el, clave){
-  if (!el || el.getAttribute('data-pro') === clave) return;
+  if (!el) return;
   el.setAttribute('data-pro', clave);
   el.classList.add('pro-off');
+  
+
+
+
+
+
+  if (el.__proOyente) return;
+  el.__proOyente = true;
   el.addEventListener('click', function(ev){
+    var c = el.getAttribute('data-pro');
+    if (!c) return;
     ev.preventDefault();
     ev.stopPropagation();
-    _proPitch(clave);
+    _proPitch(c);
   }, true);    
+}
+
+
+
+
+
+
+
+function _basicApagarSecciones(){
+  if (!APP_BASIC) return;
+  Object.keys(BASIC_PRO_SISTEMA).forEach(function(id){
+    _basicApagarZona(document.getElementById(id), BASIC_PRO_SISTEMA[id]);
+  });
+}
+
+
+function _basicEncenderZona(el){
+  if (!el) return;
+  el.removeAttribute('data-pro');
+  el.classList.remove('pro-off');
 }
 
 
@@ -29040,6 +29437,18 @@ var BASIC_PRO = {
                que: 'Record what is coming before it arrives, and see at a glance what landed and what is late.' },
   respaldo:  { titulo: '🌙 Automatic backup',
                que: 'A copy of everything, made on its own every night and kept in your own Drive.' },
+  
+
+
+
+
+
+  archivado: { titulo: '🗂 Keep it fast as it grows',
+               que: 'Old movements move to a tab of their own on their own, so the app stays quick after years of use.' },
+  importarexcel: { titulo: '📊 Excel files straight in',
+                   que: 'Bring an .xlsx in as it comes \u2014 Pro picks the right tab in a workbook and lets you switch tabs after loading. (Basic reads .csv, and any spreadsheet saves as one in two clicks.)' },
+  reportediario: { titulo: '🌆 An evening report',
+                   que: 'An email at the end of the day with everything that moved, sent on its own — including the quiet days, so silence always means the same thing.' },
   
 
   
@@ -29184,8 +29593,21 @@ function _proPitch(clave){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 function _proUrl(clave){
-  return 'https://www.acopio.net/?de=' + encodeURIComponent(clave);
+  return 'https://www.acopio.net/?de=' + encodeURIComponent(clave) + '#pro';
 }
 
 
@@ -29459,10 +29881,11 @@ function _basicPintar(){
     var b = document.getElementById(par[1]);
     if (b) b.style.display = 'none';
   });
-  BASIC_FUERA.ajustes.forEach(function(t){
-    var b = document.querySelector('[data-tab="' + t + '"]');
-    if (b) b.style.display = 'none';
-  });
+  
+
+
+
+  _filterSettingsSidebar();
   Object.keys(BASIC_PRO_ZONAS).forEach(function(id){
     _basicApagarZona(document.getElementById(id), BASIC_PRO_ZONAS[id]);
   });
@@ -29480,11 +29903,27 @@ function _equisTrasPintar(){
   try { _ponerEquis(document); } catch (e) {}
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function _basicApagarAjuste(tab){
   if (!APP_BASIC) return;
+  var el = document.getElementById('settingsTabContent');
   var clave = BASIC_PRO_AJUSTES[tab];
-  if (!clave) return;
-  _basicApagarZona(document.getElementById('settingsTabContent'), clave);
+  if (!clave) { _basicEncenderZona(el); return; }
+  _basicApagarZona(el, clave);
 }
 
 
@@ -29786,11 +30225,21 @@ var LEGAL_DOCS = {
 <p>Material changes to this policy will be communicated to active customers by email before they take effect. The date at the top always reflects the current version.</p>
 <h3>11. Contact</h3>
 <p>Jose Castro — joseisrael5101@gmail.com</p>` },
-  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 27 August 2026</p>
+  terms:   { title: 'Terms of Service', html: `<p><strong>Last updated:</strong> 24 October 2026</p>
 <p>These terms govern your use of Acopio, warehouse-management software provided by Jose Castro ("we", "us"). By installing or using it, you agree to them. If you are agreeing on behalf of a company, you confirm you are authorised to do so.</p>
 <hr>
+<h3>The two editions, and which parts of this apply to you</h3>
+<p>Acopio comes in two editions, and several clauses below only make sense for one of them.</p>
+<ul>
+<li><strong>Acopio Basic</strong> is free: no fee, no subscription, no expiry, not a trial.</li>
+<li><strong>Acopio Pro</strong> is the paid edition: a one-off setup fee and a subscription.</li>
+</ul>
+<p><strong>Acopio Basic</strong> you install yourself. Because nothing is paid, nothing in <strong>section 9 (payment, cancellation and refunds)</strong> applies to it, and the response time in <strong>section 5</strong> is not promised for it — write to us and we will look, but a free edition carries no support commitment.</p>
+<p><strong>Acopio Pro</strong> is covered by everything in this document.</p>
+<p>Two things are identical in both, and they are the ones that matter most: <strong>your data is yours and stays in your own Google account</strong> (section 3), and <strong>we are not a hosted service you depend on</strong> (section 1). Stopping paying, or never paying at all, does not take your system away from you.</p>
+<p>Features that are only in Pro are visible in the free edition and say so when you touch them; they are not a defect of your installation. Which features belong to which edition is listed at <a href="https://www.acopio.net/#pro">www.acopio.net</a> and may change as the software changes; what you have already been given in your edition is not taken away.</p>
 <h3>1. What you are buying</h3>
-<p>A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus updates and support for as long as your licence is active.</p>
+<p>A licence to install and run one copy of Acopio inside your own Google account, for your own business, plus — in Pro — updates and support for as long as your licence is active.</p>
 <p><strong>You are not buying a hosted service.</strong> Acopio runs in your Google account, on your data, under your control. We do not operate a server your business depends on — which is why there is no uptime commitment below, and why there also is no one who can take your data away from you.</p>
 <h3>2. What you need to provide</h3>
 <ul>
@@ -29855,7 +30304,8 @@ var LEGAL_DOCS = {
 <p>Acopio is built on Google Workspace and Google Apps Script. Google's platform carries limits that are theirs, not ours — including a daily cap on outgoing email (100/day on personal accounts, 1,500/day on Workspace), execution time limits, and a maximum spreadsheet size.</p>
 <p>We will tell you about the limits we know of and design around them where we can. We cannot remove them, and we are not liable if Google changes them, enforces them, or discontinues a service we rely on.</p>
 <h3>8. Backups</h3>
-<p>Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on.</p>
+<p><strong>In Pro</strong>, Acopio can make a copy of your spreadsheet nightly into your own Drive, kept 30 days. It is enabled during setup and we strongly recommend leaving it on.</p>
+<p><strong>In Basic there is no automatic backup at all.</strong> The free edition is installed with a single, non-sensitive Google permission, and scheduling a nightly task needs another one. Copies in Basic are made by you, by hand, with <strong>File → Make a copy</strong>. Everything in the paragraph below applies to those with at least as much force.</p>
 <p><strong>It is a convenience, not a guarantee.</strong> It protects against ordinary mistakes — a bad edit, a deleted row. It does not protect against your Google account being deleted, suspended or compromised, because the backups live in that same account. If your data is critical, keep an independent copy outside Google. Verifying that your backups exist and work is your responsibility.</p>
 <h3>9. Payment, cancellation and refunds</h3>
 <p>Fees, billing period and any add-on pricing are as agreed in writing when you purchase.</p>
@@ -29961,53 +30411,49 @@ var LEGAL_DOCS = {
 
 
 var NOVEDADES = [
-  { ver: '12.94',
-    titulo: 'Saying \u201cyes\u201d to a warning now saves',
+  { ver: '13.1',
+    titulo: 'The document reader said your key was wrong. It was not.',
     puntos: [
-      'Returning more of something than ever went out warned you correctly \u2014 and then <b>pressing \u201cSave anyway\u201d crashed</b>, so the movement could not be saved at all.',
-      '<b>It was not one warning, it was five</b>: too much stock on a multi-location entry, a transfer row over stock, a return with no rack, a return of more than went out, and waste with not enough stock.',
-      'All five asked the question <b>before the movement was ready to be sent</b>, so answering yes had nothing to send. They note the question now, and one place decides between asking and saving once everything is ready.',
-      'That also fixes something nobody had noticed: a soft \u201care you sure?\u201d used to cut the path short, so the real checks below it never ran. <b>A genuine error beats a warning now.</b>'
+      'If you set up the AI document reader on a <b>newly installed copy</b> and it kept refusing the key, <b>the key was never the problem</b> \u2014 and no key would have worked. Google closed the model this app asked for to accounts that had not already used it, so an older installation kept working and a brand new one could not get in.',
+      'The app now asks for the current model, and keeps the older names <b>behind it</b>, so an installation already using one carries on untouched.',
+      '<b>And it stopped testing a key against a single model.</b> A model that is gone and a key that is wrong fail differently, and only one of them is something you can fix \u2014 checking just one turned the first into the second.',
+      'Nothing to do beyond pasting this version in. A key that was refused before is accepted now.'
     ],
-    antes:  'Five warnings where pressing Yes crashed',
-    ahora:  'Yes means save' },
+    antes:  'Error: the AI reader could not finish (error 404)',
+    ahora:  'Checked and saved' },
 
-  { ver: '12.93',
-    titulo: 'Merging duplicate names works, and the error log keeps up',
+  { ver: '13.0',
+    titulo: 'Two things hardened that you will never see',
     puntos: [
-      '<b>Every merge was failing.</b> Twenty groups of duplicate projects and eight of suppliers, and all twenty-eight answered \u201cpick at least one other name to merge in\u201d.',
-      'The screen offered to merge names that are the same once you ignore capitals and spacing, and the server refused exactly those \u2014 <b>the tool for joining misspelled names refused the commonest misspelling there is</b>. It does the job now.',
-      'When a group is <b>the same name listed fourteen times</b>, it no longer asks which to keep \u2014 fourteen options that read identically is not a choice. It says how many and offers <b>Keep one</b>.',
-      '<b>The duplicates had a way in, and it is closed.</b> Only the \u201cadd\u201d button checked for a name already there, so anything arriving another way piled up. That check now sits where every write passes.',
-      '<b>And the error log was a photograph, not a window</b> \u2014 it loaded once when you opened Settings and never asked again. It refreshes when you open the tab, and new entries slide in at the top instead of redrawing the table.'
+      'Both are places where the app built a piece of a page out of text it did not write itself, and escaped it <b>by hand instead of properly</b>. Neither could be exploited today \u2014 that was checked, not assumed \u2014 and both are now done the same way the rest of the app does it.',
+      'The first is the name on an attached document. It escaped quotation marks and <b>not ampersands</b>, so a name containing the right six characters could have broken out of the box it was written in. Nothing reaches it today except words we put there ourselves \u2014 but with the CSV importer now open in the free edition, <b>the words in a file are written by somebody else</b>.',
+      'The second is the message on the sign-in screen when signing in fails. That text comes from Google, not from us, and it went onto the page without being made safe first.',
+      '<b>Why fix what cannot be exploited:</b> in both cases the safety was not in the line itself \u2014 it was in every other place in the app remembering to be careful. That is the kind of thing that holds until the day it does not.'
     ],
-    antes:  'Twenty-eight merges, twenty-eight refusals',
-    ahora:  'One button, and the error log tells you what just happened' },
+    antes:  'Safe because of what nobody had typed yet',
+    ahora:  'Safe because of what the line itself does' },
 
-  { ver: '12.92',
-    titulo: 'Deleting a lot of movements takes seconds, and can be stopped',
+  { ver: '12.99',
+    titulo: 'Importing: a way to unpick a file, and 1,250 is a number again',
     puntos: [
-      'Deleting 490 movements took <b>almost half an hour</b>, lost 40 of them to a \u201ctoo many requests\u201d error, and <b>could not be stopped</b>. All of it was one cause: 490 rows were <b>490 separate requests</b>, each rebuilding your whole stock.',
-      '<b>It is two requests now.</b> The half hour becomes seconds, the rate limit is nowhere near reached, forty error notices become one answer, and nothing ends up half done.',
-      'The \u201ctoo many requests\u201d was <b>the app flooding the server</b> with its own burst and then asking you to wait. That answer now counts as \u201cwait your turn\u201d and retries by itself.',
-      '<b>And there is a Stop button.</b> It stops before the next batch and says exactly where it got to \u2014 <i>\u201c200 of 490 deleted. The other 290 are untouched.\u201d</i>',
-      'The same notice no longer stacks: it gets a small <b>\u00d7 4</b> instead of piling up. And undoing a large import keeps going until it is finished.'
+      '<b>A row written <code>1,250</code> was being thrown away in silence</b>, with the reason \u201cQty must be a number greater than 0\u201d \u2014 which is not even true: the number was there, and it was the biggest one in the file. Exporting with a thousands separator is normal in Excel, so this was not a rare case; and it fell on the expensive side, because the row lost was always the largest.',
+      'Separators are now removed <b>only when what is left either side are groups of three</b>. A <code>1,25</code> is still refused on purpose: in half of Europe that is a decimal, and turning it into 125 would invent a hundred and twenty-five units nobody has. A refused row is on screen and gets fixed; an invented one is never seen.',
+      '<b>You can take a file back off.</b> There is an \u2715 beside Choose File now: picking the wrong one no longer means leaving Settings and coming back in.',
+      '<b>And an error stops following you between tabs.</b> A failure message used to sit there over the next screen, talking about something no longer in front of you \u2014 that is not a warning, it is noise shaped like one.'
     ],
-    antes:  'Half an hour, 40 lost, and no way to stop it',
-    ahora:  'Seconds, nothing lost, and a Stop button' },
+    antes:  'The biggest row in the file, dropped without a word',
+    ahora:  '1,250 is one thousand two hundred and fifty' },
 
-  { ver: '12.91',
-    titulo: 'Importing a file no longer stops at row 500',
+  { ver: '12.98',
+    titulo: 'The free edition gets Import, and the trash opens',
     puntos: [
-      '<b>If your file had more than 500 rows, only the first 500 went in</b> — while the button said it was importing all of them. A 1,052-row inventory lost 552 rows with nothing on screen to say so.',
-      'Confirming now reads the file in full, so the number on the button and the number saved are the same thing. Every import <b>counts rows and units before and after</b> and tells you whether they match — whether they do or not.',
-      '<b>The same file twice no longer doubles your stock in silence.</b> The app recognises an inventory it already took in, even if the rows come back in a different order, and says so before you press anything. It still lets you through.',
-      '<b>And an import can be undone.</b> Those movements go to the trash, exactly like deleting one — nothing is final.',
-      'The preview shows <b>every column your file brought</b>, not five. Unit, project, supplier, PO and comments were being imported without anyone ever seeing them.'
+      '<b>Import is in Acopio Basic now.</b> A CSV file, every row checked and counted before anything is saved, and the whole import can be undone. It is the thing that decides whether the free edition is usable at all: a warehouse that already exists arrives with its inventory in a spreadsheet, and without this it would have to be typed in.',
+      '<b>.xlsx is not</b>, and it is not a commercial decision: converting one uses the Drive API, which is a permission this edition deliberately does not ask for \u2014 that is what lets it install without the warning screen. The screen says so <b>before</b> you pick the file, and tells you the way out: any spreadsheet saves as .csv in two clicks.',
+      '<b>And deleting can be undone again.</b> Settings \u2192 System used to go grey <b>whole</b> in the free edition because two things inside it are Pro \u2014 and the trash was in there with them. Now each section closes on its own: the backup, the archive, the evening report and the document reader stay closed; the trash, the storage bar and what the system did on its own are open.',
+      'Each of those now answers for <b>itself</b> when you touch it, instead of all of them answering \u201cAutomatic backup\u201d.'
     ],
-    antes:  'A button promising 1,052 rows and saving 500',
-    ahora:  'Every row in, counted before and after, and undoable' },
-
+    antes:  'A whole tab closed because two things in it were Pro',
+    ahora:  'Import works, and a deleted movement comes back' }
 ];
 
 var NV_CLAVE = 'acopio_novedades_vista';
