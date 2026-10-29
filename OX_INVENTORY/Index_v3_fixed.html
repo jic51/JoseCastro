@@ -1067,6 +1067,13 @@
     
     .mhdr{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:var(--sp-4);margin:0 calc(-1 * var(--mpad)) 1.1rem;padding:.8rem var(--sp-6) .8rem 1.3rem;background:var(--card);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
     .mhdr h3{margin:0;font-size:1.05rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    
+
+
+
+
+
+    .mhdr h3.h3-entero{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3}
     .modal-x{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:none;background:var(--border);color:var(--text);font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:.15s}
     .modal-x:hover{background:var(--red);color:#fff}
     
@@ -5742,7 +5749,7 @@
 <div class="overlay" id="proOverlay">
   <div class="modal modal-sm">
     <div class="mhdr">
-      <h3 id="proTitulo">Acopio Pro</h3>
+      <h3 id="proTitulo" class="h3-entero">Acopio Pro</h3>
       <button class="modal-x" onclick="closeModal('proOverlay')" title="Close">✕</button>
     </div>
     <p id="proTexto" style="font-size:.9rem;color:var(--text);margin:.1rem 0 1rem;line-height:1.5"></p>
@@ -5853,7 +5860,7 @@ var _MOV_PAGE_SZ = 75;
 var chartsReady = false;
 
 
-var APP_VERSION = '13.1';
+var APP_VERSION = '13.3';
 
 
 
@@ -5865,7 +5872,7 @@ var APP_VERSION = '13.1';
 
 
 
-var APP_BUILD = '46ddab23';
+var APP_BUILD = '908d5ed4';
 var userRole = 'WAREHOUSE';
 
 
@@ -15703,8 +15710,15 @@ function _paintTrash(items){
             '<div style="font-size:.72rem;color:var(--muted)">' +
               (it.when ? _he(_fmtWhen(it.when)) + ' · ' : '') +
               (it.po ? 'PO ' + _he(it.po) + ' · ' : '') +
-              'Deleted by ' + _he(it.deletedBy) +
-              (it.deletedAt ? ' · ' + _he(_fmtWhen(it.deletedAt)) : '') + '</div>' +
+              
+
+
+
+
+
+              (it.deletedBy ? 'Deleted by ' + _he(it.deletedBy) +
+                (it.deletedAt ? ' · ' : '') : '') +
+              (it.deletedAt ? 'Deleted ' + _he(_fmtWhen(it.deletedAt)) : '') + '</div>' +
             (it.movId ? '<div style="font-size:.66rem;color:var(--muted);opacity:.75;' +
               'font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden;' +
               'text-overflow:ellipsis;white-space:nowrap">' + _he(it.movId) + '</div>' : '') +
@@ -16688,11 +16702,20 @@ function _renderImportTab() {
 
 
 
-        '<input type="file" id="importFileInput" accept="' +
-          (APP_BASIC ? '.csv' : '.csv,.xlsx,.xls') + '" style="font-size:.82rem">' +
-        '<button type="button" id="importFileClear" class="btn btn-ghost btn-sm" ' +
-          'onclick="_limpiarFicheroImport()" title="Remove the selected file" ' +
-          'style="display:none;padding:.15rem .45rem">✕</button>' +
+        
+
+
+
+
+
+
+        '<span style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap;min-width:0">' +
+          '<input type="file" id="importFileInput" accept="' +
+            (APP_BASIC ? '.csv' : '.csv,.xlsx,.xls') + '" style="font-size:.82rem;min-width:0">' +
+          '<button type="button" id="importFileClear" class="btn btn-ghost btn-sm" ' +
+            'onclick="_limpiarFicheroImport()" title="Remove the selected file" ' +
+            'style="display:none;flex-shrink:0;padding:.15rem .45rem">✕</button>' +
+        '</span>' +
         (APP_BASIC
           ? '<p style="font-size:.78rem;color:var(--muted);margin:.5rem 0 0">' +
               'Acopio Basic reads <b>.csv</b>. If what you have is an Excel file, open it and use ' +
@@ -17074,6 +17097,33 @@ function _drawImportHistory(){
     }).join('') + '</div>';
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+function _textoDeshecho(total, fuera, guardadas){
+  var n = total + ' movement' + (total === 1 ? '' : 's');
+  if (!total) return 'Nothing was removed.';
+  if (!guardadas){
+    return n + ' removed. Import the same file again to bring them back.';
+  }
+  if (!fuera){
+    return n + ' removed and kept in the trash — ' +
+           (total === 1 ? 'it was' : 'they were') + ' edited since importing.';
+  }
+  return n + ' removed — ' + fuera + ' discarded, ' + guardadas +
+         ' kept in the trash because ' + (guardadas === 1 ? 'it was' : 'they were') +
+         ' edited since importing.';
+}
+
 function _undoImport(btn){
   var id = btn ? (btn.getAttribute('data-impid') || '') : '';
   if (!id) return;
@@ -17081,10 +17131,22 @@ function _undoImport(btn){
   _showConfirm({
     icon: '↩', danger: true,
     title: 'Undo this import?',
+    
+
+
+
+
+
+
+
+
+
     message: (fila && fila.details ? fila.details + '\n\n' : '') +
       'Every movement that came in with this file is removed from your stock.\n\n' +
-      'They go to the trash, exactly like deleting a movement — nothing here is ' +
-      'final, and anything you take out can be put back.',
+      'They do NOT go to the trash — the file is the backup. To get them back, ' +
+      'import the same file again.\n\n' +
+      'Anything that was edited since you imported it is kept in the trash instead, ' +
+      'because re-importing would bring back the old value and lose the correction.',
     confirmText: 'Undo it',
     onConfirm: function(){
       _btnBusy(btn, 'Undoing…');
@@ -17096,22 +17158,28 @@ function _undoImport(btn){
 
 
 
-      var total = 0;
+      var total = 0, fuera = 0, guardadas = 0;
       function vuelta(){
         google.script.run
           .withSuccessHandler(function(res){
-            total += (res && res.removed) || 0;
+            total     += (res && res.removed)   || 0;
+            fuera     += (res && res.discarded) || 0;
+            guardadas += (res && res.trashed)   || 0;
             _importsData = null;
             _sysCacheDrop('trash');
             if (res && res.more){ vuelta(); return; }
-            _progEnd(total + ' movement' + (total === 1 ? '' : 's') +
-                     ' from that import moved to the trash.');
+            
+
+
+
+            _progEnd(_textoDeshecho(total, fuera, guardadas));
             _drawImportHistory();
             loadDataFromGoogle(true, true);
           })
           .withFailureHandler(function(err){
             _btnReset(btn);
-            _progEnd(total ? (total + ' moved to the trash — the rest were not.')
+            _progEnd(total ? (total + ' removed — the rest were not. ' +
+                              'Press Undo again to finish.')
                            : 'Nothing was undone.', true);
             showToast('Could not undo that import: ' +
               (err.message || err).replace(/^Error:\s*/i,''), 'err', 8000);
@@ -30411,6 +30479,28 @@ var LEGAL_DOCS = {
 
 
 var NOVEDADES = [
+  { ver: '13.3',
+    titulo: 'Deleting works again \u2014 and the reason it broke is now guarded',
+    puntos: [
+      'v13.2 added a column to the movement record, and <b>deleting stopped working</b> on installations that already had data. A spreadsheet is as wide as it was the day it was created; the app asked for one column more than it had, and the whole operation failed.',
+      'Fixed \u2014 and more to the point, <b>there is now a test that makes this impossible to repeat</b>. It builds a sheet that fails the same way a real one does, runs the real code against it, and sweeps the whole file for any other place that reads a full row without widening first.',
+      'The Acopio Pro window no longer cuts its own title off halfway, and the trash stops printing \u201cDeleted by\u201d when it does not know who.',
+      'And the <b>\u2715 beside the file picker</b> stays next to the picker instead of dropping onto the line below when the filename is long.'
+    ],
+    antes:  'Delete did nothing, with no message',
+    ahora:  'It deletes \u2014 and a test keeps it that way' },
+
+  { ver: '13.2',
+    titulo: 'Undoing an import no longer fills your trash',
+    puntos: [
+      'Taking an import back off used to move every one of its rows into the trash. That sounds safe, and mostly it was noise: <b>the file is the backup</b>. If it imported once it can import again \u2014 so a thousand rows were kept \u201cjust in case\u201d next to the copy already sitting on your own disk.',
+      '<b>Now they are removed, and the screen says so before you press it</b>, along with how to get them back: import the same file again.',
+      '<b>With one exception, and it is the one that matters.</b> A row you edited after importing is no longer the row that was in the file \u2014 re-importing would bring back the old value and your correction would be gone with no trace. Those are kept in the trash, counted, and named in what the app tells you afterwards.',
+      'Behind it: a movement now carries <b>which import it came from</b> in a field nobody can edit, and the audit line for an edit names the <b>movement</b> instead of the row number, which moves.'
+    ],
+    antes:  '1,052 movements moved to the trash',
+    ahora:  '1,052 removed \u2014 3 kept, because you had edited them' },
+
   { ver: '13.1',
     titulo: 'The document reader said your key was wrong. It was not.',
     puntos: [
@@ -30433,27 +30523,6 @@ var NOVEDADES = [
     antes:  'Safe because of what nobody had typed yet',
     ahora:  'Safe because of what the line itself does' },
 
-  { ver: '12.99',
-    titulo: 'Importing: a way to unpick a file, and 1,250 is a number again',
-    puntos: [
-      '<b>A row written <code>1,250</code> was being thrown away in silence</b>, with the reason \u201cQty must be a number greater than 0\u201d \u2014 which is not even true: the number was there, and it was the biggest one in the file. Exporting with a thousands separator is normal in Excel, so this was not a rare case; and it fell on the expensive side, because the row lost was always the largest.',
-      'Separators are now removed <b>only when what is left either side are groups of three</b>. A <code>1,25</code> is still refused on purpose: in half of Europe that is a decimal, and turning it into 125 would invent a hundred and twenty-five units nobody has. A refused row is on screen and gets fixed; an invented one is never seen.',
-      '<b>You can take a file back off.</b> There is an \u2715 beside Choose File now: picking the wrong one no longer means leaving Settings and coming back in.',
-      '<b>And an error stops following you between tabs.</b> A failure message used to sit there over the next screen, talking about something no longer in front of you \u2014 that is not a warning, it is noise shaped like one.'
-    ],
-    antes:  'The biggest row in the file, dropped without a word',
-    ahora:  '1,250 is one thousand two hundred and fifty' },
-
-  { ver: '12.98',
-    titulo: 'The free edition gets Import, and the trash opens',
-    puntos: [
-      '<b>Import is in Acopio Basic now.</b> A CSV file, every row checked and counted before anything is saved, and the whole import can be undone. It is the thing that decides whether the free edition is usable at all: a warehouse that already exists arrives with its inventory in a spreadsheet, and without this it would have to be typed in.',
-      '<b>.xlsx is not</b>, and it is not a commercial decision: converting one uses the Drive API, which is a permission this edition deliberately does not ask for \u2014 that is what lets it install without the warning screen. The screen says so <b>before</b> you pick the file, and tells you the way out: any spreadsheet saves as .csv in two clicks.',
-      '<b>And deleting can be undone again.</b> Settings \u2192 System used to go grey <b>whole</b> in the free edition because two things inside it are Pro \u2014 and the trash was in there with them. Now each section closes on its own: the backup, the archive, the evening report and the document reader stay closed; the trash, the storage bar and what the system did on its own are open.',
-      'Each of those now answers for <b>itself</b> when you touch it, instead of all of them answering \u201cAutomatic backup\u201d.'
-    ],
-    antes:  'A whole tab closed because two things in it were Pro',
-    ahora:  'Import works, and a deleted movement comes back' }
 ];
 
 var NV_CLAVE = 'acopio_novedades_vista';
