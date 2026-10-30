@@ -5860,7 +5860,7 @@ var _MOV_PAGE_SZ = 75;
 var chartsReady = false;
 
 
-var APP_VERSION = '13.3';
+var APP_VERSION = '13.4';
 
 
 
@@ -5872,7 +5872,7 @@ var APP_VERSION = '13.3';
 
 
 
-var APP_BUILD = '908d5ed4';
+var APP_BUILD = '9b416fde';
 var userRole = 'WAREHOUSE';
 
 
@@ -7250,6 +7250,37 @@ function _userCellHtml(email){
     : '<span class="mc-who-mail">' + _he(mail) + '</span>';
   return '<span class="mc-who" data-person="' + _escAttr(mail) + '" tabindex="0">' +
          dentro + '</span>';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _userInlineHtml(email){
+  var mail = String(email || '').trim();
+  if (!mail) return '';
+  var nombre = _personName(mail);
+  return '<span class="mc-who" data-person="' + _escAttr(mail) + '" tabindex="0" ' +
+         'style="cursor:default">' + _he(nombre || mail) + '</span>';
 }
 
 
@@ -9475,13 +9506,62 @@ function renderDocLinks(linksStr){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _movsMasNuevoPrimero(lista){
+  var conClave = lista.map(function(m, i){
+    var t = NaN;
+    if (m && m.timestamp){
+      var d = new Date(m.timestamp);
+      t = d.getTime();
+      if (isNaN(t)){
+        
+        
+        var p = String(m.timestamp).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+        if (p) t = new Date(+p[3], +p[1] - 1, +p[2], +(p[4] || 0), +(p[5] || 0)).getTime();
+      }
+    }
+    return { m: m, i: i, t: t };
+  });
+  conClave.sort(function(a, b){
+    var ta = a.t, tb = b.t;
+    
+    if (isNaN(ta) || isNaN(tb) || ta === tb) return b.i - a.i;
+    return tb - ta;                        
+  });
+  return conClave.map(function(x){ return x.m; });
+}
+
 function renderMovements(){
   var q    = (document.getElementById('movSearch').value || '').toLowerCase();
   var tf   = document.getElementById('movTypeFilter').value;
   var cf   = document.getElementById('movCatFilter').value;
 
   var allMovs = _oldHistoryLoaded ? oldMovements.concat(movements) : movements;
-  var filtered = allMovs.slice().reverse().filter(function(m){
+  var filtered = _movsMasNuevoPrimero(allMovs).filter(function(m){
     var norm = normMT(m.moveType);
     if (tf && norm !== tf) return false;
     if (cf && nt(m.category) !== cf) return false;
@@ -10186,7 +10266,28 @@ function _tandaPaso(){
     return;
   }
   if (!t.ids.length){
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     _progPararQuitar();
+    _progFinish();
     _tandaBorrado = null;
     loadDataFromGoogle(true, true);
     return;
@@ -15716,7 +15817,7 @@ function _paintTrash(items){
 
 
 
-              (it.deletedBy ? 'Deleted by ' + _he(it.deletedBy) +
+              (it.deletedBy ? 'Deleted by ' + _userInlineHtml(it.deletedBy) +
                 (it.deletedAt ? ' · ' : '') : '') +
               (it.deletedAt ? 'Deleted ' + _he(_fmtWhen(it.deletedAt)) : '') + '</div>' +
             (it.movId ? '<div style="font-size:.66rem;color:var(--muted);opacity:.75;' +
@@ -15815,12 +15916,34 @@ function _restoreMovement(btn){
     
     
     prog: true,
-    ok: function(){
+    ok: function(res){
       delete _trashPending[movId];
       
       
       
       _trashDrop(movId);
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      if (res && res.movement){
+        var yaEsta = movements.some(function(m){
+          return m.movId && m.movId === res.movement.movId;
+        });
+        if (!yaEsta) movements.push(res.movement);
+        renderAll();
+      }
       
       
       _reloadWhenIdle();
@@ -16734,8 +16857,15 @@ function _renderImportTab() {
     '<div class="field">' +
       '<label>Imports you have already done</label>' +
       '<p style="font-size:.78rem;color:var(--muted);margin:0 0 .6rem">' +
-        'If the same file went in twice, undo one of them here. Undoing sends ' +
-        'those movements to the trash, so nothing is lost for good.' +
+        
+
+
+
+
+
+        'If the same file went in twice, undo one of them here. Undoing removes ' +
+        'those movements — they do not go to the trash, because the file is the ' +
+        'backup: import it again and they come back.' +
       '</p>' +
       '<div id="importHistBox"></div>' +
     '</div>';
@@ -30479,6 +30609,17 @@ var LEGAL_DOCS = {
 
 
 var NOVEDADES = [
+  { ver: '13.4',
+    titulo: 'A movement you put back lands where it belongs, and lands now',
+    puntos: [
+      'Two things that looked like one. A restored movement <b>came back at the top of the list</b> no matter how old it was, and <b>took a few seconds to appear at all</b> after the app said it was done.',
+      'The second was the app waiting to ask again: the server had already put it back, and the screen still requested the whole list to find out something it already knew. <b>It goes in straight away now</b> \u2014 the trash row leaving and the movement reappearing are the same moment, instead of a few seconds where it was in neither place.',
+      'The first was never about restoring. The list was drawn in <b>sheet order</b>, which is usually the same as time order because rows get added as things happen \u2014 but putting one back writes it at the end. <b>The list now reads the movement\u2019s own date</b>, and anything without one keeps exactly the order it had.',
+      'Also: the progress line no longer spins at \u201c6 of 6\u201d after a batch delete has finished, and the trash says <b>who</b> deleted something by name, with their contact card on hover.'
+    ],
+    antes:  'A movement from August, first in the list',
+    ahora:  'Back in its place, the moment you press it' },
+
   { ver: '13.3',
     titulo: 'Deleting works again \u2014 and the reason it broke is now guarded',
     puntos: [
@@ -30511,17 +30652,6 @@ var NOVEDADES = [
     ],
     antes:  'Error: the AI reader could not finish (error 404)',
     ahora:  'Checked and saved' },
-
-  { ver: '13.0',
-    titulo: 'Two things hardened that you will never see',
-    puntos: [
-      'Both are places where the app built a piece of a page out of text it did not write itself, and escaped it <b>by hand instead of properly</b>. Neither could be exploited today \u2014 that was checked, not assumed \u2014 and both are now done the same way the rest of the app does it.',
-      'The first is the name on an attached document. It escaped quotation marks and <b>not ampersands</b>, so a name containing the right six characters could have broken out of the box it was written in. Nothing reaches it today except words we put there ourselves \u2014 but with the CSV importer now open in the free edition, <b>the words in a file are written by somebody else</b>.',
-      'The second is the message on the sign-in screen when signing in fails. That text comes from Google, not from us, and it went onto the page without being made safe first.',
-      '<b>Why fix what cannot be exploited:</b> in both cases the safety was not in the line itself \u2014 it was in every other place in the app remembering to be careful. That is the kind of thing that holds until the day it does not.'
-    ],
-    antes:  'Safe because of what nobody had typed yet',
-    ahora:  'Safe because of what the line itself does' },
 
 ];
 

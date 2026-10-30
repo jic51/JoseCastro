@@ -128,7 +128,7 @@
 
 
 
-var APP_VERSION = '13.3';
+var APP_VERSION = '13.4';
 
 
 
@@ -140,7 +140,7 @@ var APP_VERSION = '13.3';
 
 
 
-var APP_BUILD = '908d5ed4';
+var APP_BUILD = '9b416fde';
 
 
 
@@ -15587,7 +15587,27 @@ function manageMaterialLocked_(data, auth) {
     auditLog_(ss, 'RESTORE_ROW', auth.email, String(restored[AC.CATEGORY]), String(restored[AC.NAME]),
               rid + ' → ' + backTo);
     refreshOrDefer_(ss, data);
-    return { status: 'success', movId: rid };
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    return { status: 'success', movId: rid,
+             movement: parseArchiveRow(restored, target.getLastRow()) };
 
   } else if (op === 'emptyTrash') {
     
