@@ -1,0 +1,16 @@
+# LO QUE NO SE GUARDA AQUÍ, Y POR QUÉ
+#
+# `pegar-v14.*` son los dos archivos de Acopio listos para pegar en Apps
+# Script. Se copian aquí sólo para entregártelos, y se van con la versión
+# siguiente.
+#
+# NO se guardan en este repositorio a propósito. El commit `ceae18f` quitó de
+# aquí la copia vieja de Acopio con el motivo escrito: *«el sitio bueno es
+# OX-GLASS-WMS»*. Volver a meterlos sería deshacer esa decisión y recrear el
+# fallo que este proyecto repite más que ningún otro: **dos copias que tienen
+# que coincidir sin que nada lo obligue**. Una de las dos se queda atrás, nadie
+# se entera, y el día que importa estás mirando la vieja.
+#
+# El original vive en OX-GLASS-WMS, con su sello de compilación, su changelog y
+# sus 205 pruebas. Estos son una fotocopia para el camino.
+pegar-v14.*/
