@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Selector de Despensa y Pedido</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Estilo barra de desplazamiento horizontal categorías */
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Animación sutil de pulso para contador */
+    @keyframes bump {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    .bump-anim {
+      animation: bump 0.25s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col pb-32">
+
+  <!-- Header Fijo Superior -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all">
+    <div class="max-w-2xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+            <i class="ph-bold ph-basket text-xl"></i>
+          </div>
+          <div>
+            <h1 class="text-base font-bold text-slate-900 leading-tight">Lista de Despensa</h1>
+            <p class="text-xs text-slate-500">Selecciona cantidades tocando + y -</p>
+          </div>
+        </div>
+
+        <button 
+          id="btn-reset" 
+          onclick="resetAllQuantities()" 
+          title="Reiniciar a cero"
+          class="text-xs font-medium text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 active:scale-95"
+        >
+          <i class="ph-bold ph-trash"></i>
+          <span>Limpiar</span>
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="mt-3 relative">
+        <i class="ph-bold ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+        <input 
+          id="search-input" 
+          type="text" 
+          placeholder="Buscar producto (ej. atún, leche, manzanas)..." 
+          oninput="handleSearch(this.value)"
+          class="w-full pl-10 pr-9 py-2 bg-slate-100 hover:bg-slate-50 focus:bg-white text-slate-800 text-sm rounded-xl border border-transparent focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-slate-400"
+        />
+        <button 
+          id="search-clear-btn" 
+          onclick="clearSearch()" 
+          class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full text-sm"
+        >
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <!-- Filtro rápido de categorías por pestañas deslizantes -->
+      <div class="flex items-center gap-1.5 overflow-x-auto hide-scrollbar pt-3 -mx-4 px-4 text-xs font-semibold">
+        <button 
+          onclick="filterCategory('ALL')" 
+          id="cat-tab-ALL" 
+          class="cat-tab px-3 py-1.5 rounded-full whitespace-nowrap bg-emerald-600 text-white shadow-sm transition-all"
+        >
+          Todos (<span id="total-badge">0</span>)
+        </button>
+        <button 
+          onclick="filterCategory('SELECTED')" 
+          id="cat-tab-SELECTED" 
+          class="cat-tab px-3 py-1.5 rounded-full whitespace-nowrap bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all flex items-center gap-1"
+        >
+          <i class="ph-fill ph-check-circle text-emerald-600"></i>
+          Elegidos (<span id="selected-badge">0</span>)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal -->
+  <main class="max-w-2xl mx-auto px-4 py-4 w-full flex-1">
+    
+    <!-- Mensaje informativo cuando no hay resultados -->
+    <div id="no-results" class="hidden text-center py-12 px-4">
+      <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+        <i class="ph-bold ph-magnifying-glass text-2xl"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No encontramos productos</h3>
+      <p class="text-xs text-slate-500 mt-1">Intenta con otro término o borra la búsqueda.</p>
+    </div>
+
+    <!-- Lista de Secciones y Productos agrupados -->
+    <div id="products-catalog" class="space-y-5">
+      <!-- Los bloques de categoría y elementos se renderizan mediante JavaScript -->
+    </div>
+  </main>
+
+  <!-- Notificación Toast Copiado/Aviso -->
+  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur text-white px-4 py-2.5 rounded-full text-xs font-medium shadow-xl opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2">
+    <i class="ph-fill ph-check-circle text-emerald-400 text-sm"></i>
+    <span id="toast-message">Mensaje</span>
+  </div>
+
+  <!-- Barra Flotante Inferior de Acción WhatsApp -->
+  <footer class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:py-3.5">
+    <div class="max-w-2xl mx-auto flex items-center justify-between gap-3">
+      
+      <!-- Resumen rápido en vivo -->
+      <div class="flex flex-col">
+        <span class="text-[11px] uppercase tracking-wider font-bold text-slate-400">Total Seleccionado</span>
+        <div class="flex items-baseline gap-1.5">
+          <span id="floating-items-count" class="text-2xl font-black text-emerald-600 leading-none">0</span>
+          <span class="text-xs font-semibold text-slate-600">artículos</span>
+          <span id="floating-diff-count" class="text-[11px] text-slate-400">(0 distintos)</span>
+        </div>
+      </div>
+
+      <!-- Botones de Acción -->
+      <div class="flex items-center gap-2">
+        <!-- Botón Ver Resumen / Vista Previa -->
+        <button 
+          onclick="toggleSummaryModal(true)" 
+          class="p-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 active:scale-95 transition-all"
+          title="Ver resumen en texto"
+        >
+          <i class="ph-bold ph-list-dashes text-lg"></i>
+        </button>
+
+        <!-- Botón Enviar a WhatsApp -->
+        <button 
+          id="btn-whatsapp" 
+          onclick="sendOrderViaWhatsApp()"
+          class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center gap-2 transition-all"
+        >
+          <i class="ph-bold ph-whatsapp-logo text-xl"></i>
+          <span>Enviar Pedido</span>
+        </button>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Modal Resumen de Texto -->
+  <div id="summary-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Cabecera Modal -->
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="ph-bold ph-shopping-cart text-emerald-600 text-xl"></i>
+          <h2 class="text-base font-bold text-slate-800">Resumen del Pedido</h2>
+        </div>
+        <button onclick="toggleSummaryModal(false)" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Contenido de texto -->
+      <div class="p-5 overflow-y-auto space-y-3 flex-1 text-sm text-slate-700">
+        <div id="modal-empty-msg" class="text-center py-6 text-slate-400">
+          <i class="ph-duotone ph-basket text-4xl block mb-2 text-slate-300"></i>
+          No has seleccionado ningún artículo aún.
+        </div>
+        <div id="modal-summary-content" class="space-y-2 whitespace-pre-line font-mono text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 select-all">
+          <!-- Texto formateado generado -->
+        </div>
+      </div>
+
+      <!-- Footer Modal -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+        <button 
+          onclick="copySummaryToClipboard()" 
+          class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+        >
+          <i class="ph-bold ph-copy"></i>
+          Copiar Texto
+        </button>
+        <button 
+          onclick="sendOrderViaWhatsApp()" 
+          class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+        >
+          <i class="ph-bold ph-whatsapp-logo text-base"></i>
+          Abrir WhatsApp
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Catálogo completo de datos estructurados basado en los pedidos
+    const CATALOG = [
+      {
+        id: "carnes_enlatadas",
+        category: "Carnes Enlatadas",
+        icon: "ph-fork-knife",
+        items: [
+          { id: "ce_1", name: "Carne de res completamente cocida", desc: "14.4 oz" },
+          { id: "ce_2", name: "Estofado de res", desc: "14.4 oz" },
+          { id: "ce_3", name: "Chile con carne", desc: "14.4 oz" },
+          { id: "ce_4", name: "Frijoles con carne de cerdo", desc: "14.8 oz" },
+          { id: "ce_5", name: "Atún", desc: "5 oz" },
+          { id: "ce_6", name: "Trozos de pechuga de pollo", desc: "12.5 oz" }
+        ]
+      },
+      {
+        id: "sopas_enlatadas",
+        category: "Sopas Enlatadas",
+        icon: "ph-bowl-food",
+        items: [
+          { id: "se_1", name: "Sopa de pollo con rotini", desc: "14.4 oz" },
+          { id: "se_2", name: "Sopa de crema de pollos", desc: "14.5 oz" },
+          { id: "se_3", name: "Sopa de crema de champiñones", desc: "14.5 oz" },
+          { id: "se_4", name: "Sopa de tomate", desc: "14.4 oz" }
+        ]
+      },
+      {
+        id: "frutas_enlatadas",
+        category: "Frutas Enlatadas",
+        icon: "ph-orange-slice",
+        items: [
+          { id: "fe_1", name: "Puré de manzana", desc: "26.5 oz" },
+          { id: "fe_2", name: "Duraznos", desc: "29 oz" },
+          { id: "fe_3", name: "Peras", desc: "29 oz" }
+        ]
+      },
+      {
+        id: "verduras_enlatadas",
+        category: "Verduras Enlatadas",
+        icon: "ph-plant",
+        items: [
+          { id: "ve_1", name: "Maíz (elote)", desc: "14.4 oz" },
+          { id: "ve_2", name: "Ejotes (habichuelas)", desc: "14.4 oz" },
+          { id: "ve_3", name: "Salsa para espagueti", desc: "27.5 oz" },
+          { id: "ve_4", name: "Salsa de tomate", desc: "14.4 oz" },
+          { id: "ve_5", name: "Tomates (en trozo)", desc: "28 oz" }
+        ]
+      },
+      {
+        id: "frutas_frescas",
+        category: "Frutas Frescas",
+        icon: "ph-apple-logo",
+        items: [
+          { id: "ff_1", name: "Manzanas", desc: "Bolsa ~4 lb" },
+          { id: "ff_2", name: "Bananas", desc: "Bolsa ~3 lb" },
+          { id: "ff_3", name: "Uvas", desc: "Bolsa ~2 lb" },
+          { id: "ff_4", name: "Naranjas", desc: "Bolsa ~4 lb" }
+        ]
+      },
+      {
+        id: "verduras_frescas",
+        category: "Verduras Frescas",
+        icon: "ph-carrot",
+        items: [
+          { id: "vf_1", name: "Pepinos", desc: "Por unidad" },
+          { id: "vf_2", name: "Lechuga", desc: "1 cabeza" },
+          { id: "vf_3", name: "Pimientos", desc: "Bolsa ~1 lb" },
+          { id: "vf_4", name: "Brócoli", desc: "Bolsa ~1 lb" },
+          { id: "vf_5", name: "Zanahorias", desc: "Bolsa ~2 lb" },
+          { id: "vf_6", name: "Cebollas", desc: "Bolsa ~3 lb" },
+          { id: "vf_7", name: "Papas", desc: "Bolsa ~5 lb" },
+          { id: "vf_8", name: "Tomates", desc: "Bolsa ~2 lb" }
+        ]
+      },
+      {
+        id: "carnes_libra",
+        category: "Carnes (por Libra)",
+        icon: "ph-bone",
+        items: [
+          { id: "cl_1", name: "Salchichas", desc: "1 lb" },
+          { id: "cl_2", name: "Carne de res molida", desc: "1 lb" },
+          { id: "cl_3", name: "Salchicha embutida", desc: "1 lb" },
+          { id: "cl_4", name: "Carne de res para estofado", desc: "1 lb" }
+        ]
+      },
+      {
+        id: "carnes_paquete",
+        category: "Carnes (por Paquete)",
+        icon: "ph-package",
+        items: [
+          { id: "cp_1", name: "Carne de res para hornear", desc: "3.75 lb paquete" },
+          { id: "cp_2", name: "Pollo", desc: "3 lb paquete" },
+          { id: "cp_3", name: "Jamón rebanado", desc: "2 lb paquete" },
+          { id: "cp_4", name: "Carne de cerdo para hornear", desc: "2 lb paquete" }
+        ]
+      },
+      {
+        id: "leche_huevos",
+        category: "Leche y Huevos",
+        icon: "ph-egg",
+        items: [
+          { id: "lh_1", name: "Mantequilla", desc: "1 lb" },
+          { id: "lh_2", name: "Queso cheddar", desc: "1 lb" },
+          { id: "lh_3", name: "Requesón", desc: "16 oz" },
+          { id: "lh_4", name: "Huevos", desc: "Docena" },
+          { id: "lh_5", name: "Helado vainilla", desc: "1/2 gal" },
+          { id: "lh_6", name: "Helado chocolate", desc: "1/2 gal" },
+          { id: "lh_7", name: "Leche líquida", desc: "1 galón" },
+          { id: "lh_8", name: "Crema agria", desc: "16 oz" },
+          { id: "lh_9", name: "Yogur de vainilla", desc: "16 oz" }
+        ]
+      },
+      {
+        id: "panes",
+        category: "Panes",
+        icon: "ph-bread",
+        items: [
+          { id: "pn_1", name: "Pan de trigo", desc: "Hogaza" },
+          { id: "pn_2", name: "Pan blanco", desc: "Hogaza" },
+          { id: "pn_3", name: "Pan para hamburguesas", desc: "Paquete de 8" },
+          { id: "pn_4", name: "Pan para salchichas", desc: "Paquete de 8" },
+          { id: "pn_5", name: "Tortillas", desc: "Paquete de 12" }
+        ]
+      },
+      {
+        id: "pastas",
+        category: "Pastas",
+        icon: "ph-cooking-pot",
+        items: [
+          { id: "ps_1", name: "Macarrones", desc: "16 oz" },
+          { id: "ps_2", name: "Macarrones con queso", desc: "7 oz" },
+          { id: "ps_3", name: "Fideos", desc: "16 oz" },
+          { id: "ps_4", name: "Espagueti", desc: "16 oz" }
+        ]
+      },
+      {
+        id: "frijoles_arroz_papas",
+        category: "Frijoles, Arroz y Papas",
+        icon: "ph-grains",
+        items: [
+          { id: "fap_1", name: "Frijoles negros en lata", desc: "14.8 oz" },
+          { id: "fap_2", name: "Frijoles pinto secos", desc: "16 oz" },
+          { id: "fap_3", name: "Frijoles blancos en lata", desc: "14.8 oz" },
+          { id: "fap_4", name: "Frijoles refritos deshidratados", desc: "2 lb" },
+          { id: "fap_5", name: "Papas instantáneas", desc: "28 oz" },
+          { id: "fap_6", name: "Arroz", desc: "32 oz" }
+        ]
+      },
+      {
+        id: "cereales",
+        category: "Cereales",
+        icon: "ph-cookie",
+        items: [
+          { id: "cr_1", name: "Avena instantánea", desc: "32 oz" },
+          { id: "cr_2", name: "Honey nut o's", desc: "24.5 oz" },
+          { id: "cr_3", name: "Raisin bran (con pasas)", desc: "22 oz" }
+        ]
+      },
+      {
+        id: "harinas",
+        category: "Harinas",
+        icon: "ph-bag",
+        items: [
+          { id: "hr_1", name: "Preparado para panqueques", desc: "4 lb" },
+          { id: "hr_2", name: "Harina blanca", desc: "10 lb" }
+        ]
+      },
+      {
+        id: "azucares",
+        category: "Azúcares",
+        icon: "ph-cube",
+        items: [
+          { id: "az_1", name: "Azúcar moreno", desc: "2 lb" },
+          { id: "az_2", name: "Azúcar granulado", desc: "4 lb" },
+          { id: "az_3", name: "Azúcar glasé", desc: "2 lb" }
+        ]
+      },
+      {
+        id: "mermeladas_condimentos",
+        category: "Mermeladas y Condimentos",
+        icon: "ph-jar",
+        items: [
+          { id: "mc_1", name: "Aceitunas negras", desc: "6 oz" },
+          { id: "mc_2", name: "Cátsup", desc: "24 oz" },
+          { id: "mc_3", name: "Miel", desc: "12 oz" },
+          { id: "mc_4", name: "Mermelada de frambuesa", desc: "20.5 oz" },
+          { id: "mc_5", name: "Mermelada de fresa", desc: "20.5 oz" },
+          { id: "mc_6", name: "Mostaza", desc: "10.5 oz" },
+          { id: "mc_7", name: "Jarabe para panqueques", desc: "20.4 fl oz" },
+          { id: "mc_8", name: "Mantequilla de maní", desc: "16 oz" },
+          { id: "mc_9", name: "Mayonesa", desc: "15 oz" },
+          { id: "mc_10", name: "Aderezo ranch", desc: "16 oz" },
+          { id: "mc_11", name: "Salsa", desc: "26.5 oz" },
+          { id: "mc_12", name: "Canela", desc: "2.37 oz" },
+          { id: "mc_13", name: "Pimienta negra", desc: "2.2 oz" },
+          { id: "mc_14", name: "Sal", desc: "26 oz" },
+          { id: "mc_15", name: "Extracto de vainilla", desc: "4 fl oz" }
+        ]
+      },
+      {
+        id: "cocinar",
+        category: "Productos para Cocinar",
+        icon: "ph-fire",
+        items: [
+          { id: "pc_1", name: "Polvo de hornear", desc: "8.1 oz" },
+          { id: "pc_2", name: "Bicarbonato de soda", desc: "12 oz" },
+          { id: "pc_3", name: "Leche enlatada", desc: "12 fl oz" },
+          { id: "pc_4", name: "Pasas", desc: "16 oz" },
+          { id: "pc_5", name: "Aceite vegetal", desc: "24 fl oz" },
+          { id: "pc_6", name: "Levadura", desc: "3 paquetes" }
+        ]
+      },
+      {
+        id: "bebidas",
+        category: "Bebidas",
+        icon: "ph-coffee",
+        items: [
+          { id: "bb_1", name: "Chocolate en polvo", desc: "26 porciones" },
+          { id: "bb_2", name: "Leche en polvo", desc: "27 porciones" }
+        ]
+      },
+      {
+        id: "postres",
+        category: "Postres",
+        icon: "ph-cake",
+        items: [
+          { id: "pt_1", name: "Gelatina de fresa", desc: "8 porciones" },
+          { id: "pt_2", name: "Pudín de chocolate", desc: "6 porciones" },
+          { id: "pt_3", name: "Pudín de vainilla", desc: "6 porciones" },
+          { id: "pt_4", name: "Mezcla para pastel de chocolate", desc: "18.2 oz" },
+          { id: "pt_5", name: "Mezcla para pastel amarillo", desc: "18.2 oz" }
+        ]
+      },
+      {
+        id: "bebes",
+        category: "Productos para Bebés",
+        icon: "ph-baby",
+        items: [
+          { id: "bb_cereal", name: "Cereal infantil", desc: "16 oz" },
+          { id: "bb_formula", name: "Fórmula infantil", desc: "12.4 oz" },
+          { id: "bb_p1", name: "Pañales desechables 8-14 lb", desc: "Paquete 50" },
+          { id: "bb_p2", name: "Pañales desechables 16-28 lb", desc: "Paquete 36" },
+          { id: "bb_p3", name: "Pañales desechables 22-37 lb", desc: "Paquete 31" },
+          { id: "bb_wipes", name: "Toallitas para bebé", desc: "Paquete" }
+        ]
+      },
+      {
+        id: "higiene",
+        category: "Higiene Personal",
+        icon: "ph-sparkle",
+        items: [
+          { id: "hg_1", name: "Desodorante hombre", desc: "Unidad" },
+          { id: "hg_2", name: "Desodorante mujer", desc: "Unidad" },
+          { id: "hg_3", name: "Jabón para manos", desc: "Paquete de 3" },
+          { id: "hg_4", name: "Máquinas de afeitar desechables", desc: "Unidad" },
+          { id: "hg_5", name: "Toallitas sanitarias", desc: "Paquete de 24" },
+          { id: "hg_6", name: "Champú con acondicionador", desc: "12 fl oz" },
+          { id: "hg_7", name: "Crema de afeitar", desc: "10 oz" },
+          { id: "hg_8", name: "Tampones normal", desc: "Paquete de 32" },
+          { id: "hg_9", name: "Tampones grande", desc: "Paquete de 18" },
+          { id: "hg_10", name: "Papel higiénico", desc: "Paquete de 4" },
+          { id: "hg_11", name: "Cepillo de dientes adulto", desc: "Unidad" },
+          { id: "hg_12", name: "Cepillo de dientes niño", desc: "Unidad" },
+          { id: "hg_13", name: "Pasta dentífrica", desc: "4 oz" }
+        ]
+      },
+      {
+        id: "hogar",
+        category: "Productos para el Hogar",
+        icon: "ph-house-line",
+        items: [
+          { id: "ho_1", name: "Papel de aluminio", desc: "Rollo" },
+          { id: "ho_2", name: "Blanqueador líquido", desc: "43 fl oz" },
+          { id: "ho_3", name: "Limpiador en polvo", desc: "21 oz" },
+          { id: "ho_4", name: "Jabón líquido", desc: "22 fl oz" },
+          { id: "ho_5", name: "Lavavajillas automático", desc: "42 fl oz" },
+          { id: "ho_6", name: "Detergente para la ropa", desc: "50 fl oz" },
+          { id: "ho_7", name: "Nailon transparente", desc: "Rollo" },
+          { id: "ho_8", name: "Limpiador en aerosol Lysol", desc: "32 oz" }
+        ]
+      }
+    ];
+
+    // Estado de la app (Cantidades en memoria con persistencia en localStorage)
+    const STORAGE_KEY = "despensa_cantidades_v1";
+    let quantities = {};
+    let activeFilter = 'ALL';
+    let searchQuery = '';
+
+    // Cargar cantidades guardadas
+    function loadSavedState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          quantities = JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error("Error al cargar localStorage", e);
+        quantities = {};
+      }
+    }
+
+    // Guardar en localStorage
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(quantities));
+      } catch (e) {
+        console.error("Error al guardar en localStorage", e);
+      }
+    }
+
+    // Modificar cantidad (+ / -)
+    function changeQty(itemId, delta) {
+      const current = quantities[itemId] || 0;
+      const next = Math.max(0, current + delta);
+      
+      if (next === 0) {
+        delete quantities[itemId];
+      } else {
+        quantities[itemId] = next;
+      }
+      
+      saveState();
+      updateItemUI(itemId, next);
+      updateTotalSummary();
+
+      // Si el filtro activo es "ELEGIDOS" y el item quedó en 0, re-renderizar para ocultarlo
+      if (activeFilter === 'SELECTED' && next === 0) {
+        renderCatalog();
+      }
+    }
+
+    // Actualizar visualmente la fila de un item específico
+    function updateItemUI(itemId, value) {
+      const countEl = document.getElementById(`qty-${itemId}`);
+      const rowEl = document.getElementById(`row-${itemId}`);
+      const btnMinus = document.getElementById(`minus-${itemId}`);
+
+      if (countEl) {
+        countEl.textContent = value;
+        countEl.classList.add('bump-anim');
+        setTimeout(() => countEl.classList.remove('bump-anim'), 250);
+      }
+
+      if (rowEl) {
+        if (value > 0) {
+          rowEl.classList.add('bg-emerald-50/70', 'border-emerald-200');
+          rowEl.classList.remove('bg-white', 'border-slate-100');
+        } else {
+          rowEl.classList.remove('bg-emerald-50/70', 'border-emerald-200');
+          rowEl.classList.add('bg-white', 'border-slate-100');
+        }
+      }
+
+      if (btnMinus) {
+        if (value > 0) {
+          btnMinus.classList.remove('opacity-30', 'cursor-not-allowed');
+          btnMinus.removeAttribute('disabled');
+        } else {
+          btnMinus.classList.add('opacity-30', 'cursor-not-allowed');
+          btnMinus.setAttribute('disabled', 'true');
+        }
+      }
+    }
+
+    // Calcular y actualizar contadores globales
+    function updateTotalSummary() {
+      let totalUnits = 0;
+      let distinctCount = 0;
+
+      for (const id in quantities) {
+        const q = quantities[id];
+        if (q > 0) {
+          totalUnits += q;
+          distinctCount++;
+        }
+      }
+
+      // Actualizar vista barra flotante
+      const countEl = document.getElementById('floating-items-count');
+      countEl.textContent = totalUnits;
+      document.getElementById('floating-diff-count').textContent = `(${distinctCount} distintos)`;
+      document.getElementById('selected-badge').textContent = distinctCount;
+
+      // Calcular total de productos disponibles
+      let totalAvailableItems = 0;
+      CATALOG.forEach(cat => totalAvailableItems += cat.items.length);
+      document.getElementById('total-badge').textContent = totalAvailableItems;
+
+      // Animación en botón flotante
+      countEl.classList.add('bump-anim');
+      setTimeout(() => countEl.classList.remove('bump-anim'), 250);
+    }
+
+    // Renderizar todo el catálogo de productos
+    function renderCatalog() {
+      const container = document.getElementById('products-catalog');
+      const noResults = document.getElementById('no-results');
+      container.innerHTML = '';
+
+      const query = searchQuery.trim().toLowerCase();
+      let renderedCategoriesCount = 0;
+
+      CATALOG.forEach(categoryObj => {
+        // Filtrar productos de esta categoría
+        const matchingItems = categoryObj.items.filter(item => {
+          const qty = quantities[item.id] || 0;
+
+          // Filtro por solo elegidos
+          if (activeFilter === 'SELECTED' && qty === 0) return false;
+          // Filtro por categoría específica
+          if (activeFilter !== 'ALL' && activeFilter !== 'SELECTED' && activeFilter !== categoryObj.id) return false;
+
+          // Filtro por buscador de texto
+          if (query.length > 0) {
+            const matchName = item.name.toLowerCase().includes(query);
+            const matchDesc = item.desc.toLowerCase().includes(query);
+            const matchCat = categoryObj.category.toLowerCase().includes(query);
+            return matchName || matchDesc || matchCat;
+          }
+
+          return true;
+        });
+
+        // Si hay elementos que coinciden, construimos la sección
+        if (matchingItems.length > 0) {
+          renderedCategoriesCount++;
+
+          const section = document.createElement('section');
+          section.className = "bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 transition-all";
+
+          // Cabecera de Categoría
+          section.innerHTML = `
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
+              <div class="flex items-center gap-2">
+                <i class="ph-bold ${categoryObj.icon} text-lg text-emerald-600"></i>
+                <h2 class="text-sm font-bold text-slate-800 tracking-tight">${categoryObj.category}</h2>
+              </div>
+              <span class="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${matchingItems.length}</span>
+            </div>
+            <div class="divide-y divide-slate-100 space-y-0.5">
+              ${matchingItems.map(item => {
+                const qty = quantities[item.id] || 0;
+                const isSelected = qty > 0;
+                return `
+                  <div 
+                    id="row-${item.id}" 
+                    class="py-2.5 px-2 rounded-xl flex items-center justify-between gap-3 transition-colors ${isSelected ? 'bg-emerald-50/70 border border-emerald-200' : 'bg-white border border-transparent'}"
+                  >
+                    <div class="flex-1 min-w-0 pr-2">
+                      <p class="text-sm font-semibold text-slate-800 truncate">${item.name}</p>
+                      <p class="text-xs text-slate-400 mt-0.5">${item.desc}</p>
+                    </div>
+
+                    <!-- Controles de Cantidad -->
+                    <div class="flex items-center gap-1.5 shrink-0 bg-slate-100 p-1 rounded-xl">
+                      <button 
+                        id="minus-${item.id}"
+                        type="button"
+                        onclick="changeQty('${item.id}', -1)"
+                        class="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-700 hover:text-rose-600 active:scale-90 transition-all ${qty === 0 ? 'opacity-30 cursor-not-allowed' : ''}"
+                        ${qty === 0 ? 'disabled' : ''}
+                        aria-label="Disminuir"
+                      >
+                        <i class="ph-bold ph-minus text-xs"></i>
+                      </button>
+
+                      <span 
+                        id="qty-${item.id}" 
+                        class="w-7 text-center font-bold text-sm text-slate-800"
+                      >${qty}</span>
+
+                      <button 
+                        type="button"
+                        onclick="changeQty('${item.id}', 1)"
+                        class="w-8 h-8 rounded-lg bg-emerald-600 shadow-sm flex items-center justify-center text-white hover:bg-emerald-700 active:scale-90 transition-all"
+                        aria-label="Aumentar"
+                      >
+                        <i class="ph-bold ph-plus text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+
+          container.appendChild(section);
+        }
+      });
+
+      // Mostrar u ocultar mensaje vacío
+      if (renderedCategoriesCount === 0) {
+        noResults.classList.remove('hidden');
+      } else {
+        noResults.classList.add('hidden');
+      }
+    }
+
+    // Manejar búsqueda en tiempo real
+    function handleSearch(val) {
+      searchQuery = val;
+      const clearBtn = document.getElementById('search-clear-btn');
+      if (val.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+      renderCatalog();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('search-input');
+      input.value = '';
+      searchQuery = '';
+      document.getElementById('search-clear-btn').classList.add('hidden');
+      renderCatalog();
+      input.focus();
+    }
+
+    // Filtrar por categoría / elegidos
+    function filterCategory(catId) {
+      activeFilter = catId;
+      document.querySelectorAll('.cat-tab').forEach(btn => {
+        btn.classList.remove('bg-emerald-600', 'text-white');
+        btn.classList.add('bg-white', 'text-slate-600');
+      });
+
+      const activeBtn = document.getElementById(`cat-tab-${catId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-emerald-600', 'text-white');
+        activeBtn.classList.remove('bg-white', 'text-slate-600');
+      }
+
+      renderCatalog();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Generar el mensaje de texto formateado con las cantidades elegidas
+    function buildOrderText() {
+      let output = "📋 *PEDIDO DE DESPENSA / ALIMENTOS*\n";
+      output += "----------------------------------\n\n";
+
+      let hasItems = false;
+
+      CATALOG.forEach(category => {
+        const selectedInCategory = category.items.filter(item => (quantities[item.id] || 0) > 0);
+        
+        if (selectedInCategory.length > 0) {
+          hasItems = true;
+          output += `*${category.category.toUpperCase()}*\n`;
+          selectedInCategory.forEach(item => {
+            const qty = quantities[item.id];
+            output += `• ${item.name} (${item.desc}): *${qty}*\n`;
+          });
+          output += "\n";
+        }
+      });
+
+      if (!hasItems) {
+        return "";
+      }
+
+      output += "----------------------------------\n";
+      output += `🗓️ Pedido generado: ${new Date().toLocaleDateString('es-ES')}`;
+      return output;
+    }
+
+    // Enviar pedido vía WhatsApp
+    function sendOrderViaWhatsApp() {
+      const orderText = buildOrderText();
+      
+      if (!orderText) {
+        showToast("⚠️ Primero añade al menos un producto con cantidad");
+        return;
+      }
+
+      const encodedText = encodeURIComponent(orderText);
+      // Enlace universal de WhatsApp listo para elegir destinatario
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+      
+      window.open(whatsappUrl, '_blank');
+      showToast("¡Abriendo WhatsApp para enviar!");
+    }
+
+    // Ver / Ocultar Modal de Resumen
+    function toggleSummaryModal(show) {
+      const modal = document.getElementById('summary-modal');
+      const emptyMsg = document.getElementById('modal-empty-msg');
+      const content = document.getElementById('modal-summary-content');
+
+      if (show) {
+        const text = buildOrderText();
+        if (!text) {
+          emptyMsg.classList.remove('hidden');
+          content.classList.add('hidden');
+          content.textContent = '';
+        } else {
+          emptyMsg.classList.add('hidden');
+          content.classList.remove('hidden');
+          content.textContent = text;
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } else {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // Copiar al portapapeles
+    function copySummaryToClipboard() {
+      const text = buildOrderText();
+      if (!text) {
+        showToast("No hay artículos seleccionados");
+        return;
+      }
+
+      // Técnica compatible con iframes
+      const tempTextArea = document.createElement("textarea");
+      tempTextArea.value = text;
+      document.body.appendChild(tempTextArea);
+      tempTextArea.select();
+      try {
+        document.execCommand('copy');
+        showToast("¡Texto copiado al portapapeles!");
+      } catch (err) {
+        showToast("No se pudo copiar el texto");
+      }
+      document.body.removeChild(tempTextArea);
+    }
+
+    // Mostrar notificación Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+        toast.classList.remove('opacity-100');
+      }, 2500);
+    }
+
+    // Limpiar todas las cantidades
+    function resetAllQuantities() {
+      const count = Object.keys(quantities).length;
+      if (count === 0) {
+        showToast("La lista ya está vacía");
+        return;
+      }
+      quantities = {};
+      saveState();
+      renderCatalog();
+      updateTotalSummary();
+      showToast("Se han reiniciado las cantidades a 0");
+    }
+
+    // Iniciar aplicación al cargar
+    window.onload = function() {
+      loadSavedState();
+      renderCatalog();
+      updateTotalSummary();
+    };
+  </script>
+</body>
+</html>
